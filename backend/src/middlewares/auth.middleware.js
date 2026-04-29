@@ -1,0 +1,55 @@
+const jwt = require('jsonwebtoken');
+const jwtConfig = require('../config/jwt');
+const response = require('../utils/response');
+const prisma = require('../config/database');
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return response.error(res, 'Access token required', 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, jwtConfig.secret);
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: {
+        user_roles: {
+          include: {
+            role: {
+              include: {
+                role_permissions: {
+                  include: { permission: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user || user.status !== 'active') {
+      return response.error(res, 'User not found or inactive', 401);
+    }
+
+    const permissions = new Set();
+    user.user_roles.forEach((ur) => {
+      ur.role.role_permissions.forEach((rp) => {
+        permissions.add(rp.permission.code);
+      });
+    });
+
+    req.user = user;
+    req.userPermissions = [...permissions];
+    next();
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return response.error(res, 'Token expired', 401);
+    }
+    return response.error(res, 'Invalid token', 401);
+  }
+};
+
+module.exports = authMiddleware;

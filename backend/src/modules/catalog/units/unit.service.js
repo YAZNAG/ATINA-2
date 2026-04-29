@@ -1,0 +1,44 @@
+const repo = require('./unit.repository');
+
+class UnitService {
+  async getAll(params) {
+    const { data, total } = await repo.findAll(params);
+    const page = Number(params.page) || 1;
+    const limit = Number(params.limit) || 20;
+    return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
+  }
+
+  async getList() {
+    return repo.findAll_noPage();
+  }
+
+  async getById(id) {
+    const unit = await repo.findById(Number(id));
+    if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
+    return unit;
+  }
+
+  async create(data) {
+    const exists = await repo.findByCode(data.code);
+    if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
+    return repo.create(data);
+  }
+
+  async update(id, data) {
+    const unit = await repo.findById(Number(id));
+    if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
+    if (data.code) {
+      const exists = await repo.findByCode(data.code, Number(id));
+      if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
+    }
+    return repo.update(Number(id), data);
+  }
+
+  async delete(id) {
+    const unit = await repo.findById(Number(id));
+    if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
+    await repo.softDelete(Number(id));
+  }
+}
+
+module.exports = new UnitService();

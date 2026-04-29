@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTH MODELS (Phase 1)
+// ============================================================
+
+model User {
+  id            Int        @id @default(autoincrement())
+  full_name     String
+  email         String     @unique
+  password_hash String
+  phone         String?
+  status        String     @default("active")
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+  user_roles    UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id               Int              @id @default(autoincrement())
+  name             String
+  code             String           @unique
+  description      String?
+  status           String           @default("active")
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  role_permissions RolePermission[]
+  user_roles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id               Int              @id @default(autoincrement())
+  name             String
+  code             String           @unique
+  module           String
+  description      String?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  role_permissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id            Int        @id @default(autoincrement())
+  role_id       Int
+  permission_id Int
+  created_at    DateTime   @default(now())
+  role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  role_id    Int
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+// ============================================================
+// MASTER DATA CATALOGUE (Phase 2)
+// ============================================================
+
+model Family {
+  id             Int         @id @default(autoincrement())
+  name_fr        String
+  name_ar        String
+  code           String      @unique
+  description_fr String?
+  description_ar String?
+  image_path     String?
+  icon_path      String?
+  status         String      @default("active")
+  sort_order     Int         @default(0)
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+  deleted_at     DateTime?
+  categories     Category[]
+  articles       Article[]
+
+  @@map("families")
+}
+
+model Category {
+  id             Int           @id @default(autoincrement())
+  family_id      Int
+  name_fr        String
+  name_ar        String
+  code           String        @unique
+  description_fr String?
+  description_ar String?
+  image_path     String?
+  icon_path      String?
+  status         String        @default("active")
+  sort_order     Int           @default(0)
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  deleted_at     DateTime?
+  family         Family        @relation(fields: [family_id], references: [id])
+  sub_categories SubCategory[]
+  articles       Article[]
+
+  @@map("categories")
+}
+
+model SubCategory {
+  id             Int       @id @default(autoincrement())
+  category_id    Int
+  name_fr        String
+  name_ar        String
+  code           String    @unique
+  description_fr String?
+  description_ar String?
+  image_path     String?
+  icon_path      String?
+  status         String    @default("active")
+  sort_order     Int       @default(0)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+  category       Category  @relation(fields: [category_id], references: [id])
+  articles       Article[]
+
+  @@map("sub_categories")
+}
+
+model Brand {
+  id         Int       @id @default(autoincrement())
+  name_fr    String
+  name_ar    String
+  code       String    @unique
+  logo       String?
+  status     String    @default("active")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+  articles   Article[]
+
+  @@map("brands")
+}
+
+model Unit {
+  id                Int             @id @default(autoincrement())
+  name_fr           String
+  name_ar           String
+  short_name_fr     String?
+  short_name_ar     String?
+  code              String          @unique
+  status            String          @default("active")
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  deleted_at        DateTime?
+  packaging_types   PackagingType[]
+  articles_main     Article[]       @relation("MainUnit")
+  articles_purchase Article[]       @relation("PurchaseUnit")
+  articles_sale     Article[]       @relation("SaleUnit")
+
+  @@map("units")
+}
+
+model PackagingType {
+  id         Int       @id @default(autoincrement())
+  name_fr    String
+  name_ar    String
+  code       String    @unique
+  quantity   Decimal?  @db.Decimal(10, 3)
+  unit_id    Int?
+  status     String    @default("active")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+  unit       Unit?     @relation(fields: [unit_id], references: [id])
+  articles   Article[]
+
+  @@map("packaging_types")
+}
+
+model ConservationType {
+  id              Int       @id @default(autoincrement())
+  name_fr         String
+  name_ar         String
+  code            String    @unique
+  min_temperature Decimal?  @db.Decimal(5, 2)
+  max_temperature Decimal?  @db.Decimal(5, 2)
+  status          String    @default("active")
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  deleted_at      DateTime?
+  articles        Article[]
+
+  @@map("conservation_types")
+}
+
+model ArticleType {
+  id             Int       @id @default(autoincrement())
+  name_fr        String
+  name_ar        String
+  code           String    @unique
+  description_fr String?
+  description_ar String?
+  status         String    @default("active")
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+  articles       Article[]
+
+  @@map("article_types")
+}
+
+model ArticleStatus {
+  id         Int       @id @default(autoincrement())
+  name_fr    String
+  name_ar    String
+  code       String    @unique
+  color      String?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  articles   Article[]
+
+  @@map("article_statuses")
+}
+
+model Tax {
+  id         Int       @id @default(autoincrement())
+  name_fr    String
+  name_ar    String
+  code       String    @unique
+  rate       Decimal   @db.Decimal(5, 2)
+  status     String    @default("active")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+  articles   Article[]
+
+  @@map("taxes")
+}
+
+model Article {
+  id                    Int               @id @default(autoincrement())
+  sku                   String            @unique
+  barcode               String?           @unique
+  name_fr               String
+  name_ar               String
+  short_name_fr         String?
+  short_name_ar         String?
+  description_fr        String?
+  description_ar        String?
+  family_id             Int?
+  category_id           Int?
+  sub_category_id       Int?
+  brand_id              Int?
+  unit_id               Int?
+  packaging_type_id     Int?
+  conservation_type_id  Int?
+  article_type_id       Int?
+  article_status_id     Int?
+  tax_id                Int?
+  purchase_unit_id      Int?
+  sale_unit_id          Int?
+  weight                Decimal?          @db.Decimal(10, 3)
+  volume                Decimal?          @db.Decimal(10, 3)
+  min_stock             Decimal?          @db.Decimal(10, 3)
+  reorder_stock         Decimal?          @db.Decimal(10, 3)
+  max_stock             Decimal?          @db.Decimal(10, 3)
+  is_sellable           Boolean           @default(true)
+  is_stockable          Boolean           @default(true)
+  is_perishable         Boolean           @default(false)
+  requires_expiry_date  Boolean           @default(false)
+  requires_batch_number Boolean           @default(false)
+  is_active             Boolean           @default(true)
+  created_at            DateTime          @default(now())
+  updated_at            DateTime          @updatedAt
+  deleted_at            DateTime?
+  family                Family?           @relation(fields: [family_id], references: [id])
+  category              Category?         @relation(fields: [category_id], references: [id])
+  sub_category          SubCategory?      @relation(fields: [sub_category_id], references: [id])
+  brand                 Brand?            @relation(fields: [brand_id], references: [id])
+  unit                  Unit?             @relation("MainUnit", fields: [unit_id], references: [id])
+  purchase_unit         Unit?             @relation("PurchaseUnit", fields: [purchase_unit_id], references: [id])
+  sale_unit             Unit?             @relation("SaleUnit", fields: [sale_unit_id], references: [id])
+  packaging_type        PackagingType?    @relation(fields: [packaging_type_id], references: [id])
+  conservation_type     ConservationType? @relation(fields: [conservation_type_id], references: [id])
+  article_type          ArticleType?      @relation(fields: [article_type_id], references: [id])
+  article_status        ArticleStatus?    @relation(fields: [article_status_id], references: [id])
+  tax                   Tax?              @relation(fields: [tax_id], references: [id])
+  images                ArticleImage[]
+
+  @@map("articles")
+}
+
+model ArticleImage {
+  id         Int       @id @default(autoincrement())
+  article_id Int
+  image_path String
+  is_main    Boolean   @default(false)
+  sort_order Int       @default(0)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+  article    Article   @relation(fields: [article_id], references: [id], onDelete: Cascade)
+
+  @@map("article_images")
+}

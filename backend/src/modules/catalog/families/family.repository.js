@@ -16,9 +16,11 @@ const buildWhere = ({ search, status }) => ({
 
 const findAll = async ({ search, status, page = 1, limit = 20 }) => {
   const where = buildWhere({ search, status });
-  const skip = (page - 1) * limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
   const [data, total] = await Promise.all([
-    prisma.family.findMany({ where, skip, take: limit, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] }),
+    prisma.family.findMany({ where, skip, take: limitNum, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] }),
     prisma.family.count({ where }),
   ]);
   return { data, total };

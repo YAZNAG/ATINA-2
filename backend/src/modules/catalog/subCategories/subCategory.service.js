@@ -1,7 +1,4 @@
 const repo = require('./subCategory.repository');
-const fileUploadService = require('../../../services/fileUpload.service');
-
-const FOLDER = 'sub-categories';
 
 class SubCategoryService {
   async getAll(params) {
@@ -19,19 +16,17 @@ class SubCategoryService {
     return item;
   }
 
-  async create(data, files) {
+  async create(data) {
     const exists = await repo.findByCode(data.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    const imagePaths = fileUploadService.extractPaths(files, FOLDER);
     return repo.create({
       ...data,
       category_id: Number(data.category_id),
       sort_order: data.sort_order ? Number(data.sort_order) : 0,
-      ...imagePaths,
     });
   }
 
-  async update(id, data, files) {
+  async update(id, data) {
     const item = await repo.findById(Number(id));
     if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
     if (data.code) {
@@ -41,8 +36,6 @@ class SubCategoryService {
     const updateData = { ...data };
     if (data.category_id) updateData.category_id = Number(data.category_id);
     if (data.sort_order !== undefined) updateData.sort_order = Number(data.sort_order);
-    if (files?.image?.[0]) updateData.image_path = fileUploadService.replaceIfNew(item.image_path, files.image[0], FOLDER);
-    if (files?.icon?.[0]) updateData.icon_path = fileUploadService.replaceIfNew(item.icon_path, files.icon[0], FOLDER);
     return repo.update(Number(id), updateData);
   }
 
@@ -51,8 +44,6 @@ class SubCategoryService {
     if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
     const artCount = await repo.countArticles(Number(id));
     if (artCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer : cette sous-catégorie contient des articles' };
-    if (item.image_path) fileUploadService.deleteFileByPath(item.image_path);
-    if (item.icon_path) fileUploadService.deleteFileByPath(item.icon_path);
     await repo.softDelete(Number(id));
   }
 }

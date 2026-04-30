@@ -42,10 +42,37 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: 'Catalogue',
+    path: '/catalog',
+    anyPermissions: [
+      'families.view',
+      'categories.view',
+      'sub_categories.view',
+      'brands.view',
+      'units.view',
+      'packaging_types.view',
+      'conservation_types.view',
+      'article_types.view',
+      'article_statuses.view',
+      'taxes.view',
+      'articles.view',
+    ],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Sidebar() {
   const { hasPermission, user } = useAuth();
+
+  const canSeeLink = (item) => {
+    if (item.anyPermissions?.length) return item.anyPermissions.some((p) => hasPermission(p));
+    return hasPermission(item.permission);
+  };
 
   return (
     <aside className="w-64 bg-slate-900 min-h-screen flex flex-col flex-shrink-0">
@@ -63,7 +90,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map((item) =>
-          hasPermission(item.permission) ? (
+          canSeeLink(item) ? (
             <NavLink
               key={item.path}
               to={item.path}

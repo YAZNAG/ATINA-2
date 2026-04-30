@@ -87,6 +87,7 @@ model Family {
   code           String      @unique
   description_fr String?
   description_ar String?
+  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String      @default("active")
@@ -108,6 +109,7 @@ model Category {
   code           String        @unique
   description_fr String?
   description_ar String?
+  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String        @default("active")
@@ -130,6 +132,7 @@ model SubCategory {
   code           String    @unique
   description_fr String?
   description_ar String?
+  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String    @default("active")

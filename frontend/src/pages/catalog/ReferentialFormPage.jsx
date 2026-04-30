@@ -48,7 +48,8 @@ export default function ReferentialFormPage() {
 
         for (const field of cfg.fields) {
           if (field.type === 'select' && field.loadOptions && !field.options) {
-            const list = (await field.loadOptions()).data.data;
+            const loaded = await field.loadOptions();
+            const list = Array.isArray(loaded) ? loaded : (loaded?.data?.data ?? []);
             setSelectOptions((prev) => ({ ...prev, [field.name]: list }));
           }
         }

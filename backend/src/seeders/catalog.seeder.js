@@ -61,9 +61,32 @@ const CATALOG_PERMISSIONS = [
   { name: "Gérer les images d'articles", code: 'article_images.manage', module: 'catalog', description: '' },
 ];
 
+const LOCATION_NODE_PERMISSIONS = [
+  { name: 'Voir les régions', code: 'regions.view', module: 'location', description: '' },
+  { name: 'Créer des régions', code: 'regions.create', module: 'location', description: '' },
+  { name: 'Modifier les régions', code: 'regions.update', module: 'location', description: '' },
+  { name: 'Supprimer les régions', code: 'regions.delete', module: 'location', description: '' },
+  { name: 'Voir les provinces', code: 'provinces.view', module: 'location', description: '' },
+  { name: 'Créer des provinces', code: 'provinces.create', module: 'location', description: '' },
+  { name: 'Modifier les provinces', code: 'provinces.update', module: 'location', description: '' },
+  { name: 'Voir les villes', code: 'cities.view', module: 'location', description: '' },
+  { name: 'Créer des villes', code: 'cities.create', module: 'location', description: '' },
+  { name: 'Modifier les villes', code: 'cities.update', module: 'location', description: '' },
+  { name: 'Voir les types node', code: 'node_types.view', module: 'node', description: '' },
+  { name: 'Créer des types node', code: 'node_types.create', module: 'node', description: '' },
+  { name: 'Voir les nodes', code: 'nodes.view', module: 'node', description: '' },
+  { name: 'Créer des nodes', code: 'nodes.create', module: 'node', description: '' },
+  { name: 'Modifier les nodes', code: 'nodes.update', module: 'node', description: '' },
+  { name: 'Supprimer les nodes', code: 'nodes.delete', module: 'node', description: '' },
+  { name: 'Voir les créneaux', code: 'delivery_slots.view', module: 'node', description: '' },
+  { name: 'Créer des créneaux', code: 'delivery_slots.create', module: 'node', description: '' },
+  { name: 'Modifier les créneaux', code: 'delivery_slots.update', module: 'node', description: '' },
+  { name: 'Supprimer les créneaux', code: 'delivery_slots.delete', module: 'node', description: '' },
+];
+
 async function seedCatalogPermissions() {
   console.log('Seeding catalog permissions...');
-  for (const perm of CATALOG_PERMISSIONS) {
+  for (const perm of [...CATALOG_PERMISSIONS, ...LOCATION_NODE_PERMISSIONS]) {
     await prisma.permission.upsert({
       where: { code: perm.code },
       update: {},
@@ -83,7 +106,7 @@ async function seedCatalogPermissions() {
       });
     }
   }
-  console.log(`${CATALOG_PERMISSIONS.length} catalog permissions created.`);
+  console.log(`${CATALOG_PERMISSIONS.length + LOCATION_NODE_PERMISSIONS.length} permissions created.`);
 }
 
 async function seedFamilies() {
@@ -218,6 +241,18 @@ async function seedArticleTypes() {
   console.log('Article types created.');
 }
 
+async function seedNodeTypes() {
+  const types = [
+    { code: 'dark_store', name_fr: 'Dark Store', name_ar: 'دارك ستور' },
+    { code: 'warehouse', name_fr: 'Entrepôt', name_ar: 'مستودع' },
+    { code: 'relay_point', name_fr: 'Point relais', name_ar: 'نقطة تسليم' },
+  ];
+  for (const t of types) {
+    await prisma.nodeType.upsert({ where: { code: t.code }, update: {}, create: t });
+  }
+  console.log('Node types created.');
+}
+
 async function main() {
   await seedCatalogPermissions();
   await seedFamilies();
@@ -227,6 +262,7 @@ async function main() {
   await seedArticleStatuses();
   await seedTaxes();
   await seedArticleTypes();
+  await seedNodeTypes();
   console.log('Catalog seeding complete!');
 }
 

@@ -323,3 +323,118 @@ model ArticleImage {
 
   @@map("article_images")
 }
+
+// ============================================================
+// LOCATION & LOGISTICS NODES (Phase 3)
+// ============================================================
+
+model Region {
+  id             String     @id @default(uuid()) @db.Uuid
+  code           String     @unique
+  name_fr        String
+  name_ar        String
+  description_fr String?
+  description_ar String?
+  is_active      Boolean    @default(true)
+  is_deleted     Boolean    @default(false)
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+  provinces      Province[]
+  nodes          Node[]
+
+  @@map("regions")
+}
+
+model Province {
+  id         String   @id @default(uuid()) @db.Uuid
+  region_id  String   @db.Uuid
+  code       String   @unique
+  name_fr    String
+  name_ar    String
+  is_active  Boolean  @default(true)
+  is_deleted Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  region     Region   @relation(fields: [region_id], references: [id])
+  cities     City[]
+  nodes      Node[]
+
+  @@map("provinces")
+}
+
+model City {
+  id          String   @id @default(uuid()) @db.Uuid
+  province_id String   @db.Uuid
+  code        String   @unique
+  name_fr     String
+  name_ar     String
+  postal_code String?
+  is_active   Boolean  @default(true)
+  is_deleted  Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  province    Province @relation(fields: [province_id], references: [id])
+  nodes       Node[]
+
+  @@map("cities")
+}
+
+model NodeType {
+  id         String   @id @default(uuid()) @db.Uuid
+  code       String   @unique
+  name_fr    String
+  name_ar    String
+  created_at DateTime @default(now())
+  nodes      Node[]
+
+  @@map("node_types")
+}
+
+model Node {
+  id               String         @id @default(uuid()) @db.Uuid
+  code             String         @unique
+  name_fr          String
+  name_ar          String
+  node_type_id     String         @db.Uuid
+  region_id        String         @db.Uuid
+  province_id      String         @db.Uuid
+  city_id          String         @db.Uuid
+  address_line1    String?
+  quartier         String?
+  postal_code      String?
+  lat              Decimal?       @db.Decimal(10, 7)
+  lng              Decimal?       @db.Decimal(10, 7)
+  phone            String?
+  timezone         String         @default("Africa/Casablanca")
+  delivery_radius_km Decimal?     @db.Decimal(8, 2)
+  max_daily_orders Int?
+  opening_hours_json Json?
+  is_active        Boolean        @default(true)
+  is_deleted       Boolean        @default(false)
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+  node_type        NodeType       @relation(fields: [node_type_id], references: [id])
+  region           Region         @relation(fields: [region_id], references: [id])
+  province         Province       @relation(fields: [province_id], references: [id])
+  city             City           @relation(fields: [city_id], references: [id])
+  delivery_slots   DeliverySlot[]
+
+  @@map("nodes")
+}
+
+model DeliverySlot {
+  id         String   @id @default(uuid()) @db.Uuid
+  node_id    String   @db.Uuid
+  name_fr    String
+  name_ar    String
+  day_of_week Int
+  slot_start String
+  slot_end   String
+  max_orders Int?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  node       Node     @relation(fields: [node_id], references: [id], onDelete: Cascade)
+
+  @@map("delivery_slots")
+}

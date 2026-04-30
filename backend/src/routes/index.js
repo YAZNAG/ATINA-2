@@ -4,6 +4,8 @@ const userRoutes = require('./user.routes');
 const roleRoutes = require('./role.routes');
 const permissionRoutes = require('./permission.routes');
 const catalogRoutes = require('../modules/catalog/catalog.routes');
+const locationRoutes = require('../modules/location/location.routes');
+const nodeRoutes = require('../modules/node/node.routes');
 
 const router = Router();
 
@@ -12,5 +14,7 @@ router.use('/users', userRoutes);
 router.use('/roles', roleRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/catalog', catalogRoutes);
+router.use('/', locationRoutes);
+router.use('/', nodeRoutes);
 
 module.exports = router;

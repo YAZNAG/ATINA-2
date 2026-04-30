@@ -14,6 +14,10 @@ import ReferentialListPage from '../pages/catalog/ReferentialListPage';
 import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
 import ArticleList from '../pages/catalog/ArticleList';
 import ArticleForm from '../pages/catalog/ArticleForm';
+import GeoManagement from '../pages/location/GeoManagement';
+import NodeTypesPage from '../pages/location/NodeTypesPage';
+import NodeList from '../pages/location/NodeList';
+import NodeForm from '../pages/location/NodeForm';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -49,6 +53,11 @@ export default function AppRoutes() {
           <Route path="/catalog/articles" element={<ArticleList />} />
           <Route path="/catalog/articles/new" element={<ArticleForm />} />
           <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
+          <Route path="/geo" element={<GeoManagement />} />
+          <Route path="/node-types" element={<NodeTypesPage />} />
+          <Route path="/nodes" element={<NodeList />} />
+          <Route path="/nodes/new" element={<NodeForm />} />
+          <Route path="/nodes/:id/edit" element={<NodeForm />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -64,6 +64,36 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: 'Géographie',
+    path: '/geo',
+    anyPermissions: ['regions.view', 'provinces.view', 'cities.view'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 2" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Types node',
+    path: '/node-types',
+    anyPermissions: ['node_types.view'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14-4H5m14 8H5m14 4H5" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Nodes',
+    path: '/nodes',
+    anyPermissions: ['nodes.view'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7l9-4 9 4-9 4-9-4zm0 5l9 4 9-4m-18 5l9 4 9-4" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Sidebar() {

@@ -12,9 +12,11 @@ const buildWhere = ({ search }) => ({
 
 const findAll = async ({ search, page = 1, limit = 20 }) => {
   const where = buildWhere({ search });
-  const skip = (page - 1) * limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
   const [data, total] = await Promise.all([
-    prisma.articleStatus.findMany({ where, skip, take: limit, orderBy: { name_fr: 'asc' } }),
+    prisma.articleStatus.findMany({ where, skip, take: limitNum, orderBy: { name_fr: 'asc' } }),
     prisma.articleStatus.count({ where }),
   ]);
   return { data, total };

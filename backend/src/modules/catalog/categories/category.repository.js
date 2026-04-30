@@ -18,9 +18,11 @@ const buildWhere = ({ search, status, family_id }) => ({
 
 const findAll = async ({ search, status, family_id, page = 1, limit = 20 }) => {
   const where = buildWhere({ search, status, family_id });
-  const skip = (page - 1) * limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
   const [data, total] = await Promise.all([
-    prisma.category.findMany({ where, skip, take: limit, include: INCLUDE, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] }),
+    prisma.category.findMany({ where, skip, take: limitNum, include: INCLUDE, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] }),
     prisma.category.count({ where }),
   ]);
   return { data, total };

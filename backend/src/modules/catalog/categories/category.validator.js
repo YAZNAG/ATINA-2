@@ -1,6 +1,9 @@
 const { body, validationResult } = require('express-validator');
 const response = require('../../../utils/response');
 
+const isBase64Image = (value) =>
+  /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(value);
+
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return response.error(res, 'Validation échouée', 422, errors.array());
@@ -14,6 +17,10 @@ const createValidator = [
   body('family_id').isInt({ min: 1 }).withMessage('Famille requise'),
   body('status').optional().isIn(['active', 'inactive']),
   body('sort_order').optional().isInt({ min: 0 }),
+  body('image_base64')
+    .optional({ values: 'falsy' })
+    .custom((v) => isBase64Image(v))
+    .withMessage('Image base64 invalide'),
   validate,
 ];
 
@@ -22,6 +29,10 @@ const updateValidator = [
   body('name_ar').optional().notEmpty(),
   body('family_id').optional().isInt({ min: 1 }),
   body('status').optional().isIn(['active', 'inactive']),
+  body('image_base64')
+    .optional({ values: 'falsy' })
+    .custom((v) => isBase64Image(v))
+    .withMessage('Image base64 invalide'),
   validate,
 ];
 

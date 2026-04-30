@@ -9,6 +9,11 @@ import UserForm from '../pages/users/UserForm';
 import RoleList from '../pages/roles/RoleList';
 import RoleForm from '../pages/roles/RoleForm';
 import PermissionList from '../pages/permissions/PermissionList';
+import CatalogDashboard from '../pages/catalog/CatalogDashboard';
+import ReferentialListPage from '../pages/catalog/ReferentialListPage';
+import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
+import ArticleList from '../pages/catalog/ArticleList';
+import ArticleForm from '../pages/catalog/ArticleForm';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -37,6 +42,13 @@ export default function AppRoutes() {
           <Route path="/roles/new" element={<RoleForm />} />
           <Route path="/roles/:id/edit" element={<RoleForm />} />
           <Route path="/permissions" element={<PermissionList />} />
+          <Route path="/catalog" element={<CatalogDashboard />} />
+          <Route path="/catalog/ref/:entitySlug/new" element={<ReferentialFormPage />} />
+          <Route path="/catalog/ref/:entitySlug/:id/edit" element={<ReferentialFormPage />} />
+          <Route path="/catalog/ref/:entitySlug" element={<ReferentialListPage />} />
+          <Route path="/catalog/articles" element={<ArticleList />} />
+          <Route path="/catalog/articles/new" element={<ArticleForm />} />
+          <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

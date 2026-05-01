@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getEntityConfig } from './entityRegistry';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 export default function ReferentialListPage() {
   const { entitySlug } = useParams();
+  const navigate = useNavigate();
   const cfg = getEntityConfig(entitySlug);
   const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,16 +81,17 @@ export default function ReferentialListPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="page-shell">
+      <div className="page-header">
         <div>
           <Link to="/catalog" className="text-sm text-gray-500 hover:text-gray-700">← Catalogue</Link>
-          <h1 className="text-lg font-semibold text-gray-800 mt-1">{cfg.label}</h1>
-          <p className="text-sm text-gray-500">{cfg.description}</p>
+          <h1 className="page-title mt-1">{cfg.label}</h1>
+          <p className="page-subtitle">{cfg.description}</p>
         </div>
         {hasPermission(cfg.permissions.create) && (
           <Link to={`/catalog/ref/${entitySlug}/new`} className="btn-primary text-sm text-center">
-            + Nouveau
+            <AddIcon />
+            Nouveau
           </Link>
         )}
       </div>
@@ -109,7 +112,7 @@ export default function ReferentialListPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="table-wrap">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -134,32 +137,24 @@ export default function ReferentialListPage() {
                         <td key={col.key} className="table-td text-gray-700">{tableCell(col, row)}</td>
                       ))}
                       <td className="table-td">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           {hasPermission(cfg.permissions.update) && (
-                            <Link
-                              to={`/catalog/ref/${entitySlug}/${row.id}/edit`}
-                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                            >
-                              Modifier
-                            </Link>
+                            <EditButton
+                              onClick={() => navigate(`/catalog/ref/${entitySlug}/${row.id}/edit`)}
+                            />
                           )}
                           {hasPermission(cfg.permissions.delete) && (
-                            <button
-                              type="button"
-                              className="text-red-500 hover:text-red-600 text-sm font-medium"
-                              onClick={async () => {
-                                if (!window.confirm('Supprimer cet enregistrement ?')) return;
-                                try {
-                                  await cfg.api.remove(row.id);
-                                  toast.success('Supprimé');
-                                  fetchData();
-                                } catch (err) {
-                                  toast.error(getErrorMessage(err));
-                                }
-                              }}
-                            >
-                              Supprimer
-                            </button>
+                            <DeleteButton onClick={async () => {
+                              if (!window.confirm('Supprimer cet enregistrement ?')) return;
+                              try {
+                                await cfg.api.remove(row.id);
+                                toast.success('Supprimé');
+                                fetchData();
+                              } catch (err) {
+                                toast.error(getErrorMessage(err));
+                              }
+                            }}
+                            />
                           )}
                         </div>
                       </td>

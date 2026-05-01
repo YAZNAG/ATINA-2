@@ -1,4 +1,5 @@
 import * as catalog from '../../api/catalog.api';
+import { createElement } from 'react';
 
 /** Configuration des écrans référentiels (listes + formulaires dynamiques). */
 export const ENTITY_SLUGS = [
@@ -24,6 +25,20 @@ const statusSelect = {
   ],
 };
 
+const imageThumbColumn = {
+  key: 'image_base64',
+  label: 'Image',
+  render: (r) => (
+    r.image_base64
+      ? createElement('img', {
+        src: r.image_base64,
+        alt: r.name_fr || 'image',
+        className: 'h-10 w-10 rounded-md object-cover border border-slate-200',
+      })
+      : '—'
+  ),
+};
+
 export const ENTITY_REGISTRY = {
   families: {
     label: 'Familles',
@@ -45,6 +60,7 @@ export const ENTITY_REGISTRY = {
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
       { key: 'sort_order', label: 'Ordre' },
+      imageThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => r.status === 'active' ? 'Actif' : 'Inactif' },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
@@ -85,6 +101,7 @@ export const ENTITY_REGISTRY = {
         render: (r) => r.family?.name_fr ?? '—',
       },
       { key: 'sort_order', label: 'Ordre' },
+      imageThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
@@ -135,6 +152,7 @@ export const ENTITY_REGISTRY = {
         render: (r) => r.category?.name_fr ?? '—',
       },
       { key: 'sort_order', label: 'Ordre' },
+      imageThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],

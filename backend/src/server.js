@@ -8,13 +8,14 @@ const errorMiddleware = require('./middlewares/error.middleware');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const BODY_LIMIT = process.env.BODY_LIMIT || '10mb';
 
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use(morgan('dev'));
 
 // Static files for uploads

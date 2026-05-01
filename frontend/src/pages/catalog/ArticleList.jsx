@@ -4,6 +4,7 @@ import * as catalog from '../../api/catalog.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 export default function ArticleList() {
   const [rows, setRows] = useState([]);
@@ -53,16 +54,17 @@ export default function ArticleList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="page-shell">
+      <div className="page-header">
         <div>
           <Link to="/catalog" className="text-sm text-gray-500 hover:text-gray-700">← Catalogue</Link>
-          <h1 className="text-lg font-semibold text-gray-800 mt-1">Articles</h1>
-          <p className="text-sm text-gray-500">SKU, taxonomie et référentiels — tout paramétré via listes API.</p>
+          <h1 className="page-title mt-1">Articles</h1>
+          <p className="page-subtitle">SKU, taxonomie et référentiels — tout paramétré via listes API.</p>
         </div>
         {hasPermission('articles.create') && (
           <Link to="/catalog/articles/new" className="btn-primary text-sm text-center">
-            + Nouvel article
+            <AddIcon />
+            Nouvel article
           </Link>
         )}
       </div>
@@ -83,7 +85,7 @@ export default function ArticleList() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="table-wrap">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -120,31 +122,20 @@ export default function ArticleList() {
                       <td className="table-td">
                         <div className="flex gap-2">
                           {hasPermission('articles.update') && (
-                            <button
-                              type="button"
-                              className="text-blue-600 hover:text-blue-700 font-medium"
-                              onClick={() => navigate(`/catalog/articles/${a.id}/edit`)}
-                            >
-                              Modifier
-                            </button>
+                            <EditButton onClick={() => navigate(`/catalog/articles/${a.id}/edit`)} />
                           )}
                           {hasPermission('articles.delete') && (
-                            <button
-                              type="button"
-                              className="text-red-500 hover:text-red-600 font-medium"
-                              onClick={async () => {
-                                if (!window.confirm(`Supprimer l’article ${a.sku} ?`)) return;
-                                try {
-                                  await catalog.deleteArticle(a.id);
-                                  toast.success('Article supprimé');
-                                  setRefreshKey((k) => k + 1);
-                                } catch (err) {
-                                  toast.error(getErrorMessage(err));
-                                }
-                              }}
-                            >
-                              Supprimer
-                            </button>
+                            <DeleteButton onClick={async () => {
+                              if (!window.confirm(`Supprimer l’article ${a.sku} ?`)) return;
+                              try {
+                                await catalog.deleteArticle(a.id);
+                                toast.success('Article supprimé');
+                                setRefreshKey((k) => k + 1);
+                              } catch (err) {
+                                toast.error(getErrorMessage(err));
+                              }
+                            }}
+                            />
                           )}
                         </div>
                       </td>

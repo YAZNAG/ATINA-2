@@ -31,5 +31,6 @@ const create = (data) => prisma.region.create({ data });
 const update = (id, data) => prisma.region.update({ where: { id }, data });
 const softDelete = (id) => prisma.region.update({ where: { id }, data: { is_deleted: true, is_active: false } });
 const countProvinces = (regionId) => prisma.province.count({ where: { region_id: regionId, is_deleted: false } });
+const countNodes = (regionId) => prisma.node.count({ where: { region_id: regionId, is_deleted: false } });
 
-module.exports = { findAll, findById, findByCode, create, update, softDelete, countProvinces };
+module.exports = { findAll, findById, findByCode, create, update, softDelete, countProvinces, countNodes };

@@ -9,6 +9,8 @@ router.use(auth);
 
 router.get('/', perm('cities.view'), ctrl.index.bind(ctrl));
 router.post('/', perm('cities.create'), createValidator, ctrl.store.bind(ctrl));
+router.get('/:id', perm('cities.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('cities.update'), updateValidator, ctrl.update.bind(ctrl));
+router.delete('/:id', perm('cities.delete'), ctrl.destroy.bind(ctrl));
 
 module.exports = router;

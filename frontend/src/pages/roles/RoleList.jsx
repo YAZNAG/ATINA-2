@@ -4,6 +4,7 @@ import { getRoles, deleteRole } from '../../api/roles.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 export default function RoleList() {
   const [roles, setRoles] = useState([]);
@@ -44,19 +45,20 @@ export default function RoleList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-gray-800">
-          Rôles <span className="text-gray-400 font-normal">({roles.length})</span>
+    <div className="page-shell">
+      <div className="page-header">
+        <h1 className="page-title">
+          Rôles <span className="text-slate-400 font-normal">({roles.length})</span>
         </h1>
         {hasPermission('roles.create') && (
           <Link to="/roles/new" className="btn-primary text-sm">
-            + Nouveau rôle
+            <AddIcon />
+            Nouveau rôle
           </Link>
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="table-wrap">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -100,22 +102,12 @@ export default function RoleList() {
                   </td>
                   <td className="table-td text-gray-500">{formatDate(r.created_at)}</td>
                   <td className="table-td">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {hasPermission('roles.update') && (
-                        <button
-                          onClick={() => navigate(`/roles/${r.id}/edit`)}
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                        >
-                          Modifier
-                        </button>
+                        <EditButton onClick={() => navigate(`/roles/${r.id}/edit`)} />
                       )}
                       {hasPermission('roles.delete') && (
-                        <button
-                          onClick={() => handleDelete(r.id, r.name)}
-                          className="text-red-500 hover:text-red-600 text-sm font-medium"
-                        >
-                          Supprimer
-                        </button>
+                        <DeleteButton onClick={() => handleDelete(r.id, r.name)} />
                       )}
                     </div>
                   </td>

@@ -37,5 +37,8 @@ const findByCode = (code, excludeId) =>
   prisma.city.findFirst({ where: { code, is_deleted: false, ...(excludeId && { NOT: { id: excludeId } }) } });
 const create = (data) => prisma.city.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.city.update({ where: { id }, data, include: INCLUDE });
+const countNodes = (cityId) => prisma.node.count({ where: { city_id: cityId, is_deleted: false } });
+const softDelete = (id) =>
+  prisma.city.update({ where: { id }, data: { is_deleted: true, is_active: false } });
 
-module.exports = { findAll, findById, findByCode, create, update };
+module.exports = { findAll, findById, findByCode, create, update, countNodes, softDelete };

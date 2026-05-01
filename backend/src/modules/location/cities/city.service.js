@@ -9,6 +9,12 @@ class CityService {
     return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
+  async getById(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Ville introuvable' };
+    return item;
+  }
+
   async create(data) {
     const province = await prisma.province.findFirst({
       where: { id: data.province_id, is_deleted: false, is_active: true },
@@ -33,6 +39,14 @@ class CityService {
       if (exists) throw { statusCode: 409, message: 'Ce code ville existe déjà' };
     }
     return repo.update(id, data);
+  }
+
+  async delete(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Ville introuvable' };
+    const nodeCount = await repo.countNodes(id);
+    if (nodeCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: ville liée à des nodes' };
+    await repo.softDelete(id);
   }
 }
 

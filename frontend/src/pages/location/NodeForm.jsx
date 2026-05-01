@@ -5,7 +5,6 @@ import { getErrorMessage } from '../../utils/helpers';
 import {
   createNode,
   createNodeSlot,
-  createNodeType,
   deleteSlot,
   getCities,
   getNode,
@@ -16,6 +15,7 @@ import {
   updateNode,
   updateSlot,
 } from '../../api/locationNode.api';
+import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 const initNode = {
   code: '', name_fr: '', name_ar: '', node_type_id: '', region_id: '', province_id: '', city_id: '',
@@ -95,10 +95,10 @@ export default function NodeForm() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="page-shell">
       <div className="flex items-center gap-3">
         <Link to="/nodes" className="text-sm text-gray-500 hover:text-gray-700">← Nodes</Link>
-        <h1 className="text-lg font-semibold">{isEdit ? 'Modifier node' : 'Ajouter node'}</h1>
+        <h1 className="page-title">{isEdit ? 'Modifier node' : 'Ajouter node'}</h1>
       </div>
       <div className="flex gap-2">
         {['info', 'slots', 'team'].map((t) => (
@@ -135,7 +135,7 @@ export default function NodeForm() {
             <input className="form-input" placeholder="Capacité max / jour" value={node.max_daily_orders} onChange={(e) => setNode({ ...node, max_daily_orders: e.target.value })} />
           </div>
           <textarea className="form-input" rows={4} placeholder="opening_hours_json" value={node.opening_hours_json} onChange={(e) => setNode({ ...node, opening_hours_json: e.target.value })} />
-          <button className="btn-primary">Sauvegarder</button>
+          <button className="btn-primary"><AddIcon />Sauvegarder</button>
         </form>
       )}
 
@@ -162,7 +162,7 @@ export default function NodeForm() {
                 <input className="form-input" type="time" value={slotForm.slot_start} onChange={(e) => setSlotForm({ ...slotForm, slot_start: e.target.value })} />
                 <input className="form-input" type="time" value={slotForm.slot_end} onChange={(e) => setSlotForm({ ...slotForm, slot_end: e.target.value })} />
                 <input className="form-input" type="number" value={slotForm.max_orders} onChange={(e) => setSlotForm({ ...slotForm, max_orders: Number(e.target.value) })} />
-                <button className="btn-primary">{slotForm.id ? 'Maj' : 'Ajouter'}</button>
+                <button className="btn-primary">{slotForm.id ? <><AddIcon />Maj</> : <><AddIcon />Ajouter</>}</button>
               </form>
               <table className="w-full">
                 <thead><tr><th className="table-th">Jour</th><th className="table-th">Nom</th><th className="table-th">Heures</th><th className="table-th">Cap.</th><th className="table-th">Actions</th></tr></thead>
@@ -173,9 +173,11 @@ export default function NodeForm() {
                       <td className="table-td">{s.name_fr}</td>
                       <td className="table-td">{s.slot_start} - {s.slot_end}</td>
                       <td className="table-td">{s.max_orders ?? '-'}</td>
-                      <td className="table-td space-x-2">
-                        <button className="text-blue-600" onClick={() => setSlotForm(s)}>Modifier</button>
-                        <button className="text-red-500" onClick={async () => { await deleteSlot(s.id); await loadSlots(id); }}>Supprimer</button>
+                      <td className="table-td">
+                        <div className="flex items-center gap-2">
+                          <EditButton onClick={() => setSlotForm(s)} />
+                          <DeleteButton onClick={async () => { await deleteSlot(s.id); await loadSlots(id); }} />
+                        </div>
                       </td>
                     </tr>
                   ))}

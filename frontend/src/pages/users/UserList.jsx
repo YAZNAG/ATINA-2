@@ -4,6 +4,7 @@ import { getUsers, deleteUser } from '../../api/users.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
@@ -44,19 +45,20 @@ export default function UserList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-gray-800">
-          Utilisateurs <span className="text-gray-400 font-normal">({users.length})</span>
+    <div className="page-shell">
+      <div className="page-header">
+        <h1 className="page-title">
+          Utilisateurs <span className="text-slate-400 font-normal">({users.length})</span>
         </h1>
         {hasPermission('users.create') && (
           <Link to="/users/new" className="btn-primary text-sm">
-            + Nouvel utilisateur
+            <AddIcon />
+            Nouvel utilisateur
           </Link>
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="table-wrap">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -98,22 +100,12 @@ export default function UserList() {
                   </td>
                   <td className="table-td text-gray-500">{formatDate(u.created_at)}</td>
                   <td className="table-td">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {hasPermission('users.update') && (
-                        <button
-                          onClick={() => navigate(`/users/${u.id}/edit`)}
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                        >
-                          Modifier
-                        </button>
+                        <EditButton onClick={() => navigate(`/users/${u.id}/edit`)} />
                       )}
                       {hasPermission('users.delete') && (
-                        <button
-                          onClick={() => handleDelete(u.id, u.full_name)}
-                          className="text-red-500 hover:text-red-600 text-sm font-medium"
-                        >
-                          Supprimer
-                        </button>
+                        <DeleteButton onClick={() => handleDelete(u.id, u.full_name)} />
                       )}
                     </div>
                   </td>

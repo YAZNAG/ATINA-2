@@ -9,6 +9,12 @@ class ProvinceService {
     return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
+  async getById(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Province introuvable' };
+    return item;
+  }
+
   async create(data) {
     const region = await prisma.region.findFirst({ where: { id: data.region_id, is_deleted: false, is_active: true } });
     if (!region) throw { statusCode: 400, message: 'Région invalide ou inactive' };
@@ -29,6 +35,16 @@ class ProvinceService {
       if (exists) throw { statusCode: 409, message: 'Ce code province existe déjà' };
     }
     return repo.update(id, data);
+  }
+
+  async delete(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Province introuvable' };
+    const cityCount = await repo.countCities(id);
+    if (cityCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: province liée à des villes' };
+    const nodeCount = await repo.countNodes(id);
+    if (nodeCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: province liée à des nodes' };
+    await repo.softDelete(id);
   }
 }
 

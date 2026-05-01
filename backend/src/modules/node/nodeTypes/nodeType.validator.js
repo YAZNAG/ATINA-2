@@ -14,4 +14,11 @@ const createValidator = [
   validate,
 ];
 
-module.exports = { createValidator };
+const updateValidator = [
+  body('code').optional().notEmpty().withMessage('Code invalide'),
+  body('name_fr').optional().notEmpty().withMessage('Nom FR invalide'),
+  body('name_ar').optional().notEmpty().withMessage('Nom AR invalide'),
+  validate,
+];
+
+module.exports = { createValidator, updateValidator };

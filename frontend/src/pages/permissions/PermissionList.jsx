@@ -34,16 +34,16 @@ export default function PermissionList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-gray-800">
-          Permissions <span className="text-gray-400 font-normal">({total})</span>
+    <div className="page-shell">
+      <div className="page-header">
+        <h1 className="page-title">
+          Permissions <span className="text-slate-400 font-normal">({total})</span>
         </h1>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {Object.entries(groups).map(([module, perms]) => (
-          <div key={module} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div key={module} className="table-wrap">
             <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${getModuleColor(module)}`}>

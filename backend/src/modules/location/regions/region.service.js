@@ -35,6 +35,8 @@ class RegionService {
     if (!item) throw { statusCode: 404, message: 'Région introuvable' };
     const provinceCount = await repo.countProvinces(id);
     if (provinceCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: région liée à des provinces' };
+    const nodeCount = await repo.countNodes(id);
+    if (nodeCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: région liée à des nodes' };
     await repo.softDelete(id);
   }
 }

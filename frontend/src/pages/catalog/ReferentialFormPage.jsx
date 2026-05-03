@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import * as catalog from '../../api/catalog.api';
 import { getEntityConfig } from './entityRegistry';
@@ -32,6 +32,19 @@ export default function ReferentialFormPage() {
   const [uiFamilyId, setUiFamilyId] = useState('');
   const [categoryOptions, setCategoryOptions] = useState([]);
 
+  /** Marque : fichier logo (multipart) */
+  const [brandLogoFile, setBrandLogoFile] = useState(null);
+  const [brandLogoPreview, setBrandLogoPreview] = useState(null);
+  const brandLogoRevokeRef = useRef(null);
+
+  const [familyImageFile, setFamilyImageFile] = useState(null);
+  const [familyIconFile, setFamilyIconFile] = useState(null);
+  const [familyImagePreview, setFamilyImagePreview] = useState(null);
+  const [familyIconPreview, setFamilyIconPreview] = useState(null);
+  const familyImgRevokeRef = useRef(null);
+  const familyIconRevokeRef = useRef(null);
+  const [familyRemotePaths, setFamilyRemotePaths] = useState({ image_path: null, icon_path: null });
+
   const canSave = cfg && (isEdit ? hasPermission(cfg.permissions.update) : hasPermission(cfg.permissions.create));
 
   useEffect(() => {
@@ -45,6 +58,7 @@ export default function ReferentialFormPage() {
       const initial = buildInitialForm(cfg.fields);
       try {
         const loaded = { ...initial };
+        let row = null;
 
         for (const field of cfg.fields) {
           if (field.type === 'select' && field.loadOptions && !field.options) {
@@ -61,7 +75,7 @@ export default function ReferentialFormPage() {
 
         if (isEdit) {
           const res = await cfg.api.get(id);
-          const row = res.data.data;
+          row = res.data.data;
           for (const field of cfg.fields) {
             if (row[field.name] !== undefined && row[field.name] !== null) {
               loaded[field.name] = row[field.name];
@@ -79,6 +93,35 @@ export default function ReferentialFormPage() {
         }
 
         setForm(loaded);
+        setBrandLogoFile(null);
+        if (brandLogoRevokeRef.current) {
+          URL.revokeObjectURL(brandLogoRevokeRef.current);
+          brandLogoRevokeRef.current = null;
+        }
+        setBrandLogoPreview(null);
+        setFamilyImageFile(null);
+        setFamilyIconFile(null);
+        if (familyImgRevokeRef.current) {
+          URL.revokeObjectURL(familyImgRevokeRef.current);
+          familyImgRevokeRef.current = null;
+        }
+        if (familyIconRevokeRef.current) {
+          URL.revokeObjectURL(familyIconRevokeRef.current);
+          familyIconRevokeRef.current = null;
+        }
+        setFamilyImagePreview(null);
+        setFamilyIconPreview(null);
+        if (
+          (cfg.special === 'family' || cfg.special === 'category' || cfg.special === 'subcategory')
+          && isEdit && row
+        ) {
+          setFamilyRemotePaths({
+            image_path: row.image_path ?? null,
+            icon_path: row.icon_path ?? null,
+          });
+        } else {
+          setFamilyRemotePaths({ image_path: null, icon_path: null });
+        }
       } catch (err) {
         toast.error(getErrorMessage(err));
       } finally {
@@ -88,6 +131,34 @@ export default function ReferentialFormPage() {
 
     load();
   }, [cfg, id, isEdit]);
+
+  useEffect(() => {
+    setBrandLogoFile(null);
+    if (brandLogoRevokeRef.current) {
+      URL.revokeObjectURL(brandLogoRevokeRef.current);
+      brandLogoRevokeRef.current = null;
+    }
+    setBrandLogoPreview(null);
+    setFamilyImageFile(null);
+    setFamilyIconFile(null);
+    if (familyImgRevokeRef.current) {
+      URL.revokeObjectURL(familyImgRevokeRef.current);
+      familyImgRevokeRef.current = null;
+    }
+    if (familyIconRevokeRef.current) {
+      URL.revokeObjectURL(familyIconRevokeRef.current);
+      familyIconRevokeRef.current = null;
+    }
+    setFamilyImagePreview(null);
+    setFamilyIconPreview(null);
+    setFamilyRemotePaths({ image_path: null, icon_path: null });
+  }, [entitySlug]);
+
+  useEffect(() => () => {
+    if (brandLogoRevokeRef.current) URL.revokeObjectURL(brandLogoRevokeRef.current);
+    if (familyImgRevokeRef.current) URL.revokeObjectURL(familyImgRevokeRef.current);
+    if (familyIconRevokeRef.current) URL.revokeObjectURL(familyIconRevokeRef.current);
+  }, []);
 
   useEffect(() => {
     if (!cfg || cfg.special !== 'subcategory' || !uiFamilyId) {
@@ -111,21 +182,6 @@ export default function ReferentialFormPage() {
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleImageToBase64 = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setForm((f) => ({ ...f, image_base64: reader.result }));
-      }
-    };
-    reader.onerror = () => {
-      toast.error('Erreur de lecture image');
-    };
-    reader.readAsDataURL(file);
-  };
-
   const normalizePayload = () => {
     const payload = { ...form };
     for (const field of cfg.fields) {
@@ -137,9 +193,63 @@ export default function ReferentialFormPage() {
       if (field.name === 'unit_id' && !payload.unit_id) payload.unit_id = null;
     }
     if (cfg.special === 'subcategory') {
+      const cid = payload.category_id;
+      if (cid === '' || cid === undefined || cid === null) {
+        payload.category_id = null;
+      } else {
+        const n = Number(cid);
+        payload.category_id = Number.isNaN(n) ? null : n;
+      }
       delete payload._ui_family_id;
     }
+    if (cfg.special === 'category') {
+      const fid = payload.family_id;
+      if (fid === '' || fid === undefined || fid === null) {
+        payload.family_id = null;
+      } else {
+        const n = Number(fid);
+        payload.family_id = Number.isNaN(n) ? null : n;
+      }
+    }
     return payload;
+  };
+
+  const buildBrandFormData = (payload) => {
+    const fd = new FormData();
+    const keys = ['name_fr', 'name_ar', 'code', 'status', 'description_fr', 'description_ar'];
+    for (const key of keys) {
+      const v = payload[key];
+      if (v === undefined || v === null) continue;
+      fd.append(key, typeof v === 'boolean' ? String(v) : String(v));
+    }
+    if (brandLogoFile) fd.append('logo', brandLogoFile);
+    return fd;
+  };
+
+  const buildCatalogImageFormData = (payload) => {
+    const fd = new FormData();
+    let keys = [];
+    if (cfg.special === 'family') {
+      keys = ['name_fr', 'name_ar', 'code', 'description_fr', 'description_ar', 'status', 'sort_order'];
+    } else if (cfg.special === 'category') {
+      keys = ['name_fr', 'name_ar', 'code', 'family_id', 'description_fr', 'description_ar', 'status', 'sort_order'];
+    } else if (cfg.special === 'subcategory') {
+      keys = ['name_fr', 'name_ar', 'code', 'category_id', 'description_fr', 'description_ar', 'status', 'sort_order'];
+    }
+    for (const key of keys) {
+      const v = payload[key];
+      if (v === undefined || v === null) continue;
+      fd.append(key, String(v));
+    }
+    if (familyImageFile) fd.append('image', familyImageFile);
+    if (familyIconFile) fd.append('icon', familyIconFile);
+    return fd;
+  };
+
+  const storagePreviewSrc = (p) => {
+    if (!p) return null;
+    const s = String(p).trim();
+    return s.startsWith('http') ? s : (s.startsWith('/') ? s : `/${s}`);
   };
 
   const handleSubmit = async (e) => {
@@ -148,11 +258,27 @@ export default function ReferentialFormPage() {
     setLoading(true);
     try {
       const payload = normalizePayload();
+      if (cfg.special === 'subcategory' && !isEdit && payload.category_id == null) {
+        toast.error('Choisissez une famille, puis une catégorie.');
+        setLoading(false);
+        return;
+      }
+      if (cfg.special === 'category' && !isEdit && payload.family_id == null) {
+        toast.error('Choisissez une famille.');
+        setLoading(false);
+        return;
+      }
+      let body = payload;
+      if (cfg.special === 'brand') body = buildBrandFormData(payload);
+      else if (cfg.special === 'family' || cfg.special === 'category' || cfg.special === 'subcategory') {
+        body = buildCatalogImageFormData(payload);
+      }
+
       if (isEdit) {
-        await cfg.api.update(id, payload);
+        await cfg.api.update(id, body);
         toast.success('Enregistrement mis à jour');
       } else {
-        await cfg.api.create(payload);
+        await cfg.api.create(body);
         toast.success('Créé avec succès');
       }
       navigate(`/catalog/ref/${entitySlug}`);
@@ -184,27 +310,6 @@ export default function ReferentialFormPage() {
   }
 
   const renderField = (field) => {
-    if (field.name === 'image_base64') {
-      return (
-        <div key={field.name} className="space-y-2">
-          <label className="form-label">Image</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="form-input"
-            onChange={handleImageToBase64}
-          />
-          {form.image_base64 ? (
-            <img
-              src={form.image_base64}
-              alt="preview"
-              className="h-24 w-24 rounded object-cover border border-gray-200"
-            />
-          ) : null}
-        </div>
-      );
-    }
-
     if (cfg.special === 'subcategory' && field.name === 'category_id') {
       return (
         <div key="cat-block">
@@ -325,6 +430,122 @@ export default function ReferentialFormPage() {
 
       <form onSubmit={handleSubmit} className="card space-y-4">
         {cfg.fields.map((field) => renderField(field))}
+        {cfg.special === 'brand' && (
+          <div className="space-y-2">
+            <label className="form-label">Logo (fichier)</label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="form-input"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (brandLogoRevokeRef.current) {
+                  URL.revokeObjectURL(brandLogoRevokeRef.current);
+                  brandLogoRevokeRef.current = null;
+                }
+                setBrandLogoFile(f);
+                if (f) {
+                  const url = URL.createObjectURL(f);
+                  brandLogoRevokeRef.current = url;
+                  setBrandLogoPreview(url);
+                } else {
+                  setBrandLogoPreview(null);
+                }
+              }}
+            />
+            <p className="text-xs text-slate-500">
+              Optionnel. Sinon utilisez l’URL du logo ou laissez vide.
+            </p>
+            {(brandLogoPreview || form.logo) && (
+              <div className="flex items-center gap-3">
+                {brandLogoPreview ? (
+                  <img src={brandLogoPreview} alt="" className="h-16 w-16 object-contain rounded border border-slate-200 bg-white p-1" />
+                ) : form.logo ? (
+                  <img
+                    src={form.logo.startsWith('/') ? form.logo : `/${form.logo}`}
+                    alt=""
+                    className="h-16 w-16 object-contain rounded border border-slate-200 bg-white p-1"
+                  />
+                ) : null}
+              </div>
+            )}
+            <p className="text-xs text-slate-500">Enregistré sous storage/image/marque/&lt;id&gt;/logo.*</p>
+          </div>
+        )}
+        {(cfg.special === 'family' || cfg.special === 'category' || cfg.special === 'subcategory') && (
+          <div className="space-y-4 border-t border-slate-100 pt-4">
+            <div className="space-y-2">
+              <label className="form-label">Image (fichier)</label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="form-input"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  if (familyImgRevokeRef.current) {
+                    URL.revokeObjectURL(familyImgRevokeRef.current);
+                    familyImgRevokeRef.current = null;
+                  }
+                  setFamilyImageFile(f);
+                  if (f) {
+                    const url = URL.createObjectURL(f);
+                    familyImgRevokeRef.current = url;
+                    setFamilyImagePreview(url);
+                  } else {
+                    setFamilyImagePreview(null);
+                  }
+                }}
+              />
+              <p className="text-xs text-slate-500">
+                Fichier sur disque : storage/image/
+                {cfg.special === 'family' ? 'famille' : cfg.special === 'category' ? 'categorie' : 'sous-categorie'}
+                /&lt;id&gt;/image.* → image_path
+              </p>
+              {(familyImagePreview || familyRemotePaths.image_path) && (
+                <img
+                  src={familyImagePreview || storagePreviewSrc(familyRemotePaths.image_path)}
+                  alt=""
+                  className="h-20 w-20 rounded object-cover border border-slate-200 bg-white"
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="form-label">Icône (fichier)</label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="form-input"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  if (familyIconRevokeRef.current) {
+                    URL.revokeObjectURL(familyIconRevokeRef.current);
+                    familyIconRevokeRef.current = null;
+                  }
+                  setFamilyIconFile(f);
+                  if (f) {
+                    const url = URL.createObjectURL(f);
+                    familyIconRevokeRef.current = url;
+                    setFamilyIconPreview(url);
+                  } else {
+                    setFamilyIconPreview(null);
+                  }
+                }}
+              />
+              <p className="text-xs text-slate-500">
+                Fichier sur disque : storage/image/
+                {cfg.special === 'family' ? 'famille' : cfg.special === 'category' ? 'categorie' : 'sous-categorie'}
+                /&lt;id&gt;/icon.* → icon_path
+              </p>
+              {(familyIconPreview || familyRemotePaths.icon_path) && (
+                <img
+                  src={familyIconPreview || storagePreviewSrc(familyRemotePaths.icon_path)}
+                  alt=""
+                  className="h-16 w-16 rounded object-contain border border-slate-200 bg-white p-1"
+                />
+              )}
+            </div>
+          </div>
+        )}
         <div className="flex gap-3 pt-2">
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? '…' : 'Enregistrer'}

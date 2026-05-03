@@ -25,24 +25,61 @@ const statusSelect = {
   ],
 };
 
-const imageThumbColumn = {
-  key: 'image_base64',
+function storageSrc(p) {
+  if (!p || !String(p).trim()) return null;
+  const s = String(p).trim();
+  return s.startsWith('http') ? s : (s.startsWith('/') ? s : `/${s}`);
+}
+
+const familyThumbColumn = {
+  key: 'image_path',
   label: 'Image',
-  render: (r) => (
-    r.image_base64
-      ? createElement('img', {
-        src: r.image_base64,
-        alt: r.name_fr || 'image',
-        className: 'h-10 w-10 rounded-md object-cover border border-slate-200',
-      })
-      : '—'
-  ),
+  render: (r) => {
+    const src = storageSrc(r.image_path) || storageSrc(r.icon_path);
+    if (!src) return '—';
+    return createElement('img', {
+      src,
+      alt: r.name_fr || '',
+      className: 'h-10 w-10 rounded-md object-cover border border-slate-200 bg-white',
+      loading: 'lazy',
+    });
+  },
 };
+
+function brandLogoSrc(row) {
+  const loc = row.logo && String(row.logo).trim();
+  if (!loc) return null;
+  return loc.startsWith('http') ? loc : (loc.startsWith('/') ? loc : `/${loc}`);
+}
+
+const brandLogoColumn = {
+  key: 'logo_display',
+  label: 'Logo',
+  render: (r) => {
+    const src = brandLogoSrc(r);
+    if (!src) return '—';
+    return createElement('img', {
+      src,
+      alt: r.name_fr || 'logo',
+      className: 'h-10 w-10 object-contain rounded border border-slate-200 bg-white p-0.5',
+      loading: 'lazy',
+    });
+  },
+};
+
+function truncDesc(len) {
+  return (value) => {
+    if (value == null || String(value).trim() === '') return '—';
+    const s = String(value);
+    return s.length <= len ? s : `${s.slice(0, len)}…`;
+  };
+}
 
 export const ENTITY_REGISTRY = {
   families: {
     label: 'Familles',
     description: 'Niveau 1 de la taxonomie catalogue.',
+    special: 'family',
     permissions: {
       view: 'families.view',
       create: 'families.create',
@@ -60,7 +97,7 @@ export const ENTITY_REGISTRY = {
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
       { key: 'sort_order', label: 'Ordre' },
-      imageThumbColumn,
+      familyThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => r.status === 'active' ? 'Actif' : 'Inactif' },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
@@ -70,7 +107,6 @@ export const ENTITY_REGISTRY = {
       { name: 'code', label: 'Code', required: true },
       { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
       { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
-      { name: 'image_base64', label: 'Image (base64)', type: 'textarea' },
       statusSelect,
       { name: 'sort_order', label: 'Ordre', type: 'number', default: 0 },
     ],
@@ -79,6 +115,7 @@ export const ENTITY_REGISTRY = {
   categories: {
     label: 'Catégories',
     description: 'Rattachées à une famille.',
+    special: 'category',
     permissions: {
       view: 'categories.view',
       create: 'categories.create',
@@ -101,7 +138,7 @@ export const ENTITY_REGISTRY = {
         render: (r) => r.family?.name_fr ?? '—',
       },
       { key: 'sort_order', label: 'Ordre' },
-      imageThumbColumn,
+      familyThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
@@ -120,7 +157,6 @@ export const ENTITY_REGISTRY = {
       { name: 'code', label: 'Code', required: true },
       { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
       { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
-      { name: 'image_base64', label: 'Image (base64)', type: 'textarea' },
       statusSelect,
       { name: 'sort_order', label: 'Ordre', type: 'number', default: 0 },
     ],
@@ -152,7 +188,7 @@ export const ENTITY_REGISTRY = {
         render: (r) => r.category?.name_fr ?? '—',
       },
       { key: 'sort_order', label: 'Ordre' },
-      imageThumbColumn,
+      familyThumbColumn,
       { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
@@ -163,7 +199,6 @@ export const ENTITY_REGISTRY = {
       { name: 'code', label: 'Code', required: true },
       { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
       { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
-      { name: 'image_base64', label: 'Image (base64)', type: 'textarea' },
       statusSelect,
       { name: 'sort_order', label: 'Ordre', type: 'number', default: 0 },
     ],
@@ -172,6 +207,7 @@ export const ENTITY_REGISTRY = {
   brands: {
     label: 'Marques',
     description: 'Référentiel marques.',
+    special: 'brand',
     permissions: {
       view: 'brands.view',
       create: 'brands.create',
@@ -186,15 +222,28 @@ export const ENTITY_REGISTRY = {
       remove: catalog.deleteBrand,
     },
     columns: [
+      brandLogoColumn,
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
+      {
+        key: 'description_fr',
+        label: 'Description (FR)',
+        render: (r) => truncDesc(56)(r.description_fr),
+      },
+      {
+        key: 'description_ar',
+        label: 'Description (AR)',
+        render: (r) => truncDesc(56)(r.description_ar),
+      },
       { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
     ],
-    searchFields: ['name_fr', 'name_ar', 'code'],
+    searchFields: ['name_fr', 'name_ar', 'code', 'description_fr', 'description_ar'],
     fields: [
       { name: 'name_fr', label: 'Nom (FR)', required: true },
       { name: 'name_ar', label: 'Nom (AR)', required: true },
       { name: 'code', label: 'Code', required: true },
+      { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
+      { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
       statusSelect,
     ],
   },

@@ -10,6 +10,8 @@ const buildWhere = ({ search, status }) => ({
       { name_fr: { contains: search, mode: 'insensitive' } },
       { name_ar: { contains: search, mode: 'insensitive' } },
       { code: { contains: search, mode: 'insensitive' } },
+      { description_fr: { contains: search, mode: 'insensitive' } },
+      { description_ar: { contains: search, mode: 'insensitive' } },
     ],
   }),
 });

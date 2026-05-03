@@ -12,7 +12,10 @@ router.use('/conservation-types', require('./conservationTypes/conservationType.
 router.use('/article-types', require('./articleTypes/articleType.routes'));
 router.use('/article-statuses', require('./articleStatuses/articleStatus.routes'));
 router.use('/taxes', require('./taxes/tax.routes'));
-router.use('/articles', require('./articles/article.routes'));
+router.use('/articles/:articleId/sku-images', require('./articleSkuImages/articleSkuImage.routes'));
 router.use('/articles/:articleId/images', require('./articleImages/articleImage.routes'));
+router.use('/articles', require('./articles/article.routes'));
+router.use('/skus', require('./skus/sku.routes'));
+router.use('/sku-images', require('./skuImages/skuImage.routes'));
 
 module.exports = router;

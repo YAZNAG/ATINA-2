@@ -7,20 +7,36 @@ const validate = (req, res, next) => {
   next();
 };
 
+const hasTaxonomy = (body) =>
+  (body.family_id != null && body.family_id !== '') ||
+  (body.category_id != null && body.category_id !== '') ||
+  (body.sub_category_id != null && body.sub_category_id !== '');
+
 const createValidator = [
-  body('sku').notEmpty().withMessage('SKU requis'),
-  body('name_fr').notEmpty().withMessage('Nom français requis'),
-  body('name_ar').notEmpty().withMessage('Nom arabe requis'),
-  body('min_stock').optional().isFloat({ min: 0 }).withMessage('Stock min invalide'),
-  body('max_stock').optional().isFloat({ min: 0 }).withMessage('Stock max invalide'),
+  body('sku_code').optional({ nullable: true }).trim(),
+  body('sku').optional({ nullable: true }).trim(),
+  body().custom((_, { req }) => {
+    const code = (req.body.sku_code || req.body.sku || '').trim();
+    if (!code) throw new Error('Code SKU requis');
+    return true;
+  }),
+  body('name_fr').trim().notEmpty().withMessage('Nom français requis'),
+  body('name_ar').trim().notEmpty().withMessage('Nom arabe requis'),
+  body().custom((_, { req }) => {
+    if (!hasTaxonomy(req.body)) {
+      throw new Error('Indiquez une famille, une catégorie ou une sous-catégorie');
+    }
+    return true;
+  }),
+  body('price').exists().withMessage('Prix requis').isFloat({ min: 0 }).withMessage('Prix invalide (≥ 0)'),
   validate,
 ];
 
 const updateValidator = [
-  body('name_fr').optional().notEmpty(),
-  body('name_ar').optional().notEmpty(),
-  body('min_stock').optional().isFloat({ min: 0 }),
-  body('max_stock').optional().isFloat({ min: 0 }),
+  body('sku_code').optional({ nullable: true }).trim().notEmpty(),
+  body('name_fr').optional({ nullable: true }).trim().notEmpty(),
+  body('name_ar').optional({ nullable: true }).trim().notEmpty(),
+  body('price').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Prix invalide (≥ 0)'),
   validate,
 ];
 

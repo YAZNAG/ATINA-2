@@ -4,39 +4,26 @@ import * as catalog from '../../api/catalog.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
-import ArticleImagesPanel from './ArticleImagesPanel';
+import ArticleSkuImagesPanel from './ArticleSkuImagesPanel';
 
 const empty = {
-  sku: '',
-  barcode: '',
+  sku_code: '',
+  ean13: '',
   name_fr: '',
   name_ar: '',
-  short_name_fr: '',
-  short_name_ar: '',
   description_fr: '',
   description_ar: '',
   family_id: '',
   category_id: '',
   sub_category_id: '',
   brand_id: '',
-  unit_id: '',
-  packaging_type_id: '',
-  conservation_type_id: '',
-  article_type_id: '',
-  article_status_id: '',
-  tax_id: '',
-  purchase_unit_id: '',
-  sale_unit_id: '',
-  weight: '',
-  volume: '',
-  min_stock: '',
-  reorder_stock: '',
-  max_stock: '',
-  is_sellable: true,
-  is_stockable: true,
-  is_perishable: false,
-  requires_expiry_date: false,
-  requires_batch_number: false,
+  unit_sale: 'unit',
+  unit_purchase: 'unit',
+  coeff: '1',
+  price: '',
+  vat_rate: '20',
+  weight_g: '',
+  volume_ml: '',
   is_active: true,
 };
 
@@ -47,40 +34,28 @@ function val(v) {
 }
 
 function toPayload(form) {
-  const p = {
-    sku: form.sku.trim(),
+  const weightRaw = form.weight_g === '' ? null : parseInt(String(form.weight_g), 10);
+  const volumeRaw = form.volume_ml === '' ? null : parseInt(String(form.volume_ml), 10);
+  return {
+    sku_code: form.sku_code.trim(),
+    ean13: form.ean13?.trim() ? form.ean13.trim() : null,
     name_fr: form.name_fr.trim(),
     name_ar: form.name_ar.trim(),
-    short_name_fr: form.short_name_fr || null,
-    short_name_ar: form.short_name_ar || null,
-    description_fr: form.description_fr || null,
-    description_ar: form.description_ar || null,
-    barcode: form.barcode?.trim() ? form.barcode.trim() : null,
+    description_fr: form.description_fr?.trim() || null,
+    description_ar: form.description_ar?.trim() || null,
     family_id: val(form.family_id),
     category_id: val(form.category_id),
     sub_category_id: val(form.sub_category_id),
     brand_id: val(form.brand_id),
-    unit_id: val(form.unit_id),
-    packaging_type_id: val(form.packaging_type_id),
-    conservation_type_id: val(form.conservation_type_id),
-    article_type_id: val(form.article_type_id),
-    article_status_id: val(form.article_status_id),
-    tax_id: val(form.tax_id),
-    purchase_unit_id: val(form.purchase_unit_id),
-    sale_unit_id: val(form.sale_unit_id),
-    weight: form.weight === '' ? null : parseFloat(String(form.weight)),
-    volume: form.volume === '' ? null : parseFloat(String(form.volume)),
-    min_stock: form.min_stock === '' ? null : parseFloat(String(form.min_stock)),
-    reorder_stock: form.reorder_stock === '' ? null : parseFloat(String(form.reorder_stock)),
-    max_stock: form.max_stock === '' ? null : parseFloat(String(form.max_stock)),
-    is_sellable: !!form.is_sellable,
-    is_stockable: !!form.is_stockable,
-    is_perishable: !!form.is_perishable,
-    requires_expiry_date: !!form.requires_expiry_date,
-    requires_batch_number: !!form.requires_batch_number,
+    unit_sale: (form.unit_sale || 'unit').trim(),
+    unit_purchase: (form.unit_purchase || 'unit').trim(),
+    coeff: form.coeff === '' ? undefined : parseFloat(String(form.coeff)),
+    price: parseFloat(String(form.price)),
+    vat_rate: form.vat_rate === '' ? undefined : parseFloat(String(form.vat_rate)),
+    weight_g: weightRaw != null && !Number.isNaN(weightRaw) ? weightRaw : null,
+    volume_ml: volumeRaw != null && !Number.isNaN(volumeRaw) ? volumeRaw : null,
     is_active: !!form.is_active,
   };
-  return p;
 }
 
 function str(v) {
@@ -102,12 +77,6 @@ export default function ArticleForm() {
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [brands, setBrands] = useState([]);
-  const [units, setUnits] = useState([]);
-  const [packagingTypes, setPackagingTypes] = useState([]);
-  const [conservationTypes, setConservationTypes] = useState([]);
-  const [articleTypes, setArticleTypes] = useState([]);
-  const [articleStatuses, setArticleStatuses] = useState([]);
-  const [taxes, setTaxes] = useState([]);
 
   const canSave = isEdit ? hasPermission('articles.update') : hasPermission('articles.create');
 
@@ -115,69 +84,32 @@ export default function ArticleForm() {
     let cancelled = false;
     (async () => {
       try {
-        const [
-          fam,
-          br,
-          un,
-          pk,
-          ct,
-          at,
-          ast,
-          tx,
-        ] = await Promise.all([
-          catalog.getFamiliesList(),
-          catalog.getBrandsList(),
-          catalog.getUnitsList(),
-          catalog.getPackagingTypesList(),
-          catalog.getConservationTypesList(),
-          catalog.getArticleTypesList(),
-          catalog.getArticleStatusesList(),
-          catalog.getTaxesList(),
-        ]);
+        const [fam, br] = await Promise.all([catalog.getFamiliesList(), catalog.getBrandsList()]);
         if (cancelled) return;
         setFamilies(fam.data.data ?? []);
         setBrands(br.data.data ?? []);
-        setUnits(un.data.data ?? []);
-        setPackagingTypes(pk.data.data ?? []);
-        setConservationTypes(ct.data.data ?? []);
-        setArticleTypes(at.data.data ?? []);
-        setArticleStatuses(ast.data.data ?? []);
-        setTaxes(tx.data.data ?? []);
 
         if (isEdit) {
           const res = await catalog.getArticle(id);
           const a = res.data.data;
           setForm({
-            sku: a.sku ?? '',
-            barcode: str(a.barcode),
+            sku_code: a.sku_code ?? '',
+            ean13: str(a.ean13),
             name_fr: a.name_fr ?? '',
             name_ar: a.name_ar ?? '',
-            short_name_fr: str(a.short_name_fr),
-            short_name_ar: str(a.short_name_ar),
             description_fr: str(a.description_fr),
             description_ar: str(a.description_ar),
             family_id: str(a.family_id),
             category_id: str(a.category_id),
             sub_category_id: str(a.sub_category_id),
             brand_id: str(a.brand_id),
-            unit_id: str(a.unit_id),
-            packaging_type_id: str(a.packaging_type_id),
-            conservation_type_id: str(a.conservation_type_id),
-            article_type_id: str(a.article_type_id),
-            article_status_id: str(a.article_status_id),
-            tax_id: str(a.tax_id),
-            purchase_unit_id: str(a.purchase_unit_id),
-            sale_unit_id: str(a.sale_unit_id),
-            weight: str(a.weight),
-            volume: str(a.volume),
-            min_stock: str(a.min_stock),
-            reorder_stock: str(a.reorder_stock),
-            max_stock: str(a.max_stock),
-            is_sellable: a.is_sellable !== false,
-            is_stockable: a.is_stockable !== false,
-            is_perishable: !!a.is_perishable,
-            requires_expiry_date: !!a.requires_expiry_date,
-            requires_batch_number: !!a.requires_batch_number,
+            unit_sale: str(a.unit_sale) || 'unit',
+            unit_purchase: str(a.unit_purchase) || 'unit',
+            coeff: a.coeff != null ? str(a.coeff) : '1',
+            price: a.price != null ? str(a.price) : '',
+            vat_rate: a.vat_rate != null ? str(a.vat_rate) : '20',
+            weight_g: a.weight_g != null ? String(a.weight_g) : '',
+            volume_ml: a.volume_ml != null ? String(a.volume_ml) : '',
             is_active: a.is_active !== false,
           });
           if (a.family_id) {
@@ -260,8 +192,13 @@ export default function ArticleForm() {
         await catalog.updateArticle(id, payload);
         toast.success('Article mis à jour');
       } else {
-        await catalog.createArticle(payload);
+        const res = await catalog.createArticle(payload);
         toast.success('Article créé');
+        const newId = res.data?.data?.id;
+        if (newId != null) {
+          navigate(`/catalog/articles/${newId}/edit`);
+          return;
+        }
       }
       navigate('/catalog/articles');
     } catch (err) {
@@ -299,7 +236,7 @@ export default function ArticleForm() {
         <h1 className="text-lg font-semibold text-gray-800 mt-2">
           {isEdit ? 'Modifier l’article' : 'Nouvel article'}
         </h1>
-        <p className="text-sm text-gray-500">Toutes les listes sont chargées depuis l’API (aucune valeur métier en dur).</p>
+        <p className="text-sm text-gray-500">Champs alignés sur le modèle article (SKU, EAN-13, prix, TVA, unités).</p>
       </div>
 
       <form onSubmit={submit} className="space-y-6">
@@ -307,12 +244,12 @@ export default function ArticleForm() {
           <h2 className="font-semibold text-gray-800 border-b pb-2">Identification</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="form-label">SKU *</label>
-              <input name="sku" className="form-input font-mono" value={form.sku} onChange={handleChange} required disabled={isEdit} />
+              <label className="form-label">Code SKU *</label>
+              <input name="sku_code" className="form-input font-mono" value={form.sku_code} onChange={handleChange} required disabled={isEdit} />
             </div>
             <div>
-              <label className="form-label">Code-barres</label>
-              <input name="barcode" className="form-input" value={form.barcode} onChange={handleChange} />
+              <label className="form-label">EAN-13</label>
+              <input name="ean13" className="form-input" value={form.ean13} onChange={handleChange} maxLength={13} />
             </div>
             <div>
               <label className="form-label">Nom (FR) *</label>
@@ -321,14 +258,6 @@ export default function ArticleForm() {
             <div>
               <label className="form-label">Nom (AR) *</label>
               <input name="name_ar" className="form-input" value={form.name_ar} onChange={handleChange} required />
-            </div>
-            <div>
-              <label className="form-label">Nom court (FR)</label>
-              <input name="short_name_fr" className="form-input" value={form.short_name_fr} onChange={handleChange} />
-            </div>
-            <div>
-              <label className="form-label">Nom court (AR)</label>
-              <input name="short_name_ar" className="form-input" value={form.short_name_ar} onChange={handleChange} />
             </div>
             <div className="md:col-span-2">
               <label className="form-label">Description (FR)</label>
@@ -345,8 +274,8 @@ export default function ArticleForm() {
           <h2 className="font-semibold text-gray-800 border-b pb-2">Taxonomie</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="form-label">Famille</label>
-              <select name="family_id" className="form-input" value={form.family_id} onChange={handleFamily}>
+              <label className="form-label">Famille *</label>
+              <select name="family_id" className="form-input" value={form.family_id} onChange={handleFamily} required>
                 {sel(families)}
               </select>
             </div>
@@ -366,111 +295,65 @@ export default function ArticleForm() {
         </div>
 
         <div className="card space-y-4">
-          <h2 className="font-semibold text-gray-800 border-b pb-2">Référentiels</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Marque</label>
-              <select name="brand_id" className="form-input" value={form.brand_id} onChange={handleChange}>{sel(brands)}</select>
-            </div>
-            <div>
-              <label className="form-label">Unité</label>
-              <select name="unit_id" className="form-input" value={form.unit_id} onChange={handleChange}>{sel(units)}</select>
-            </div>
-            <div>
-              <label className="form-label">Unité achat</label>
-              <select name="purchase_unit_id" className="form-input" value={form.purchase_unit_id} onChange={handleChange}>{sel(units)}</select>
-            </div>
-            <div>
-              <label className="form-label">Unité vente</label>
-              <select name="sale_unit_id" className="form-input" value={form.sale_unit_id} onChange={handleChange}>{sel(units)}</select>
-            </div>
-            <div>
-              <label className="form-label">Conditionnement</label>
-              <select name="packaging_type_id" className="form-input" value={form.packaging_type_id} onChange={handleChange}>{sel(packagingTypes)}</select>
-            </div>
-            <div>
-              <label className="form-label">Conservation</label>
-              <select name="conservation_type_id" className="form-input" value={form.conservation_type_id} onChange={handleChange}>{sel(conservationTypes)}</select>
-            </div>
-            <div>
-              <label className="form-label">Type article</label>
-              <select name="article_type_id" className="form-input" value={form.article_type_id} onChange={handleChange}>{sel(articleTypes)}</select>
-            </div>
-            <div>
-              <label className="form-label">Statut article</label>
-              <select name="article_status_id" className="form-input" value={form.article_status_id} onChange={handleChange}>{sel(articleStatuses)}</select>
-            </div>
-            <div>
-              <label className="form-label">TVA</label>
-              <select name="tax_id" className="form-input" value={form.tax_id} onChange={handleChange}>
-                <option value="">—</option>
-                {taxes.map((x) => (
-                  <option key={x.id} value={x.id}>{x.name_fr} ({String(x.rate)}%)</option>
-                ))}
-              </select>
-            </div>
+          <h2 className="font-semibold text-gray-800 border-b pb-2">Marque</h2>
+          <div>
+            <label className="form-label">Marque</label>
+            <select name="brand_id" className="form-input max-w-md" value={form.brand_id} onChange={handleChange}>{sel(brands)}</select>
           </div>
         </div>
 
         <div className="card space-y-4">
-          <h2 className="font-semibold text-gray-800 border-b pb-2">Stock & physique</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <h2 className="font-semibold text-gray-800 border-b pb-2">Prix, TVA & unités</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Poids</label>
-              <input name="weight" type="number" step="any" className="form-input" value={form.weight} onChange={handleChange} />
+              <label className="form-label">Prix (MAD) *</label>
+              <input name="price" type="number" step="0.01" min="0" className="form-input" value={form.price} onChange={handleChange} required />
             </div>
             <div>
-              <label className="form-label">Volume</label>
-              <input name="volume" type="number" step="any" className="form-input" value={form.volume} onChange={handleChange} />
+              <label className="form-label">TVA (%)</label>
+              <input name="vat_rate" type="number" step="0.01" className="form-input" value={form.vat_rate} onChange={handleChange} />
             </div>
             <div>
-              <label className="form-label">Stock min</label>
-              <input name="min_stock" type="number" step="any" className="form-input" value={form.min_stock} onChange={handleChange} />
+              <label className="form-label">Unité vente</label>
+              <input name="unit_sale" className="form-input" value={form.unit_sale} onChange={handleChange} placeholder="unit" />
             </div>
             <div>
-              <label className="form-label">Réappro</label>
-              <input name="reorder_stock" type="number" step="any" className="form-input" value={form.reorder_stock} onChange={handleChange} />
+              <label className="form-label">Unité achat</label>
+              <input name="unit_purchase" className="form-input" value={form.unit_purchase} onChange={handleChange} placeholder="unit" />
             </div>
             <div>
-              <label className="form-label">Stock max</label>
-              <input name="max_stock" type="number" step="any" className="form-input" value={form.max_stock} onChange={handleChange} />
+              <label className="form-label">Coefficient (achat → vente)</label>
+              <input name="coeff" type="number" step="0.0001" min="0" className="form-input" value={form.coeff} onChange={handleChange} />
+            </div>
+            <div>
+              <label className="form-label">Poids (g)</label>
+              <input name="weight_g" type="number" step="1" min="0" className="form-input" value={form.weight_g} onChange={handleChange} />
+            </div>
+            <div>
+              <label className="form-label">Volume (ml)</label>
+              <input name="volume_ml" type="number" step="1" min="0" className="form-input" value={form.volume_ml} onChange={handleChange} />
             </div>
           </div>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="is_sellable" checked={form.is_sellable} onChange={handleChange} />
-              Vendable
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="is_stockable" checked={form.is_stockable} onChange={handleChange} />
-              Stockable
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="is_perishable" checked={form.is_perishable} onChange={handleChange} />
-              Périssable
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="requires_expiry_date" checked={form.requires_expiry_date} onChange={handleChange} />
-              DLC obligatoire
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="requires_batch_number" checked={form.requires_batch_number} onChange={handleChange} />
-              N° lot obligatoire
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} />
-              Actif
-            </label>
-          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} />
+            Actif (visible app mobile si oui)
+          </label>
         </div>
+
+        {isEdit && <ArticleSkuImagesPanel articleId={id} />}
+
+        {!isEdit && (
+          <div className="card text-sm text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Galerie images</p>
+            <p>Enregistrez l’article une première fois : vous serez renvoyé ici en édition pour ajouter autant d’images que vous voulez, choisir l’image principale et régler l’ordre d’affichage.</p>
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
           <Link to="/catalog/articles" className="btn-secondary text-center">Annuler</Link>
         </div>
       </form>
-
-      {isEdit && <ArticleImagesPanel articleId={id} />}
     </div>
   );
 }

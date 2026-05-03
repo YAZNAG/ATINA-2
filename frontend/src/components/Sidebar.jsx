@@ -54,6 +54,8 @@ const navItems = [
     ),
     children: [
       { label: 'Articles', path: '/catalog/articles', permission: 'articles.view' },
+      { label: 'SKU', path: '/catalog/skus', permission: 'skus.view' },
+      { label: 'Images SKU', path: '/catalog/sku-images', permission: 'sku_images.view' },
       { label: 'Families', path: '/catalog/ref/families', permission: 'families.view' },
       { label: 'Categories', path: '/catalog/ref/categories', permission: 'categories.view' },
       { label: 'SubCategories', path: '/catalog/ref/sub-categories', permission: 'sub_categories.view' },

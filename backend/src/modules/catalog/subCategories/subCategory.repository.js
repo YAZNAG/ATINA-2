@@ -43,7 +43,7 @@ const findById = (id) => prisma.subCategory.findFirst({ where: { id, ...BASE_WHE
 const findByCode = (code, excludeId) =>
   prisma.subCategory.findFirst({ where: { code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
 const countArticles = (subCatId) =>
-  prisma.article.count({ where: { sub_category_id: subCatId, deleted_at: null } });
+  prisma.article.count({ where: { sub_category_id: subCatId, deleted_at: null, is_deleted: false } });
 const create = (data) => prisma.subCategory.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.subCategory.update({ where: { id }, data, include: INCLUDE });
 const softDelete = (id) => prisma.subCategory.update({ where: { id }, data: { deleted_at: new Date() } });

@@ -11,8 +11,10 @@ export default function CatalogDashboard() {
   });
 
   const showArticles = hasPermission('articles.view');
+  const showSkus = hasPermission('skus.view');
+  const showSkuImages = hasPermission('sku_images.view');
 
-  if (!visibleReferentials.length && !showArticles) {
+  if (!visibleReferentials.length && !showArticles && !showSkus && !showSkuImages) {
     return (
       <div className="text-center py-12 text-gray-500">
         Vous n’avez aucune permission catalogue.
@@ -37,6 +39,23 @@ export default function CatalogDashboard() {
           <h2 className="font-semibold text-gray-900">Articles</h2>
           <p className="text-sm text-gray-600 mt-1">SKU, taxonomie, référentiels, images (sous-module dédié).</p>
         </Link>
+      )}
+
+      {(showSkus || showSkuImages) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {showSkus && (
+            <Link to="/catalog/skus" className="card hover:border-blue-200 transition-colors py-4">
+              <h2 className="font-semibold text-gray-900">SKU</h2>
+              <p className="text-sm text-gray-600 mt-1">Identifiants UUID (table skus).</p>
+            </Link>
+          )}
+          {showSkuImages && (
+            <Link to="/catalog/sku-images" className="card hover:border-blue-200 transition-colors py-4">
+              <h2 className="font-semibold text-gray-900">Images SKU</h2>
+              <p className="text-sm text-gray-600 mt-1">Table sku_images : URL, alts, principal, ordre.</p>
+            </Link>
+          )}
+        </div>
       )}
 
       <div>

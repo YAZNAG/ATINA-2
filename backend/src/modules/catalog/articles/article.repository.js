@@ -1,20 +1,12 @@
 const prisma = require('../../../config/database');
 
-const BASE_WHERE = { deleted_at: null };
+const BASE_WHERE = { deleted_at: null, is_deleted: false };
 
 const INCLUDE = {
   family: { select: { id: true, name_fr: true, name_ar: true } },
   category: { select: { id: true, name_fr: true, name_ar: true } },
   sub_category: { select: { id: true, name_fr: true, name_ar: true } },
   brand: { select: { id: true, name_fr: true, name_ar: true, logo: true } },
-  unit: { select: { id: true, name_fr: true, name_ar: true, short_name_fr: true } },
-  purchase_unit: { select: { id: true, name_fr: true, name_ar: true } },
-  sale_unit: { select: { id: true, name_fr: true, name_ar: true } },
-  packaging_type: { select: { id: true, name_fr: true, name_ar: true } },
-  conservation_type: { select: { id: true, name_fr: true, name_ar: true } },
-  article_type: { select: { id: true, name_fr: true, name_ar: true } },
-  article_status: { select: { id: true, name_fr: true, name_ar: true, color: true } },
-  tax: { select: { id: true, name_fr: true, name_ar: true, rate: true } },
   images: { where: { deleted_at: null }, orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }] },
 };
 
@@ -29,8 +21,8 @@ const buildWhere = ({ search, is_active, family_id, category_id, sub_category_id
     OR: [
       { name_fr: { contains: search, mode: 'insensitive' } },
       { name_ar: { contains: search, mode: 'insensitive' } },
-      { sku: { contains: search, mode: 'insensitive' } },
-      { barcode: { contains: search, mode: 'insensitive' } },
+      { sku_code: { contains: search, mode: 'insensitive' } },
+      { ean13: { contains: search, mode: 'insensitive' } },
     ],
   }),
 });
@@ -47,13 +39,26 @@ const findAll = async (params) => {
 };
 
 const findById = (id) => prisma.article.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
-const findBySku = (sku, excludeId) =>
-  prisma.article.findFirst({ where: { sku, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
-const findByBarcode = (barcode, excludeId) =>
-  prisma.article.findFirst({ where: { barcode, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
+const findBySkuCode = (sku_code, excludeId) =>
+  prisma.article.findFirst({ where: { sku_code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
+const findByEan13 = (ean13, excludeId) =>
+  prisma.article.findFirst({ where: { ean13, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
 
 const create = (data) => prisma.article.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.article.update({ where: { id }, data, include: INCLUDE });
-const softDelete = (id) => prisma.article.update({ where: { id }, data: { deleted_at: new Date(), is_active: false } });
+const softDelete = (id) =>
+  prisma.article.update({
+    where: { id },
+    data: { deleted_at: new Date(), is_active: false, is_deleted: true },
+  });
 
-module.exports = { findAll, findById, findBySku, findByBarcode, create, update, softDelete };
+module.exports = {
+  findAll,
+  findById,
+  findBySkuCode,
+  findByEan13,
+  create,
+  update,
+  softDelete,
+  INCLUDE,
+};

@@ -6,6 +6,12 @@ import { getErrorMessage } from '../../utils/helpers';
 import { deleteRegion, getRegions } from '../../api/locationNode.api';
 import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
+function descCell(value, max = 56) {
+  if (value == null || String(value).trim() === '') return '—';
+  const s = String(value);
+  return s.length <= max ? s : `${s.slice(0, max)}…`;
+}
+
 export default function RegionsPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -44,6 +50,8 @@ export default function RegionsPage() {
                 <th className="table-th">Code</th>
                 <th className="table-th">Nom FR</th>
                 <th className="table-th">Nom AR</th>
+                <th className="table-th">Description FR</th>
+                <th className="table-th">Description AR</th>
                 <th className="table-th">Statut</th>
                 <th className="table-th">Actions</th>
               </tr>
@@ -51,13 +59,19 @@ export default function RegionsPage() {
             <tbody className="divide-y divide-gray-50">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-gray-400 text-sm">Aucune region</td>
+                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">Aucune region</td>
                 </tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                   <td className="table-td">{r.code}</td>
                   <td className="table-td">{r.name_fr}</td>
                   <td className="table-td">{r.name_ar}</td>
+                  <td className="table-td text-sm text-slate-600 max-w-[14rem] align-top" title={r.description_fr || ''}>
+                    {descCell(r.description_fr)}
+                  </td>
+                  <td className="table-td text-sm text-slate-600 max-w-[14rem] align-top" dir="rtl" title={r.description_ar || ''}>
+                    {descCell(r.description_ar)}
+                  </td>
                   <td className="table-td">
                     <span className={r.is_active ? 'badge-active' : 'badge-inactive'}>
                       {r.is_active ? 'Actif' : 'Inactif'}

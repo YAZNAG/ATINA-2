@@ -59,6 +59,13 @@ const CATALOG_PERMISSIONS = [
   { name: 'Modifier les articles', code: 'articles.update', module: 'catalog', description: '' },
   { name: 'Supprimer les articles', code: 'articles.delete', module: 'catalog', description: '' },
   { name: "Gérer les images d'articles", code: 'article_images.manage', module: 'catalog', description: '' },
+  { name: 'Voir les SKU', code: 'skus.view', module: 'catalog', description: '' },
+  { name: 'Créer des SKU', code: 'skus.create', module: 'catalog', description: '' },
+  { name: 'Supprimer des SKU', code: 'skus.delete', module: 'catalog', description: '' },
+  { name: 'Voir les images SKU', code: 'sku_images.view', module: 'catalog', description: '' },
+  { name: 'Créer des images SKU', code: 'sku_images.create', module: 'catalog', description: '' },
+  { name: 'Modifier des images SKU', code: 'sku_images.update', module: 'catalog', description: '' },
+  { name: 'Supprimer des images SKU', code: 'sku_images.delete', module: 'catalog', description: '' },
 ];
 
 const LOCATION_NODE_PERMISSIONS = [

@@ -1,20 +1,31 @@
+const prisma = require('../../../config/database');
 const repo = require('./article.repository');
+const { INCLUDE } = require('./article.repository');
+const { setArticleSkuUuid, getArticleSkuUuid } = require('../../../utils/articleSkuLink');
 const guard = require('./articleReferential.guard');
 const articleImageService = require('../articleImages/articleImage.service');
 
-const REF_KEYS = [
-  'family_id',
-  'category_id',
-  'sub_category_id',
+const REF_KEYS = ['family_id', 'category_id', 'sub_category_id', 'brand_id'];
+
+const INPUT_KEYS = [
+  'sku_code',
+  'ean13',
+  'name_fr',
+  'name_ar',
+  'description_fr',
+  'description_ar',
   'brand_id',
-  'unit_id',
-  'packaging_type_id',
-  'conservation_type_id',
-  'article_type_id',
-  'article_status_id',
-  'tax_id',
-  'purchase_unit_id',
-  'sale_unit_id',
+  'family_id',
+  'sub_category_id',
+  'category_id',
+  'unit_sale',
+  'unit_purchase',
+  'coeff',
+  'price',
+  'vat_rate',
+  'weight_g',
+  'volume_ml',
+  'is_active',
 ];
 
 const toBool = (v) => v === 'true' || v === true || v === '1' || v === 1;
@@ -34,10 +45,31 @@ class ArticleService {
   }
 
   async create(data) {
-    const payload = this._mapData(data);
-    await this._assertSkuBarcodeUnique(payload.sku, payload.barcode, null);
-    await this._validateReferences(payload);
-    return repo.create(payload);
+    const mapped = this._mapData(data);
+    if (!mapped.sku_code || !String(mapped.sku_code).trim()) {
+      throw { statusCode: 400, message: 'Code SKU requis' };
+    }
+    await this._assertSkuEanUnique(mapped.sku_code.trim(), mapped.ean13 ?? null, null);
+    await this._validateReferences(mapped);
+    if (mapped.family_id == null || Number.isNaN(Number(mapped.family_id))) {
+      throw { statusCode: 400, message: 'Famille requise (ou catégorie / sous-catégorie pour la déduire)' };
+    }
+    if (mapped.price === undefined || mapped.price === null || Number.isNaN(Number(mapped.price))) {
+      throw { statusCode: 400, message: 'Prix requis' };
+    }
+    const priceNum = Number(mapped.price);
+    if (priceNum < 0) throw { statusCode: 400, message: 'Le prix doit être positif ou nul' };
+
+    const payload = this._toPrismaPayload(mapped);
+    return prisma.$transaction(async (tx) => {
+      const sku = await tx.sku.create({ data: {} });
+      const created = await tx.article.create({
+        data: payload,
+        include: INCLUDE,
+      });
+      await setArticleSkuUuid(tx, created.id, sku.id);
+      return tx.article.findFirst({ where: { id: created.id }, include: INCLUDE });
+    });
   }
 
   async update(id, data) {
@@ -47,13 +79,14 @@ class ArticleService {
     const mapped = this._mapData(data);
     const merged = this._mergeReferentialSnapshot(item, mapped);
 
-    if (mapped.sku !== undefined) {
-      const exists = await repo.findBySku(mapped.sku, Number(id));
-      if (exists) throw { statusCode: 409, message: 'Ce SKU est déjà utilisé' };
+    if (mapped.sku_code !== undefined) {
+      const code = String(mapped.sku_code).trim();
+      const exists = await repo.findBySkuCode(code, Number(id));
+      if (exists) throw { statusCode: 409, message: 'Ce code SKU est déjà utilisé' };
     }
-    if (mapped.barcode !== undefined) {
-      const exists = await repo.findByBarcode(mapped.barcode, Number(id));
-      if (exists) throw { statusCode: 409, message: 'Ce code-barres est déjà utilisé' };
+    if (mapped.ean13 !== undefined && mapped.ean13 !== null) {
+      const exists = await repo.findByEan13(mapped.ean13, Number(id));
+      if (exists) throw { statusCode: 409, message: 'Ce code EAN-13 est déjà utilisé' };
     }
 
     await this._validateReferences(merged);
@@ -65,7 +98,19 @@ class ArticleService {
       sub_category_id: merged.sub_category_id,
     });
 
-    await repo.update(Number(id), updateData);
+    if (updateData.price !== undefined && updateData.price !== null) {
+      const p = Number(updateData.price);
+      if (Number.isNaN(p) || p < 0) throw { statusCode: 400, message: 'Le prix doit être positif ou nul' };
+    }
+
+    const prismaPayload = this._toPrismaPayload(updateData);
+    const hasSku =
+      item.sku_uuid ?? (await getArticleSkuUuid(prisma, Number(id)));
+    if (!hasSku) {
+      const sku = await prisma.sku.create({ data: {} });
+      await setArticleSkuUuid(prisma, Number(id), sku.id);
+    }
+    await repo.update(Number(id), prismaPayload);
     return repo.findById(Number(id));
   }
 
@@ -84,14 +129,12 @@ class ArticleService {
     return out;
   }
 
-  async _assertSkuBarcodeUnique(sku, barcode, excludeId) {
-    if (sku) {
-      const exists = await repo.findBySku(sku, excludeId);
-      if (exists) throw { statusCode: 409, message: 'Ce SKU est déjà utilisé' };
-    }
-    if (barcode) {
-      const exists = await repo.findByBarcode(barcode, excludeId);
-      if (exists) throw { statusCode: 409, message: 'Ce code-barres est déjà utilisé' };
+  async _assertSkuEanUnique(sku_code, ean13, excludeId) {
+    const existsSku = await repo.findBySkuCode(String(sku_code).trim(), excludeId);
+    if (existsSku) throw { statusCode: 409, message: 'Ce code SKU est déjà utilisé' };
+    if (ean13) {
+      const existsEan = await repo.findByEan13(ean13, excludeId);
+      if (existsEan) throw { statusCode: 409, message: 'Ce code EAN-13 est déjà utilisé' };
     }
   }
 
@@ -106,49 +149,76 @@ class ArticleService {
     await guard.validateOptionalRefs(snapshot);
   }
 
-  _mapData(data) {
-    const d = { ...data };
+  _mapData(body) {
+    const raw = body && typeof body === 'object' ? { ...body } : {};
+    if (raw.sku !== undefined && raw.sku_code === undefined) raw.sku_code = raw.sku;
+    if (raw.barcode !== undefined && raw.ean13 === undefined) raw.ean13 = raw.barcode;
 
-    if (d.barcode !== undefined) {
-      const b = String(d.barcode).trim();
-      d.barcode = b === '' ? null : b;
+    const out = {};
+    for (const k of INPUT_KEYS) {
+      if (raw[k] !== undefined) out[k] = raw[k];
     }
 
-    const numFields = [
-      'family_id',
-      'category_id',
-      'sub_category_id',
-      'brand_id',
-      'unit_id',
-      'packaging_type_id',
-      'conservation_type_id',
-      'article_type_id',
-      'article_status_id',
-      'tax_id',
-      'purchase_unit_id',
-      'sale_unit_id',
-    ];
-    const floatFields = ['weight', 'volume', 'min_stock', 'reorder_stock', 'max_stock'];
-    const boolFields = [
-      'is_sellable',
-      'is_stockable',
-      'is_perishable',
-      'requires_expiry_date',
-      'requires_batch_number',
-      'is_active',
-    ];
+    if (out.ean13 !== undefined) {
+      const t = String(out.ean13).trim();
+      out.ean13 = t === '' ? null : t;
+    }
 
-    numFields.forEach((f) => {
-      if (d[f] !== undefined) d[f] = d[f] === '' || d[f] === null ? null : Number(d[f]);
-    });
-    floatFields.forEach((f) => {
-      if (d[f] !== undefined) d[f] = d[f] === '' || d[f] === null ? null : parseFloat(String(d[f]));
-    });
-    boolFields.forEach((f) => {
-      if (d[f] !== undefined) d[f] = toBool(d[f]);
+    const intFields = ['brand_id', 'family_id', 'sub_category_id', 'category_id', 'weight_g', 'volume_ml'];
+    intFields.forEach((f) => {
+      if (out[f] !== undefined) {
+        if (out[f] === '' || out[f] === null) out[f] = null;
+        else {
+          const n = Number(out[f]);
+          out[f] = Number.isNaN(n) ? null : n;
+        }
+      }
     });
 
-    return d;
+    const decFields = ['coeff', 'price', 'vat_rate'];
+    decFields.forEach((f) => {
+      if (out[f] !== undefined) {
+        if (out[f] === '' || out[f] === null) delete out[f];
+        else {
+          const n = parseFloat(String(out[f]));
+          if (!Number.isNaN(n)) out[f] = n;
+        }
+      }
+    });
+
+    if (out.sku_code !== undefined) out.sku_code = String(out.sku_code).trim();
+
+    if (out.is_active !== undefined) out.is_active = toBool(out.is_active);
+
+    return out;
+  }
+
+  _toPrismaPayload(mapped) {
+    const data = {};
+    const assign = (key, value) => {
+      if (value !== undefined) data[key] = value;
+    };
+
+    assign('sku_code', mapped.sku_code);
+    assign('ean13', mapped.ean13);
+    assign('name_fr', mapped.name_fr);
+    assign('name_ar', mapped.name_ar);
+    assign('description_fr', mapped.description_fr);
+    assign('description_ar', mapped.description_ar);
+    assign('brand_id', mapped.brand_id);
+    assign('family_id', mapped.family_id);
+    assign('sub_category_id', mapped.sub_category_id);
+    assign('category_id', mapped.category_id);
+    assign('unit_sale', mapped.unit_sale);
+    assign('unit_purchase', mapped.unit_purchase);
+    assign('coeff', mapped.coeff);
+    assign('price', mapped.price);
+    assign('vat_rate', mapped.vat_rate);
+    assign('weight_g', mapped.weight_g);
+    assign('volume_ml', mapped.volume_ml);
+    assign('is_active', mapped.is_active);
+
+    return data;
   }
 }
 

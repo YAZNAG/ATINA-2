@@ -14,6 +14,9 @@ import ReferentialListPage from '../pages/catalog/ReferentialListPage';
 import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
 import ArticleList from '../pages/catalog/ArticleList';
 import ArticleForm from '../pages/catalog/ArticleForm';
+import SkusPage from '../pages/catalog/SkusPage';
+import SkuImagesPage from '../pages/catalog/SkuImagesPage';
+import SkuImageFormPage from '../pages/catalog/SkuImageFormPage';
 import GeoDashboard from '../pages/location/GeoDashboard';
 import RegionsPage from '../pages/location/RegionsPage';
 import ProvincesPage from '../pages/location/ProvincesPage';
@@ -60,6 +63,10 @@ export default function AppRoutes() {
           <Route path="/catalog/articles" element={<ArticleList />} />
           <Route path="/catalog/articles/new" element={<ArticleForm />} />
           <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
+          <Route path="/catalog/skus" element={<SkusPage />} />
+          <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
+          <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
+          <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
           <Route path="/geo" element={<GeoDashboard />} />
           <Route path="/geo/regions" element={<RegionsPage />} />
           <Route path="/geo/regions/new" element={<RegionFormPage />} />

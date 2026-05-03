@@ -73,7 +73,7 @@ export default function ArticleList() {
         <input
           type="search"
           className="form-input text-sm flex-1"
-          placeholder="SKU, nom, code-barres…"
+          placeholder="Code SKU, EAN-13, nom…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
@@ -108,7 +108,7 @@ export default function ArticleList() {
                 ) : (
                   rows.map((a) => (
                     <tr key={a.id} className="hover:bg-gray-50">
-                      <td className="table-td font-mono text-xs">{a.sku}</td>
+                      <td className="table-td font-mono text-xs">{a.sku_code}</td>
                       <td className="table-td font-medium text-gray-900">{a.name_fr}</td>
                       <td className="table-td text-gray-600">{a.family?.name_fr ?? '—'}</td>
                       <td className="table-td text-gray-600">{a.category?.name_fr ?? '—'}</td>
@@ -126,7 +126,7 @@ export default function ArticleList() {
                           )}
                           {hasPermission('articles.delete') && (
                             <DeleteButton onClick={async () => {
-                              if (!window.confirm(`Supprimer l’article ${a.sku} ?`)) return;
+                              if (!window.confirm(`Supprimer l’article ${a.sku_code} ?`)) return;
                               try {
                                 await catalog.deleteArticle(a.id);
                                 toast.success('Article supprimé');

@@ -11,6 +11,8 @@ const createValidator = [
   body('code').notEmpty().withMessage('Code requis'),
   body('name_fr').notEmpty().withMessage('Nom FR requis'),
   body('name_ar').notEmpty().withMessage('Nom AR requis'),
+  body('description_fr').optional().isString(),
+  body('description_ar').optional().isString(),
   body('is_active').optional().isBoolean(),
   validate,
 ];
@@ -19,6 +21,8 @@ const updateValidator = [
   body('code').optional().notEmpty(),
   body('name_fr').optional().notEmpty(),
   body('name_ar').optional().notEmpty(),
+  body('description_fr').optional().isString(),
+  body('description_ar').optional().isString(),
   body('is_active').optional().isBoolean(),
   validate,
 ];

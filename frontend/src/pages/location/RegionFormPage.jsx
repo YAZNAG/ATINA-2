@@ -84,12 +84,51 @@ export default function RegionFormPage() {
           <label className="form-label">Nom AR *</label>
           <input className="form-input" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} required />
         </div>
+        <div>
+          <label className="form-label">Description FR</label>
+          <textarea
+            className="form-input min-h-[88px]"
+            value={form.description_fr ?? ''}
+            onChange={(e) => setForm({ ...form, description_fr: e.target.value })}
+            placeholder="Optionnel"
+            rows={3}
+          />
+        </div>
+        <div>
+          <label className="form-label">Description AR</label>
+          <textarea
+            className="form-input min-h-[88px]"
+            dir="rtl"
+            value={form.description_ar ?? ''}
+            onChange={(e) => setForm({ ...form, description_ar: e.target.value })}
+            placeholder="اختياري"
+            rows={3}
+          />
+        </div>
+        {isEdit && (form.created_at || form.created_by_user || form.updated_by_user) && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-600 space-y-1">
+            {form.created_at && (
+              <p>
+                <span className="font-medium text-slate-700">Créé :</span>{' '}
+                {new Date(form.created_at).toLocaleString('fr-FR')}
+                {form.created_by_user?.full_name && ` — ${form.created_by_user.full_name}`}
+              </p>
+            )}
+            {form.updated_at && (
+              <p>
+                <span className="font-medium text-slate-700">Modifié :</span>{' '}
+                {new Date(form.updated_at).toLocaleString('fr-FR')}
+                {form.updated_by_user?.full_name && ` — ${form.updated_by_user.full_name}`}
+              </p>
+            )}
+          </div>
+        )}
         <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
           <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
           Active
         </label>
         <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '�' : 'Enregistrer'}</button>
+          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
           <Link to="/geo/regions" className="btn-secondary text-center">Annuler</Link>
         </div>
       </form>

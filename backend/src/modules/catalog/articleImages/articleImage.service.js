@@ -6,7 +6,9 @@ const FOLDER = 'articles';
 
 class ArticleImageService {
   async listByArticle(articleId) {
-    const article = await prisma.article.findFirst({ where: { id: Number(articleId), deleted_at: null } });
+    const article = await prisma.article.findFirst({
+      where: { id: Number(articleId), deleted_at: null, is_deleted: false },
+    });
     if (!article) throw { statusCode: 404, message: 'Article introuvable' };
     return prisma.articleImage.findMany({
       where: { article_id: Number(articleId), deleted_at: null },
@@ -15,7 +17,9 @@ class ArticleImageService {
   }
 
   async addImages(articleId, files) {
-    const article = await prisma.article.findFirst({ where: { id: Number(articleId), deleted_at: null } });
+    const article = await prisma.article.findFirst({
+      where: { id: Number(articleId), deleted_at: null, is_deleted: false },
+    });
     if (!article) throw { statusCode: 404, message: 'Article introuvable' };
     if (!files?.images?.length) throw { statusCode: 400, message: 'Aucune image fournie' };
 

@@ -11,9 +11,20 @@ const createValidator = [
   body('name_fr').notEmpty().withMessage('Nom français requis'),
   body('name_ar').notEmpty().withMessage('Nom arabe requis'),
   body('code').notEmpty().withMessage('Code requis'),
+  body('description_fr').optional().isString(),
+  body('description_ar').optional().isString(),
+  body('status').optional().isIn(['active', 'inactive']),
   validate,
 ];
 
-const updateValidator = [validate];
+const updateValidator = [
+  body('name_fr').optional().notEmpty(),
+  body('name_ar').optional().notEmpty(),
+  body('code').optional().notEmpty(),
+  body('description_fr').optional().isString(),
+  body('description_ar').optional().isString(),
+  body('status').optional().isIn(['active', 'inactive']),
+  validate,
+];
 
 module.exports = { createValidator, updateValidator };

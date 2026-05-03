@@ -21,6 +21,9 @@ model User {
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
   user_roles    UserRole[]
+  regions_created Region[] @relation("RegionCreatedBy")
+  regions_updated Region[] @relation("RegionUpdatedBy")
+  regions_deleted Region[] @relation("RegionDeletedBy")
 
   @@map("users")
 }
@@ -87,7 +90,6 @@ model Family {
   code           String      @unique
   description_fr String?
   description_ar String?
-  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String      @default("active")
@@ -109,7 +111,6 @@ model Category {
   code           String        @unique
   description_fr String?
   description_ar String?
-  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String        @default("active")
@@ -132,7 +133,6 @@ model SubCategory {
   code           String    @unique
   description_fr String?
   description_ar String?
-  image_base64   String?
   image_path     String?
   icon_path      String?
   status         String    @default("active")
@@ -147,16 +147,18 @@ model SubCategory {
 }
 
 model Brand {
-  id         Int       @id @default(autoincrement())
-  name_fr    String
-  name_ar    String
-  code       String    @unique
-  logo       String?
-  status     String    @default("active")
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-  articles   Article[]
+  id             Int       @id @default(autoincrement())
+  name_fr        String
+  name_ar        String
+  code           String    @unique
+  logo           String?
+  description_fr String?
+  description_ar String?
+  status         String    @default("active")
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+  articles       Article[]
 
   @@map("brands")
 }
@@ -173,9 +175,6 @@ model Unit {
   updated_at        DateTime        @updatedAt
   deleted_at        DateTime?
   packaging_types   PackagingType[]
-  articles_main     Article[]       @relation("MainUnit")
-  articles_purchase Article[]       @relation("PurchaseUnit")
-  articles_sale     Article[]       @relation("SaleUnit")
 
   @@map("units")
 }
@@ -192,7 +191,6 @@ model PackagingType {
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
   unit       Unit?     @relation(fields: [unit_id], references: [id])
-  articles   Article[]
 
   @@map("packaging_types")
 }
@@ -208,7 +206,6 @@ model ConservationType {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
   deleted_at      DateTime?
-  articles        Article[]
 
   @@map("conservation_types")
 }
@@ -224,7 +221,6 @@ model ArticleType {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
   deleted_at     DateTime?
-  articles       Article[]
 
   @@map("article_types")
 }
@@ -237,7 +233,6 @@ model ArticleStatus {
   color      String?
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
-  articles   Article[]
 
   @@map("article_statuses")
 }
@@ -252,62 +247,71 @@ model Tax {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
-  articles   Article[]
 
   @@map("taxes")
 }
 
 model Article {
-  id                    Int               @id @default(autoincrement())
-  sku                   String            @unique
-  barcode               String?           @unique
-  name_fr               String
-  name_ar               String
-  short_name_fr         String?
-  short_name_ar         String?
-  description_fr        String?
-  description_ar        String?
-  family_id             Int?
-  category_id           Int?
-  sub_category_id       Int?
-  brand_id              Int?
-  unit_id               Int?
-  packaging_type_id     Int?
-  conservation_type_id  Int?
-  article_type_id       Int?
-  article_status_id     Int?
-  tax_id                Int?
-  purchase_unit_id      Int?
-  sale_unit_id          Int?
-  weight                Decimal?          @db.Decimal(10, 3)
-  volume                Decimal?          @db.Decimal(10, 3)
-  min_stock             Decimal?          @db.Decimal(10, 3)
-  reorder_stock         Decimal?          @db.Decimal(10, 3)
-  max_stock             Decimal?          @db.Decimal(10, 3)
-  is_sellable           Boolean           @default(true)
-  is_stockable          Boolean           @default(true)
-  is_perishable         Boolean           @default(false)
-  requires_expiry_date  Boolean           @default(false)
-  requires_batch_number Boolean           @default(false)
-  is_active             Boolean           @default(true)
-  created_at            DateTime          @default(now())
-  updated_at            DateTime          @updatedAt
-  deleted_at            DateTime?
-  family                Family?           @relation(fields: [family_id], references: [id])
-  category              Category?         @relation(fields: [category_id], references: [id])
-  sub_category          SubCategory?      @relation(fields: [sub_category_id], references: [id])
-  brand                 Brand?            @relation(fields: [brand_id], references: [id])
-  unit                  Unit?             @relation("MainUnit", fields: [unit_id], references: [id])
-  purchase_unit         Unit?             @relation("PurchaseUnit", fields: [purchase_unit_id], references: [id])
-  sale_unit             Unit?             @relation("SaleUnit", fields: [sale_unit_id], references: [id])
-  packaging_type        PackagingType?    @relation(fields: [packaging_type_id], references: [id])
-  conservation_type     ConservationType? @relation(fields: [conservation_type_id], references: [id])
-  article_type          ArticleType?      @relation(fields: [article_type_id], references: [id])
-  article_status        ArticleStatus?    @relation(fields: [article_status_id], references: [id])
-  tax                   Tax?              @relation(fields: [tax_id], references: [id])
-  images                ArticleImage[]
+  id              Int          @id @default(autoincrement())
+  sku_code        String       @unique @db.VarChar(100)
+  ean13           String?      @unique @db.VarChar(13)
+  name_fr         String       @db.VarChar(255)
+  name_ar         String       @db.VarChar(255)
+  description_fr  String?      @db.Text
+  description_ar  String?      @db.Text
+  brand_id        Int?
+  family_id       Int
+  sub_category_id Int?
+  category_id     Int?
+  unit_sale       String       @default("unit") @db.VarChar(20)
+  unit_purchase   String       @default("unit") @db.VarChar(20)
+  coeff           Decimal      @default(1) @db.Decimal(10, 4)
+  price           Decimal      @db.Decimal(12, 2)
+  vat_rate        Decimal      @default(20) @db.Decimal(5, 2)
+  weight_g        Int?
+  volume_ml       Int?
+  is_active       Boolean      @default(true)
+  is_deleted      Boolean      @default(false)
+  deleted_at      DateTime?    @db.Timestamptz(6)
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
+
+  family       Family       @relation(fields: [family_id], references: [id])
+  category     Category?    @relation(fields: [category_id], references: [id])
+  sub_category SubCategory? @relation(fields: [sub_category_id], references: [id])
+  brand        Brand?       @relation(fields: [brand_id], references: [id], onDelete: SetNull)
+  images       ArticleImage[]
+
+  // Lien optionnel vers skus (galerie sku_images)
+  sku_uuid     String?      @unique @db.Uuid
+  catalog_sku  Sku?         @relation("ArticleCatalogSku", fields: [sku_uuid], references: [id], onDelete: SetNull)
 
   @@map("articles")
+}
+
+// SKU logistique (UUID) — galerie sku_images
+model Sku {
+  id         String     @id @default(uuid()) @db.Uuid
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime   @updatedAt @db.Timestamptz(6)
+  images     SkuImage[]
+  article    Article?   @relation("ArticleCatalogSku")
+
+  @@map("skus")
+}
+
+model SkuImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  sku_id     String   @db.Uuid
+  url        String   @db.Text
+  alt_fr     String?  @db.VarChar(255)
+  alt_ar     String?  @db.VarChar(255)
+  is_primary Boolean  @default(false)
+  sort_order Int      @default(0) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  sku        Sku      @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+
+  @@map("sku_images")
 }
 
 model ArticleImage {
@@ -339,8 +343,15 @@ model Region {
   is_deleted     Boolean    @default(false)
   created_at     DateTime   @default(now())
   updated_at     DateTime   @updatedAt
+  deleted_at     DateTime?
+  created_by     Int?
+  updated_by     Int?
+  deleted_by     Int?
   provinces      Province[]
   nodes          Node[]
+  created_by_user User?     @relation("RegionCreatedBy", fields: [created_by], references: [id])
+  updated_by_user User?     @relation("RegionUpdatedBy", fields: [updated_by], references: [id])
+  deleted_by_user User?     @relation("RegionDeletedBy", fields: [deleted_by], references: [id])
 
   @@map("regions")
 }

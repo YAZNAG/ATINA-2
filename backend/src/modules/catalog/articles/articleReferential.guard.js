@@ -1,17 +1,10 @@
 /**
- * Validations métier article : taxonomie et référentiels actifs.
- * Utilise les repositories des modules catalogue (pas de service catalogue monolithique).
+ * Validations métier article : taxonomie et marque.
  */
 const familyRepo = require('../families/family.repository');
 const categoryRepo = require('../categories/category.repository');
 const subCategoryRepo = require('../subCategories/subCategory.repository');
 const brandRepo = require('../brands/brand.repository');
-const unitRepo = require('../units/unit.repository');
-const packagingTypeRepo = require('../packagingTypes/packagingType.repository');
-const conservationTypeRepo = require('../conservationTypes/conservationType.repository');
-const articleTypeRepo = require('../articleTypes/articleType.repository');
-const articleStatusRepo = require('../articleStatuses/articleStatus.repository');
-const taxRepo = require('../taxes/tax.repository');
 
 const bad = (message) => {
   throw { statusCode: 400, message };
@@ -28,7 +21,6 @@ async function assertFamilyRef(id) {
 
 /**
  * Normalise et valide family_id, category_id, sub_category_id (cohérence hiérarchique).
- * Met à jour data pour refléter la chaîne canonique lorsque des IDs partiels sont fournis.
  */
 async function validateTaxonomy(data) {
   let { family_id: famId, category_id: catId, sub_category_id: subId } = data;
@@ -65,16 +57,7 @@ async function validateTaxonomy(data) {
   if (famId != null) await assertFamilyRef(famId);
 }
 
-const OPTIONAL_REF = [
-  { key: 'brand_id', repo: brandRepo, label: 'Marque' },
-  { key: 'unit_id', repo: unitRepo, label: 'Unité' },
-  { key: 'purchase_unit_id', repo: unitRepo, label: 'Unité d’achat' },
-  { key: 'sale_unit_id', repo: unitRepo, label: 'Unité de vente' },
-  { key: 'packaging_type_id', repo: packagingTypeRepo, label: 'Conditionnement' },
-  { key: 'conservation_type_id', repo: conservationTypeRepo, label: 'Type de conservation' },
-  { key: 'article_type_id', repo: articleTypeRepo, label: 'Type d’article' },
-  { key: 'tax_id', repo: taxRepo, label: 'Taxe' },
-];
+const OPTIONAL_REF = [{ key: 'brand_id', repo: brandRepo, label: 'Marque' }];
 
 async function validateOptionalRefs(data) {
   for (const { key, repo, label } of OPTIONAL_REF) {
@@ -83,11 +66,6 @@ async function validateOptionalRefs(data) {
     const row = await repo.findById(Number(id));
     if (!row) bad(`${label} : référence invalide ou supprimée`);
     if (!isActive(row)) bad(`${label} : le référentiel n’est pas actif`);
-  }
-
-  if (data.article_status_id != null) {
-    const row = await articleStatusRepo.findById(Number(data.article_status_id));
-    if (!row) bad('Statut article : référence invalide');
   }
 }
 

@@ -18,8 +18,9 @@ app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use(morgan('dev'));
 
-// Static files for uploads
+// Static files for uploads & familles (storage/image/famille/...)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/storage', express.static(path.join(__dirname, '..', 'storage')));
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 

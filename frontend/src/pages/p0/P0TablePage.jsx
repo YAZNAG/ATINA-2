@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getP0TableBySql } from '../../api/p0.api';
+import { getP0RelationsForTable, getP0TableBySql } from '../../api/p0.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ export default function P0TablePage() {
   const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [relEdges, setRelEdges] = useState([]);
 
   const canView = hasPermission('dashboard.view');
   const canOpenList = (row) => {
@@ -37,6 +38,22 @@ export default function P0TablePage() {
         if (!cancelled) toast.error(getErrorMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canView, sqlParam]);
+
+  useEffect(() => {
+    if (!canView || !sqlParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getP0RelationsForTable(sqlParam);
+        if (!cancelled) setRelEdges(res.data?.data?.edges ?? []);
+      } catch {
+        if (!cancelled) setRelEdges([]);
       }
     })();
     return () => {
@@ -72,6 +89,14 @@ export default function P0TablePage() {
               Groupe : <span className="text-gray-700">{group.titleFr}</span>
             </p>
           )}
+          {row && row.genericCrud !== false ? (
+            <a
+              href="#p0-crud-section"
+              className="inline-flex mt-3 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-100"
+            >
+              Aller au CRUD (lignes, formulaire) ↓
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -134,6 +159,33 @@ export default function P0TablePage() {
           )}
         </div>
       )}
+
+      {row && relEdges.length > 0 ? (
+        <div className="card mt-6 p-5 border-l-4 border-l-indigo-500">
+          <h2 className="text-sm font-semibold text-gray-900 mb-2">Relations (FK documentées)</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Liens logiques entre cette table et le reste du modèle P0. Les tables hors registre (nodes, skus…) sont
+            indiquées sans lien.
+          </p>
+          <ul className="space-y-2 text-sm">
+            {relEdges.map((e, idx) => (
+              <li key={`${e.fromSql}-${e.field}-${idx}`} className="flex flex-wrap items-baseline gap-x-2 text-gray-700">
+                <span className="font-mono text-xs text-gray-500">{e.fromSql}</span>
+                <code className="text-xs bg-gray-100 px-1 rounded">.{e.field}</code>
+                <span className="text-gray-400">→</span>
+                {e.toSql ? (
+                  <Link to={`/p0/tables/${encodeURIComponent(e.toSql)}`} className="text-blue-600 hover:underline font-mono text-xs">
+                    {e.toSql}
+                  </Link>
+                ) : (
+                  <span className="text-amber-800 text-xs">hors registre P0 / catalogue</span>
+                )}
+                <span className="text-gray-500 text-xs">— {e.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {row && row.genericCrud !== false && sqlParam ? <P0GenericCrud sql={sqlParam} /> : null}
     </div>

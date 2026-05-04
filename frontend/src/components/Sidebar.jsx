@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getP0Registry } from '../api/p0.api';
+
+const p0TablesIcon = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h10" />
+  </svg>
+);
 
 const navItems = [
   {
-    label: 'Tables P0 (schéma)',
-    path: '/p0/tables',
+    label: 'Relations P0',
+    path: '/p0/relations',
     permission: 'dashboard.view',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h10" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
       </svg>
     ),
   },
@@ -128,7 +135,59 @@ const navItems = [
 export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
-  const [openGroups, setOpenGroups] = useState({ catalog: false, geo: false });
+  const [openGroups, setOpenGroups] = useState({ catalog: false, geo: false, p0tables: false });
+  const [p0GroupChildren, setP0GroupChildren] = useState([]);
+
+  useEffect(() => {
+    if (!hasPermission('dashboard.view')) {
+      setP0GroupChildren([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getP0Registry();
+        const groups = res.data?.data?.groups ?? [];
+        const kids = [
+          { label: 'Vue d’ensemble', path: '/p0/tables', permission: 'dashboard.view', exact: true },
+        ];
+        for (const g of groups) {
+          for (const t of g.tables || []) {
+            kids.push({
+              label: t.sql,
+              path: `/p0/tables/${encodeURIComponent(t.sql)}`,
+              permission: 'dashboard.view',
+              title: t.labelFr || t.model,
+            });
+          }
+        }
+        if (!cancelled) setP0GroupChildren(kids);
+      } catch {
+        if (!cancelled) {
+          setP0GroupChildren([
+            { label: 'Vue d’ensemble', path: '/p0/tables', permission: 'dashboard.view', exact: true },
+          ]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPermission]);
+
+  const navWithP0 = useMemo(() => {
+    const head = [];
+    if (p0GroupChildren.length > 0) {
+      head.push({
+        label: 'Tables P0',
+        key: 'p0tables',
+        group: true,
+        icon: p0TablesIcon,
+        children: p0GroupChildren,
+      });
+    }
+    return [...head, ...navItems];
+  }, [p0GroupChildren]);
 
   const canSeeLink = (item) => {
     if (item.group && item.children?.length) {
@@ -138,9 +197,12 @@ export default function Sidebar() {
     return hasPermission(item.permission);
   };
 
-  const visibleItems = useMemo(() => navItems.filter(canSeeLink), [hasPermission]);
+  const visibleItems = useMemo(() => navWithP0.filter(canSeeLink), [hasPermission, navWithP0]);
 
   useEffect(() => {
+    if (pathname.startsWith('/p0/tables')) {
+      setOpenGroups((prev) => ({ ...prev, p0tables: true }));
+    }
     if (pathname.startsWith('/catalog')) {
       setOpenGroups((prev) => ({ ...prev, catalog: true }));
     }
@@ -149,7 +211,10 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
-  const isPathActive = (path) => pathname === path || pathname.startsWith(`${path}/`);
+  const isPathActive = (path, exact) => {
+    if (exact) return pathname === path;
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   return (
     <aside className="w-64 bg-slate-900 min-h-screen flex flex-col flex-shrink-0">
@@ -173,7 +238,7 @@ export default function Sidebar() {
                 key={item.path}
                 to={item.path}
                 className={() => {
-                  const active = isPathActive(item.path);
+                  const active = isPathActive(item.path, item.exact);
                   return `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ${
                     active
                       ? 'bg-blue-600 text-white'
@@ -190,7 +255,7 @@ export default function Sidebar() {
           const children = item.children.filter((child) => hasPermission(child.permission));
           if (!children.length) return null;
 
-          const groupActive = children.some((child) => isPathActive(child.path));
+          const groupActive = children.some((child) => isPathActive(child.path, child.exact));
           const isOpen = openGroups[item.key] || groupActive;
 
           return (
@@ -219,14 +284,19 @@ export default function Sidebar() {
               </button>
 
               {isOpen ? (
-                <div className="ml-7 space-y-1 border-l border-slate-700 pl-3">
+                <div
+                  className={`ml-7 space-y-1 border-l border-slate-700 pl-3 ${
+                    item.key === 'p0tables' ? 'max-h-[min(70vh,28rem)] overflow-y-auto pr-1' : ''
+                  }`}
+                >
                   {children.map((child) => (
                     <NavLink
                       key={child.path}
                       to={child.path}
+                      title={child.title ?? child.label}
                       className={() => {
-                        const active = isPathActive(child.path);
-                        return `block px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                        const active = isPathActive(child.path, child.exact);
+                        return `block px-3 py-2 rounded-md text-xs font-medium transition-colors truncate ${
                           active
                             ? 'bg-blue-500 text-white'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-white'

@@ -59,9 +59,18 @@ export default function P0TablesHub() {
             </span>
           </div>
           <p className="page-subtitle mt-1 max-w-3xl">
-            Chaque table a sa <strong>propre page</strong> : clique sur le nom SQL pour voir la fiche (description,
-            compteur, lien back-office si disponible). Cet index regroupe les tables par domaine métier.
+            Chaque table a sa <strong>propre page</strong> avec <strong>CRUD</strong> (liste, ajout, modification,
+            suppression) et formulaires dynamiques. Utilise le bouton bleu <strong>Fiche + CRUD</strong> ou le nom SQL.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Link
+              to="/p0/relations"
+              className="inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 shadow hover:bg-indigo-700"
+            >
+              Voir toutes les relations (FK)
+            </Link>
+            <span className="text-xs text-gray-500">Raccourci : navigation latérale « Relations P0 »</span>
+          </div>
           {payload?.note && (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3 max-w-3xl">
               {payload.note}
@@ -103,7 +112,13 @@ export default function P0TablesHub() {
                       </Link>
                       <p className="text-xs text-gray-600 mt-1 line-clamp-2">{row.labelFr}</p>
                     </div>
-                    <div className="flex flex-shrink-0 items-center gap-4 text-sm">
+                    <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4 text-sm flex-wrap justify-end">
+                      <Link
+                        to={`/p0/tables/${encodeURIComponent(row.sql)}`}
+                        className="inline-flex items-center rounded-md bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 shadow-sm hover:bg-blue-700 whitespace-nowrap"
+                      >
+                        Fiche + CRUD
+                      </Link>
                       <div className="text-right">
                         <span className="text-[10px] uppercase text-gray-400 block">Lignes</span>
                         {row.countError ? (

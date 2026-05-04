@@ -72,7 +72,7 @@ const P0_TABLE_GROUPS = [
         listPath: '/customers',
         listPermission: 'customers.view',
         listPermissionAny: ['dashboard.view'],
-        genericCrud: false,
+        // CRUD générique P0 autorisé ; l’entrée « Clients (app) » + listPath restent pour l’écran métier dédié.
       },
       { model: 'Address', sql: 'addresses', labelFr: 'Adresses livraison' },
       { model: 'StockLevel', sql: 'stock_levels', labelFr: 'Stock agrégé node × SKU' },
@@ -132,4 +132,13 @@ function findTableEntryBySql(rawSql) {
   return null;
 }
 
-module.exports = { P0_TABLE_GROUPS, findTableEntryBySql };
+function findTableEntryByModel(modelName) {
+  if (!modelName) return null;
+  for (const g of P0_TABLE_GROUPS) {
+    const t = g.tables.find((x) => x.model === modelName);
+    if (t) return { group: g, table: t };
+  }
+  return null;
+}
+
+module.exports = { P0_TABLE_GROUPS, findTableEntryBySql, findTableEntryByModel };

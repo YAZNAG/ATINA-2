@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import { getRole, createRole, updateRole } from '../../api/roles.api';
 import { getPermissions } from '../../api/permissions.api';
 import { getErrorMessage, groupPermissionsByModule } from '../../utils/helpers';
@@ -108,20 +109,12 @@ export default function RoleForm() {
   const totalPerms = Object.values(permissionGroups).flat().length;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="flex items-center gap-3">
-        <Link to="/roles" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Retour
-        </Link>
-        <span className="text-gray-300">/</span>
-        <h1 className="text-lg font-semibold text-gray-800">
-          {isEdit ? 'Modifier le rôle' : 'Nouveau rôle'}
-        </h1>
-      </div>
-
+    <FormPageShell
+      backTo="/roles"
+      maxWidthClass="max-w-3xl"
+      segmentLabel={isEdit ? 'Modifier rôle' : 'Nouveau rôle'}
+      title={isEdit ? 'Modifier le rôle' : 'Nouveau rôle'}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card space-y-4">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
@@ -156,7 +149,7 @@ export default function RoleForm() {
             </div>
             <div>
               <label className="form-label">Statut</label>
-              <select name="status" className="form-input" value={form.status} onChange={handleChange}>
+              <select name="status" className="form-select" value={form.status} onChange={handleChange}>
                 <option value="active">Actif</option>
                 <option value="inactive">Inactif</option>
               </select>
@@ -229,13 +222,15 @@ export default function RoleForm() {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="form-actions">
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Enregistrement...' : 'Enregistrer'}
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
           </button>
-          <Link to="/roles" className="btn-secondary">Annuler</Link>
+          <Link to="/roles" className="btn-secondary">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

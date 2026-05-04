@@ -30,7 +30,6 @@ import NodeList from '../pages/location/NodeList';
 import NodeForm from '../pages/location/NodeForm';
 import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
-import P0RelationsPage from '../pages/p0/P0RelationsPage';
 import CustomerList from '../pages/customers/CustomerList';
 import CustomerDetail from '../pages/customers/CustomerDetail';
 
@@ -55,7 +54,6 @@ export default function AppRoutes() {
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/p0/tables" element={<P0TablesHub />} />
-          <Route path="/p0/relations" element={<P0RelationsPage />} />
           <Route path="/p0/tables/:sql" element={<P0TablePage />} />
           <Route path="/customers" element={<CustomerList />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />

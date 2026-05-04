@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../../utils/helpers';
 import {
@@ -95,11 +96,12 @@ export default function NodeForm() {
   };
 
   return (
-    <div className="page-shell">
-      <div className="flex items-center gap-3">
-        <Link to="/nodes" className="text-sm text-gray-500 hover:text-gray-700">← Nodes</Link>
-        <h1 className="page-title">{isEdit ? 'Modifier node' : 'Ajouter node'}</h1>
-      </div>
+    <FormPageShell
+      backTo="/nodes"
+      segmentLabel={isEdit ? 'Modifier nœud' : 'Nouveau nœud'}
+      title={isEdit ? 'Modifier le nœud' : 'Nouveau nœud'}
+      maxWidthClass="max-w-5xl"
+    >
       <div className="flex gap-2">
         {['info', 'slots', 'team'].map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`px-3 py-1 rounded ${tab === t ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>{t.toUpperCase()}</button>
@@ -112,16 +114,16 @@ export default function NodeForm() {
             <input className="form-input" placeholder="Code" value={node.code} onChange={(e) => setNode({ ...node, code: e.target.value })} required />
             <input className="form-input" placeholder="Nom FR" value={node.name_fr} onChange={(e) => setNode({ ...node, name_fr: e.target.value })} required />
             <input className="form-input" placeholder="Nom AR" value={node.name_ar} onChange={(e) => setNode({ ...node, name_ar: e.target.value })} required />
-            <select className="form-input" value={node.node_type_id} onChange={(e) => setNode({ ...node, node_type_id: e.target.value })} required>
+            <select className="form-select" value={node.node_type_id} onChange={(e) => setNode({ ...node, node_type_id: e.target.value })} required>
               <option value="">Type node</option>{nodeTypes.map((t) => <option key={t.id} value={t.id}>{t.name_fr}</option>)}
             </select>
-            <select className="form-input" value={node.region_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, region_id: v, province_id: '', city_id: '' }); await loadDependent(v, null); }} required>
+            <select className="form-select" value={node.region_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, region_id: v, province_id: '', city_id: '' }); await loadDependent(v, null); }} required>
               <option value="">Région</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
             </select>
-            <select className="form-input" value={node.province_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, province_id: v, city_id: '' }); await loadDependent(node.region_id, v); }} required>
+            <select className="form-select" value={node.province_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, province_id: v, city_id: '' }); await loadDependent(node.region_id, v); }} required>
               <option value="">Province</option>{provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
             </select>
-            <select className="form-input" value={node.city_id} onChange={(e) => setNode({ ...node, city_id: e.target.value })} required>
+            <select className="form-select" value={node.city_id} onChange={(e) => setNode({ ...node, city_id: e.target.value })} required>
               <option value="">Ville</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
             </select>
             <input className="form-input" placeholder="Rue" value={node.address_line1} onChange={(e) => setNode({ ...node, address_line1: e.target.value })} />
@@ -134,8 +136,16 @@ export default function NodeForm() {
             <input className="form-input" placeholder="Rayon livraison km" value={node.delivery_radius_km} onChange={(e) => setNode({ ...node, delivery_radius_km: e.target.value })} />
             <input className="form-input" placeholder="Capacité max / jour" value={node.max_daily_orders} onChange={(e) => setNode({ ...node, max_daily_orders: e.target.value })} />
           </div>
-          <textarea className="form-input" rows={4} placeholder="opening_hours_json" value={node.opening_hours_json} onChange={(e) => setNode({ ...node, opening_hours_json: e.target.value })} />
-          <button className="btn-primary"><AddIcon />Sauvegarder</button>
+          <textarea className="form-textarea" rows={4} placeholder="opening_hours_json" value={node.opening_hours_json} onChange={(e) => setNode({ ...node, opening_hours_json: e.target.value })} />
+          <div className="form-actions">
+            <button type="submit" className="btn-primary">
+              <AddIcon />
+              Enregistrer
+            </button>
+            <Link to="/nodes" className="btn-secondary text-center">
+              Annuler
+            </Link>
+          </div>
         </form>
       )}
 
@@ -193,6 +203,6 @@ export default function NodeForm() {
           <p className="text-sm text-gray-600">Affectation équipe (Pickers / Drivers) - placeholder prêt pour liaison future avec module utilisateurs.</p>
         </div>
       )}
-    </div>
+    </FormPageShell>
   );
 }

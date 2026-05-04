@@ -52,30 +52,8 @@ export default function P0TablesHub() {
       <div className="page-header">
         <div>
           <Link to="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Tableau de bord</Link>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
-            <h1 className="page-title">Tables modèle P0</h1>
-            <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5">
-              Nouveau dans Prisma
-            </span>
-          </div>
-          <p className="page-subtitle mt-1 max-w-3xl">
-            Chaque table a sa <strong>propre page</strong> avec <strong>CRUD</strong> (liste, ajout, modification,
-            suppression) et formulaires dynamiques. Utilise le bouton bleu <strong>Fiche + CRUD</strong> ou le nom SQL.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Link
-              to="/p0/relations"
-              className="inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 shadow hover:bg-indigo-700"
-            >
-              Voir toutes les relations (FK)
-            </Link>
-            <span className="text-xs text-gray-500">Raccourci : navigation latérale « Relations P0 »</span>
-          </div>
-          {payload?.note && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3 max-w-3xl">
-              {payload.note}
-            </p>
-          )}
+          <h1 className="page-title mt-1">Référentiel données</h1>
+          <p className="page-subtitle mt-1 max-w-3xl">Choisissez une table pour gérer ses enregistrements.</p>
         </div>
       </div>
 
@@ -107,7 +85,7 @@ export default function P0TablesHub() {
                         </code>
                         <span className="text-xs font-mono text-gray-500">{row.model}</span>
                         <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                          Fiche →
+                          Ouvrir →
                         </span>
                       </Link>
                       <p className="text-xs text-gray-600 mt-1 line-clamp-2">{row.labelFr}</p>
@@ -117,7 +95,7 @@ export default function P0TablesHub() {
                         to={`/p0/tables/${encodeURIComponent(row.sql)}`}
                         className="inline-flex items-center rounded-md bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 shadow-sm hover:bg-blue-700 whitespace-nowrap"
                       >
-                        Fiche + CRUD
+                        Ouvrir
                       </Link>
                       <div className="text-right">
                         <span className="text-[10px] uppercase text-gray-400 block">Lignes</span>

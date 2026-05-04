@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { createCity, getCity, getProvinces, getRegions, updateCity } from '../../api/locationNode.api';
@@ -76,7 +77,7 @@ export default function CityFormPage() {
     try {
       if (isEdit) await updateCity(id, form);
       else await createCity(form);
-      toast.success(isEdit ? 'Ville mise ‡ jour' : 'Ville crÈÈe');
+      toast.success(isEdit ? 'Ville mise ù jour' : 'Ville crùùe');
       navigate('/geo/cities');
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -90,28 +91,27 @@ export default function CityFormPage() {
   }
 
   if (!canSave) {
-    return <div className="text-center py-12 text-red-600">AccËs refusÈ.</div>;
+    return <div className="text-center py-12 text-red-600">Accùs refusù.</div>;
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to="/geo/cities" className="text-sm text-gray-500 hover:text-gray-700">{'<-'} Villes</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">{isEdit ? 'Modifier' : 'Nouvelle'} ville</h1>
-      </div>
-
+    <FormPageShell
+      backTo="/geo/cities"
+      segmentLabel={isEdit ? 'Modifier ville' : 'Nouvelle ville'}
+      title={isEdit ? 'Modifier la ville' : 'Nouvelle ville'}
+    >
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
-          <label className="form-label">RÈgion (filtre)</label>
-          <select className="form-input" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+          <label className="form-label">Rùgion (filtre)</label>
+          <select className="form-select" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
             <option value="">Toutes</option>
             {regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
           </select>
         </div>
         <div>
           <label className="form-label">Province *</label>
-          <select className="form-input" value={form.province_id} onChange={(e) => setForm({ ...form, province_id: e.target.value })} required>
-            <option value="">ó Choisir ó</option>
+          <select className="form-select" value={form.province_id} onChange={(e) => setForm({ ...form, province_id: e.target.value })} required>
+            <option value="">ù Choisir ù</option>
             {provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
           </select>
         </div>
@@ -135,11 +135,13 @@ export default function CityFormPage() {
           <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
           Active
         </label>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Ö' : 'Enregistrer'}</button>
+        <div className="form-actions">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement‚Ä¶' : 'Enregistrer'}
+          </button>
           <Link to="/geo/cities" className="btn-secondary text-center">Annuler</Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

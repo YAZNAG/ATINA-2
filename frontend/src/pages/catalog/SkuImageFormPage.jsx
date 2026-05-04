@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import * as catalog from '../../api/catalog.api';
 import { useAuth } from '../../context/AuthContext';
@@ -98,17 +99,16 @@ export default function SkuImageFormPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to="/catalog/sku-images" className="text-sm text-gray-500 hover:text-gray-700">← Images SKU</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">{isEdit ? 'Modifier' : 'Nouvelle'} image SKU</h1>
-      </div>
-
+    <FormPageShell
+      backTo="/catalog/sku-images"
+      segmentLabel={isEdit ? 'Modifier image SKU' : 'Nouvelle image SKU'}
+      title={isEdit ? 'Modifier l’image SKU' : 'Nouvelle image SKU'}
+    >
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
           <label className="form-label">SKU *</label>
           <select
-            className="form-input"
+            className="form-select"
             required
             value={form.sku_id}
             onChange={(e) => setForm({ ...form, sku_id: e.target.value })}
@@ -171,11 +171,15 @@ export default function SkuImageFormPage() {
           />
           Image principale (une seule par SKU)
         </label>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
-          <Link to="/catalog/sku-images" className="btn-secondary text-center">Annuler</Link>
+        <div className="form-actions">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <Link to="/catalog/sku-images" className="btn-secondary text-center">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

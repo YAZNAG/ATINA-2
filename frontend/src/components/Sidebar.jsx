@@ -11,16 +11,6 @@ const p0TablesIcon = (
 
 const navItems = [
   {
-    label: 'Relations P0',
-    path: '/p0/relations',
-    permission: 'dashboard.view',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-      </svg>
-    ),
-  },
-  {
     label: 'Clients (app)',
     path: '/customers',
     anyPermissions: ['customers.view', 'dashboard.view'],
@@ -83,9 +73,9 @@ const navItems = [
       { label: 'Articles', path: '/catalog/articles', permission: 'articles.view' },
       { label: 'SKU', path: '/catalog/skus', permission: 'skus.view' },
       { label: 'Images SKU', path: '/catalog/sku-images', permission: 'sku_images.view' },
-      { label: 'Families', path: '/catalog/ref/families', permission: 'families.view' },
+      { label: 'Familles', path: '/catalog/ref/families', permission: 'families.view' },
       { label: 'Categories', path: '/catalog/ref/categories', permission: 'categories.view' },
-      { label: 'SubCategories', path: '/catalog/ref/sub-categories', permission: 'sub_categories.view' },
+      { label: 'Sous-categories', path: '/catalog/ref/sub-categories', permission: 'sub_categories.view' },
       { label: 'Marques', path: '/catalog/ref/brands', permission: 'brands.view' },
       { label: 'Unités', path: '/catalog/ref/units', permission: 'units.view' },
       { label: 'Conditionnements', path: '/catalog/ref/packaging-types', permission: 'packaging_types.view' },
@@ -111,7 +101,7 @@ const navItems = [
     ],
   },
   {
-    label: 'Types node',
+    label: 'Types de noeud',
     path: '/node-types',
     anyPermissions: ['node_types.view'],
     icon: (
@@ -121,7 +111,7 @@ const navItems = [
     ),
   },
   {
-    label: 'Nodes',
+    label: 'Noeuds',
     path: '/nodes',
     anyPermissions: ['nodes.view'],
     icon: (
@@ -148,25 +138,21 @@ export default function Sidebar() {
       try {
         const res = await getP0Registry();
         const groups = res.data?.data?.groups ?? [];
-        const kids = [
-          { label: 'Vue d’ensemble', path: '/p0/tables', permission: 'dashboard.view', exact: true },
-        ];
+        const kids = [];
         for (const g of groups) {
           for (const t of g.tables || []) {
             kids.push({
-              label: t.sql,
+              label: t.labelFr || t.sql,
               path: `/p0/tables/${encodeURIComponent(t.sql)}`,
               permission: 'dashboard.view',
-              title: t.labelFr || t.model,
+              title: `${t.sql} - ${t.model}`,
             });
           }
         }
         if (!cancelled) setP0GroupChildren(kids);
       } catch {
         if (!cancelled) {
-          setP0GroupChildren([
-            { label: 'Vue d’ensemble', path: '/p0/tables', permission: 'dashboard.view', exact: true },
-          ]);
+          setP0GroupChildren([]);
         }
       }
     })();
@@ -179,7 +165,7 @@ export default function Sidebar() {
     const head = [];
     if (p0GroupChildren.length > 0) {
       head.push({
-        label: 'Tables P0',
+        label: 'Référentiel données',
         key: 'p0tables',
         group: true,
         icon: p0TablesIcon,

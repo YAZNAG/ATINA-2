@@ -7,7 +7,14 @@ const permissionMiddleware = require('../../middlewares/permission.middleware');
 const router = Router();
 router.use(auth);
 
-const canP0Crud = permissionMiddleware.permAny(['dashboard.view']);
+/** CRUD générique : dashboard pour la plupart des tables ; clients aussi avec `customers.view`. */
+function canP0Crud(req, res, next) {
+  const sql = String(req.params.sql || '').toLowerCase();
+  if (sql === 'customers') {
+    return permissionMiddleware.permAny(['dashboard.view', 'customers.view'])(req, res, next);
+  }
+  return permissionMiddleware.permAny(['dashboard.view'])(req, res, next);
+}
 
 router.get('/registry', ctrl.registry.bind(ctrl));
 router.get('/table/:sql', ctrl.tableBySql.bind(ctrl));

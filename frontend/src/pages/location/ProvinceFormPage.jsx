@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { createProvince, getProvince, getRegions, updateProvince } from '../../api/locationNode.api';
@@ -49,7 +50,7 @@ export default function ProvinceFormPage() {
     try {
       if (isEdit) await updateProvince(id, form);
       else await createProvince(form);
-      toast.success(isEdit ? 'Province mise ‡ jour' : 'Province crÈÈe');
+      toast.success(isEdit ? 'Province mise ù jour' : 'Province crùùe');
       navigate('/geo/provinces');
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -63,21 +64,20 @@ export default function ProvinceFormPage() {
   }
 
   if (!canSave) {
-    return <div className="text-center py-12 text-red-600">AccËs refusÈ.</div>;
+    return <div className="text-center py-12 text-red-600">Accùs refusù.</div>;
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to="/geo/provinces" className="text-sm text-gray-500 hover:text-gray-700">{'<-'} Provinces</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">{isEdit ? 'Modifier' : 'Nouvelle'} province</h1>
-      </div>
-
+    <FormPageShell
+      backTo="/geo/provinces"
+      segmentLabel={isEdit ? 'Modifier province' : 'Nouvelle province'}
+      title={isEdit ? 'Modifier la province' : 'Nouvelle province'}
+    >
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
-          <label className="form-label">RÈgion *</label>
-          <select className="form-input" value={form.region_id} onChange={(e) => setForm({ ...form, region_id: e.target.value })} required>
-            <option value="">ó Choisir ó</option>
+          <label className="form-label">Rùgion *</label>
+          <select className="form-select" value={form.region_id} onChange={(e) => setForm({ ...form, region_id: e.target.value })} required>
+            <option value="">ù Choisir ù</option>
             {regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
           </select>
         </div>
@@ -97,11 +97,13 @@ export default function ProvinceFormPage() {
           <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
           Active
         </label>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Ö' : 'Enregistrer'}</button>
+        <div className="form-actions">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement‚Ä¶' : 'Enregistrer'}
+          </button>
           <Link to="/geo/provinces" className="btn-secondary text-center">Annuler</Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import * as catalog from '../../api/catalog.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
@@ -230,15 +231,14 @@ export default function ArticleForm() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <Link to="/catalog/articles" className="text-sm text-gray-500 hover:text-gray-700">← Articles</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">
-          {isEdit ? 'Modifier l’article' : 'Nouvel article'}
-        </h1>
-        <p className="text-sm text-gray-500">Champs alignés sur le modèle article (SKU, EAN-13, prix, TVA, unités).</p>
-      </div>
-
+    <FormPageShell
+      backTo="/catalog/articles"
+      segmentLabel={isEdit ? 'Modifier article' : 'Nouvel article'}
+      title={isEdit ? 'Modifier l’article' : 'Nouvel article'}
+      description="Champs alignés sur le modèle article (SKU, EAN-13, prix, TVA, unités)."
+      maxWidthClass="max-w-4xl"
+    >
+      <div className="space-y-6">
       {isEdit && (
         <div id="article-images-zone" className="scroll-mt-4">
           <ArticleSkuImagesPanel articleId={id} />
@@ -270,7 +270,7 @@ export default function ArticleForm() {
         </div>
       )}
 
-      <form onSubmit={submit} className="space-y-6">
+      <form onSubmit={submit} className="space-y-6 mt-2">
         <div className="card space-y-4">
           <h2 className="font-semibold text-gray-800 border-b pb-2">Identification</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -292,11 +292,11 @@ export default function ArticleForm() {
             </div>
             <div className="md:col-span-2">
               <label className="form-label">Description (FR)</label>
-              <textarea name="description_fr" className="form-input" rows={2} value={form.description_fr} onChange={handleChange} />
+              <textarea name="description_fr" className="form-textarea" rows={2} value={form.description_fr} onChange={handleChange} />
             </div>
             <div className="md:col-span-2">
               <label className="form-label">Description (AR)</label>
-              <textarea name="description_ar" className="form-input" rows={2} value={form.description_ar} onChange={handleChange} />
+              <textarea name="description_ar" className="form-textarea" rows={2} value={form.description_ar} onChange={handleChange} />
             </div>
           </div>
         </div>
@@ -306,19 +306,19 @@ export default function ArticleForm() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="form-label">Famille *</label>
-              <select name="family_id" className="form-input" value={form.family_id} onChange={handleFamily} required>
+              <select name="family_id" className="form-select" value={form.family_id} onChange={handleFamily} required>
                 {sel(families)}
               </select>
             </div>
             <div>
               <label className="form-label">Catégorie</label>
-              <select name="category_id" className="form-input" value={form.category_id} onChange={handleCategory} disabled={!form.family_id}>
+              <select name="category_id" className="form-select" value={form.category_id} onChange={handleCategory} disabled={!form.family_id}>
                 {sel(categories)}
               </select>
             </div>
             <div>
               <label className="form-label">Sous-catégorie</label>
-              <select name="sub_category_id" className="form-input" value={form.sub_category_id} onChange={handleChange} disabled={!form.category_id}>
+              <select name="sub_category_id" className="form-select" value={form.sub_category_id} onChange={handleChange} disabled={!form.category_id}>
                 {sel(subCategories)}
               </select>
             </div>
@@ -329,7 +329,7 @@ export default function ArticleForm() {
           <h2 className="font-semibold text-gray-800 border-b pb-2">Marque</h2>
           <div>
             <label className="form-label">Marque</label>
-            <select name="brand_id" className="form-input max-w-md" value={form.brand_id} onChange={handleChange}>{sel(brands)}</select>
+            <select name="brand_id" className="form-select max-w-md" value={form.brand_id} onChange={handleChange}>{sel(brands)}</select>
           </div>
         </div>
 
@@ -371,11 +371,16 @@ export default function ArticleForm() {
           </label>
         </div>
 
-        <div id="save-article" className="flex gap-3 scroll-mt-24">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
-          <Link to="/catalog/articles" className="btn-secondary text-center">Annuler</Link>
+        <div id="save-article" className="form-actions scroll-mt-24">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <Link to="/catalog/articles" className="btn-secondary text-center">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+      </div>
+    </FormPageShell>
   );
 }

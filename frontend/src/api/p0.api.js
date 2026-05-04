@@ -18,7 +18,3 @@ export const getP0CrudMeta = (sql) => api.get(`/p0/crud/${encodeURIComponent(sql
 
 export const getP0RefOptions = (refSql) =>
   api.get(`/p0/crud/refs/${encodeURIComponent(refSql)}/options`);
-
-export const getP0Relations = () => api.get('/p0/relations');
-
-export const getP0RelationsForTable = (sql) => api.get(`/p0/relations/${encodeURIComponent(sql)}`);

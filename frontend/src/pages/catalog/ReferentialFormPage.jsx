@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import * as catalog from '../../api/catalog.api';
 import { getEntityConfig } from './entityRegistry';
 import { useAuth } from '../../context/AuthContext';
@@ -315,7 +316,7 @@ export default function ReferentialFormPage() {
         <div key="cat-block">
           <label className="form-label">Famille (pour filtrer les catégories)</label>
           <select
-            className="form-input mb-4"
+            className="form-select mb-4"
             value={uiFamilyId}
             onChange={(e) => {
               setUiFamilyId(e.target.value);
@@ -330,7 +331,7 @@ export default function ReferentialFormPage() {
           <label className="form-label">{field.label} *</label>
           <select
             name="category_id"
-            className="form-input"
+            className="form-select"
             required
             value={form.category_id ?? ''}
             onChange={handleChange}
@@ -351,7 +352,7 @@ export default function ReferentialFormPage() {
           <label className="form-label">{field.label}</label>
           <select
             name={field.name}
-            className="form-input"
+            className="form-select"
             value={form[field.name] ?? ''}
             onChange={handleChange}
             required={field.required}
@@ -371,7 +372,7 @@ export default function ReferentialFormPage() {
           <label className="form-label">{field.label}{field.required ? ' *' : ''}</label>
           <select
             name={field.name}
-            className="form-input"
+            className="form-select"
             value={form[field.name] ?? ''}
             onChange={handleChange}
             required={field.required}
@@ -391,7 +392,7 @@ export default function ReferentialFormPage() {
           <label className="form-label">{field.label}</label>
           <textarea
             name={field.name}
-            className="form-input"
+            className="form-textarea"
             rows={3}
             value={form[field.name] ?? ''}
             onChange={handleChange}
@@ -418,16 +419,11 @@ export default function ReferentialFormPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to={`/catalog/ref/${entitySlug}`} className="text-sm text-gray-500 hover:text-gray-700">
-          ← {cfg.label}
-        </Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">
-          {isEdit ? 'Modifier' : 'Nouveau'} — {cfg.label}
-        </h1>
-      </div>
-
+    <FormPageShell
+      backTo={`/catalog/ref/${entitySlug}`}
+      segmentLabel={cfg.label}
+      title={`${isEdit ? 'Modifier' : 'Nouveau'} — ${cfg.label}`}
+    >
       <form onSubmit={handleSubmit} className="card space-y-4">
         {cfg.fields.map((field) => renderField(field))}
         {cfg.special === 'brand' && (
@@ -546,13 +542,15 @@ export default function ReferentialFormPage() {
             </div>
           </div>
         )}
-        <div className="flex gap-3 pt-2">
+        <div className="form-actions">
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? '…' : 'Enregistrer'}
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
           </button>
-          <Link to={`/catalog/ref/${entitySlug}`} className="btn-secondary text-center">Annuler</Link>
+          <Link to={`/catalog/ref/${entitySlug}`} className="btn-secondary text-center">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

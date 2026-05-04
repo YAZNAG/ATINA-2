@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { createRegion, getRegion, updateRegion } from '../../api/locationNode.api';
@@ -65,12 +66,11 @@ export default function RegionFormPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to="/geo/regions" className="text-sm text-gray-500 hover:text-gray-700">{'<-'} Regions</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">{isEdit ? 'Modifier' : 'Nouvelle'} region</h1>
-      </div>
-
+    <FormPageShell
+      backTo="/geo/regions"
+      segmentLabel={isEdit ? 'Modifier région' : 'Nouvelle région'}
+      title={isEdit ? 'Modifier la région' : 'Nouvelle région'}
+    >
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
           <label className="form-label">Code *</label>
@@ -87,7 +87,7 @@ export default function RegionFormPage() {
         <div>
           <label className="form-label">Description FR</label>
           <textarea
-            className="form-input min-h-[88px]"
+            className="form-textarea"
             value={form.description_fr ?? ''}
             onChange={(e) => setForm({ ...form, description_fr: e.target.value })}
             placeholder="Optionnel"
@@ -97,7 +97,7 @@ export default function RegionFormPage() {
         <div>
           <label className="form-label">Description AR</label>
           <textarea
-            className="form-input min-h-[88px]"
+            className="form-textarea"
             dir="rtl"
             value={form.description_ar ?? ''}
             onChange={(e) => setForm({ ...form, description_ar: e.target.value })}
@@ -127,11 +127,15 @@ export default function RegionFormPage() {
           <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
           Active
         </label>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
-          <Link to="/geo/regions" className="btn-secondary text-center">Annuler</Link>
+        <div className="form-actions">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <Link to="/geo/regions" className="btn-secondary text-center">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

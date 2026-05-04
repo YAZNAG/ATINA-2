@@ -32,6 +32,9 @@ const MODEL_FK_HINTS = {
     customer_id: { refModel: 'Customer', refSql: 'customers' },
     city_id: { refModel: 'City', refSql: null },
   },
+  Customer: {
+    referred_by_id: { refModel: 'Customer', refSql: 'customers' },
+  },
   StockLevel: {
     node_id: { refModel: 'Node', refSql: null },
     sku_id: { refModel: 'Sku', refSql: null },

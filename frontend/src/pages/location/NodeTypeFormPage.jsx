@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import toast from 'react-hot-toast';
 import { createNodeType, getNodeType, updateNodeType } from '../../api/locationNode.api';
 import { getErrorMessage } from '../../utils/helpers';
@@ -56,12 +57,11 @@ export default function NodeTypeFormPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div>
-        <Link to="/node-types" className="text-sm text-gray-500 hover:text-gray-700">{'<-'} Types node</Link>
-        <h1 className="text-lg font-semibold text-gray-800 mt-2">{isEdit ? 'Modifier' : 'Nouveau'} type node</h1>
-      </div>
-
+    <FormPageShell
+      backTo="/node-types"
+      segmentLabel={isEdit ? 'Modifier type' : 'Nouveau type'}
+      title={isEdit ? 'Modifier le type de nœud' : 'Nouveau type de nœud'}
+    >
       <form onSubmit={onSubmit} className="card space-y-4">
         <div>
           <label className="form-label">Code *</label>
@@ -75,11 +75,15 @@ export default function NodeTypeFormPage() {
           <label className="form-label">Nom AR *</label>
           <input className="form-input" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} required />
         </div>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={loading}>{loading ? '...' : 'Enregistrer'}</button>
-          <Link to="/node-types" className="btn-secondary text-center">Annuler</Link>
+        <div className="form-actions">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <Link to="/node-types" className="btn-secondary text-center">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

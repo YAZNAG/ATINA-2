@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import FormPageShell from '../../components/FormPageShell';
 import { getUser, createUser, updateUser } from '../../api/users.api';
 import { getRoles } from '../../api/roles.api';
 import { getErrorMessage } from '../../utils/helpers';
@@ -94,20 +95,11 @@ export default function UserForm() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center gap-3">
-        <Link to="/users" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Retour
-        </Link>
-        <span className="text-gray-300">/</span>
-        <h1 className="text-lg font-semibold text-gray-800">
-          {isEdit ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
-        </h1>
-      </div>
-
+    <FormPageShell
+      backTo="/users"
+      segmentLabel={isEdit ? 'Modifier utilisateur' : 'Nouvel utilisateur'}
+      title={isEdit ? "Modifier l'utilisateur" : 'Nouvel utilisateur'}
+    >
       <form onSubmit={handleSubmit} className="card space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -157,7 +149,7 @@ export default function UserForm() {
           </div>
           <div>
             <label className="form-label">Statut</label>
-            <select name="status" className="form-input" value={form.status} onChange={handleChange}>
+            <select name="status" className="form-select" value={form.status} onChange={handleChange}>
               <option value="active">Actif</option>
               <option value="inactive">Inactif</option>
             </select>
@@ -193,13 +185,15 @@ export default function UserForm() {
           </div>
         )}
 
-        <div className="flex gap-3 pt-2 border-t border-gray-100">
+        <div className="form-actions">
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Enregistrement...' : 'Enregistrer'}
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
           </button>
-          <Link to="/users" className="btn-secondary">Annuler</Link>
+          <Link to="/users" className="btn-secondary">
+            Annuler
+          </Link>
         </div>
       </form>
-    </div>
+    </FormPageShell>
   );
 }

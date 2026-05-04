@@ -196,7 +196,7 @@ export default function ArticleForm() {
         toast.success('Article créé');
         const newId = res.data?.data?.id;
         if (newId != null) {
-          navigate(`/catalog/articles/${newId}/edit`);
+          navigate(`/catalog/articles/${newId}/edit#article-images-zone`);
           return;
         }
       }
@@ -238,6 +238,37 @@ export default function ArticleForm() {
         </h1>
         <p className="text-sm text-gray-500">Champs alignés sur le modèle article (SKU, EAN-13, prix, TVA, unités).</p>
       </div>
+
+      {isEdit && (
+        <div id="article-images-zone" className="scroll-mt-4">
+          <ArticleSkuImagesPanel articleId={id} />
+        </div>
+      )}
+
+      {!isEdit && (
+        <div
+          id="article-images-zone"
+          className="card border-amber-200 bg-amber-50/60 scroll-mt-4 space-y-2"
+        >
+          <h2 className="font-semibold text-amber-900">Où ajouter les images ?</h2>
+          <ol className="text-sm text-amber-950/90 list-decimal list-inside space-y-1">
+            <li>Remplissez le formulaire ci-dessous (SKU, noms, prix…).</li>
+            <li>
+              Cliquez sur <a href="#save-article" className="font-semibold underline decoration-amber-700">Enregistrer</a>{' '}
+              (en bas du formulaire) : vous serez renvoyé sur cette page en édition.
+            </li>
+            <li>
+              La zone <strong>« Images du produit »</strong> apparaît alors <strong>en haut</strong>, juste au-dessus du
+              formulaire : c’est là que vous uploadez les fichiers (stockés sur le serveur sous{' '}
+              <code className="text-xs bg-white/80 px-1 rounded">storage/image/article/{'{id}'}/</code>).
+            </li>
+          </ol>
+          <p className="text-xs text-amber-900/80">
+            L’image en <strong>1re position</strong> (plus petit ordre d’affichage) est l’image <strong>principale</strong>{' '}
+            (vignette catalogue).
+          </p>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-6">
         <div className="card space-y-4">
@@ -340,16 +371,7 @@ export default function ArticleForm() {
           </label>
         </div>
 
-        {isEdit && <ArticleSkuImagesPanel articleId={id} />}
-
-        {!isEdit && (
-          <div className="card text-sm text-gray-500">
-            <p className="font-medium text-gray-700 mb-1">Galerie images</p>
-            <p>Enregistrez l’article une première fois : vous serez renvoyé ici en édition pour ajouter autant d’images que vous voulez, choisir l’image principale et régler l’ordre d’affichage.</p>
-          </div>
-        )}
-
-        <div className="flex gap-3">
+        <div id="save-article" className="flex gap-3 scroll-mt-24">
           <button type="submit" className="btn-primary" disabled={loading}>{loading ? '…' : 'Enregistrer'}</button>
           <Link to="/catalog/articles" className="btn-secondary text-center">Annuler</Link>
         </div>

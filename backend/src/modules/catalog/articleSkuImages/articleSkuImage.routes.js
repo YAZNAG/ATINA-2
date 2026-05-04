@@ -2,15 +2,16 @@ const { Router } = require('express');
 const ctrl = require('./articleSkuImage.controller');
 const auth = require('../../../middlewares/auth.middleware');
 const perm = require('../../../middlewares/permission.middleware');
-const skuImgUploadPerms = ['sku_images.create', 'article_images.manage'];
-const skuImgUpdatePerms = ['sku_images.update', 'article_images.manage'];
-const skuImgDeletePerms = ['sku_images.delete', 'article_images.manage'];
-const { createUpload } = require('../../../middlewares/upload.middleware');
+// Qui peut modifier l’article peut gérer sa galerie (évite 403 si les droits sku_images.* ne sont pas assignés).
+const skuImgUploadPerms = ['sku_images.create', 'article_images.manage', 'articles.update'];
+const skuImgUpdatePerms = ['sku_images.update', 'article_images.manage', 'articles.update'];
+const skuImgDeletePerms = ['sku_images.delete', 'article_images.manage', 'articles.update'];
+const { createUploadArticleSkuImages } = require('../../../middlewares/upload.middleware');
 
 const router = Router({ mergeParams: true });
 router.use(auth);
 
-const upload = createUpload('sku-images', [{ name: 'images', maxCount: 10 }]);
+const upload = createUploadArticleSkuImages([{ name: 'images', maxCount: 10 }]);
 
 router.get('/', perm('articles.view'), ctrl.index.bind(ctrl));
 router.post('/', perm.permAny(skuImgUploadPerms), upload, ctrl.addImages.bind(ctrl));

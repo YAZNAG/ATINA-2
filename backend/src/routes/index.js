@@ -6,6 +6,8 @@ const permissionRoutes = require('./permission.routes');
 const catalogRoutes = require('../modules/catalog/catalog.routes');
 const locationRoutes = require('../modules/location/location.routes');
 const nodeRoutes = require('../modules/node/node.routes');
+const p0Routes = require('../modules/p0/p0.routes');
+const customersRoutes = require('../modules/customers/customers.routes');
 
 const router = Router();
 
@@ -16,5 +18,7 @@ router.use('/permissions', permissionRoutes);
 router.use('/catalog', catalogRoutes);
 router.use('/', locationRoutes);
 router.use('/', nodeRoutes);
+router.use('/p0', p0Routes);
+router.use('/customers', customersRoutes);
 
 module.exports = router;

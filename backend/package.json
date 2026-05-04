@@ -4,11 +4,13 @@
   "description": "Dark Store Management API",
   "main": "src/server.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:push": "prisma db push",
+    "db:ensure-customers": "prisma db execute --file prisma/sql/ensure_customers_table.sql",
     "db:seed": "node src/seeders/index.js",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset"

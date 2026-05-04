@@ -63,9 +63,11 @@ class ArticleService {
     const payload = this._toPrismaPayload(mapped);
     return prisma.$transaction(async (tx) => {
       const sku = await tx.sku.create({ data: {} });
+      // `select: { id: true }` : évite un `RETURNING *` sur toutes les colonnes (ex. `sku_uuid`) si la table
+      // n’est pas encore migrée — erreur PG « colonne … inexistante » sur `article.create`.
       const created = await tx.article.create({
         data: payload,
-        include: INCLUDE,
+        select: { id: true },
       });
       await setArticleSkuUuid(tx, created.id, sku.id);
       return tx.article.findFirst({ where: { id: created.id }, include: INCLUDE });
@@ -209,11 +211,11 @@ class ArticleService {
     assign('family_id', mapped.family_id);
     assign('sub_category_id', mapped.sub_category_id);
     assign('category_id', mapped.category_id);
-    assign('unit_sale', mapped.unit_sale);
-    assign('unit_purchase', mapped.unit_purchase);
-    assign('coeff', mapped.coeff);
+    assign('unit_sale', mapped.unit_sale ?? 'unit');
+    assign('unit_purchase', mapped.unit_purchase ?? 'unit');
+    assign('coeff', mapped.coeff ?? 1);
     assign('price', mapped.price);
-    assign('vat_rate', mapped.vat_rate);
+    assign('vat_rate', mapped.vat_rate ?? 20);
     assign('weight_g', mapped.weight_g);
     assign('volume_ml', mapped.volume_ml);
     assign('is_active', mapped.is_active);

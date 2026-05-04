@@ -24,6 +24,11 @@ model User {
   regions_created Region[] @relation("RegionCreatedBy")
   regions_updated Region[] @relation("RegionUpdatedBy")
   regions_deleted Region[] @relation("RegionDeletedBy")
+  app_configs_updated AppConfig[] @relation("AppConfigUpdatedBy")
+  packs_created              Pack[]
+  flash_sales_created        FlashSale[]
+  gamification_games_created GamificationGame[]
+  referral_configs_created   ReferralConfig[]
 
   @@map("users")
 }
@@ -296,6 +301,15 @@ model Sku {
   updated_at DateTime   @updatedAt @db.Timestamptz(6)
   images     SkuImage[]
   article    Article?   @relation("ArticleCatalogSku")
+  stock_levels       StockLevel[]
+  selling_rules      SellingRule[]
+  reorder_rules      ReorderRule[]
+  sku_node_locations SkuNodeLocation[]
+  order_items        OrderItem[]
+  pack_items         PackItem[]
+  flash_sales        FlashSale[]
+  stock_moves        StockMove[]
+  gamification_prizes GamificationPrize[]
 
   @@map("skus")
 }
@@ -429,6 +443,22 @@ model Node {
   province         Province       @relation(fields: [province_id], references: [id])
   city             City           @relation(fields: [city_id], references: [id])
   delivery_slots   DeliverySlot[]
+  stock_levels     StockLevel[]
+  selling_rules    SellingRule[]
+  reorder_rules    ReorderRule[]
+  warehouse_locations WarehouseLocation[]
+  sku_node_locations  SkuNodeLocation[]
+  orders              Order[]
+  order_items         OrderItem[]
+  app_configs         AppConfig[]
+  packs               Pack[]
+  flash_sales         FlashSale[]
+  points_rules        PointsRule[]
+  gamification_games  GamificationGame[]
+  stock_moves         StockMove[]
+  tours               Tour[]
+  promotions          Promotion[]
+  referral_configs    ReferralConfig[]
 
   @@map("nodes")
 }
@@ -446,6 +476,843 @@ model DeliverySlot {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   node       Node     @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  orders_confirmed Order[] @relation("OrderConfirmedSlot")
 
   @@map("delivery_slots")
+}
+
+// ============================================================
+// P0 CAHIER DES CHARGES — lookups + cœur commande / stock
+// (coexiste avec auth User/Role Int — customers & admins UUID = phase ultérieure)
+// ============================================================
+
+model StockOperation {
+  code    String @id @db.VarChar(10)
+  name_fr String @db.VarChar(50)
+
+  @@map("stock_operations")
+}
+
+model MoveType {
+  id         String   @id @default(uuid()) @db.Uuid
+  code       String   @unique @db.VarChar(50)
+  name_fr    String   @db.VarChar(100)
+  name_ar    String   @db.VarChar(100)
+  operation  String   @db.VarChar(10)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  stock_moves StockMove[]
+
+  @@map("move_types")
+}
+
+model OrderStatus {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(50)
+  name_fr     String   @db.VarChar(100)
+  name_ar     String   @db.VarChar(100)
+  is_terminal Boolean  @default(false)
+  sort_order  Int      @default(0) @db.SmallInt
+  orders      Order[]
+
+  @@map("order_statuses")
+}
+
+model OrderItemStatus {
+  id          String      @id @default(uuid()) @db.Uuid
+  code        String      @unique @db.VarChar(50)
+  name_fr     String      @db.VarChar(100)
+  name_ar     String      @db.VarChar(100)
+  order_items OrderItem[]
+
+  @@map("order_item_statuses")
+}
+
+model OrderSlotStatus {
+  id     String @id @default(uuid()) @db.Uuid
+  code   String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("order_slot_statuses")
+}
+
+model PaymentStatus {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique @db.VarChar(50)
+  name_fr   String    @db.VarChar(100)
+  name_ar   String    @db.VarChar(100)
+  payments  Payment[]
+
+  @@map("payment_statuses")
+}
+
+model PaymentMethod {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique @db.VarChar(50)
+  name_fr   String    @db.VarChar(100)
+  name_ar   String    @db.VarChar(100)
+  is_active Boolean   @default(true)
+  payments  Payment[]
+
+  @@map("payment_methods")
+}
+
+model TourStatus {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+  tours   Tour[]
+
+  @@map("tour_statuses")
+}
+
+model StopStatus {
+  id         String     @id @default(uuid()) @db.Uuid
+  code       String     @unique @db.VarChar(50)
+  name_fr    String     @db.VarChar(100)
+  name_ar    String     @db.VarChar(100)
+  tour_stops TourStop[]
+
+  @@map("stop_statuses")
+}
+
+model PickingStatus {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("picking_statuses")
+}
+
+model PickItemStatus {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("pick_item_statuses")
+}
+
+model ReferralStatus {
+  id         String     @id @default(uuid()) @db.Uuid
+  code       String     @unique @db.VarChar(50)
+  name_fr    String     @db.VarChar(100)
+  name_ar    String     @db.VarChar(100)
+  referrals  Referral[]
+
+  @@map("referral_statuses")
+}
+
+model WalletTxnType {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(50)
+  name_fr   String   @db.VarChar(100)
+  name_ar   String   @db.VarChar(100)
+  direction String   @db.VarChar(10)
+
+  @@map("wallet_txn_types")
+}
+
+model PrizeType {
+  id                 String               @id @default(uuid()) @db.Uuid
+  code               String               @unique @db.VarChar(50)
+  name_fr            String               @db.VarChar(100)
+  name_ar            String               @db.VarChar(100)
+  gamification_prizes GamificationPrize[]
+
+  @@map("prize_types")
+}
+
+model GameType {
+  id                String              @id @default(uuid()) @db.Uuid
+  code              String              @unique @db.VarChar(50)
+  name_fr           String              @db.VarChar(100)
+  name_ar           String              @db.VarChar(100)
+  gamification_games GamificationGame[]
+
+  @@map("game_types")
+}
+
+model GamePlayPeriod {
+  id                 String             @id @default(uuid()) @db.Uuid
+  code               String             @unique @db.VarChar(50)
+  name_fr            String             @db.VarChar(100)
+  name_ar            String             @db.VarChar(100)
+  gamification_games GamificationGame[]
+
+  @@map("game_play_periods")
+}
+
+model UnlockCondition {
+  id                 String             @id @default(uuid()) @db.Uuid
+  code               String             @unique @db.VarChar(50)
+  name_fr            String             @db.VarChar(100)
+  name_ar            String             @db.VarChar(100)
+  gamification_games GamificationGame[]
+
+  @@map("unlock_conditions")
+}
+
+model PromoType {
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique @db.VarChar(50)
+  name_fr      String       @db.VarChar(100)
+  name_ar      String       @db.VarChar(100)
+  promotions   Promotion[]
+
+  @@map("promo_types")
+}
+
+model PointsRuleType {
+  id           String        @id @default(uuid()) @db.Uuid
+  code         String        @unique @db.VarChar(50)
+  name_fr      String        @db.VarChar(100)
+  name_ar      String        @db.VarChar(100)
+  points_rules PointsRule[]
+
+  @@map("points_rule_types")
+}
+
+model RewardType {
+  id                            String           @id @default(uuid()) @db.Uuid
+  code                          String           @unique @db.VarChar(50)
+  name_fr                       String           @db.VarChar(100)
+  name_ar                       String           @db.VarChar(100)
+  referral_configs_as_referrer ReferralConfig[] @relation("ReferrerRewardType")
+  referral_configs_as_referee   ReferralConfig[] @relation("RefereeRewardType")
+
+  @@map("reward_types")
+}
+
+model NotificationChannel {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("notification_channels")
+}
+
+model NotificationDeliveryStatus {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("notification_statuses")
+}
+
+model QualityCheckType {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("quality_check_types")
+}
+
+model ConfigValueType {
+  id          String      @id @default(uuid()) @db.Uuid
+  code        String      @unique @db.VarChar(50)
+  name_fr     String      @db.VarChar(100)
+  name_ar     String      @db.VarChar(100)
+  app_configs AppConfig[]
+
+  @@map("config_value_types")
+}
+
+model CostingMethod {
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique @db.VarChar(20)
+  name_fr      String       @db.VarChar(100)
+  name_ar      String       @db.VarChar(100)
+  reorder_rules ReorderRule[]
+
+  @@map("costing_methods")
+}
+
+model DeliveryType {
+  id      String  @id @default(uuid()) @db.Uuid
+  code    String  @unique @db.VarChar(50)
+  name_fr String  @db.VarChar(100)
+  name_ar String  @db.VarChar(100)
+  orders  Order[]
+
+  @@map("delivery_types")
+}
+
+model SlotAssignmentSource {
+  id      String @id @default(uuid()) @db.Uuid
+  code    String @unique @db.VarChar(50)
+  name_fr String @db.VarChar(100)
+  name_ar String @db.VarChar(100)
+
+  @@map("slot_assignment_sources")
+}
+
+/// Table P0 `customers` — un enregistrement par client app. Contraintes CHECK + index téléphone actif : voir prisma/sql/customers_p0_constraints.sql
+model Customer {
+  id               String    @id @default(uuid()) @db.Uuid
+  phone_country    String    @default("+212") @db.VarChar(5)
+  phone_number     String    @db.VarChar(15)
+  phone_verified_at DateTime? @db.Timestamptz(6)
+  name             String    @db.VarChar(150)
+  preferred_lang   String    @default("fr") @db.VarChar(5)
+  referral_code    String    @unique @db.VarChar(20)
+  referred_by_id   String?   @db.Uuid
+  wallet_balance   Decimal   @default(0) @db.Decimal(12, 2)
+  points_balance   Int       @default(0)
+  points_lifetime  Int       @default(0)
+  city             String?   @db.VarChar(100)
+  lat              Decimal?  @db.Decimal(9, 6)
+  lng              Decimal?  @db.Decimal(9, 6)
+  is_active        Boolean   @default(true)
+  is_deleted       Boolean   @default(false)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
+
+  referred_by Customer?  @relation("CustomerReferrals", fields: [referred_by_id], references: [id])
+  referrals   Customer[] @relation("CustomerReferrals")
+  addresses   Address[]
+  orders      Order[]
+  referrals_as_referrer Referral[] @relation("ReferralReferrer")
+  referrals_as_referee  Referral[] @relation("ReferralReferee")
+  gamification_plays    GamificationPlay[]
+
+  @@map("customers")
+}
+
+model Address {
+  id             String    @id @default(uuid()) @db.Uuid
+  customer_id    String    @db.Uuid
+  label          String?   @db.VarChar(100)
+  street_number  String?   @db.VarChar(20)
+  street_name    String    @db.VarChar(255)
+  quartier       String?   @db.VarChar(100)
+  city           String    @default("Rabat") @db.VarChar(100)
+  postal_code    String?   @db.VarChar(5)
+  lat            Decimal?  @db.Decimal(9, 6)
+  lng            Decimal?  @db.Decimal(9, 6)
+  delivery_notes String?   @db.Text
+  is_default     Boolean   @default(false)
+  is_deleted     Boolean   @default(false)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@map("addresses")
+}
+
+model StockLevel {
+  id               String   @id @default(uuid()) @db.Uuid
+  node_id          String   @db.Uuid
+  sku_id           String   @db.Uuid
+  qty_physical     Decimal  @default(0) @db.Decimal(12, 3)
+  qty_reserved     Decimal  @default(0) @db.Decimal(12, 3)
+  qty_available    Decimal  @default(0) @db.Decimal(12, 3)
+  qty_backordered  Decimal  @default(0) @db.Decimal(12, 3)
+  qty_incoming     Decimal  @default(0) @db.Decimal(12, 3)
+  qty_floating_cod Decimal  @default(0) @db.Decimal(12, 3)
+  last_move_id     String?  @db.Uuid
+  last_counted_at  DateTime? @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  node Node @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku  Sku  @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+
+  @@unique([node_id, sku_id])
+  @@map("stock_levels")
+}
+
+model SellingRule {
+  id                      String   @id @default(uuid()) @db.Uuid
+  node_id                 String   @db.Uuid
+  sku_id                  String   @db.Uuid
+  is_backorderable        Boolean  @default(true)
+  backorder_limit         Decimal  @default(0) @db.Decimal(12, 3)
+  backordered_quantity    Decimal  @default(0) @db.Decimal(12, 3)
+  estimated_restock_days  Int      @default(1) @db.SmallInt
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+
+  node Node @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku  Sku  @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+
+  @@unique([node_id, sku_id])
+  @@map("selling_rules")
+}
+
+model ReorderRule {
+  id                     String   @id @default(uuid()) @db.Uuid
+  node_id                String   @db.Uuid
+  sku_id                 String   @db.Uuid
+  safety_stock           Decimal  @default(0) @db.Decimal(12, 3)
+  reorder_point          Decimal  @default(0) @db.Decimal(12, 3)
+  economic_qty           Decimal  @default(0) @db.Decimal(12, 3)
+  max_stock              Decimal? @db.Decimal(12, 3)
+  lead_time_days         Int      @default(1) @db.SmallInt
+  costing_method_id      String   @db.Uuid
+  preferred_supplier_id  String?  @db.Uuid
+  is_active              Boolean  @default(true)
+  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+
+  node            Node           @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku             Sku            @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+  costing_method      CostingMethod @relation(fields: [costing_method_id], references: [id])
+  preferred_supplier  Supplier?     @relation(fields: [preferred_supplier_id], references: [id])
+
+  @@unique([node_id, sku_id])
+  @@map("reorder_rules")
+}
+
+model Order {
+  id                  String    @id @default(uuid()) @db.Uuid
+  customer_id         String    @db.Uuid
+  node_id             String    @db.Uuid
+  address_id          String?   @db.Uuid
+  tour_id             String?   @db.Uuid
+  promotion_id        String?   @db.Uuid
+  status_id           String    @db.Uuid
+  delivery_type_id    String    @db.Uuid
+  confirmed_slot_id   String?   @db.Uuid
+  slot_start          DateTime? @db.Timestamptz(6)
+  slot_end            DateTime? @db.Timestamptz(6)
+  currency            String    @default("MAD") @db.VarChar(3)
+  subtotal_ht         Decimal   @default(0) @db.Decimal(12, 2)
+  vat_amount          Decimal   @default(0) @db.Decimal(12, 2)
+  delivery_fee        Decimal   @default(0) @db.Decimal(12, 2)
+  discount_amount     Decimal   @default(0) @db.Decimal(12, 2)
+  wallet_used         Decimal   @default(0) @db.Decimal(12, 2)
+  total_ttc           Decimal   @default(0) @db.Decimal(12, 2)
+  cod_amount          Decimal?  @db.Decimal(12, 2)
+  cod_collected_at    DateTime? @db.Timestamptz(6)
+  points_earned       Int       @default(0)
+  notes               String?   @db.Text
+  cancelled_reason    String?   @db.Text
+  is_deleted          Boolean   @default(false)
+  deleted_at          DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
+
+  customer       Customer      @relation(fields: [customer_id], references: [id])
+  node           Node          @relation(fields: [node_id], references: [id])
+  address        Address?      @relation(fields: [address_id], references: [id])
+  status         OrderStatus   @relation(fields: [status_id], references: [id])
+  delivery_type  DeliveryType  @relation(fields: [delivery_type_id], references: [id])
+  confirmed_slot DeliverySlot? @relation("OrderConfirmedSlot", fields: [confirmed_slot_id], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
+  tour           Tour?         @relation(fields: [tour_id], references: [id])
+  promotion      Promotion?    @relation(fields: [promotion_id], references: [id])
+  tour_stops     TourStop[]
+  referrals_qualifying Referral[]
+  gamification_plays   GamificationPlay[] @relation("GamificationPlayOrder")
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  order_id          String   @db.Uuid
+  sku_id            String?  @db.Uuid
+  pack_id           String?  @db.Uuid
+  parent_item_id    String?  @db.Uuid
+  flash_sale_id     String?  @db.Uuid
+  status_id         String   @db.Uuid
+  qty               Decimal  @db.Decimal(10, 3)
+  unit_price_sold   Decimal  @db.Decimal(12, 2)
+  discount_amount   Decimal  @default(0) @db.Decimal(12, 2)
+  qty_backordered   Decimal  @default(0) @db.Decimal(10, 3)
+  vat_rate          Decimal  @default(20) @db.Decimal(5, 2)
+  node_id           String   @db.Uuid
+
+  order       Order           @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  sku         Sku?            @relation(fields: [sku_id], references: [id])
+  status      OrderItemStatus @relation(fields: [status_id], references: [id])
+  node        Node            @relation(fields: [node_id], references: [id])
+  parent_item OrderItem?      @relation("OrderItemPackLine", fields: [parent_item_id], references: [id])
+  child_lines OrderItem[]     @relation("OrderItemPackLine")
+  pack        Pack?           @relation(fields: [pack_id], references: [id])
+  flash_sale  FlashSale?      @relation(fields: [flash_sale_id], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id                String   @id @default(uuid()) @db.Uuid
+  order_id          String   @db.Uuid
+  status_id         String   @db.Uuid
+  payment_method_id String?  @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  currency          String   @default("MAD") @db.VarChar(3)
+  metadata          Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  order           Order          @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  status          PaymentStatus  @relation(fields: [status_id], references: [id])
+  payment_method  PaymentMethod? @relation(fields: [payment_method_id], references: [id])
+
+  @@map("payments")
+}
+
+model AppConfig {
+  id            String   @id @default(uuid()) @db.Uuid
+  node_id       String?  @db.Uuid
+  config_key    String   @db.VarChar(100)
+  config_value  String   @db.Text
+  value_type_id String   @db.Uuid
+  description   String?  @db.Text
+  updated_by    Int
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  node       Node?            @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  value_type ConfigValueType  @relation(fields: [value_type_id], references: [id])
+  editor     User             @relation("AppConfigUpdatedBy", fields: [updated_by], references: [id])
+
+  @@unique([node_id, config_key])
+  @@map("app_configs")
+}
+
+model WarehouseLocation {
+  id         String    @id @default(uuid()) @db.Uuid
+  node_id    String    @db.Uuid
+  aisle      String    @db.VarChar(10)
+  shelf      String    @db.VarChar(10)
+  level      String    @db.VarChar(10)
+  label      String    @db.VarChar(50)
+  zone       String?   @db.VarChar(50)
+  is_active  Boolean   @default(true)
+  is_deleted Boolean   @default(false)
+  deleted_at DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+
+  node               Node              @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku_node_locations SkuNodeLocation[]
+
+  @@unique([node_id, aisle, shelf, level])
+  @@map("locations")
+}
+
+model SkuNodeLocation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  sku_id              String   @db.Uuid
+  node_id             String   @db.Uuid
+  location_id         String   @db.Uuid
+  qty_physical        Decimal  @default(0) @db.Decimal(12, 3)
+  is_primary_location Boolean  @default(true)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+
+  sku      Sku               @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+  node     Node              @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  location WarehouseLocation @relation(fields: [location_id], references: [id], onDelete: Cascade)
+
+  @@unique([sku_id, node_id, location_id])
+  @@map("sku_node_locations")
+}
+
+model Supplier {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String?  @unique @db.VarChar(50)
+  name_fr   String   @db.VarChar(200)
+  name_ar   String   @db.VarChar(200)
+  is_active Boolean  @default(true)
+  is_deleted Boolean @default(false)
+  deleted_at DateTime? @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  reorder_rules ReorderRule[]
+
+  @@map("suppliers")
+}
+
+model Pack {
+  id              String    @id @default(uuid()) @db.Uuid
+  node_id         String?   @db.Uuid
+  name_fr         String    @db.VarChar(255)
+  name_ar         String    @db.VarChar(255)
+  description_fr  String?   @db.Text
+  description_ar  String?   @db.Text
+  image_url       String?   @db.Text
+  total_price     Decimal   @db.Decimal(12, 2)
+  original_price  Decimal   @db.Decimal(12, 2)
+  discount_pct    Decimal?  @db.Decimal(5, 2)
+  valid_from      DateTime? @db.Timestamptz(6)
+  valid_to        DateTime? @db.Timestamptz(6)
+  is_active       Boolean   @default(true)
+  is_deleted      Boolean   @default(false)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  created_by      Int
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+
+  node       Node?      @relation(fields: [node_id], references: [id])
+  creator    User       @relation(fields: [created_by], references: [id])
+  pack_items PackItem[]
+  order_items OrderItem[]
+  flash_sales FlashSale[]
+
+  @@map("packs")
+}
+
+model PackItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  pack_id            String   @db.Uuid
+  sku_id             String   @db.Uuid
+  qty                Decimal  @default(1) @db.Decimal(10, 3)
+  unit_price_in_pack Decimal  @db.Decimal(12, 2)
+  sort_order         Int      @default(0) @db.SmallInt
+
+  pack Pack @relation(fields: [pack_id], references: [id], onDelete: Cascade)
+  sku  Sku  @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+
+  @@map("pack_items")
+}
+
+model FlashSale {
+  id                 String    @id @default(uuid()) @db.Uuid
+  node_id            String    @db.Uuid
+  sku_id             String?   @db.Uuid
+  pack_id            String?   @db.Uuid
+  name_fr            String?   @db.VarChar(255)
+  name_ar            String?   @db.VarChar(255)
+  image_url          String?   @db.Text
+  flash_price        Decimal   @db.Decimal(12, 2)
+  stock_flash        Int
+  sold_count         Int       @default(0)
+  max_qty_per_user   Int       @default(1) @db.SmallInt
+  starts_at          DateTime  @db.Timestamptz(6)
+  ends_at            DateTime  @db.Timestamptz(6)
+  is_active          Boolean   @default(true)
+  is_deleted         Boolean   @default(false)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  created_by         Int
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+
+  node        Node   @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku         Sku?   @relation(fields: [sku_id], references: [id])
+  pack        Pack?  @relation(fields: [pack_id], references: [id])
+  creator     User   @relation(fields: [created_by], references: [id])
+  order_items OrderItem[]
+
+  @@map("flash_sales")
+}
+
+model Promotion {
+  id                 String    @id @default(uuid()) @db.Uuid
+  node_id            String?   @db.Uuid
+  promo_type_id      String    @db.Uuid
+  code               String    @unique @db.VarChar(50)
+  value              Decimal   @db.Decimal(12, 2)
+  min_order_amount   Decimal   @default(0) @db.Decimal(12, 2)
+  uses_max           Int?
+  uses_count         Int       @default(0)
+  uses_per_user_max  Int       @default(1) @db.SmallInt
+  valid_from         DateTime  @db.Timestamptz(6)
+  valid_to           DateTime  @db.Timestamptz(6)
+  is_active          Boolean   @default(true)
+  is_deleted         Boolean   @default(false)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+
+  node       Node?     @relation(fields: [node_id], references: [id])
+  promo_type PromoType @relation(fields: [promo_type_id], references: [id])
+  orders     Order[]
+
+  @@map("promotions")
+}
+
+model PointsRule {
+  id               String    @id @default(uuid()) @db.Uuid
+  rule_type_id     String    @db.Uuid
+  node_id          String?   @db.Uuid
+  category_id      String?   @db.Uuid
+  points_value     Int
+  per_mad_spent    Decimal?  @db.Decimal(5, 2)
+  min_order_amount Decimal   @default(0) @db.Decimal(12, 2)
+  valid_from       DateTime  @db.Timestamptz(6)
+  valid_to         DateTime? @db.Timestamptz(6)
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  rule_type PointsRuleType @relation(fields: [rule_type_id], references: [id])
+  node      Node?          @relation(fields: [node_id], references: [id])
+
+  @@map("points_rules")
+}
+
+model ReferralConfig {
+  id                      String    @id @default(uuid()) @db.Uuid
+  node_id                 String?   @db.Uuid
+  referrer_reward_type_id String   @db.Uuid
+  referrer_reward_value   Decimal   @db.Decimal(12, 2)
+  referee_reward_type_id  String    @db.Uuid
+  referee_reward_value    Decimal   @db.Decimal(12, 2)
+  min_order_amount        Decimal   @default(0) @db.Decimal(12, 2)
+  max_referrals_per_user  Int?      @db.SmallInt
+  valid_from              DateTime  @db.Timestamptz(6)
+  valid_to                DateTime? @db.Timestamptz(6)
+  is_active               Boolean   @default(true)
+  created_by              Int
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+
+  node              Node?      @relation(fields: [node_id], references: [id])
+  referrer_type     RewardType @relation("ReferrerRewardType", fields: [referrer_reward_type_id], references: [id])
+  referee_type      RewardType @relation("RefereeRewardType", fields: [referee_reward_type_id], references: [id])
+  creator             User       @relation(fields: [created_by], references: [id])
+  referrals           Referral[]
+
+  @@map("referral_config")
+}
+
+model Referral {
+  id                   String    @id @default(uuid()) @db.Uuid
+  referrer_id          String    @db.Uuid
+  referee_id           String    @db.Uuid
+  config_id            String?   @db.Uuid
+  status_id            String    @db.Uuid
+  qualifying_order_id  String?   @db.Uuid
+  reward_amount        Decimal?  @db.Decimal(12, 2)
+  validated_at         DateTime? @db.Timestamptz(6)
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+
+  referrer          Customer       @relation("ReferralReferrer", fields: [referrer_id], references: [id])
+  referee           Customer       @relation("ReferralReferee", fields: [referee_id], references: [id])
+  config            ReferralConfig? @relation(fields: [config_id], references: [id])
+  status              ReferralStatus @relation(fields: [status_id], references: [id])
+  qualifying_order    Order?        @relation(fields: [qualifying_order_id], references: [id])
+
+  @@unique([referrer_id, referee_id])
+  @@map("referrals")
+}
+
+model GamificationGame {
+  id                    String    @id @default(uuid()) @db.Uuid
+  node_id               String?   @db.Uuid
+  game_type_id          String    @db.Uuid
+  play_period_id        String    @db.Uuid
+  unlock_condition_id   String?   @db.Uuid
+  name_fr               String    @db.VarChar(255)
+  name_ar               String    @db.VarChar(255)
+  max_plays_per_user    Int       @default(1) @db.SmallInt
+  unlock_min_amount     Decimal?  @db.Decimal(12, 2)
+  starts_at             DateTime  @db.Timestamptz(6)
+  ends_at               DateTime? @db.Timestamptz(6)
+  is_active             Boolean   @default(true)
+  is_deleted            Boolean   @default(false)
+  deleted_at            DateTime? @db.Timestamptz(6)
+  created_by            Int
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(6)
+
+  node              Node?             @relation(fields: [node_id], references: [id])
+  game_type         GameType          @relation(fields: [game_type_id], references: [id])
+  play_period       GamePlayPeriod    @relation(fields: [play_period_id], references: [id])
+  unlock_condition  UnlockCondition?  @relation(fields: [unlock_condition_id], references: [id])
+  creator             User              @relation(fields: [created_by], references: [id])
+  prizes              GamificationPrize[]
+  plays               GamificationPlay[]
+
+  @@map("gamification_games")
+}
+
+model GamificationPrize {
+  id                   String   @id @default(uuid()) @db.Uuid
+  game_id              String   @db.Uuid
+  prize_type_id        String   @db.Uuid
+  name_fr              String   @db.VarChar(150)
+  name_ar              String   @db.VarChar(150)
+  value                Decimal? @db.Decimal(12, 2)
+  sku_id               String?  @db.Uuid
+  coupon_code_prefix   String?  @db.VarChar(20)
+  probability_weight   Decimal  @db.Decimal(8, 4)
+  stock_limit          Int?
+  awarded_count        Int      @default(0)
+  sort_order           Int      @default(0) @db.SmallInt
+  is_active            Boolean  @default(true)
+
+  game       GamificationGame @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  prize_type PrizeType        @relation(fields: [prize_type_id], references: [id])
+  sku        Sku?             @relation(fields: [sku_id], references: [id])
+  plays      GamificationPlay[]
+
+  @@map("gamification_prizes")
+}
+
+model GamificationPlay {
+  id         String    @id @default(uuid()) @db.Uuid
+  customer_id String   @db.Uuid
+  game_id    String    @db.Uuid
+  prize_id   String?   @db.Uuid
+  order_id   String?   @db.Uuid
+  result     String    @db.VarChar(10)
+  played_at  DateTime  @default(now()) @db.Timestamptz(6)
+  claimed_at DateTime? @db.Timestamptz(6)
+  expires_at DateTime? @db.Timestamptz(6)
+
+  customer Customer            @relation(fields: [customer_id], references: [id])
+  game     GamificationGame    @relation(fields: [game_id], references: [id])
+  prize    GamificationPrize?  @relation(fields: [prize_id], references: [id])
+  order    Order?              @relation("GamificationPlayOrder", fields: [order_id], references: [id])
+
+  @@map("gamification_plays")
+}
+
+model StockMove {
+  id           String   @id @default(uuid()) @db.Uuid
+  node_id      String   @db.Uuid
+  sku_id       String   @db.Uuid
+  move_type_id String?  @db.Uuid
+  qty_delta    Decimal  @db.Decimal(12, 3)
+  reference    String?  @db.VarChar(100)
+  metadata     Json?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  node      Node      @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  sku       Sku       @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+  move_type MoveType? @relation(fields: [move_type_id], references: [id])
+
+  @@map("stock_moves")
+}
+
+model Tour {
+  id         String    @id @default(uuid()) @db.Uuid
+  node_id    String?   @db.Uuid
+  status_id  String    @db.Uuid
+  planned_at DateTime? @db.Timestamptz(6)
+  notes      String?   @db.Text
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+
+  node   Node?      @relation(fields: [node_id], references: [id])
+  status TourStatus @relation(fields: [status_id], references: [id])
+  stops  TourStop[]
+  orders Order[]
+
+  @@map("tours")
+}
+
+model TourStop {
+  id         String   @id @default(uuid()) @db.Uuid
+  tour_id    String   @db.Uuid
+  order_id   String?  @db.Uuid
+  status_id  String   @db.Uuid
+  sort_order Int      @default(0) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  tour   Tour       @relation(fields: [tour_id], references: [id], onDelete: Cascade)
+  order  Order?     @relation(fields: [order_id], references: [id])
+  status StopStatus @relation(fields: [status_id], references: [id])
+
+  @@map("tour_stops")
 }

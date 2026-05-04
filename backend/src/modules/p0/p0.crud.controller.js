@@ -1,0 +1,374 @@
+const prisma = require('../../config/database');
+const response = require('../../utils/response');
+const { findTableEntryBySql } = require('./p0.registry');
+const { resolveFk } = require('./p0.fkHints');
+
+function prismaDelegate(modelName) {
+  return modelName.charAt(0).toLowerCase() + modelName.slice(1);
+}
+
+function getDelegate(modelName) {
+  const key = prismaDelegate(modelName);
+  const d = prisma[key];
+  if (!d || typeof d.findMany !== 'function') return null;
+  return d;
+}
+
+/** Sérialise Decimal / Date / BigInt pour JSON. */
+function toPlain(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'bigint') return value.toString();
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(toPlain);
+  if (typeof value === 'object') {
+    if (typeof value.toFixed === 'function' && typeof value.toString === 'function') {
+      return value.toString();
+    }
+    const out = {};
+    for (const k of Object.keys(value)) {
+      out[k] = toPlain(value[k]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function resolveTable(req, res) {
+  const raw = (req.params.sql || '').trim();
+  if (!raw || !/^[a-zA-Z0-9_]+$/.test(raw)) {
+    response.error(res, 'Identifiant de table SQL invalide', 400);
+    return null;
+  }
+  const found = findTableEntryBySql(raw);
+  if (!found) {
+    response.error(res, 'Table P0 inconnue ou hors registre', 404);
+    return null;
+  }
+  if (found.table.genericCrud === false) {
+    response.error(res, 'CRUD générique désactivé pour cette table (écran dédié).', 403);
+    return null;
+  }
+  const delegate = getDelegate(found.table.model);
+  if (!delegate) {
+    response.error(res, 'Modèle Prisma introuvable (exécutez prisma generate).', 503);
+    return null;
+  }
+  return { found, delegate, sql: found.table.sql };
+}
+
+function sanitizeCreateBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {};
+  }
+  const data = { ...body };
+  delete data.id;
+  return data;
+}
+
+function sanitizeUpdateBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {};
+  }
+  const data = { ...body };
+  delete data.id;
+  return data;
+}
+
+function prismaErrMessage(err) {
+  if (err.code === 'P2002') return 'Violation contrainte unique (doublon).';
+  if (err.code === 'P2003') return 'Référence invalide (clé étrangère).';
+  if (err.code === 'P2025') return 'Enregistrement introuvable.';
+  return err.message || 'Erreur Prisma';
+}
+
+/** Cache Prisma orderBy par modèle (évite les modèles sans colonne `id`). */
+const p0ListOrderByCache = new Map();
+
+/**
+ * @param {Record<string, unknown>|null} row
+ * @param {'list'|'ref'} mode
+ */
+function pickOrderByFromRow(row, mode) {
+  if (!row) return undefined;
+  const listRules = [
+    ['updated_at', 'desc'],
+    ['created_at', 'desc'],
+    ['id', 'desc'],
+    ['sort_order', 'asc'],
+    ['code', 'asc'],
+    ['name_fr', 'asc'],
+    ['name', 'asc'],
+    ['name_ar', 'asc'],
+  ];
+  const refRules = [
+    ['code', 'asc'],
+    ['name_fr', 'asc'],
+    ['name', 'asc'],
+    ['id', 'asc'],
+    ['sort_order', 'asc'],
+    ['name_ar', 'asc'],
+  ];
+  const rules = mode === 'ref' ? refRules : listRules;
+  for (const [field, dir] of rules) {
+    if (Object.prototype.hasOwnProperty.call(row, field)) {
+      return { [field]: dir };
+    }
+  }
+  return undefined;
+}
+
+async function getDefaultListOrderBy(modelName, delegate) {
+  if (p0ListOrderByCache.has(modelName)) return p0ListOrderByCache.get(modelName);
+  const row = await delegate.findFirst();
+  const orderBy = pickOrderByFromRow(row, 'list');
+  p0ListOrderByCache.set(modelName, orderBy);
+  return orderBy;
+}
+
+function buildRefSelectFromSampleRow(row) {
+  const select = {};
+  if ('id' in row) select.id = true;
+  if ('code' in row) select.code = true;
+  ['name_fr', 'name_ar', 'name', 'label', 'config_key', 'referral_code'].forEach((k) => {
+    if (k in row) select[k] = true;
+  });
+  if (Object.keys(select).length === 0) {
+    const k = Object.keys(row)[0];
+    if (k) select[k] = true;
+  }
+  return select;
+}
+
+function refOptionPrimaryValue(plain) {
+  if (plain.id !== undefined && plain.id !== null) return plain.id;
+  if (plain.code !== undefined && plain.code !== null) return plain.code;
+  if (plain.config_key !== undefined && plain.config_key !== null) return plain.config_key;
+  if (plain.referral_code !== undefined && plain.referral_code !== null) return plain.referral_code;
+  return plain.name_fr ?? plain.name ?? '';
+}
+
+function mapPgKind(pgType) {
+  const t = (pgType || '').toLowerCase();
+  if (t === 'boolean') return 'boolean';
+  if (t === 'json' || t === 'jsonb') return 'json';
+  if (t.includes('timestamp') || t === 'date') return 'datetime';
+  if (t.includes('int') || t === 'numeric' || t === 'decimal' || t === 'real' || t === 'double precision') {
+    return 'number';
+  }
+  if (t === 'uuid') return 'uuid';
+  return 'string';
+}
+
+function isReadonlyColumn(name) {
+  return name === 'updated_at' || name === 'created_at';
+}
+
+/** Colonnes + FK pour formulaire dynamique (information_schema). */
+exports.meta = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const model = resolved.found.table.model;
+    const rows = await prisma.$queryRaw`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${resolved.sql}
+      ORDER BY ordinal_position
+    `;
+
+    const fields = rows.map((col) => {
+      const name = col.column_name;
+      const nullable = col.is_nullable === 'YES';
+      const fk = resolveFk(model, name);
+      let kind = fk?.refSql ? 'fk' : mapPgKind(col.data_type);
+
+      return {
+        name,
+        kind,
+        nullable,
+        readonly: isReadonlyColumn(name) || name === 'id',
+        hideOnCreate: name === 'id',
+        refSql: fk?.refSql || null,
+        refModel: fk?.refModel || null,
+        hasRegistryList: Boolean(fk?.refSql),
+      };
+    });
+
+    return response.success(res, {
+      sql: resolved.sql,
+      model,
+      fields,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Options pour `<select>` (id + libellé) — table référencée du registre P0 (y compris customers). */
+exports.refOptions = async (req, res, next) => {
+  try {
+    const raw = (req.params.sql || '').trim();
+    if (!raw || !/^[a-zA-Z0-9_]+$/.test(raw)) {
+      return response.error(res, 'Identifiant SQL invalide', 400);
+    }
+    const found = findTableEntryBySql(raw);
+    if (!found) {
+      return response.error(res, 'Table référence inconnue du registre P0', 404);
+    }
+
+    const delegate = getDelegate(found.table.model);
+    if (!delegate) {
+      return response.error(res, 'Modèle Prisma introuvable', 503);
+    }
+
+    const first = await delegate.findFirst();
+    if (!first) {
+      return response.success(res, { sql: found.table.sql, options: [] });
+    }
+
+    const select = buildRefSelectFromSampleRow(first);
+    const orderBy = pickOrderByFromRow(first, 'ref');
+
+    const list = await delegate.findMany({
+      take: 500,
+      ...(orderBy ? { orderBy } : {}),
+      select,
+    });
+
+    const options = list.map((row) => {
+      const plain = toPlain(row);
+      const label =
+        plain.code ||
+        plain.name_fr ||
+        plain.name ||
+        plain.label ||
+        plain.config_key ||
+        plain.referral_code ||
+        plain.name_ar ||
+        String(refOptionPrimaryValue(plain)).slice(0, 12);
+      return { id: refOptionPrimaryValue(plain), label: String(label) };
+    });
+
+    return response.success(res, { sql: found.table.sql, options });
+  } catch (err) {
+    if (err.code === 'P2021') {
+      return response.error(res, 'Table absente en base', 503);
+    }
+    next(err);
+  }
+};
+
+exports.list = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25));
+    const skip = (page - 1) * limit;
+
+    const modelName = resolved.found.table.model;
+    const orderBy = await getDefaultListOrderBy(modelName, resolved.delegate);
+
+    const [items, total] = await Promise.all([
+      resolved.delegate.findMany({
+        skip,
+        take: limit,
+        ...(orderBy ? { orderBy } : {}),
+      }),
+      resolved.delegate.count(),
+    ]);
+
+    return response.success(res, {
+      sql: resolved.sql,
+      model: resolved.found.table.model,
+      items: items.map(toPlain),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 0,
+      },
+    });
+  } catch (err) {
+    if (err.code === 'P2021') {
+      return response.error(res, 'Table absente en base (npx prisma db push ou script SQL).', 503);
+    }
+    next(err);
+  }
+};
+
+exports.getOne = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const id = req.params.id;
+    if (!id) return response.error(res, 'Identifiant requis', 400);
+
+    const row = await resolved.delegate.findUnique({ where: { id } });
+    if (!row) return response.error(res, 'Ligne introuvable', 404);
+    return response.success(res, { sql: resolved.sql, item: toPlain(row) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.create = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const data = sanitizeCreateBody(req.body);
+    const created = await resolved.delegate.create({ data });
+    return response.success(res, { sql: resolved.sql, item: toPlain(created) }, 'Créé', 201);
+  } catch (err) {
+    if (err.code && err.code.startsWith('P')) {
+      return response.error(res, prismaErrMessage(err), 400);
+    }
+    next(err);
+  }
+};
+
+exports.update = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const id = req.params.id;
+    if (!id) return response.error(res, 'Identifiant requis', 400);
+
+    const data = sanitizeUpdateBody(req.body);
+    const updated = await resolved.delegate.update({
+      where: { id },
+      data,
+    });
+    return response.success(res, { sql: resolved.sql, item: toPlain(updated) });
+  } catch (err) {
+    if (err.code === 'P2025') return response.error(res, 'Ligne introuvable', 404);
+    if (err.code && err.code.startsWith('P')) {
+      return response.error(res, prismaErrMessage(err), 400);
+    }
+    next(err);
+  }
+};
+
+exports.remove = async (req, res, next) => {
+  try {
+    const resolved = resolveTable(req, res);
+    if (!resolved) return;
+
+    const id = req.params.id;
+    if (!id) return response.error(res, 'Identifiant requis', 400);
+
+    await resolved.delegate.delete({ where: { id } });
+    return response.success(res, { deleted: true, id });
+  } catch (err) {
+    if (err.code === 'P2025') return response.error(res, 'Ligne introuvable', 404);
+    if (err.code === 'P2003') {
+      return response.error(res, 'Suppression impossible : d’autres lignes référencent cet enregistrement.', 409);
+    }
+    next(err);
+  }
+};

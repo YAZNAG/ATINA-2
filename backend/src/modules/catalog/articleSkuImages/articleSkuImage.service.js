@@ -1,11 +1,20 @@
 const prisma = require('../../../config/database');
 const fileUploadService = require('../../../services/fileUpload.service');
-const { getFilePath } = require('../../../utils/fileStorage');
+const { getArticleSkuImagePublicUrl } = require('../../../utils/fileStorage');
 const { setArticleSkuUuid, getArticleSkuUuid } = require('../../../utils/articleSkuLink');
 
 const ARTICLE_WHERE = { deleted_at: null, is_deleted: false };
 
-const folder = 'sku-images';
+/** La 1re image (tri `sort_order` croissant puis `id`) est l’image principale. */
+async function syncPrimaryFromSortOrder(skuId) {
+  const rows = await prisma.skuImage.findMany({
+    where: { sku_id: skuId },
+    orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+  });
+  if (!rows.length) return;
+  await prisma.skuImage.updateMany({ where: { sku_id: skuId }, data: { is_primary: false } });
+  await prisma.skuImage.update({ where: { id: rows[0].id }, data: { is_primary: true } });
+}
 
 async function getArticleOrThrow(articleId) {
   const article = await prisma.article.findFirst({
@@ -55,23 +64,17 @@ class ArticleSkuImageService {
       where: { sku_id: skuId },
       _max: { sort_order: true },
     });
-    let nextOrder = (agg._max.sort_order ?? -1) + 1;
+    const nextOrder = (agg._max.sort_order ?? 0) + 1;
 
-    const hasPrimary = await prisma.skuImage.count({
-      where: { sku_id: skuId, is_primary: true },
-    });
-
-    const rows = files.images.map((file, idx) => {
-      const url = getFilePath(file, folder);
-      return {
-        sku_id: skuId,
-        url,
-        is_primary: hasPrimary === 0 && idx === 0,
-        sort_order: nextOrder + idx,
-      };
-    });
+    const rows = files.images.map((file, idx) => ({
+      sku_id: skuId,
+      url: getArticleSkuImagePublicUrl(articleId, file.filename),
+      is_primary: false,
+      sort_order: nextOrder + idx,
+    }));
 
     await prisma.skuImage.createMany({ data: rows });
+    await syncPrimaryFromSortOrder(skuId);
     return this.listByArticle(articleId);
   }
 
@@ -85,13 +88,20 @@ class ArticleSkuImageService {
     });
     if (!img) throw { statusCode: 404, message: 'Image introuvable pour cet article' };
 
-    await prisma.$transaction([
-      prisma.skuImage.updateMany({
-        where: { sku_id: skuUuid, is_primary: true },
-        data: { is_primary: false },
-      }),
-      prisma.skuImage.update({ where: { id: img.id }, data: { is_primary: true } }),
-    ]);
+    const all = await prisma.skuImage.findMany({
+      where: { sku_id: skuUuid },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+    const rest = all.filter((x) => x.id !== img.id);
+    const ordered = [img, ...rest];
+    await prisma.$transaction(
+      ordered.map((row, i) =>
+        prisma.skuImage.update({
+          where: { id: row.id },
+          data: { sort_order: i + 1, is_primary: i === 0 },
+        }),
+      ),
+    );
 
     return prisma.skuImage.findFirst({ where: { id: img.id } });
   }
@@ -123,6 +133,7 @@ class ArticleSkuImageService {
     if (!img) throw { statusCode: 404, message: 'Image introuvable' };
     if (img.url) fileUploadService.deleteFileByPath(img.url);
     await prisma.skuImage.delete({ where: { id: img.id } });
+    await syncPrimaryFromSortOrder(skuUuid);
   }
 }
 

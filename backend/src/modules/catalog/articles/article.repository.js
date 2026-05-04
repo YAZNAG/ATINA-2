@@ -2,12 +2,22 @@ const prisma = require('../../../config/database');
 
 const BASE_WHERE = { deleted_at: null, is_deleted: false };
 
+/** Sans `images` (article_images) : beaucoup de BDD n’ont pas les colonnes Prisma (`is_main`, `deleted_at`, …) → erreur « colonne inexistante ». La galerie se gère via `sku_images` (routes article/sku-images). */
 const INCLUDE = {
   family: { select: { id: true, name_fr: true, name_ar: true } },
   category: { select: { id: true, name_fr: true, name_ar: true } },
   sub_category: { select: { id: true, name_fr: true, name_ar: true } },
-  brand: { select: { id: true, name_fr: true, name_ar: true, logo: true } },
-  images: { where: { deleted_at: null }, orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }] },
+  brand: { select: { id: true, name_fr: true, name_ar: true } },
+  /** 1re image SKU = principale (tri identique au panneau galerie) */
+  catalog_sku: {
+    select: {
+      images: {
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+        take: 1,
+        select: { url: true },
+      },
+    },
+  },
 };
 
 const buildWhere = ({ search, is_active, family_id, category_id, sub_category_id, brand_id }) => ({
@@ -39,10 +49,17 @@ const findAll = async (params) => {
 };
 
 const findById = (id) => prisma.article.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
+/** `select: { id: true }` uniquement : évite un `SELECT *` sur toutes les colonnes Prisma (ex. `sku_uuid`) si la BDD n’est pas encore migrée — erreur PG « colonne … inexistante ». */
 const findBySkuCode = (sku_code, excludeId) =>
-  prisma.article.findFirst({ where: { sku_code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
+  prisma.article.findFirst({
+    where: { sku_code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) },
+    select: { id: true },
+  });
 const findByEan13 = (ean13, excludeId) =>
-  prisma.article.findFirst({ where: { ean13, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
+  prisma.article.findFirst({
+    where: { ean13, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) },
+    select: { id: true },
+  });
 
 const create = (data) => prisma.article.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.article.update({ where: { id }, data, include: INCLUDE });

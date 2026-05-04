@@ -6,6 +6,29 @@ import { getErrorMessage, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
+function ArticleListThumb({ url }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return (
+      <span
+        className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[10px] text-gray-400"
+        title="Aucune image"
+      >
+        —
+      </span>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className="inline-block h-11 w-11 object-cover rounded-md border border-gray-200 bg-gray-50"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function ArticleList() {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, pages: 0 });
@@ -90,6 +113,7 @@ export default function ArticleList() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
+                  <th className="table-th w-16 text-center">Image</th>
                   <th className="table-th">SKU</th>
                   <th className="table-th">Nom (FR)</th>
                   <th className="table-th">Famille</th>
@@ -103,11 +127,16 @@ export default function ArticleList() {
               <tbody className="divide-y divide-gray-50">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-400">Aucun article</td>
+                    <td colSpan={9} className="text-center py-12 text-gray-400">Aucun article</td>
                   </tr>
                 ) : (
-                  rows.map((a) => (
+                  rows.map((a) => {
+                    const thumbUrl = a.catalog_sku?.images?.[0]?.url;
+                    return (
                     <tr key={a.id} className="hover:bg-gray-50">
+                      <td className="table-td w-16 align-middle text-center">
+                        <ArticleListThumb url={thumbUrl} />
+                      </td>
                       <td className="table-td font-mono text-xs">{a.sku_code}</td>
                       <td className="table-td font-medium text-gray-900">{a.name_fr}</td>
                       <td className="table-td text-gray-600">{a.family?.name_fr ?? '—'}</td>
@@ -140,7 +169,8 @@ export default function ArticleList() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

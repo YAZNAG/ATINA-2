@@ -16,4 +16,10 @@ const getFilePath = (file, folder) => {
   return `/uploads/${folder}/${file.filename}`;
 };
 
-module.exports = { deleteFile, getFilePath };
+/** URL publique (static `app.use('/storage', ...)`) après upload multer dans `storage/image/article/{id}/`. */
+const getArticleSkuImagePublicUrl = (articleId, filename) => {
+  if (!filename) return null;
+  return `/storage/image/article/${Number(articleId)}/${filename}`;
+};
+
+module.exports = { deleteFile, getFilePath, getArticleSkuImagePublicUrl };

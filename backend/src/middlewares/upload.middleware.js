@@ -49,4 +49,40 @@ const createUpload = (folder, fields) => {
   };
 };
 
-module.exports = { createUpload };
+/** Fichiers article : `storage/image/article/{articleId}/` (req.params.articleId). */
+const createUploadArticleSkuImages = (fields) => {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const aid = String(req.params.articleId ?? '').trim();
+      const uploadDir = path.join(process.cwd(), 'storage', 'image', 'article', aid);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, uniqueSuffix + path.extname(file.originalname).toLowerCase());
+    },
+  });
+
+  const upload = multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: MAX_SIZE },
+  });
+
+  return (req, res, next) => {
+    upload.fields(fields)(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      }
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  };
+};
+
+module.exports = { createUpload, createUploadArticleSkuImages };

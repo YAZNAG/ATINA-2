@@ -17,6 +17,7 @@ const PERMISSIONS = [
   { name: 'View Permissions', code: 'permissions.view', module: 'permissions', description: 'View permissions list' },
   { name: 'Assign Permissions', code: 'permissions.assign', module: 'permissions', description: 'Assign permissions to roles' },
   { name: 'View Dashboard', code: 'dashboard.view', module: 'dashboard', description: 'Access the dashboard' },
+  { name: 'View App Customers', code: 'customers.view', module: 'customers', description: 'List P0 app customers (mobile)' },
 ];
 
 async function main() {

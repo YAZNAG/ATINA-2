@@ -8,6 +8,14 @@
 
 BEGIN;
 
+-- Colonnes souvent absentes sur d’anciennes tables `articles` (sinon `INSERT` / `RETURNING` Prisma échoue)
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "description_fr" TEXT;
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "description_ar" TEXT;
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "category_id" INTEGER;
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "sub_category_id" INTEGER;
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "brand_id" INTEGER;
+
 -- Renommages depuis l’ancien schéma
 DO $$
 BEGIN
@@ -53,11 +61,31 @@ ALTER TABLE "articles" ALTER COLUMN "price" SET DEFAULT 0;
 UPDATE "articles" SET "family_id" = (SELECT id FROM "families" ORDER BY id LIMIT 1) WHERE "family_id" IS NULL;
 ALTER TABLE "articles" ALTER COLUMN "family_id" SET NOT NULL;
 
--- Types texte
-ALTER TABLE "articles" ALTER COLUMN "sku_code" TYPE VARCHAR(100);
-ALTER TABLE "articles" ALTER COLUMN "ean13" TYPE VARCHAR(13);
-ALTER TABLE "articles" ALTER COLUMN "name_fr" TYPE VARCHAR(255);
-ALTER TABLE "articles" ALTER COLUMN "name_ar" TYPE VARCHAR(255);
+-- Types texte (uniquement si la colonne existe — évite erreur sur BDD minimales)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'articles' AND column_name = 'sku_code') THEN
+    ALTER TABLE "articles" ALTER COLUMN "sku_code" TYPE VARCHAR(100);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'articles' AND column_name = 'ean13') THEN
+    ALTER TABLE "articles" ALTER COLUMN "ean13" TYPE VARCHAR(13);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'articles' AND column_name = 'name_fr') THEN
+    ALTER TABLE "articles" ALTER COLUMN "name_fr" TYPE VARCHAR(255);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'articles' AND column_name = 'name_ar') THEN
+    ALTER TABLE "articles" ALTER COLUMN "name_ar" TYPE VARCHAR(255);
+  END IF;
+END $$;
 
 -- Timestamptz (ignore erreur si déjà ok)
 DO $$
@@ -107,5 +135,9 @@ ALTER TABLE "articles" DROP COLUMN IF EXISTS "is_stockable";
 ALTER TABLE "articles" DROP COLUMN IF EXISTS "is_perishable";
 ALTER TABLE "articles" DROP COLUMN IF EXISTS "requires_expiry_date";
 ALTER TABLE "articles" DROP COLUMN IF EXISTS "requires_batch_number";
+
+-- Lien SKU galerie (Prisma `sku_uuid`) — évite erreurs sur les requêtes qui lisent encore toute la ligne
+ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "sku_uuid" UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS "articles_sku_uuid_key" ON "articles" ("sku_uuid") WHERE "sku_uuid" IS NOT NULL;
 
 COMMIT;

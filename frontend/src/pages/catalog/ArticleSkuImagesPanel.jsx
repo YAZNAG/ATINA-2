@@ -15,11 +15,17 @@ export default function ArticleSkuImagesPanel({ articleId }) {
   const canView = hasPermission('articles.view');
   // Compat : droits « images SKU » ou ancien droit unique « images article »
   const canCreate =
-    hasPermission('sku_images.create') || hasPermission('article_images.manage');
+    hasPermission('sku_images.create') ||
+    hasPermission('article_images.manage') ||
+    hasPermission('articles.update');
   const canUpdate =
-    hasPermission('sku_images.update') || hasPermission('article_images.manage');
+    hasPermission('sku_images.update') ||
+    hasPermission('article_images.manage') ||
+    hasPermission('articles.update');
   const canDelete =
-    hasPermission('sku_images.delete') || hasPermission('article_images.manage');
+    hasPermission('sku_images.delete') ||
+    hasPermission('article_images.manage') ||
+    hasPermission('articles.update');
 
   const sortedImages = useMemo(
     () =>
@@ -76,7 +82,7 @@ export default function ArticleSkuImagesPanel({ articleId }) {
     if (!canUpdate) return;
     try {
       await catalog.setArticleSkuPrimaryImage(articleId, imageId);
-      toast.success('Image principale enregistrée (listings & fiche produit)');
+      toast.success('Image placée en 1re position (principale)');
       await load();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -126,14 +132,21 @@ export default function ArticleSkuImagesPanel({ articleId }) {
   }
 
   return (
-    <div className="card space-y-4">
+    <div className="card space-y-4 ring-2 ring-blue-100 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-gray-800">Galerie images</h2>
-          <ul className="text-xs text-gray-600 mt-1 space-y-0.5 list-disc list-inside">
-            <li>Ajoutez <strong>autant d’images</strong> que nécessaire (bouton multi-fichiers).</li>
-            <li>Une seule image <strong>principale</strong> à la fois (listings, vignette catalogue).</li>
-            <li><strong>Ordre d’affichage</strong> : le plus petit numéro apparaît en premier ; boutons ↑ ↓ ou champ numérique.</li>
+          <h2 className="text-base font-semibold text-gray-900">Images du produit</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Fichiers enregistrés côté serveur : <code className="bg-gray-100 px-1 rounded">storage/image/article/{articleId}/</code>
+          </p>
+          <ul className="text-xs text-gray-600 mt-2 space-y-0.5 list-disc list-inside">
+            <li>
+              Utilisez <strong>+ Ajouter des images</strong> (plusieurs fichiers à la fois : jpg, png, webp).
+            </li>
+            <li>
+              <strong>1re ligne = image principale</strong> (ordre d’affichage le plus petit). Les boutons ↑ ↓ ou le champ
+              numérique changent l’ordre ; la principale suit automatiquement la ligne du haut.
+            </li>
           </ul>
         </div>
         {canCreate && (
@@ -164,7 +177,7 @@ export default function ArticleSkuImagesPanel({ articleId }) {
               <tr>
                 <th className="table-th w-10">#</th>
                 <th className="table-th">Aperçu</th>
-                <th className="table-th">Principale</th>
+                <th className="table-th">Rôle</th>
                 <th className="table-th">Ordre</th>
                 <th className="table-th hidden lg:table-cell">Fichier</th>
                 {(canUpdate || canDelete) && <th className="table-th">Actions</th>}
@@ -182,11 +195,11 @@ export default function ArticleSkuImagesPanel({ articleId }) {
                     />
                   </td>
                   <td className="table-td">
-                    {img.is_primary ? (
-                      <span className="badge-active">Principale</span>
+                    {idx === 0 ? (
+                      <span className="badge-active">Principale (ordre 1)</span>
                     ) : canUpdate ? (
                       <button type="button" className="text-blue-600 text-xs font-medium" onClick={() => setPrimary(img.id)}>
-                        Définir comme principale
+                        Mettre en 1re position
                       </button>
                     ) : (
                       '—'
@@ -219,7 +232,7 @@ export default function ArticleSkuImagesPanel({ articleId }) {
                       {canUpdate ? (
                         <input
                           type="number"
-                          min={0}
+                          min={1}
                           className="form-input py-1 w-16 text-xs"
                           key={`${img.id}-${img.sort_order}`}
                           defaultValue={img.sort_order}

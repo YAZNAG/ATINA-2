@@ -1,6 +1,7 @@
 const prisma = require('../../config/database');
 const response = require('../../utils/response');
 const { P0_TABLE_GROUPS, findTableEntryBySql } = require('./p0.registry');
+const { EDGES, edgesForTable } = require('./p0.relations.graph');
 
 function prismaDelegate(modelName) {
   return modelName.charAt(0).toLowerCase() + modelName.slice(1);
@@ -71,6 +72,30 @@ exports.tableBySql = async (req, res, next) => {
       table: buildTablePayload(entry.table, count, error),
       generatedAt: new Date().toISOString(),
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Graphe des relations (FK documentées) entre tables P0. */
+exports.relations = async (req, res, next) => {
+  try {
+    return response.success(res, { edges: EDGES, note: 'Arêtes orientées : fromSql → toSql via field.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.relationsForTable = async (req, res, next) => {
+  try {
+    const raw = (req.params.sql || '').trim();
+    if (!raw || !/^[a-zA-Z0-9_]+$/.test(raw)) {
+      return response.error(res, 'Identifiant SQL invalide', 400);
+    }
+    if (!findTableEntryBySql(raw)) {
+      return response.error(res, 'Table hors registre P0', 404);
+    }
+    return response.success(res, { sql: raw.toLowerCase(), edges: edgesForTable(raw) });
   } catch (err) {
     next(err);
   }

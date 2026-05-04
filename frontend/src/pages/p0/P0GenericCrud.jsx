@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { p0CrudCreate, p0CrudDelete, p0CrudList, p0CrudUpdate } from '../../api/p0.api';
+import {
+  getP0CrudMeta,
+  getP0RefOptions,
+  p0CrudCreate,
+  p0CrudDelete,
+  p0CrudList,
+  p0CrudUpdate,
+} from '../../api/p0.api';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -16,8 +23,67 @@ function inferColumns(rows) {
     if (r && typeof r === 'object') Object.keys(r).forEach((k) => keys.add(k));
   });
   const rest = [...keys].filter((k) => k !== 'id').sort();
-  const cols = ['id', ...rest];
-  return cols.slice(0, 9);
+  return ['id', ...rest].slice(0, 9);
+}
+
+function toDatetimeLocal(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function buildPayload(fields, formValues, mode) {
+  const payload = {};
+  for (const f of fields) {
+    if (f.readonly) continue;
+    if (mode === 'create' && f.hideOnCreate) continue;
+    let v = formValues[f.name];
+    if (f.kind === 'boolean') {
+      payload[f.name] = v === true || v === 'true';
+      continue;
+    }
+    if (f.kind === 'number') {
+      if (v === '' || v === undefined) {
+        if (f.nullable) payload[f.name] = null;
+        continue;
+      }
+      const n = Number(v);
+      if (Number.isNaN(n)) throw new Error(`Nombre invalide : ${f.name}`);
+      payload[f.name] = n;
+      continue;
+    }
+    if (f.kind === 'datetime') {
+      payload[f.name] = v ? fromDatetimeLocal(v) : f.nullable ? null : undefined;
+      if (payload[f.name] === undefined) delete payload[f.name];
+      continue;
+    }
+    if (f.kind === 'json') {
+      if (!v || !String(v).trim()) {
+        if (f.nullable) payload[f.name] = null;
+        continue;
+      }
+      try {
+        payload[f.name] = JSON.parse(v);
+      } catch {
+        throw new Error(`JSON invalide pour ${f.name}`);
+      }
+      continue;
+    }
+    if (v === '' || v === undefined || v === null) {
+      if (f.nullable) payload[f.name] = null;
+      continue;
+    }
+    payload[f.name] = v;
+  }
+  return payload;
 }
 
 export default function P0GenericCrud({ sql }) {
@@ -27,7 +93,12 @@ export default function P0GenericCrud({ sql }) {
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(null);
   const [jsonDraft, setJsonDraft] = useState('{}');
+  const [jsonMode, setJsonMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [metaFields, setMetaFields] = useState([]);
+  const [metaLoading, setMetaLoading] = useState(true);
+  const [formValues, setFormValues] = useState({});
+  const [refCache, setRefCache] = useState({});
 
   const columns = useMemo(() => inferColumns(items), [items]);
 
@@ -51,32 +122,110 @@ export default function P0GenericCrud({ sql }) {
     reload();
   }, [reload]);
 
-  const openCreate = () => {
-    setJsonDraft('{}');
-    setModal({ mode: 'create' });
+  useEffect(() => {
+    let cancelled = false;
+    if (!sql) return () => {};
+    (async () => {
+      setMetaLoading(true);
+      try {
+        const res = await getP0CrudMeta(sql);
+        const fields = res.data?.data?.fields ?? [];
+        if (!cancelled) setMetaFields(fields);
+      } catch (e) {
+        if (!cancelled) {
+          toast.error(getErrorMessage(e));
+          setMetaFields([]);
+        }
+      } finally {
+        if (!cancelled) setMetaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sql]);
+
+  useEffect(() => {
+    setRefCache({});
+  }, [sql]);
+
+  const loadRefsForFields = async (fields) => {
+    const fks = fields.filter((f) => f.kind === 'fk' && f.refSql);
+    const updates = {};
+    await Promise.all(
+      fks.map(async (f) => {
+        try {
+          const res = await getP0RefOptions(f.refSql);
+          updates[f.refSql] = res.data?.data?.options ?? [];
+        } catch {
+          updates[f.refSql] = [];
+        }
+      })
+    );
+    setRefCache((prev) => ({ ...prev, ...updates }));
   };
 
-  const openEdit = (row) => {
-    const { id: _id, ...rest } = row;
-    setJsonDraft(JSON.stringify(rest, null, 2));
+  const initForm = (mode, row) => {
+    const v = {};
+    for (const f of metaFields) {
+      if (f.readonly) continue;
+      if (mode === 'create' && f.hideOnCreate) continue;
+      if (mode === 'edit' && row && Object.prototype.hasOwnProperty.call(row, f.name)) {
+        const val = row[f.name];
+        if (f.kind === 'boolean') v[f.name] = Boolean(val);
+        else if (f.kind === 'number') v[f.name] = val === null || val === undefined ? '' : String(val);
+        else if (f.kind === 'datetime') v[f.name] = toDatetimeLocal(val);
+        else if (f.kind === 'json') v[f.name] = val == null ? '{}' : JSON.stringify(val, null, 2);
+        else v[f.name] = val === null || val === undefined ? '' : String(val);
+      } else {
+        if (f.kind === 'boolean') v[f.name] = false;
+        else if (f.kind === 'json') v[f.name] = '{}';
+        else v[f.name] = '';
+      }
+    }
+    setFormValues(v);
+  };
+
+  const openCreate = async () => {
+    setJsonDraft('{}');
+    setJsonMode(false);
+    setModal({ mode: 'create' });
+    await loadRefsForFields(metaFields);
+    initForm('create', null);
+  };
+
+  const openEdit = async (row) => {
+    const copy = { ...row };
+    delete copy.id;
+    setJsonDraft(JSON.stringify(copy, null, 2));
+    setJsonMode(false);
     setModal({ mode: 'edit', id: row.id });
+    await loadRefsForFields(metaFields);
+    initForm('edit', row);
   };
 
   const closeModal = () => {
     setModal(null);
     setJsonDraft('{}');
+    setJsonMode(false);
   };
 
   const submitModal = async () => {
-    let data;
-    try {
-      data = JSON.parse(jsonDraft || '{}');
-    } catch {
-      toast.error('JSON invalide.');
-      return;
-    }
     setSaving(true);
     try {
+      let data;
+      if (jsonMode) {
+        try {
+          data = JSON.parse(jsonDraft || '{}');
+        } catch {
+          toast.error('JSON invalide.');
+          setSaving(false);
+          return;
+        }
+      } else {
+        data = buildPayload(metaFields, formValues, modal.mode);
+      }
+
       if (modal.mode === 'create') {
         await p0CrudCreate(sql, data);
         toast.success('Ligne créée');
@@ -90,7 +239,8 @@ export default function P0GenericCrud({ sql }) {
         await reload();
       }
     } catch (e) {
-      toast.error(getErrorMessage(e));
+      const msg = e.message && e.message.startsWith('JSON') ? e.message : getErrorMessage(e);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -107,18 +257,25 @@ export default function P0GenericCrud({ sql }) {
     }
   };
 
+  const formFieldList = useMemo(
+    () => metaFields.filter((f) => !f.readonly && !(modal?.mode === 'create' && f.hideOnCreate)),
+    [metaFields, modal]
+  );
+
   return (
-    <div className="card mt-8 p-4 sm:p-6">
+    <div id="p0-crud-section" className="card mt-8 p-4 sm:p-6 scroll-mt-24 ring-2 ring-blue-100 shadow-md">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Données — CRUD</h2>
           <p className="text-xs text-gray-500 mt-1 max-w-2xl">
-            Liste paginée ; création / édition via <strong>JSON</strong> (champs scalaires ou relations Prisma comme{' '}
-            <code className="text-[10px] bg-gray-100 px-1 rounded">connect</code>). Les erreurs Prisma (FK, unique…)
-            s’affichent en toast.
+            Formulaire généré à partir des colonnes PostgreSQL (métadonnées + FK vers autres tables P0). Bascule
+            vers <strong>JSON</strong> pour les cas avancés (nested <code className="text-[10px]">connect</code>, etc.).
           </p>
+          {metaLoading ? (
+            <p className="text-xs text-amber-700 mt-2">Chargement du schéma des champs…</p>
+          ) : null}
         </div>
-        <button type="button" className="btn-primary text-sm" onClick={openCreate}>
+        <button type="button" className="btn-primary text-sm" onClick={openCreate} disabled={metaLoading}>
           + Ajouter
         </button>
       </div>
@@ -211,23 +368,107 @@ export default function P0GenericCrud({ sql }) {
 
       {modal ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col sm:max-w-2xl">
+            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-gray-900">
                 {modal.mode === 'create' ? 'Nouvelle ligne' : `Modifier ${modal.id}`}
               </h3>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-xl leading-none" onClick={closeModal}>
-                ×
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} />
+                  Mode JSON
+                </label>
+                <button type="button" className="text-gray-400 hover:text-gray-700 text-xl leading-none" onClick={closeModal}>
+                  ×
+                </button>
+              </div>
             </div>
             <div className="p-4 flex-1 overflow-auto">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Corps JSON (Prisma create / update)</label>
-              <textarea
-                className="w-full min-h-[240px] font-mono text-xs border border-gray-200 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={jsonDraft}
-                onChange={(e) => setJsonDraft(e.target.value)}
-                spellCheck={false}
-              />
+              {jsonMode ? (
+                <>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Corps JSON (Prisma)</label>
+                  <textarea
+                    className="w-full min-h-[240px] font-mono text-xs border border-gray-200 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={jsonDraft}
+                    onChange={(e) => setJsonDraft(e.target.value)}
+                    spellCheck={false}
+                  />
+                </>
+              ) : (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                  {formFieldList.map((f) => (
+                    <div key={f.name}>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">
+                        {f.name}
+                        {f.nullable ? (
+                          <span className="text-gray-400 font-normal"> (optionnel)</span>
+                        ) : (
+                          <span className="text-red-500"> *</span>
+                        )}
+                        {f.refModel ? (
+                          <span className="text-gray-400 font-normal"> → {f.refModel}</span>
+                        ) : null}
+                      </label>
+                      {f.kind === 'boolean' ? (
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300"
+                          checked={Boolean(formValues[f.name])}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.checked }))}
+                        />
+                      ) : f.kind === 'fk' && f.refSql ? (
+                        <select
+                          className="input-base w-full text-sm"
+                          value={formValues[f.name] ?? ''}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                        >
+                          <option value="">—</option>
+                          {(refCache[f.refSql] || []).map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.label} ({String(o.id).slice(0, 8)}…)
+                            </option>
+                          ))}
+                        </select>
+                      ) : f.kind === 'fk' && !f.refSql ? (
+                        <input
+                          className="input-base w-full text-sm font-mono"
+                          placeholder="UUID (hors liste P0)"
+                          value={formValues[f.name] ?? ''}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                        />
+                      ) : f.kind === 'number' ? (
+                        <input
+                          type="number"
+                          step="any"
+                          className="input-base w-full text-sm"
+                          value={formValues[f.name] ?? ''}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                        />
+                      ) : f.kind === 'datetime' ? (
+                        <input
+                          type="datetime-local"
+                          className="input-base w-full text-sm"
+                          value={formValues[f.name] ?? ''}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                        />
+                      ) : f.kind === 'json' ? (
+                        <textarea
+                          className="w-full min-h-[80px] font-mono text-xs border border-gray-200 rounded-md p-2"
+                          value={formValues[f.name] ?? '{}'}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <input
+                          className="input-base w-full text-sm font-mono"
+                          value={formValues[f.name] ?? ''}
+                          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
               <button type="button" className="btn-secondary text-sm" onClick={closeModal}>

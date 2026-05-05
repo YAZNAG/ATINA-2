@@ -18,6 +18,7 @@ const empty = {
   category_id: '',
   sub_category_id: '',
   brand_id: '',
+  conservation_type_id: '',
   unit_sale: 'unit',
   unit_purchase: 'unit',
   coeff: '1',
@@ -48,6 +49,7 @@ function toPayload(form) {
     category_id: val(form.category_id),
     sub_category_id: val(form.sub_category_id),
     brand_id: val(form.brand_id),
+    conservation_type_id: val(form.conservation_type_id),
     unit_sale: (form.unit_sale || 'unit').trim(),
     unit_purchase: (form.unit_purchase || 'unit').trim(),
     coeff: form.coeff === '' ? undefined : parseFloat(String(form.coeff)),
@@ -78,6 +80,8 @@ export default function ArticleForm() {
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [conservationTypes, setConservationTypes] = useState([]);
+  const [taxes, setTaxes] = useState([]);
 
   const canSave = isEdit ? hasPermission('articles.update') : hasPermission('articles.create');
 
@@ -85,10 +89,17 @@ export default function ArticleForm() {
     let cancelled = false;
     (async () => {
       try {
-        const [fam, br] = await Promise.all([catalog.getFamiliesList(), catalog.getBrandsList()]);
+        const [fam, br, conservation, taxList] = await Promise.all([
+          catalog.getFamiliesList(),
+          catalog.getBrandsList(),
+          catalog.getConservationTypesList(),
+          catalog.getTaxesList(),
+        ]);
         if (cancelled) return;
         setFamilies(fam.data.data ?? []);
         setBrands(br.data.data ?? []);
+        setConservationTypes(conservation.data.data ?? []);
+        setTaxes(taxList.data.data ?? []);
 
         if (isEdit) {
           const res = await catalog.getArticle(id);
@@ -104,6 +115,7 @@ export default function ArticleForm() {
             category_id: str(a.category_id),
             sub_category_id: str(a.sub_category_id),
             brand_id: str(a.brand_id),
+            conservation_type_id: str(a.conservation_type_id),
             unit_sale: str(a.unit_sale) || 'unit',
             unit_purchase: str(a.unit_purchase) || 'unit',
             coeff: a.coeff != null ? str(a.coeff) : '1',
@@ -302,8 +314,8 @@ export default function ArticleForm() {
         </div>
 
         <div className="card space-y-4">
-          <h2 className="font-semibold text-gray-800 border-b pb-2">Taxonomie</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h2 className="font-semibold text-gray-800 border-b pb-2">Taxonomie & classification</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="form-label">Famille *</label>
               <select name="family_id" className="form-select" value={form.family_id} onChange={handleFamily} required>
@@ -320,6 +332,17 @@ export default function ArticleForm() {
               <label className="form-label">Sous-catégorie</label>
               <select name="sub_category_id" className="form-select" value={form.sub_category_id} onChange={handleChange} disabled={!form.category_id}>
                 {sel(subCategories)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Type de conservation</label>
+              <select
+                name="conservation_type_id"
+                className="form-select"
+                value={form.conservation_type_id}
+                onChange={handleChange}
+              >
+                {sel(conservationTypes)}
               </select>
             </div>
           </div>
@@ -342,7 +365,21 @@ export default function ArticleForm() {
             </div>
             <div>
               <label className="form-label">TVA (%)</label>
-              <input name="vat_rate" type="number" step="0.01" className="form-input" value={form.vat_rate} onChange={handleChange} />
+              <select name="vat_rate" className="form-select" value={form.vat_rate} onChange={handleChange}>
+                <option value="">—</option>
+                {(taxes.length
+                  ? taxes.map((tax) => ({ id: tax.id, value: String(tax.rate), label: `${tax.name_fr} (${tax.rate}%)` }))
+                  : [
+                      { id: 'vat-0', value: '0', label: '0%' },
+                      { id: 'vat-7', value: '7', label: '7%' },
+                      { id: 'vat-10', value: '10', label: '10%' },
+                      { id: 'vat-14', value: '14', label: '14%' },
+                      { id: 'vat-20', value: '20', label: '20%' },
+                    ]
+                ).map((opt) => (
+                  <option key={opt.id} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="form-label">Unité vente</label>

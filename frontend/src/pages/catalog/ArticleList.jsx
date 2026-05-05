@@ -81,13 +81,13 @@ export default function ArticleList() {
       <div className="page-header">
         <div>
           <Link to="/catalog" className="text-sm text-gray-500 hover:text-gray-700">← Catalogue</Link>
-          <h1 className="page-title mt-1">Articles</h1>
-          <p className="page-subtitle">SKU, taxonomie et référentiels — tout paramétré via listes API.</p>
+          <h1 className="page-title mt-1">Produits (SKUs)</h1>
+          <p className="page-subtitle">Gestion des articles, taxonomie, images et statut produit.</p>
         </div>
         {hasPermission('articles.create') && (
           <Link to="/catalog/articles/new" className="btn-primary text-sm text-center">
             <AddIcon />
-            Nouvel article
+            + Nouveau produit
           </Link>
         )}
       </div>

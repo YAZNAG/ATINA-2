@@ -132,10 +132,10 @@ export default function ArticleSkuImagesPanel({ articleId }) {
   }
 
   return (
-    <div className="card space-y-4 ring-2 ring-blue-100 shadow-sm">
+    <div className="card space-y-4 ring-2 ring-indigo-100 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Images du produit</h2>
+          <h2 className="text-base font-semibold text-gray-900">Gestion images</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Fichiers enregistrés côté serveur : <code className="bg-gray-100 px-1 rounded">storage/image/article/{articleId}/</code>
           </p>
@@ -163,6 +163,26 @@ export default function ArticleSkuImagesPanel({ articleId }) {
           </label>
         )}
       </div>
+
+      {canCreate && (
+        <label className="group block cursor-pointer">
+          <div className="rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/40 px-4 py-7 text-center transition-colors group-hover:bg-indigo-50">
+            <div className="text-2xl">📷</div>
+            <p className="mt-2 text-sm font-medium text-slate-700">Glisser-déposer des images ici</p>
+            <p className="text-xs text-slate-500">
+              ou <span className="text-indigo-600 font-semibold">parcourir</span> — max 5 images, 5MB chacune
+            </p>
+          </div>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            onChange={handleFiles}
+            disabled={uploading}
+          />
+        </label>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-8">

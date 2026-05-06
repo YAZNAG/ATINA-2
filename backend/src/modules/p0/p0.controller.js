@@ -48,14 +48,14 @@ exports.registry = async (req, res, next) => {
       groups,
       generatedAt: new Date().toISOString(),
       note:
-        'Tables créées dans Prisma (P0). Les compteurs utilisent prisma.<model>.count(). Si la table n’existe pas encore en base, exécutez npx prisma db push.',
+        "Tables créées dans Prisma (P0). Les compteurs utilisent prisma.<model>.count(). Si la table n'existe pas encore en base, exécutez npx prisma db push.",
     });
   } catch (err) {
     next(err);
   }
 };
 
-/** Fiche d’une table P0 (nom SQL @@map) — pour page dédiée back-office. */
+/** Fiche d'une table P0 (nom SQL @@map) -- pour page dédiée back-office. */
 exports.tableBySql = async (req, res, next) => {
   try {
     const raw = (req.params.sql || '').trim();

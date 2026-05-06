@@ -11,7 +11,7 @@ function customerDb() {
 }
 
 const MISSING_CUSTOMERS_TABLE_HINT =
-  'La table SQL « customers » est absente. Dans le dossier backend : npx prisma db execute --file prisma/sql/ensure_customers_table.sql — ou corrige les erreurs Prisma puis npx prisma db push.';
+  'La table SQL « customers » est absente. Dans le dossier backend : npx prisma db execute --file prisma/sql/ensure_customers_table.sql -- ou corrige les erreurs Prisma puis npx prisma db push.';
 
 function handleCustomerTableError(err, res, next) {
   if (err?.code === 'P2021') {

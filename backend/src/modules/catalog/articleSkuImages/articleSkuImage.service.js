@@ -5,7 +5,7 @@ const { setArticleSkuUuid, getArticleSkuUuid } = require('../../../utils/article
 
 const ARTICLE_WHERE = { deleted_at: null, is_deleted: false };
 
-/** La 1re image (tri `sort_order` croissant puis `id`) est l’image principale. */
+/** La 1re image (tri `sort_order` croissant puis `id`) est l'image principale. */
 async function syncPrimaryFromSortOrder(skuId) {
   const rows = await prisma.skuImage.findMany({
     where: { sku_id: skuId },
@@ -56,7 +56,7 @@ class ArticleSkuImageService {
     const skuId =
       (await getArticleSkuUuid(prisma, articleId)) ?? (await getArticleOrThrow(articleId)).sku_uuid;
     if (!skuId) {
-      throw { statusCode: 500, message: 'Impossible de lier le SKU logistique à l’article' };
+      throw { statusCode: 500, message: "Impossible de lier le SKU logistique à l'article" };
     }
     if (!files?.images?.length) throw { statusCode: 400, message: 'Aucune image fournie' };
 
@@ -109,7 +109,7 @@ class ArticleSkuImageService {
   async updateSortOrder(articleId, imageId, sort_order) {
     const order = Number(sort_order);
     if (Number.isNaN(order) || order < 0) {
-      throw { statusCode: 400, message: 'Ordre d’affichage invalide' };
+      throw { statusCode: 400, message: "Ordre d'affichage invalide" };
     }
     const article = await getArticleOrThrow(articleId);
     const skuUuid = await resolveSkuUuid(articleId, article);

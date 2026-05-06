@@ -14,6 +14,9 @@ import ReferentialListPage from '../pages/catalog/ReferentialListPage';
 import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
 import ArticleList from '../pages/catalog/ArticleList';
 import ArticleForm from '../pages/catalog/ArticleForm';
+import ArticleDetailPage from '../pages/catalog/ArticleDetailPage';
+import CatalogTaxonomyPage from '../pages/catalog/CatalogTaxonomyPage';
+import CatalogRefPage from '../pages/catalog/CatalogRefPage';
 import SkusPage from '../pages/catalog/SkusPage';
 import SkuImagesPage from '../pages/catalog/SkuImagesPage';
 import SkuImageFormPage from '../pages/catalog/SkuImageFormPage';
@@ -32,6 +35,9 @@ import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
 import CustomerList from '../pages/customers/CustomerList';
 import CustomerDetail from '../pages/customers/CustomerDetail';
+import WarehousePage from '../pages/warehouse/WarehousePage';
+import ZonesPage from '../pages/warehouse/ZonesPage';
+import LevelsPage from '../pages/warehouse/LevelsPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -68,9 +74,12 @@ export default function AppRoutes() {
           <Route path="/catalog/ref/:entitySlug/new" element={<ReferentialFormPage />} />
           <Route path="/catalog/ref/:entitySlug/:id/edit" element={<ReferentialFormPage />} />
           <Route path="/catalog/ref/:entitySlug" element={<ReferentialListPage />} />
+          <Route path="/catalog/taxonomy" element={<CatalogTaxonomyPage />} />
+          <Route path="/catalog/refs" element={<CatalogRefPage />} />
           <Route path="/catalog/articles" element={<ArticleList />} />
           <Route path="/catalog/articles/new" element={<ArticleForm />} />
           <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
+          <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
           <Route path="/catalog/skus" element={<SkusPage />} />
           <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
@@ -91,6 +100,9 @@ export default function AppRoutes() {
           <Route path="/nodes" element={<NodeList />} />
           <Route path="/nodes/new" element={<NodeForm />} />
           <Route path="/nodes/:id/edit" element={<NodeForm />} />
+          <Route path="/warehouse" element={<WarehousePage />} />
+          <Route path="/warehouse/zones" element={<ZonesPage />} />
+          <Route path="/warehouse/levels" element={<LevelsPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

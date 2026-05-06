@@ -25,6 +25,15 @@ const statusSelect = {
   ],
 };
 
+const statusBadge = (r) => {
+  const active = r.status === 'active';
+  return createElement(
+    'span',
+    { className: active ? 'badge-active' : 'badge-inactive' },
+    active ? 'Actif' : 'Inactif',
+  );
+};
+
 function storageSrc(p) {
   if (!p || !String(p).trim()) return null;
   const s = String(p).trim();
@@ -98,7 +107,7 @@ export const ENTITY_REGISTRY = {
       { key: 'code', label: 'Code' },
       { key: 'sort_order', label: 'Ordre' },
       familyThumbColumn,
-      { key: 'status', label: 'Statut', render: (r) => r.status === 'active' ? 'Actif' : 'Inactif' },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -139,7 +148,7 @@ export const ENTITY_REGISTRY = {
       },
       { key: 'sort_order', label: 'Ordre' },
       familyThumbColumn,
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -189,7 +198,7 @@ export const ENTITY_REGISTRY = {
       },
       { key: 'sort_order', label: 'Ordre' },
       familyThumbColumn,
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -235,7 +244,7 @@ export const ENTITY_REGISTRY = {
         label: 'Description (AR)',
         render: (r) => truncDesc(56)(r.description_ar),
       },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code', 'description_fr', 'description_ar'],
     fields: [
@@ -268,7 +277,7 @@ export const ENTITY_REGISTRY = {
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
       { key: 'short_name_fr', label: 'Symbole' },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -301,7 +310,7 @@ export const ENTITY_REGISTRY = {
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
       { key: 'quantity', label: 'Qté' },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -342,7 +351,7 @@ export const ENTITY_REGISTRY = {
       { key: 'code', label: 'Code' },
       { key: 'min_temperature', label: 'T° min' },
       { key: 'max_temperature', label: 'T° max' },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -374,7 +383,7 @@ export const ENTITY_REGISTRY = {
     columns: [
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [
@@ -437,7 +446,7 @@ export const ENTITY_REGISTRY = {
       { key: 'name_fr', label: 'Nom (FR)' },
       { key: 'code', label: 'Code' },
       { key: 'rate', label: 'Taux %' },
-      { key: 'status', label: 'Statut', render: (r) => (r.status === 'active' ? 'Actif' : 'Inactif') },
+      { key: 'status', label: 'Statut', render: statusBadge },
     ],
     searchFields: ['name_fr', 'name_ar', 'code'],
     fields: [

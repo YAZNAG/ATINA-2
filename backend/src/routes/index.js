@@ -8,6 +8,7 @@ const locationRoutes = require('../modules/location/location.routes');
 const nodeRoutes = require('../modules/node/node.routes');
 const p0Routes = require('../modules/p0/p0.routes');
 const customersRoutes = require('../modules/customers/customers.routes');
+const warehouseRoutes = require('../modules/warehouse/warehouse.routes');
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/', locationRoutes);
 router.use('/', nodeRoutes);
 router.use('/p0', p0Routes);
 router.use('/customers', customersRoutes);
+router.use('/warehouse', warehouseRoutes);
 
 module.exports = router;

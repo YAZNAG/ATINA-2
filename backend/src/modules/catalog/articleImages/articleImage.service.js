@@ -68,7 +68,7 @@ class ArticleImageService {
   async updateSortOrder(articleId, imageId, sort_order) {
     const order = Number(sort_order);
     if (Number.isNaN(order) || order < 0) {
-      throw { statusCode: 400, message: 'Ordre d’affichage invalide' };
+      throw { statusCode: 400, message: "Ordre d'affichage invalide" };
     }
     const img = await prisma.articleImage.findFirst({
       where: { id: Number(imageId), article_id: Number(articleId), deleted_at: null },
@@ -86,7 +86,7 @@ class ArticleImageService {
     await prisma.articleImage.update({ where: { id: img.id }, data: { deleted_at: new Date() } });
   }
 
-  /** Appelé lors de la suppression d’un article : fichiers supprimés + suppression logique des lignes image. */
+  /** Appelé lors de la suppression d'un article : fichiers supprimés + suppression logique des lignes image. */
   async softDeleteAllForArticle(articleId) {
     const imgs = await prisma.articleImage.findMany({
       where: { article_id: Number(articleId), deleted_at: null },

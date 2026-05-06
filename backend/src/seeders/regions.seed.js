@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 async function main() {
   const regions = [
     { code: "01", name_fr: "Tanger-Tétouan-Al Hoceïma", name_ar: "طنجة-تطوان-الحسيمة" },
-    { code: "02", name_fr: "L’Oriental", name_ar: "الشرق" },
+    { code: "02", name_fr: "L'Oriental", name_ar: "الشرق" },
     { code: "03", name_fr: "Fès-Meknès", name_ar: "فاس-مكناس" },
     { code: "04", name_fr: "Rabat-Salé-Kénitra", name_ar: "الرباط-سلا-القنيطرة" },
     { code: "05", name_fr: "Béni Mellal-Khénifra", name_ar: "بني ملال-خنيفرة" },

@@ -211,6 +211,8 @@ model ConservationType {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
   deleted_at      DateTime?
+  
+  articles        Article[]
 
   @@map("conservation_types")
 }
@@ -226,6 +228,8 @@ model ArticleType {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
   deleted_at     DateTime?
+  
+  articles       Article[]
 
   @@map("article_types")
 }
@@ -238,6 +242,8 @@ model ArticleStatus {
   color      String?
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
+  
+  articles   Article[]
 
   @@map("article_statuses")
 }
@@ -252,6 +258,8 @@ model Tax {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
+  
+  articles   Article[]
 
   @@map("taxes")
 }
@@ -264,28 +272,36 @@ model Article {
   name_ar         String       @db.VarChar(255)
   description_fr  String?      @db.Text
   description_ar  String?      @db.Text
-  brand_id        Int?
-  family_id       Int
-  sub_category_id Int?
-  category_id     Int?
-  unit_sale       String       @default("unit") @db.VarChar(20)
-  unit_purchase   String       @default("unit") @db.VarChar(20)
-  coeff           Decimal      @default(1) @db.Decimal(10, 4)
-  price           Decimal      @db.Decimal(12, 2)
-  vat_rate        Decimal      @default(20) @db.Decimal(5, 2)
-  weight_g        Int?
-  volume_ml       Int?
-  is_active       Boolean      @default(true)
-  is_deleted      Boolean      @default(false)
-  deleted_at      DateTime?    @db.Timestamptz(6)
-  created_at      DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
+  brand_id              Int?
+  family_id             Int
+  sub_category_id       Int?
+  category_id           Int?
+  article_type_id       Int?
+  article_status_id     Int?
+  conservation_type_id  Int?
+  tax_id                Int?
+  unit_sale             String       @default("unit") @db.VarChar(20)
+  unit_purchase         String       @default("unit") @db.VarChar(20)
+  coeff                 Decimal      @default(1) @db.Decimal(10, 4)
+  price                 Decimal      @db.Decimal(12, 2)
+  vat_rate              Decimal      @default(20) @db.Decimal(5, 2)
+  weight_g              Int?
+  volume_ml             Int?
+  is_active             Boolean      @default(true)
+  is_deleted            Boolean      @default(false)
+  deleted_at            DateTime?    @db.Timestamptz(6)
+  created_at            DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime     @updatedAt @db.Timestamptz(6)
 
-  family       Family       @relation(fields: [family_id], references: [id])
-  category     Category?    @relation(fields: [category_id], references: [id])
-  sub_category SubCategory? @relation(fields: [sub_category_id], references: [id])
-  brand        Brand?       @relation(fields: [brand_id], references: [id], onDelete: SetNull)
-  images       ArticleImage[]
+  family              Family          @relation(fields: [family_id], references: [id])
+  category            Category?       @relation(fields: [category_id], references: [id])
+  sub_category        SubCategory?    @relation(fields: [sub_category_id], references: [id])
+  brand               Brand?          @relation(fields: [brand_id], references: [id], onDelete: SetNull)
+  article_type        ArticleType?    @relation(fields: [article_type_id], references: [id], onDelete: SetNull)
+  article_status      ArticleStatus?  @relation(fields: [article_status_id], references: [id], onDelete: SetNull)
+  conservation_type   ConservationType? @relation(fields: [conservation_type_id], references: [id], onDelete: SetNull)
+  tax                 Tax?            @relation(fields: [tax_id], references: [id], onDelete: SetNull)
+  images              ArticleImage[]
 
   // Lien optionnel vers skus (galerie sku_images)
   sku_uuid     String?      @unique @db.Uuid
@@ -979,14 +995,43 @@ model AppConfig {
   @@map("app_configs")
 }
 
+model Zone {
+  id             String              @id @default(uuid()) @db.Uuid
+  code           String              @unique @db.VarChar(50)
+  name_fr        String              @db.VarChar(100)
+  name_ar        String              @db.VarChar(100)
+  description_fr String?
+  description_ar String?
+  is_active      Boolean             @default(true)
+  created_at     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime            @updatedAt @db.Timestamptz(6)
+  locations      WarehouseLocation[]
+
+  @@map("zones")
+}
+
+model Level {
+  id         String              @id @default(uuid()) @db.Uuid
+  code       String              @unique @db.VarChar(20)
+  name_fr    String              @db.VarChar(100)
+  name_ar    String              @db.VarChar(100)
+  sort_order Int                 @default(0)
+  is_active  Boolean             @default(true)
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at DateTime            @updatedAt @db.Timestamptz(6)
+  locations  WarehouseLocation[]
+
+  @@map("levels")
+}
+
 model WarehouseLocation {
   id         String    @id @default(uuid()) @db.Uuid
   node_id    String    @db.Uuid
   aisle      String    @db.VarChar(10)
   shelf      String    @db.VarChar(10)
-  level      String    @db.VarChar(10)
+  level_id   String    @db.Uuid
+  zone_id    String?   @db.Uuid
   label      String    @db.VarChar(50)
-  zone       String?   @db.VarChar(50)
   is_active  Boolean   @default(true)
   is_deleted Boolean   @default(false)
   deleted_at DateTime? @db.Timestamptz(6)
@@ -994,9 +1039,11 @@ model WarehouseLocation {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
 
   node               Node              @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  level              Level             @relation(fields: [level_id], references: [id])
+  zone               Zone?             @relation(fields: [zone_id], references: [id])
   sku_node_locations SkuNodeLocation[]
 
-  @@unique([node_id, aisle, shelf, level])
+  @@unique([node_id, aisle, shelf, level_id])
   @@map("locations")
 }
 
@@ -1006,7 +1053,8 @@ model SkuNodeLocation {
   node_id             String   @db.Uuid
   location_id         String   @db.Uuid
   qty_physical        Decimal  @default(0) @db.Decimal(12, 3)
-  is_primary_location Boolean  @default(true)
+  is_primary_location Boolean  @default(false)
+  is_active           Boolean  @default(true)
   updated_at          DateTime @updatedAt @db.Timestamptz(6)
 
   sku      Sku               @relation(fields: [sku_id], references: [id], onDelete: Cascade)

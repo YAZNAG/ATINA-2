@@ -6,6 +6,34 @@ import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
+function ToggleStatusButton({ row, onToggle, disabled }) {
+  const active = row.status === 'active';
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(row)}
+      disabled={disabled}
+      title={active ? 'Désactiver' : 'Activer'}
+      className={`btn-icon text-xs ${
+        active
+          ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+          : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+      } disabled:opacity-40`}
+    >
+      {active ? (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )}
+      <span>{active ? 'Désactiver' : 'Activer'}</span>
+    </button>
+  );
+}
+
 export default function ReferentialListPage() {
   const { entitySlug } = useParams();
   const navigate = useNavigate();
@@ -19,6 +47,7 @@ export default function ReferentialListPage() {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 15, pages: 0 });
   const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState(null);
   const [searchInput, setSearchInput] = useState(searchQ);
 
   useEffect(() => {
@@ -80,6 +109,24 @@ export default function ReferentialListPage() {
     setSearchParams(next);
   };
 
+  const handleToggleStatus = async (row) => {
+    if (!cfg.api.update) return;
+    const newStatus = row.status === 'active' ? 'inactive' : 'active';
+    setTogglingId(row.id);
+    try {
+      await cfg.api.update(row.id, { status: newStatus });
+      toast.success(newStatus === 'active' ? 'Activé' : 'Désactivé');
+      fetchData();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const hasStatus = rows.length === 0 || rows.some((r) => r.status !== undefined);
+  const canToggle = hasStatus && hasPermission(cfg.permissions.update) && !!cfg.api.update;
+
   return (
     <div className="page-shell">
       <div className="page-header">
@@ -105,6 +152,15 @@ export default function ReferentialListPage() {
           onChange={(e) => setSearchInput(e.target.value)}
         />
         <button type="submit" className="btn-secondary text-sm">Filtrer</button>
+        {searchQ && (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => { setSearchInput(''); setSearchParams({}); }}
+          >
+            Effacer
+          </button>
+        )}
       </form>
 
       {loading ? (
@@ -137,7 +193,14 @@ export default function ReferentialListPage() {
                         <td key={col.key} className="table-td text-gray-700">{tableCell(col, row)}</td>
                       ))}
                       <td className="table-td">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {canToggle && row.status !== undefined && (
+                            <ToggleStatusButton
+                              row={row}
+                              onToggle={handleToggleStatus}
+                              disabled={togglingId === row.id}
+                            />
+                          )}
                           {hasPermission(cfg.permissions.update) && (
                             <EditButton
                               onClick={() => navigate(`/catalog/ref/${entitySlug}/${row.id}/edit`)}

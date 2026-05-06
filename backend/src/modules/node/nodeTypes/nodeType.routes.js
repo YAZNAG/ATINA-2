@@ -7,6 +7,7 @@ const { createValidator, updateValidator } = require('./nodeType.validator');
 const router = Router();
 router.use(auth);
 
+router.get('/active', perm('node_types.view'), ctrl.active.bind(ctrl));
 router.get('/', perm('node_types.view'), ctrl.index.bind(ctrl));
 router.post('/', perm('node_types.create'), createValidator, ctrl.store.bind(ctrl));
 router.get('/:id', perm('node_types.view'), ctrl.show.bind(ctrl));

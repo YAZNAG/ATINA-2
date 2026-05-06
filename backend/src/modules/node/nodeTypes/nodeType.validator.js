@@ -11,6 +11,10 @@ const createValidator = [
   body('code').notEmpty().withMessage('Code requis'),
   body('name_fr').notEmpty().withMessage('Nom FR requis'),
   body('name_ar').notEmpty().withMessage('Nom AR requis'),
+  body('description').optional().isString(),
+  body('icon').optional().isString(),
+  body('color_badge').optional().isString(),
+  body('is_active').optional().isBoolean(),
   validate,
 ];
 
@@ -18,6 +22,10 @@ const updateValidator = [
   body('code').optional().notEmpty().withMessage('Code invalide'),
   body('name_fr').optional().notEmpty().withMessage('Nom FR invalide'),
   body('name_ar').optional().notEmpty().withMessage('Nom AR invalide'),
+  body('description').optional().isString(),
+  body('icon').optional().isString(),
+  body('color_badge').optional().isString(),
+  body('is_active').optional().isBoolean(),
   validate,
 ];
 

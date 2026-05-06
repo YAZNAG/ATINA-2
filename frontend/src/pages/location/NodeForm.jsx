@@ -10,7 +10,7 @@ import {
   getCities,
   getNode,
   getNodeSlots,
-  getNodeTypes,
+  getActiveNodeTypes,
   getProvinces,
   getRegions,
   updateNode,
@@ -40,7 +40,7 @@ export default function NodeForm() {
   const [slotForm, setSlotForm] = useState(initSlot);
 
   const loadLookups = async () => {
-    const [typeRes, regRes] = await Promise.all([getNodeTypes(), getRegions({ limit: 100 })]);
+    const [typeRes, regRes] = await Promise.all([getActiveNodeTypes(), getRegions({ limit: 100 })]);
     setNodeTypes(typeRes.data.data || []);
     setRegions(regRes.data.data || []);
   };

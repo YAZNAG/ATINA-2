@@ -421,12 +421,16 @@ model City {
 }
 
 model NodeType {
-  id         String   @id @default(uuid()) @db.Uuid
-  code       String   @unique
-  name_fr    String
-  name_ar    String
-  created_at DateTime @default(now())
-  nodes      Node[]
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name_fr     String
+  name_ar     String
+  description String?
+  icon        String?
+  color_badge String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  nodes       Node[]
 
   @@map("node_types")
 }

@@ -19,6 +19,7 @@ export const updateCity = (id, data) => api.put(`/cities/${id}`, data);
 export const deleteCity = (id) => api.delete(`/cities/${id}`);
 
 export const getNodeTypes = () => api.get('/node-types');
+export const getActiveNodeTypes = () => api.get('/node-types/active');
 export const getNodeType = (id) => api.get(`/node-types/${id}`);
 export const createNodeType = (data) => api.post('/node-types', data);
 export const updateNodeType = (id, data) => api.put(`/node-types/${id}`, data);

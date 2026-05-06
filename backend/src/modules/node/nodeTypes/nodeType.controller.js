@@ -6,6 +6,10 @@ class NodeTypeController {
     try { return response.success(res, await service.getAll()); } catch (err) { next(err); }
   }
 
+  async active(req, res, next) {
+    try { return response.success(res, await service.getAllActive()); } catch (err) { next(err); }
+  }
+
   async show(req, res, next) {
     try { return response.success(res, await service.getById(req.params.id)); } catch (err) { next(err); }
   }

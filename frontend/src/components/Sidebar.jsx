@@ -62,13 +62,24 @@ const navItems = [
   {
     label: 'Géographie', key: 'geo', group: true, icon: ICONS.geo,
     children: [
-      { label: 'Régions', path: '/geo/regions', permission: 'regions.view' },
-      { label: 'Provinces', path: '/geo/provinces', permission: 'provinces.view' },
-      { label: 'Villes', path: '/geo/cities', permission: 'cities.view' },
+      { label: 'Régions',   path: '/geo/regions',   anyPermissions: ['regions.view',   'dashboard.view'] },
+      { label: 'Provinces', path: '/geo/provinces',  anyPermissions: ['provinces.view', 'dashboard.view'] },
+      { label: 'Villes',    path: '/geo/cities',     anyPermissions: ['cities.view',    'dashboard.view'] },
     ],
   },
-  { label: 'Types de noeud', path: '/node-types', anyPermissions: ['node_types.view'], icon: ICONS.tables },
-  { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view'], icon: ICONS.node },
+  {
+    label: 'Noeuds', key: 'nodes', group: true, icon: ICONS.node,
+    children: [
+      { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
+    ],
+  },
+  {
+    label: 'Paramétrage Noeuds', key: 'nodeRef', group: true, icon: ICONS.gear,
+    children: [
+      { label: 'Types de Nodes', path: '/node-types', anyPermissions: ['node_types.view', 'dashboard.view'] },
+    ],
+  },
+
 ];
 
 function NavItem({ item, isActive }) {
@@ -155,7 +166,7 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState({
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
-    geo: false, p0tables: false,
+    geo: false, nodes: false, nodeRef: false, p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
 
@@ -207,6 +218,8 @@ export default function Sidebar() {
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');
     if (pathname.startsWith('/geo')) open('geo');
+    if (pathname.startsWith('/nodes')) open('nodes');
+    if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) open('warehouseRef');
   }, [pathname]);

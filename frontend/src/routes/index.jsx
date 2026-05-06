@@ -24,6 +24,7 @@ import GeoPage from '../pages/location/GeoPage';
 import NodeTypesPage from '../pages/location/NodeTypesPage';
 import NodeForm from '../pages/location/NodeForm';
 import NodesPage from '../pages/location/NodesPage';
+import NodeDetailPage from '../pages/location/NodeDetailPage';
 import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
 import CustomerList from '../pages/customers/CustomerList';
@@ -86,6 +87,7 @@ export default function AppRoutes() {
           <Route path="/node-types" element={<NodeTypesPage />} />
           {/* Nodes */}
           <Route path="/nodes" element={<NodesPage />} />
+          <Route path="/nodes/:id" element={<NodeDetailPage />} />
           <Route path="/nodes/new" element={<NodeForm />} />
           <Route path="/nodes/:id/edit" element={<NodeForm />} />
           {/* Warehouse */}

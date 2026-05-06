@@ -55,8 +55,8 @@ const navItems = [
   {
     label: 'Paramétrage Entrepôt', key: 'warehouseRef', group: true, icon: ICONS.gear,
     children: [
-      { label: 'Zones', path: '/warehouse/zones', permission: 'warehouse.view' },
-      { label: 'Niveaux', path: '/warehouse/levels', permission: 'warehouse.view' },
+      { label: 'Zones de stockage', path: '/warehouse/zones', anyPermissions: ['warehouse.manage', 'dashboard.view'] },
+      { label: 'Niveaux rayonnage', path: '/warehouse/levels', anyPermissions: ['warehouse.manage', 'dashboard.view'] },
     ],
   },
   {
@@ -76,7 +76,9 @@ const navItems = [
   {
     label: 'Paramétrage Noeuds', key: 'nodeRef', group: true, icon: ICONS.gear,
     children: [
-      { label: 'Types de Nodes', path: '/node-types', anyPermissions: ['node_types.view', 'dashboard.view'] },
+      { label: 'Types de Nodes',  path: '/node-types',        anyPermissions: ['node_types.view',  'dashboard.view'] },
+      { label: 'Zones stockage',  path: '/warehouse/zones',   anyPermissions: ['warehouse.manage', 'dashboard.view'] },
+      { label: 'Niveaux rayons',  path: '/warehouse/levels',  anyPermissions: ['warehouse.manage', 'dashboard.view'] },
     ],
   },
 
@@ -221,7 +223,7 @@ export default function Sidebar() {
     if (pathname.startsWith('/nodes')) open('nodes');
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
-    if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) open('warehouseRef');
+    if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
   }, [pathname]);
 
   const initials = user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';

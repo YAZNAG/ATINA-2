@@ -261,7 +261,7 @@ exports.meta = async (req, res, next) => {
   }
 };
 
-/** Options pour `<select>` (id + libellé) — table référencée du registre P0 (y compris customers). */
+/** Options pour `<select>` (id + libellé) -- table référencée du registre P0 (y compris customers). */
 exports.refOptions = async (req, res, next) => {
   try {
     const raw = (req.params.sql || '').trim();
@@ -434,7 +434,7 @@ exports.remove = async (req, res, next) => {
   } catch (err) {
     if (err.code === 'P2025') return response.error(res, 'Ligne introuvable', 404);
     if (err.code === 'P2003') {
-      return response.error(res, 'Suppression impossible : d’autres lignes référencent cet enregistrement.', 409);
+      return response.error(res, "Suppression impossible : d'autres lignes référencent cet enregistrement.", 409);
     }
     next(err);
   }

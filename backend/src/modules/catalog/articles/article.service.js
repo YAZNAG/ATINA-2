@@ -18,6 +18,10 @@ const INPUT_KEYS = [
   'family_id',
   'sub_category_id',
   'category_id',
+  'article_type_id',
+  'article_status_id',
+  'conservation_type_id',
+  'tax_id',
   'unit_sale',
   'unit_purchase',
   'coeff',
@@ -50,7 +54,7 @@ class ArticleService {
       throw { statusCode: 400, message: 'Code SKU requis' };
     }
     await this._assertSkuEanUnique(mapped.sku_code.trim(), mapped.ean13 ?? null, null);
-    await this._validateReferences(mapped);
+    await this._validateReferences(mapped, mapped);
     if (mapped.family_id == null || Number.isNaN(Number(mapped.family_id))) {
       throw { statusCode: 400, message: 'Famille requise (ou catégorie / sous-catégorie pour la déduire)' };
     }
@@ -64,7 +68,7 @@ class ArticleService {
     return prisma.$transaction(async (tx) => {
       const sku = await tx.sku.create({ data: {} });
       // `select: { id: true }` : évite un `RETURNING *` sur toutes les colonnes (ex. `sku_uuid`) si la table
-      // n’est pas encore migrée — erreur PG « colonne … inexistante » sur `article.create`.
+      // n'est pas encore migrée -- erreur PG « colonne … inexistante » sur `article.create`.
       const created = await tx.article.create({
         data: payload,
         select: { id: true },
@@ -91,7 +95,7 @@ class ArticleService {
       if (exists) throw { statusCode: 409, message: 'Ce code EAN-13 est déjà utilisé' };
     }
 
-    await this._validateReferences(merged);
+    await this._validateReferences(merged, mapped);
 
     const updateData = { ...mapped };
     Object.assign(updateData, {
@@ -140,15 +144,15 @@ class ArticleService {
     }
   }
 
-  async _validateReferences(payload) {
-    const snapshot = { ...payload };
+  async _validateReferences(taxonomyPayload, fullPayload) {
+    const snapshot = { ...taxonomyPayload };
     await guard.validateTaxonomy(snapshot);
-    Object.assign(payload, {
+    Object.assign(taxonomyPayload, {
       family_id: snapshot.family_id,
       category_id: snapshot.category_id,
       sub_category_id: snapshot.sub_category_id,
     });
-    await guard.validateOptionalRefs(snapshot);
+    await guard.validateOptionalRefs(fullPayload ?? taxonomyPayload);
   }
 
   _mapData(body) {
@@ -166,7 +170,7 @@ class ArticleService {
       out.ean13 = t === '' ? null : t;
     }
 
-    const intFields = ['brand_id', 'family_id', 'sub_category_id', 'category_id', 'weight_g', 'volume_ml'];
+    const intFields = ['brand_id', 'family_id', 'sub_category_id', 'category_id', 'article_type_id', 'article_status_id', 'conservation_type_id', 'tax_id', 'weight_g', 'volume_ml'];
     intFields.forEach((f) => {
       if (out[f] !== undefined) {
         if (out[f] === '' || out[f] === null) out[f] = null;
@@ -211,6 +215,10 @@ class ArticleService {
     assign('family_id', mapped.family_id);
     assign('sub_category_id', mapped.sub_category_id);
     assign('category_id', mapped.category_id);
+    assign('article_type_id', mapped.article_type_id);
+    assign('article_status_id', mapped.article_status_id);
+    assign('conservation_type_id', mapped.conservation_type_id);
+    assign('tax_id', mapped.tax_id);
     assign('unit_sale', mapped.unit_sale ?? 'unit');
     assign('unit_purchase', mapped.unit_purchase ?? 'unit');
     assign('coeff', mapped.coeff ?? 1);

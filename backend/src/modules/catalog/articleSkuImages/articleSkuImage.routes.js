@@ -2,7 +2,7 @@ const { Router } = require('express');
 const ctrl = require('./articleSkuImage.controller');
 const auth = require('../../../middlewares/auth.middleware');
 const perm = require('../../../middlewares/permission.middleware');
-// Qui peut modifier l’article peut gérer sa galerie (évite 403 si les droits sku_images.* ne sont pas assignés).
+// Qui peut modifier l'article peut gérer sa galerie (évite 403 si les droits sku_images.* ne sont pas assignés).
 const skuImgUploadPerms = ['sku_images.create', 'article_images.manage', 'articles.update'];
 const skuImgUpdatePerms = ['sku_images.update', 'article_images.manage', 'articles.update'];
 const skuImgDeletePerms = ['sku_images.delete', 'article_images.manage', 'articles.update'];

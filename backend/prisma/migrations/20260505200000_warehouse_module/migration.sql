@@ -1,0 +1,2 @@
+-- Migration warehouse_module (placeholder)
+-- This is a placeholder migration to fix the missing migration file issue

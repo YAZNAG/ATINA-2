@@ -1,12 +1,12 @@
 /**
- * Registre des tables P0 (alignées Prisma) — utilisé par GET /api/p0/registry pour affichage back-office.
+ * Registre des tables P0 (alignées Prisma) -- utilisé par GET /api/p0/registry pour affichage back-office.
  * `model` = nom exact du modèle Prisma (pour prisma[delegate].count()).
  * `sql` = nom physique PostgreSQL (@@map).
  */
 const P0_TABLE_GROUPS = [
   {
     id: 'lookups_stock',
-    titleFr: 'Lookups — stock & mouvements',
+    titleFr: 'Lookups -- stock & mouvements',
     tables: [
       { model: 'StockOperation', sql: 'stock_operations', labelFr: 'Sens stock (IN / OUT / NEUTRAL)' },
       { model: 'MoveType', sql: 'move_types', labelFr: 'Types de mouvement' },
@@ -14,7 +14,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'lookups_orders',
-    titleFr: 'Lookups — commandes & paiements',
+    titleFr: 'Lookups -- commandes & paiements',
     tables: [
       { model: 'OrderStatus', sql: 'order_statuses', labelFr: 'Statuts commande' },
       { model: 'OrderItemStatus', sql: 'order_item_statuses', labelFr: 'Statuts ligne commande' },
@@ -27,7 +27,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'lookups_logistics',
-    titleFr: 'Lookups — tournées & picking',
+    titleFr: 'Lookups -- tournées & picking',
     tables: [
       { model: 'TourStatus', sql: 'tour_statuses', labelFr: 'Statuts tournée' },
       { model: 'StopStatus', sql: 'stop_statuses', labelFr: 'Statuts arrêt' },
@@ -37,7 +37,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'lookups_marketing',
-    titleFr: 'Lookups — marketing & fidélité',
+    titleFr: 'Lookups -- marketing & fidélité',
     tables: [
       { model: 'ReferralStatus', sql: 'referral_statuses', labelFr: 'Statuts parrainage' },
       { model: 'WalletTxnType', sql: 'wallet_txn_types', labelFr: 'Types transaction wallet' },
@@ -52,7 +52,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'lookups_misc',
-    titleFr: 'Lookups — divers',
+    titleFr: 'Lookups -- divers',
     tables: [
       { model: 'NotificationChannel', sql: 'notification_channels', labelFr: 'Canaux notification' },
       { model: 'NotificationDeliveryStatus', sql: 'notification_statuses', labelFr: 'Statuts envoi notification' },
@@ -63,16 +63,16 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'core_commerce',
-    titleFr: 'Cœur métier — clients, commandes, stock',
+    titleFr: 'Cœur métier -- clients, commandes, stock',
     tables: [
       {
         model: 'Customer',
         sql: 'customers',
-        labelFr: 'Clients (app) — inscription, wallet, points, parrainage',
+        labelFr: 'Clients (app) -- inscription, wallet, points, parrainage',
         listPath: '/customers',
         listPermission: 'customers.view',
         listPermissionAny: ['dashboard.view'],
-        // CRUD générique P0 autorisé ; l’entrée « Clients (app) » + listPath restent pour l’écran métier dédié.
+        // CRUD générique P0 autorisé ; l'entrée « Clients (app) » + listPath restent pour l'écran métier dédié.
       },
       { model: 'Address', sql: 'addresses', labelFr: 'Adresses livraison' },
       { model: 'StockLevel', sql: 'stock_levels', labelFr: 'Stock agrégé node × SKU' },
@@ -87,7 +87,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'warehouse',
-    titleFr: 'Entrepôt — emplacements & mouvements',
+    titleFr: 'Entrepôt -- emplacements & mouvements',
     tables: [
       { model: 'WarehouseLocation', sql: 'locations', labelFr: 'Emplacements (allée / étagère)' },
       { model: 'SkuNodeLocation', sql: 'sku_node_locations', labelFr: 'SKU × node × emplacement' },
@@ -96,7 +96,7 @@ const P0_TABLE_GROUPS = [
   },
   {
     id: 'offers',
-    titleFr: 'Offres — packs, flash, promos, jeux, parrainage',
+    titleFr: 'Offres -- packs, flash, promos, jeux, parrainage',
     tables: [
       { model: 'Pack', sql: 'packs', labelFr: 'Packs / bundles' },
       { model: 'PackItem', sql: 'pack_items', labelFr: 'Composition pack' },

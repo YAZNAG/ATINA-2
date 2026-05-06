@@ -2,7 +2,7 @@ const prisma = require('../../../config/database');
 
 const BASE_WHERE = { deleted_at: null, is_deleted: false };
 
-/** Sans `images` (article_images) : beaucoup de BDD n’ont pas les colonnes Prisma (`is_main`, `deleted_at`, …) → erreur « colonne inexistante ». La galerie se gère via `sku_images` (routes article/sku-images). */
+/** Sans `images` (article_images) : beaucoup de BDD n'ont pas les colonnes Prisma (`is_main`, `deleted_at`, …) → erreur « colonne inexistante ». La galerie se gère via `sku_images` (routes article/sku-images). */
 const INCLUDE = {
   family: { select: { id: true, name_fr: true, name_ar: true } },
   category: { select: { id: true, name_fr: true, name_ar: true } },
@@ -49,7 +49,7 @@ const findAll = async (params) => {
 };
 
 const findById = (id) => prisma.article.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
-/** `select: { id: true }` uniquement : évite un `SELECT *` sur toutes les colonnes Prisma (ex. `sku_uuid`) si la BDD n’est pas encore migrée — erreur PG « colonne … inexistante ». */
+/** `select: { id: true }` uniquement : évite un `SELECT *` sur toutes les colonnes Prisma (ex. `sku_uuid`) si la BDD n'est pas encore migrée -- erreur PG « colonne … inexistante ». */
 const findBySkuCode = (sku_code, excludeId) =>
   prisma.article.findFirst({
     where: { sku_code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) },

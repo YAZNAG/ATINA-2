@@ -3,23 +3,15 @@ import toast from 'react-hot-toast';
 import { getInventoryTypes, createInventoryType, updateInventoryType, deleteInventoryType } from '../../api/stock.api';
 import { getErrorMessage } from '../../utils/helpers';
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
 const SVG = {
-  plus:     'M12 4v16m8-8H4',
-  edit:     'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
-  trash:    'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
-  search:   'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  x:        'M6 18L18 6M6 6l12 12',
-  clipboard:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
-  globe:    'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  node:     'M3 7l9-4 9 4-9 4-9-4zm0 5l9 4 9-4m-18 5l9 4 9-4',
-  mapPin:   'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
-  layers:   'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
-  tag:      'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
-  lightning:'M13 10V3L4 14h7v7l9-11h-7z',
-  up:       'M5 15l7-7 7 7',
-  down:     'M19 9l-7 7-7-7',
+  plus:      'M12 4v16m8-8H4',
+  edit:      'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  trash:     'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+  search:    'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  x:         'M6 18L18 6M6 6l12 12',
+  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  up:        'M5 15l7-7 7 7',
+  down:      'M19 9l-7 7-7-7',
 };
 
 function Icon({ d, className = 'w-5 h-5' }) {
@@ -30,110 +22,28 @@ function Icon({ d, className = 'w-5 h-5' }) {
   );
 }
 
-// ── Scope config ──────────────────────────────────────────────────────────────
-
-const SCOPES = [
-  {
-    code: 'GLOBAL',
-    label_fr: 'Global',
-    label_ar: 'شامل',
-    desc: 'Tous les entrepôts et emplacements',
-    icon: SVG.globe,
-    bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700',
-    badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500',
-    defaultColor: '#6366f1',
-  },
-  {
-    code: 'NODE',
-    label_fr: 'Par entrepôt',
-    label_ar: 'حسب المستودع',
-    desc: 'Un seul nœud / dark store',
-    icon: SVG.node,
-    bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700',
-    badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500',
-    defaultColor: '#3b82f6',
-  },
-  {
-    code: 'LOCATION',
-    label_fr: 'Par emplacement',
-    label_ar: 'حسب الموقع',
-    desc: 'Emplacements / rayons ciblés',
-    icon: SVG.mapPin,
-    bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700',
-    badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500',
-    defaultColor: '#10b981',
-  },
-  {
-    code: 'ZONE',
-    label_fr: 'Par zone',
-    label_ar: 'حسب المنطقة',
-    desc: 'Sec, frais, surgelé, hygiène…',
-    icon: SVG.layers,
-    bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700',
-    badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500',
-    defaultColor: '#f59e0b',
-  },
-  {
-    code: 'CATEGORY',
-    label_fr: 'Par catégorie',
-    label_ar: 'حسب الفئة',
-    desc: 'Une famille / catégorie de produits',
-    icon: SVG.tag,
-    bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700',
-    badge: 'bg-violet-100 text-violet-700', dot: 'bg-violet-500',
-    defaultColor: '#8b5cf6',
-  },
-  {
-    code: 'PARTIAL',
-    label_fr: 'Partiel / Flash',
-    label_ar: 'جزئي / سريع',
-    desc: 'Comptage ponctuel ou tournant',
-    icon: SVG.lightning,
-    bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700',
-    badge: 'bg-red-100 text-red-700', dot: 'bg-red-500',
-    defaultColor: '#ef4444',
-  },
-];
-
-const scopeMap = Object.fromEntries(SCOPES.map((s) => [s.code, s]));
-
 const PRESET_COLORS = [
-  { label: 'Global',      color: '#6366f1' },
-  { label: 'Entrepôt',    color: '#3b82f6' },
-  { label: 'Emplacement', color: '#10b981' },
-  { label: 'Zone',        color: '#f59e0b' },
-  { label: 'Catégorie',   color: '#8b5cf6' },
-  { label: 'Partiel',     color: '#ef4444' },
-  { label: 'Tournant',    color: '#ec4899' },
-  { label: 'Flash',       color: '#dc2626' },
+  { label: 'Rouge',    color: '#ef4444' },
+  { label: 'Orange',   color: '#f97316' },
+  { label: 'Ambre',    color: '#f59e0b' },
+  { label: 'Vert',     color: '#10b981' },
+  { label: 'Bleu',     color: '#3b82f6' },
+  { label: 'Indigo',   color: '#6366f1' },
+  { label: 'Violet',   color: '#8b5cf6' },
+  { label: 'Rose',     color: '#ec4899' },
 ];
-
-// ── ScopeBadge ────────────────────────────────────────────────────────────────
-
-function ScopeBadge({ code }) {
-  const sc = scopeMap[code];
-  if (!sc) return <span className="text-xs text-gray-400 font-mono">{code}</span>;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${sc.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-      {sc.label_fr}
-    </span>
-  );
-}
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
 function InventoryTypeCard({ item, onEdit, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
-  const color = item.color || scopeMap[item.scope]?.defaultColor || '#6366f1';
-  const sc    = scopeMap[item.scope];
-
+  const color = item.color || '#6366f1';
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-red-100 transition-all flex flex-col">
       <div className="flex-1 p-5">
         <div className="flex items-start gap-4 mb-3">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
             style={{ background: `linear-gradient(135deg, ${color}bb, ${color})` }}>
-            <Icon d={sc?.icon ?? SVG.clipboard} className="w-7 h-7 text-white" />
+            <Icon d={SVG.clipboard} className="w-7 h-7 text-white" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-gray-900 text-sm leading-tight">{item.name_fr}</h3>
@@ -144,13 +54,11 @@ function InventoryTypeCard({ item, onEdit, onDelete, onMoveUp, onMoveDown, isFir
               <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] font-mono rounded-md border border-gray-200">
                 {item.code}
               </span>
-              <ScopeBadge code={item.scope} />
               {!item.is_active && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">Inactif</span>
               )}
             </div>
           </div>
-          {/* Sort order */}
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
             <button onClick={onMoveUp} disabled={isFirst}
               className="w-6 h-6 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center disabled:opacity-30 transition-colors">
@@ -221,7 +129,7 @@ function Fld({ label, req, children }) {
   );
 }
 
-const EMPTY = { code: '', name_fr: '', name_ar: '', scope: 'GLOBAL', color: '#6366f1', description_fr: '', is_active: true, sort_order: 0 };
+const EMPTY = { code: '', name_fr: '', name_ar: '', color: '#6366f1', description_fr: '', is_active: true, sort_order: 0 };
 
 function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
   const isEdit = !!editItem;
@@ -233,8 +141,7 @@ function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
       code:           editItem.code           ?? '',
       name_fr:        editItem.name_fr        ?? '',
       name_ar:        editItem.name_ar        ?? '',
-      scope:          editItem.scope          ?? 'GLOBAL',
-      color:          editItem.color          ?? scopeMap[editItem.scope]?.defaultColor ?? '#6366f1',
+      color:          editItem.color          ?? '#6366f1',
       description_fr: editItem.description_fr ?? '',
       is_active:      editItem.is_active      ?? true,
       sort_order:     editItem.sort_order     ?? 0,
@@ -243,18 +150,10 @@ function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
 
   const hc = (e) => { const { name, value } = e.target; setForm((f) => ({ ...f, [name]: value })); };
 
-  const setScope = (sc) => setForm((f) => ({
-    ...f, scope: sc,
-    color: f.color === scopeMap[f.scope]?.defaultColor
-      ? scopeMap[sc]?.defaultColor ?? f.color
-      : f.color,
-  }));
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.code.trim())    return toast.error('Code requis');
     if (!form.name_fr.trim()) return toast.error('Nom (FR) requis');
-    if (!form.scope)          return toast.error('Périmètre requis');
     setSaving(true);
     try {
       if (isEdit) await updateInventoryType(editItem.id, form);
@@ -264,8 +163,6 @@ function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setSaving(false); }
   };
-
-  const activeSc = scopeMap[form.scope];
 
   return (
     <>
@@ -303,34 +200,6 @@ function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
             </Fld>
           </div>
 
-          {/* Scope selector */}
-          <Fld label="Périmètre" req>
-            <div className="grid grid-cols-2 gap-2">
-              {SCOPES.map((sc) => (
-                <button key={sc.code} type="button" onClick={() => setScope(sc.code)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
-                    form.scope === sc.code
-                      ? `${sc.bg} ${sc.border} ${sc.text} shadow-sm`
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                  }`}>
-                  <Icon d={sc.icon} className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{sc.label_fr}</span>
-                </button>
-              ))}
-            </div>
-          </Fld>
-
-          {/* Scope info banner */}
-          {activeSc && (
-            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs ${activeSc.bg} ${activeSc.border}`}>
-              <Icon d={activeSc.icon} className={`w-4 h-4 flex-shrink-0 ${activeSc.text}`} />
-              <span className={`font-medium ${activeSc.text}`}>{activeSc.desc}</span>
-              <span className={`ml-auto text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${activeSc.badge}`}>
-                {activeSc.label_ar}
-              </span>
-            </div>
-          )}
-
           <Fld label="Nom (Français)" req>
             <input name="name_fr" className={inp} value={form.name_fr} onChange={hc}
               placeholder="Inventaire global" />
@@ -343,7 +212,7 @@ function InventoryTypeDrawer({ editItem, onClose, onSaved }) {
 
           <Fld label="Description">
             <textarea name="description_fr" className={ta} rows={2} value={form.description_fr}
-              onChange={hc} placeholder="Description optionnelle du périmètre et de l'usage…" />
+              onChange={hc} placeholder="Description optionnelle…" />
           </Fld>
 
           {/* Couleur */}
@@ -410,7 +279,7 @@ export default function InventoryTypesPage() {
   const [drawer, setDrawer]     = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [scopeFilter, setScopeFilter] = useState('all');
+  const [filter, setFilter]           = useState('all');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch]           = useState('');
 
@@ -453,19 +322,17 @@ export default function InventoryTypesPage() {
 
   const q = search.toLowerCase();
   const filtered = items.filter((item) => {
-    if (scopeFilter !== 'all' && item.scope !== scopeFilter) return false;
+    if (filter === 'active'   && !item.is_active) return false;
+    if (filter === 'inactive' &&  item.is_active) return false;
     if (q && !(item.name_fr ?? '').toLowerCase().includes(q) && !(item.code ?? '').toLowerCase().includes(q)) return false;
     return true;
   });
   const sorted = [...filtered].sort((a, b) => a.sort_order - b.sort_order || a.name_fr.localeCompare(b.name_fr));
 
   const stats = [
-    { label: 'Total',   value: items.length,                                                color: 'bg-gray-50 border-gray-100 text-gray-700' },
-    ...SCOPES.map((sc) => ({
-      label: sc.label_fr,
-      value: items.filter((i) => i.scope === sc.code).length,
-      color: `${sc.bg} border-${sc.border.replace('border-', '')} ${sc.text}`,
-    })),
+    { label: 'Total',    value: items.length,                             color: 'bg-gray-50 border-gray-100 text-gray-700' },
+    { label: 'Actifs',   value: items.filter((i) => i.is_active).length,  color: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+    { label: 'Inactifs', value: items.filter((i) => !i.is_active).length, color: 'bg-red-50 border-red-100 text-red-600' },
   ];
 
   return (
@@ -487,7 +354,7 @@ export default function InventoryTypesPage() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Types d'inventaire</h1>
-              <p className="text-sm text-gray-400 mt-0.5">Global, par entrepôt, emplacement, zone, catégorie…</p>
+              <p className="text-sm text-gray-400 mt-0.5">Global, tournant, flash, partiel…</p>
             </div>
             <button onClick={() => setDrawer({ editItem: null })}
               className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all flex-shrink-0">
@@ -497,11 +364,11 @@ export default function InventoryTypesPage() {
 
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 flex-wrap">
-              {[{ v: 'all', l: 'Tous' }, ...SCOPES.map((sc) => ({ v: sc.code, l: sc.label_fr }))].map((o) => (
-                <button key={o.v} onClick={() => setScopeFilter(o.v)}
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
+              {[{ v: 'all', l: 'Tous' }, { v: 'active', l: 'Actifs' }, { v: 'inactive', l: 'Inactifs' }].map((o) => (
+                <button key={o.v} onClick={() => setFilter(o.v)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    scopeFilter === o.v ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                    filter === o.v ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
                   }`}>
                   {o.l}
                 </button>
@@ -529,30 +396,16 @@ export default function InventoryTypesPage() {
       {/* Stats */}
       {items.length > 0 && (
         <div className="px-6 pt-4 pb-0">
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-3 gap-3">
             {stats.map((s) => (
-              <div key={s.label} className={`rounded-xl border px-3 py-2.5 ${s.color}`}>
-                <p className="text-[10px] font-semibold opacity-70 uppercase tracking-wide truncate">{s.label}</p>
-                <p className="text-xl font-bold mt-0.5">{s.value}</p>
+              <div key={s.label} className={`rounded-xl border px-4 py-3 ${s.color}`}>
+                <p className="text-xs font-semibold opacity-70 uppercase tracking-wide">{s.label}</p>
+                <p className="text-2xl font-bold mt-0.5">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Scope legend */}
-      <div className="px-6 pt-4 pb-0">
-        <div className="flex gap-2 flex-wrap">
-          {SCOPES.map((sc) => (
-            <div key={sc.code} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs ${sc.bg} ${sc.border}`}>
-              <Icon d={sc.icon} className={`w-3.5 h-3.5 ${sc.text}`} />
-              <span className={`font-semibold ${sc.text}`}>{sc.label_fr}</span>
-              <span className="text-gray-400">—</span>
-              <span className="text-gray-500">{sc.desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Grid */}
       <div className="px-6 py-6">
@@ -569,10 +422,10 @@ export default function InventoryTypesPage() {
             <div className="text-center">
               <p className="text-gray-600 font-semibold">Aucun type d'inventaire</p>
               <p className="text-gray-400 text-sm mt-1">
-                {search || scopeFilter !== 'all' ? 'Modifiez vos filtres.' : "Cliquez sur « Nouveau type » pour commencer."}
+                {search || filter !== 'all' ? 'Modifiez vos filtres.' : "Cliquez sur « Nouveau type » pour commencer."}
               </p>
             </div>
-            {!search && scopeFilter === 'all' && (
+            {!search && filter === 'all' && (
               <button onClick={() => setDrawer({ editItem: null })}
                 className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl">
                 + Créer le premier type

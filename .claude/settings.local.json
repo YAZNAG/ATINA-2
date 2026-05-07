@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/yassi/.claude/projects/c--Users-yassi-Desktop-dark-store-app/memory/**)",
+      "Bash(grep -E \"\\\\.\\(jsx|js|tsx|ts\\)$\")",
+      "Bash(npx vite *)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/Users/yassi/Desktop/dark-store-app/backend/src/modules/catalog/articles/articleReferential.guard.js', 'utf8'\\); const bad = []; for\\(let i=0;i<c.length;i++\\){const code=c.charCodeAt\\(i\\);if\\(code>127&&code!==233&&code!==232&&code!==224&&code!==226&&code!==238&&code!==251&&code!==244&&code!==171&&code!==187&&code!==8217&&code!==8216&&code!==8220&&code!==8221&&code!==160&&code!==8230\\){bad.push\\({pos:i,char:c[i],code,line:c.slice\\(0,i\\).split\\('\\\\n'\\).length}\\);}} console.log\\(bad.slice\\(0,20\\)\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/Users/yassi/Desktop/dark-store-app/backend/src/modules/catalog/articles/articleReferential.guard.js', 'utf8'\\); const bad = []; for\\(let i=0;i<c.length;i++\\){const code=c.charCodeAt\\(i\\);if\\(code===8216||code===8217||code===8220||code===8221||code===8216||code===0xFEFF\\){bad.push\\({pos:i,char:c[i],code,line:c.slice\\(0,i\\).split\\('\\\\n'\\).length,ctx:c.slice\\(Math.max\\(0,i-10\\),i+10\\)}\\);}} console.log\\(JSON.stringify\\(bad,null,2\\)\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const fs=require\\('fs'\\),path=require\\('path'\\);function w\\(d\\){for\\(const e of fs.readdirSync\\(d,{withFileTypes:true}\\)\\){const f=path.join\\(d,e.name\\);if\\(e.isDirectory\\(\\)&&e.name!=='node_modules'\\)w\\(f\\);else if\\(e.isFile\\(\\)&&e.name.endsWith\\('.js'\\)\\){const c=fs.readFileSync\\(f,'utf8'\\);if\\(/[‘’“”]/.test\\(c\\)\\)console.log\\('BAD:',f\\);}}}w\\('.'\\);console.log\\('done'\\);\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\yassi\\.claude\\projects\\c--Users-yassi-Desktop-dark-store-app\\memory"
+    ]
+  }
+}

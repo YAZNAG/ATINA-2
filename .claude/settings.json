@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node src/server.js)",
+      "Bash(node -e ' *)",
+      "Bash(node \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\fix-quotes.js\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const c=fs.readFileSync\\('c:/Users/yassi/Desktop/dark-store-app/backend/src/modules/catalog/articleSkuImages/articleSkuImage.service.js','utf8'\\); const line59=c.split\\('\\\\n'\\)[58]; console.log\\('codes:', [...line59].map\\(\\(ch,i\\)=>\\({i,ch,code:ch.charCodeAt\\(0\\)}\\)\\).filter\\(x=>x.code>127||x.code===39\\)\\);\")",
+      "Bash(node \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\fix-quotes2.js\")",
+      "Bash(node --check \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\catalog\\\\articleSkuImages\\\\articleSkuImage.service.js\")",
+      "Bash(node \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\check-syntax.js\")",
+      "Bash(echo \"EXIT: $?\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess\\) -Force -ErrorAction SilentlyContinue; Write-Host \"Port 5000 libéré\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git -C c:/Users/yassi/Desktop/dark-store-app status --short)",
+      "Bash(git -C c:/Users/yassi/Desktop/dark-store-app add backend/prisma/schema.prisma backend/src/modules/node/nodeTypes/ frontend/src/api/locationNode.api.js frontend/src/components/Sidebar.jsx frontend/src/pages/location/NodeForm.jsx frontend/src/pages/location/NodeTypesPage.jsx frontend/src/routes/index.jsx frontend/src/pages/location/CitiesPage.jsx frontend/src/pages/location/CityFormPage.jsx frontend/src/pages/location/GeoDashboard.jsx frontend/src/pages/location/ProvinceFormPage.jsx frontend/src/pages/location/ProvincesPage.jsx frontend/src/pages/location/GeoPage.jsx frontend/src/pages/location/NodesPage.jsx)",
+      "Bash(git -C c:/Users/yassi/Desktop/dark-store-app commit -m ' *)",
+      "Bash(git -C c:/Users/yassi/Desktop/dark-store-app push origin dev)",
+      "Bash(git -C c:/Users/yassi/Desktop/dark-store-app add frontend/src/pages/location/NodesPage.jsx frontend/src/pages/location/NodeDetailPage.jsx frontend/src/pages/warehouse/ZonesPage.jsx frontend/src/pages/warehouse/LevelsPage.jsx frontend/src/components/Sidebar.jsx frontend/src/routes/index.jsx)",
+      "Bash(node scripts/sync-permissions.js)",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse -Path 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules' -Directory | Select-Object -ExpandProperty Name | Sort-Object\")",
+      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\routes\\\\index.js' -Head 80\")"
+    ]
+  }
+}

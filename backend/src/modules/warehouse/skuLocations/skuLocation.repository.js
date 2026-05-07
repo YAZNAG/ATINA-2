@@ -12,8 +12,9 @@ const INCLUDE = {
   node: { select: { id: true, code: true, name_fr: true } },
 };
 
-const buildWhere = ({ search, node_id, zone_id, level_id, is_active, is_primary_location } = {}) => ({
+const buildWhere = ({ search, node_id, location_id, zone_id, level_id, is_active, is_primary_location } = {}) => ({
   ...(node_id && { node_id }),
+  ...(location_id && { location_id }),
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
   ...(is_primary_location !== undefined && { is_primary_location: is_primary_location === 'true' || is_primary_location === true }),
   ...(zone_id && { location: { zone_id } }),

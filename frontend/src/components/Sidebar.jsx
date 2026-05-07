@@ -81,6 +81,12 @@ const navItems = [
       { label: 'Niveaux rayons',  path: '/warehouse/levels',  anyPermissions: ['warehouse.manage', 'dashboard.view'] },
     ],
   },
+  {
+    label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
+    children: [
+      { label: 'Types de mouvement', path: '/stock/move-types', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+    ],
+  },
 
 ];
 
@@ -168,7 +174,7 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState({
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
-    geo: false, nodes: false, nodeRef: false, p0tables: false,
+    geo: false, nodes: false, nodeRef: false, stockRef: false, p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
 
@@ -224,6 +230,7 @@ export default function Sidebar() {
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
+    if (pathname.startsWith('/stock')) open('stockRef');
   }, [pathname]);
 
   const initials = user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';

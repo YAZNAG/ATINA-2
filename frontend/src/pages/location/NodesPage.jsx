@@ -419,10 +419,12 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <Fld label="Latitude">
-                  <input type="number" step="any" className={inp} value={info.lat} onChange={(e) => setInfo((f) => ({ ...f, lat: e.target.value }))} placeholder="33.5731" />
+                  <input type="number" step="any" min="-90" max="90" className={inp} value={info.lat}
+                    onChange={(e) => setInfo((f) => ({ ...f, lat: e.target.value }))} placeholder="33.5731 (−90 à 90)" />
                 </Fld>
                 <Fld label="Longitude">
-                  <input type="number" step="any" className={inp} value={info.lng} onChange={(e) => setInfo((f) => ({ ...f, lng: e.target.value }))} placeholder="-7.5898" />
+                  <input type="number" step="any" min="-180" max="180" className={inp} value={info.lng}
+                    onChange={(e) => setInfo((f) => ({ ...f, lng: e.target.value }))} placeholder="-7.5898 (−180 à 180)" />
                 </Fld>
               </div>
 

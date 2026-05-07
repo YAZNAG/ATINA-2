@@ -36,14 +36,24 @@ class NodeService {
 
   _mapPayload(data) {
     const payload = { ...data };
-    if (payload.lat !== undefined && payload.lat !== '') payload.lat = Number(payload.lat);
-    if (payload.lng !== undefined && payload.lng !== '') payload.lng = Number(payload.lng);
-    if (payload.delivery_radius_km !== undefined && payload.delivery_radius_km !== '') {
-      payload.delivery_radius_km = Number(payload.delivery_radius_km);
+
+    const toNum = (v) => (v === undefined || v === null || v === '') ? null : Number(v);
+
+    payload.lat = toNum(payload.lat);
+    payload.lng = toNum(payload.lng);
+    payload.delivery_radius_km = toNum(payload.delivery_radius_km);
+    payload.max_daily_orders =
+      (payload.max_daily_orders === undefined || payload.max_daily_orders === null || payload.max_daily_orders === '')
+        ? null
+        : parseInt(payload.max_daily_orders, 10);
+
+    if (payload.lat !== null && (payload.lat < -90 || payload.lat > 90)) {
+      throw { statusCode: 400, message: 'Latitude invalide (doit être entre -90 et 90)' };
     }
-    if (payload.max_daily_orders !== undefined && payload.max_daily_orders !== '') {
-      payload.max_daily_orders = Number(payload.max_daily_orders);
+    if (payload.lng !== null && (payload.lng < -180 || payload.lng > 180)) {
+      throw { statusCode: 400, message: 'Longitude invalide (doit être entre -180 et 180)' };
     }
+
     if (payload.opening_hours_json && typeof payload.opening_hours_json === 'string') {
       payload.opening_hours_json = JSON.parse(payload.opening_hours_json);
     }

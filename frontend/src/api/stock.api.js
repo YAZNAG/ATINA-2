@@ -17,6 +17,14 @@ export const createInventoryType   = (data)     => api.post(`${s}/inventory-type
 export const updateInventoryType   = (id, data) => api.put(`${s}/inventory-types/${id}`, data);
 export const deleteInventoryType   = (id)       => api.delete(`${s}/inventory-types/${id}`);
 
+// ——— Inventory Statuses ———
+export const getInventoryStatuses     = (params)   => api.get(`${s}/inventory-statuses`, { params });
+export const getInventoryStatusesList = ()         => api.get(`${s}/inventory-statuses`, { params: { all: true } });
+export const getInventoryStatus       = (id)       => api.get(`${s}/inventory-statuses/${id}`);
+export const createInventoryStatus    = (data)     => api.post(`${s}/inventory-statuses`, data);
+export const updateInventoryStatus    = (id, data) => api.put(`${s}/inventory-statuses/${id}`, data);
+export const deleteInventoryStatus    = (id)       => api.delete(`${s}/inventory-statuses/${id}`);
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

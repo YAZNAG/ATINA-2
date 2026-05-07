@@ -1,4 +1,4 @@
-const repo = require('./inventory_type.repository');
+const repo = require('./inventory_status.repository');
 
 const FIELDS = ['code', 'name_fr', 'name_ar', 'color', 'description_fr', 'is_active', 'sort_order'];
 
@@ -10,7 +10,7 @@ const pick = (data) => {
   return out;
 };
 
-class InventoryTypeService {
+class InventoryStatusService {
   async getAll(params) {
     const { data, total } = await repo.findAll(params);
     if (params.all === 'true' || params.all === true) return { data };
@@ -21,7 +21,7 @@ class InventoryTypeService {
 
   async getById(id) {
     const item = await repo.findById(id);
-    if (!item) throw { statusCode: 404, message: "Type d'inventaire introuvable" };
+    if (!item) throw { statusCode: 404, message: "Statut d'inventaire introuvable" };
     return item;
   }
 
@@ -30,26 +30,26 @@ class InventoryTypeService {
     if (!payload.code)    throw { statusCode: 400, message: 'Code requis' };
     if (!payload.name_fr) throw { statusCode: 400, message: 'Nom (FR) requis' };
     const exists = await repo.findByCode(payload.code);
-    if (exists) throw { statusCode: 409, message: "Ce code de type d'inventaire existe déjà" };
+    if (exists) throw { statusCode: 409, message: "Ce code de statut d'inventaire existe déjà" };
     return repo.create(payload);
   }
 
   async update(id, data) {
     const item = await repo.findById(id);
-    if (!item) throw { statusCode: 404, message: "Type d'inventaire introuvable" };
+    if (!item) throw { statusCode: 404, message: "Statut d'inventaire introuvable" };
     const payload = pick(data);
     if (payload.code) {
       const exists = await repo.findByCode(payload.code, id);
-      if (exists) throw { statusCode: 409, message: "Ce code de type d'inventaire existe déjà" };
+      if (exists) throw { statusCode: 409, message: "Ce code de statut d'inventaire existe déjà" };
     }
     return repo.update(id, payload);
   }
 
   async delete(id) {
     const item = await repo.findById(id);
-    if (!item) throw { statusCode: 404, message: "Type d'inventaire introuvable" };
+    if (!item) throw { statusCode: 404, message: "Statut d'inventaire introuvable" };
     await repo.remove(id);
   }
 }
 
-module.exports = new InventoryTypeService();
+module.exports = new InventoryStatusService();

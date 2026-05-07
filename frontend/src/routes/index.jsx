@@ -33,6 +33,8 @@ import WarehousePage from '../pages/warehouse/WarehousePage';
 import ZonesPage from '../pages/warehouse/ZonesPage';
 import LevelsPage from '../pages/warehouse/LevelsPage';
 import MoveTypesPage from '../pages/stock/MoveTypesPage';
+import StockStatusesPage from '../pages/stock/StockStatusesPage';
+import InventoryTypesPage from '../pages/stock/InventoryTypesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -96,7 +98,9 @@ export default function AppRoutes() {
           <Route path="/warehouse/zones" element={<ZonesPage />} />
           <Route path="/warehouse/levels" element={<LevelsPage />} />
           {/* Stock paramétrage */}
-          <Route path="/stock/move-types" element={<MoveTypesPage />} />
+          <Route path="/stock/move-types"       element={<MoveTypesPage />} />
+          <Route path="/stock/stock-statuses"  element={<StockStatusesPage />} />
+          <Route path="/stock/inventory-types" element={<InventoryTypesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -84,7 +84,9 @@ const navItems = [
   {
     label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
     children: [
-      { label: 'Types de mouvement', path: '/stock/move-types', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Types de mouvement', path: '/stock/move-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Statuts de stock',   path: '/stock/stock-statuses',   anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: "Types d'inventaire", path: '/stock/inventory-types',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
 

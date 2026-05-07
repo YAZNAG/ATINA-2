@@ -526,6 +526,35 @@ model MoveType {
   @@map("move_types")
 }
 
+model StockStatus {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(50)
+  name_fr     String   @db.VarChar(100)
+  name_ar     String   @db.VarChar(100)
+  color       String?  @db.VarChar(20)
+  is_sellable Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("stock_statuses")
+}
+
+model InventoryType {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique @db.VarChar(50)
+  name_fr        String   @db.VarChar(100)
+  name_ar        String   @db.VarChar(100)
+  scope          String   @db.VarChar(20)
+  color          String?  @db.VarChar(20)
+  description_fr String?  @db.VarChar(255)
+  is_active      Boolean  @default(true)
+  sort_order     Int      @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("inventory_types")
+}
+
 model OrderStatus {
   id          String   @id @default(uuid()) @db.Uuid
   code        String   @unique @db.VarChar(50)

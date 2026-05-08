@@ -1,10 +1,27 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Package, Search, RefreshCw, AlertTriangle, TrendingDown,
-  CheckCircle, ArrowUpCircle, Settings, X, ChevronDown,
-} from 'lucide-react';
 import { getStockLevels, adjustStockLevel, getMoveTypesList } from '../../api/stock.api';
 import { getNodes } from '../../api/locationNode.api';
+
+function Icon({ d, className = 'w-5 h-5' }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={d} />
+    </svg>
+  );
+}
+
+const PATHS = {
+  package:    'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  search:     'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  refresh:    'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  alert:      'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  trending:   'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6',
+  check:      'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  arrow_up:   'M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z',
+  settings:   'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+  x:          'M6 18L18 6M6 6l12 12',
+  chevron:    'M19 9l-7 7-7-7',
+};
 
 // ─── Status ──────────────────────────────────────────────────────────────────
 const STATUS = {
@@ -56,7 +73,7 @@ function calcStatus(row) {
 }
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, color }) {
+function StatCard({ iconPath, label, value, color }) {
   const colors = {
     slate:  'bg-slate-50  border-slate-200  text-slate-600',
     red:    'bg-red-50    border-red-200    text-red-600',
@@ -67,7 +84,7 @@ function StatCard({ icon: Icon, label, value, color }) {
   };
   return (
     <div className={`rounded-xl border p-4 flex items-center gap-3 ${colors[color]}`}>
-      <Icon size={20} />
+      <Icon d={iconPath} className="w-5 h-5" />
       <div>
         <p className="text-xs font-medium opacity-70">{label}</p>
         <p className="text-2xl font-bold">{value}</p>
@@ -135,7 +152,7 @@ function AdjustModal({ row, moveTypes, onClose, onSaved }) {
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
-            <X size={18} />
+            <Icon d={PATHS.x} className="w-4 h-4" />
           </button>
         </div>
 
@@ -359,7 +376,7 @@ export default function StockLevelsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <Package size={20} className="text-emerald-600" />
+              <Icon d={PATHS.package} className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-800">Niveaux de stock</h1>
@@ -382,7 +399,7 @@ export default function StockLevelsPage() {
                   <option key={n.id} value={n.id}>{n.name}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <Icon d={PATHS.chevron} className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
 
             {nodeId && (
@@ -392,7 +409,7 @@ export default function StockLevelsPage() {
                 className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm
                            text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
               >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                <Icon d={PATHS.refresh} className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
               </button>
             )}
@@ -408,7 +425,7 @@ export default function StockLevelsPage() {
 
       {!nodeId && (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400">
-          <Package size={40} className="mx-auto mb-3 opacity-30" />
+          <Icon d={PATHS.package} className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Sélectionnez un entrepôt pour afficher les niveaux de stock</p>
         </div>
       )}
@@ -417,12 +434,12 @@ export default function StockLevelsPage() {
         <>
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-            <StatCard icon={Package}       label="Total articles" value={stats.total} color="slate"   />
-            <StatCard icon={CheckCircle}   label="Normal"         value={stats.ok}    color="emerald" />
-            <StatCard icon={AlertTriangle} label="Rupture"        value={stats.out}   color="red"     />
-            <StatCard icon={TrendingDown}  label="Stock faible"   value={stats.low}   color="amber"   />
-            <StatCard icon={ArrowUpCircle} label="Backcommande"   value={stats.back}  color="purple"  />
-            <StatCard icon={ArrowUpCircle} label="Surstock"       value={stats.over}  color="blue"    />
+            <StatCard iconPath={PATHS.package}  label="Total articles" value={stats.total} color="slate"   />
+            <StatCard iconPath={PATHS.check}    label="Normal"         value={stats.ok}    color="emerald" />
+            <StatCard iconPath={PATHS.alert}    label="Rupture"        value={stats.out}   color="red"     />
+            <StatCard iconPath={PATHS.trending} label="Stock faible"   value={stats.low}   color="amber"   />
+            <StatCard iconPath={PATHS.arrow_up} label="Backcommande"   value={stats.back}  color="purple"  />
+            <StatCard iconPath={PATHS.arrow_up} label="Surstock"       value={stats.over}  color="blue"    />
           </div>
 
           {/* Search + Tabs */}
@@ -430,7 +447,7 @@ export default function StockLevelsPage() {
             <div className="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
               {/* Search */}
               <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Icon d={PATHS.search} className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Rechercher un article..."
@@ -500,7 +517,7 @@ export default function StockLevelsPage() {
                               {img
                                 ? <img src={img} alt="" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                    <Package size={14} />
+                                    <Icon d={PATHS.package} className="w-3.5 h-3.5" />
                                   </div>
                               }
                             </div>
@@ -554,7 +571,7 @@ export default function StockLevelsPage() {
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs
                                        border border-slate-200 text-slate-600 hover:bg-slate-100 transition"
                           >
-                            <Settings size={11} />
+                            <Icon d={PATHS.settings} className="w-3 h-3" />
                             Ajuster
                           </button>
                         </td>
@@ -566,7 +583,7 @@ export default function StockLevelsPage() {
 
               {filtered.length === 0 && (
                 <div className="text-center py-12 text-slate-400">
-                  <Package size={32} className="mx-auto mb-2 opacity-30" />
+                  <Icon d={PATHS.package} className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">Aucun article trouvé</p>
                 </div>
               )}
@@ -583,7 +600,7 @@ export default function StockLevelsPage() {
 
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <RefreshCw size={28} className="animate-spin text-slate-300" />
+          <Icon d={PATHS.refresh} className="w-7 h-7 animate-spin text-slate-300" />
         </div>
       )}
 

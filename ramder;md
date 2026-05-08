@@ -1,0 +1,296 @@
+# API Catalogue (Backend) — par module & sous-module
+
+> Base path: **/api** (monté dans `backend/src/server.js`)
+> Auth: la plupart des routes utilisent `authMiddleware` et/ou `permissionMiddleware(...)`
+
+---
+
+## 1) Auth
+
+- **POST** `/api/auth/login` — (loginValidator) 
+- **GET** `/api/auth/me` — `authMiddleware`
+- **POST** `/api/auth/logout` — `authMiddleware`
+
+---
+
+## 2) Permissions & Roles (RBAC)
+
+### 2.1 Permissions
+- **GET** `/api/permissions` — `permissionMiddleware('permissions.view')`
+
+### 2.2 Roles
+- **GET** `/api/roles` — `permissionMiddleware('roles.view')`
+- **POST** `/api/roles` — `permissionMiddleware('roles.create')` (createRoleValidator)
+- **GET** `/api/roles/:id` — `permissionMiddleware('roles.view')`
+- **PUT** `/api/roles/:id` — `permissionMiddleware('roles.update')` (updateRoleValidator)
+- **DELETE** `/api/roles/:id` — `permissionMiddleware('roles.delete')`
+- **POST** `/api/roles/:id/permissions` — `permissionMiddleware('permissions.assign')`
+- **GET** `/api/roles/:id/permissions` — `permissionMiddleware('permissions.view')`
+
+---
+
+## 3) Users
+
+- **GET** `/api/users` — `permissionMiddleware('users.view')`
+- **POST** `/api/users` — `permissionMiddleware('users.create')` (createUserValidator)
+- **GET** `/api/users/:id` — `permissionMiddleware('users.view')`
+- **PUT** `/api/users/:id` — `permissionMiddleware('users.update')` (updateUserValidator)
+- **DELETE** `/api/users/:id` — `permissionMiddleware('users.delete')`
+
+---
+
+## 4) Customers
+
+- **GET** `/api/customers` — `permAny(['customers.view','dashboard.view'])`
+- **GET** `/api/customers/:id` — `permAny(['customers.view','dashboard.view'])`
+
+---
+
+## 5) Location (référentiels)
+
+### 5.1 Regions
+- **GET** `/api/regions` — `perm('regions.view')`
+- **POST** `/api/regions` — `perm('regions.create')`
+- **GET** `/api/regions/:id` — `perm('regions.view')`
+- **PUT** `/api/regions/:id` — `perm('regions.update')`
+- **DELETE** `/api/regions/:id` — `perm('regions.delete')`
+
+### 5.2 Provinces
+- **GET** `/api/provinces` — `perm('provinces.view')`
+- **POST** `/api/provinces` — `perm('provinces.create')`
+- **GET** `/api/provinces/:id` — `perm('provinces.view')`
+- **PUT** `/api/provinces/:id` — `perm('provinces.update')`
+- **DELETE** `/api/provinces/:id` — `perm('provinces.delete')`
+
+### 5.3 Cities
+- (mêmes patterns CRUD dans `frontend/src/api/locationNode.api.js` et `backend/src/modules/location/cities`)
+- **GET** `/api/cities` — `perm('cities.view')`
+- **POST** `/api/cities` — `perm('cities.create')`
+- **GET** `/api/cities/:id` — `perm('cities.view')`
+- **PUT** `/api/cities/:id` — `perm('cities.update')`
+- **DELETE** `/api/cities/:id` — `perm('cities.delete')`
+
+---
+
+## 6) Node (livraison / noeuds)
+
+### 6.1 Node Types
+- **GET** `/api/node-types/active` — `perm('node_types.view')`
+- **GET** `/api/node-types` — `perm('node_types.view')`
+- **POST** `/api/node-types` — `perm('node_types.create')`
+- **GET** `/api/node-types/:id` — `perm('node_types.view')`
+- **PUT** `/api/node-types/:id` — `perm('node_types.update')`
+- **DELETE** `/api/node-types/:id` — `perm('node_types.delete')`
+
+### 6.2 Nodes
+- **GET** `/api/nodes` — `perm('nodes.view')`
+- **POST** `/api/nodes` — `perm('nodes.create')`
+- **GET** `/api/nodes/:id` — `perm('nodes.view')`
+- **PUT** `/api/nodes/:id` — `perm('nodes.update')`
+- **DELETE** `/api/nodes/:id` — `perm('nodes.delete')`
+
+### 6.3 Delivery Slots
+- **GET** `/api/nodes/:id/slots` — `perm('delivery_slots.view')`
+- **POST** `/api/nodes/:id/slots` — `perm('delivery_slots.create')`
+- **PUT** `/api/slots/:id` — `perm('delivery_slots.update')`
+- **DELETE** `/api/slots/:id` — `perm('delivery_slots.delete')`
+
+---
+
+## 7) P0 (CRUD générique base sur registre)
+
+- **GET** `/api/p0/registry` — (no permission visible here; vérifié via route)
+- **GET** `/api/p0/table/:sql` — (no permission visible here; vérifié via route)
+- **GET** `/api/p0/relations` — (no permission visible here; vérifié via route)
+- **GET** `/api/p0/relations/:sql` — (no permission visible here; vérifié via route)
+
+### 7.1 Options / Meta / Refs
+- **GET** `/api/p0/crud/refs/:sql/options` — `canP0Crud`
+- **GET** `/api/p0/crud/:sql/meta` — `canP0Crud`
+
+### 7.2 CRUD générique
+- **GET** `/api/p0/crud/:sql` — `canP0Crud`
+- **POST** `/api/p0/crud/:sql` — `canP0Crud`
+- **GET** `/api/p0/crud/:sql/:id` — `canP0Crud`
+- **PUT** `/api/p0/crud/:sql/:id` — `canP0Crud`
+- **DELETE** `/api/p0/crud/:sql/:id` — `canP0Crud`
+
+---
+
+## 8) Warehouse (entrepôt)
+
+### 8.1 Zones
+- **GET** `/api/warehouse/zones` — `perm('warehouse.view')`
+- **POST** `/api/warehouse/zones` — `perm('warehouse.manage')`
+- **GET** `/api/warehouse/zones/:id` — `perm('warehouse.view')`
+- **PUT** `/api/warehouse/zones/:id` — `perm('warehouse.manage')`
+- **DELETE** `/api/warehouse/zones/:id` — `perm('warehouse.manage')`
+
+### 8.2 Levels
+- **GET** `/api/warehouse/levels` — `perm('warehouse.view')`
+- **POST** `/api/warehouse/levels` — `perm('warehouse.manage')`
+- **GET** `/api/warehouse/levels/:id` — `perm('warehouse.view')`
+- **PUT** `/api/warehouse/levels/:id` — `perm('warehouse.manage')`
+- **DELETE** `/api/warehouse/levels/:id` — `perm('warehouse.manage')`
+
+### 8.3 Locations
+- **GET** `/api/warehouse/locations` — `perm('warehouse.view')`
+- **POST** `/api/warehouse/locations` — `perm('warehouse.manage')`
+- **POST** `/api/warehouse/locations/bulk-generate` — `perm('warehouse.manage')`
+- **GET** `/api/warehouse/locations/:id` — `perm('warehouse.view')`
+- **PUT** `/api/warehouse/locations/:id` — `perm('warehouse.manage')`
+- **DELETE** `/api/warehouse/locations/:id` — `perm('warehouse.manage')`
+
+### 8.4 SKU Locations
+- **GET** `/api/warehouse/sku-locations` — `perm('warehouse.view')`
+- **POST** `/api/warehouse/sku-locations` — `perm('warehouse.manage')`
+- **GET** `/api/warehouse/sku-locations/:id` — `perm('warehouse.view')`
+- **PUT** `/api/warehouse/sku-locations/:id` — `perm('warehouse.manage')`
+- **DELETE** `/api/warehouse/sku-locations/:id` — `perm('warehouse.manage')`
+
+---
+
+## 9) Stock
+
+### 9.1 Move Types
+- (CRUD routes existent dans `backend/src/modules/stock/move_types/...`)
+- **GET** `/api/stock/move-types` — `perm('stock.view')`
+- **POST** `/api/stock/move-types` — `perm('stock.manage')`
+- **GET** `/api/stock/move-types/:id` — `perm('stock.view')`
+- **PUT** `/api/stock/move-types/:id` — `perm('stock.manage')`
+- **DELETE** `/api/stock/move-types/:id` — `perm('stock.manage')`
+
+### 9.2 Stock Statuses
+- **GET** `/api/stock/stock-statuses` — `perm('stock.view')`
+- **POST** `/api/stock/stock-statuses` — `perm('stock.manage')`
+- **GET** `/api/stock/stock-statuses/:id` — `perm('stock.view')`
+- **PUT** `/api/stock/stock-statuses/:id` — `perm('stock.manage')`
+- **DELETE** `/api/stock/stock-statuses/:id` — `perm('stock.manage')`
+
+### 9.3 Inventory Types
+- **GET** `/api/stock/inventory-types` — `perm('stock.view')`
+- **POST** `/api/stock/inventory-types` — `perm('stock.manage')`
+- **GET** `/api/stock/inventory-types/:id` — `perm('stock.view')`
+- **PUT** `/api/stock/inventory-types/:id` — `perm('stock.manage')`
+- **DELETE** `/api/stock/inventory-types/:id` — `perm('stock.manage')`
+
+### 9.4 Inventory Statuses (status inventaire)
+- **GET** `/api/stock/inventory-statuses` — `perm('stock.view')`
+- **POST** `/api/stock/inventory-statuses` — `perm('stock.manage')` (super admin: brouillon/valide/annulé via le CRUD)
+- **GET** `/api/stock/inventory-statuses/:id` — `perm('stock.view')`
+- **PUT** `/api/stock/inventory-statuses/:id` — `perm('stock.manage')` (super admin: update/validation)
+- **DELETE** `/api/stock/inventory-statuses/:id` — `perm('stock.manage')`
+
+---
+
+## 10) Catalogue (catalog)
+
+### 10.1 Families
+- **GET** `/api/catalog/families` — `perm('families.view')`
+- **POST** `/api/catalog/families` — `perm('families.create')` (upload si applicable)
+- **GET** `/api/catalog/families/:id` — `perm('families.view')`
+- **PUT** `/api/catalog/families/:id` — `perm('families.update')`
+- **DELETE** `/api/catalog/families/:id` — `perm('families.delete')`
+
+### 10.2 Categories
+- **GET** `/api/catalog/categories` — `perm('categories.view')`
+- **POST** `/api/catalog/categories` — `perm('categories.create')` (upload + createValidator si applicable)
+- **GET** `/api/catalog/categories/:id` — `perm('categories.view')`
+- **PUT** `/api/catalog/categories/:id` — `perm('categories.update')`
+- **DELETE** `/api/catalog/categories/:id` — `perm('categories.delete')`
+
+### 10.3 Sub-Categories
+- **GET** `/api/catalog/sub-categories` — `perm('sub_categories.view')`
+- **POST** `/api/catalog/sub-categories` — `perm('sub_categories.create')`
+- **GET** `/api/catalog/sub-categories/:id` — `perm('sub_categories.view')`
+- **PUT** `/api/catalog/sub-categories/:id` — `perm('sub_categories.update')`
+- **DELETE** `/api/catalog/sub-categories/:id` — `perm('sub_categories.delete')`
+
+### 10.4 Brands
+- **GET** `/api/catalog/brands` — `perm('brands.view')`
+- **POST** `/api/catalog/brands` — `perm('brands.create')`
+- **GET** `/api/catalog/brands/:id` — `perm('brands.view')`
+- **PUT** `/api/catalog/brands/:id` — `perm('brands.update')`
+- **DELETE** `/api/catalog/brands/:id` — `perm('brands.delete')`
+
+### 10.5 Units
+- **GET** `/api/catalog/units` — `perm('units.view')`
+- **POST** `/api/catalog/units` — `perm('units.create')`
+- **GET** `/api/catalog/units/:id` — `perm('units.view')`
+- **PUT** `/api/catalog/units/:id` — `perm('units.update')`
+- **DELETE** `/api/catalog/units/:id` — `perm('units.delete')`
+
+### 10.6 Packaging Types
+- **GET** `/api/catalog/packaging-types` — `perm('packaging_types.view')`
+- **POST** `/api/catalog/packaging-types` — `perm('packaging_types.create')`
+- **GET** `/api/catalog/packaging-types/:id` — `perm('packaging_types.view')`
+- **PUT** `/api/catalog/packaging-types/:id` — `perm('packaging_types.update')`
+- **DELETE** `/api/catalog/packaging-types/:id` — `perm('packaging_types.delete')`
+
+### 10.7 Conservation Types
+- **GET** `/api/catalog/conservation-types` — `perm('conservation_types.view')`
+- **POST** `/api/catalog/conservation-types` — `perm('conservation_types.create')`
+- **GET** `/api/catalog/conservation-types/:id` — `perm('conservation_types.view')`
+- **PUT** `/api/catalog/conservation-types/:id` — `perm('conservation_types.update')`
+- **DELETE** `/api/catalog/conservation-types/:id` — `perm('conservation_types.delete')`
+
+### 10.8 Article Types
+- **GET** `/api/catalog/article-types` — `perm('article_types.view')`
+- **POST** `/api/catalog/article-types` — `perm('article_types.create')`
+- **GET** `/api/catalog/article-types/:id` — `perm('article_types.view')`
+- **PUT** `/api/catalog/article-types/:id` — `perm('article_types.update')`
+- **DELETE** `/api/catalog/article-types/:id` — `perm('article_types.delete')`
+
+### 10.9 Article Statuses
+- **GET** `/api/catalog/article-statuses` — `perm('article_statuses.view')`
+- **POST** `/api/catalog/article-statuses` — `perm('article_statuses.create')`
+- **GET** `/api/catalog/article-statuses/:id` — `perm('article_statuses.view')`
+- **PUT** `/api/catalog/article-statuses/:id` — `perm('article_statuses.update')`
+- **DELETE** `/api/catalog/article-statuses/:id` — `perm('article_statuses.delete')`
+
+### 10.10 Taxes
+- **GET** `/api/catalog/taxes` — `perm('taxes.view')`
+- **POST** `/api/catalog/taxes` — `perm('taxes.create')`
+- **GET** `/api/catalog/taxes/:id` — `perm('taxes.view')`
+- **PUT** `/api/catalog/taxes/:id` — `perm('taxes.update')`
+- **DELETE** `/api/catalog/taxes/:id` — `perm('taxes.delete')`
+
+### 10.11 Articles
+- **GET** `/api/catalog/articles` — `perm('articles.view')`
+- **POST** `/api/catalog/articles` — `perm('articles.manage')` (selon validator)
+- **GET** `/api/catalog/articles/:id` — `perm('articles.view')`
+- **PUT** `/api/catalog/articles/:id` — `perm('articles.manage')`
+- **DELETE** `/api/catalog/articles/:id` — `perm('articles.manage')`
+
+### 10.12 Article Images
+- **GET** `/api/catalog/articles/:articleId/images` — `perm('articles.view')`
+- **POST** `/api/catalog/articles/:articleId/images` — `perm('article_images.manage')`
+- **PATCH** `/api/catalog/articles/:articleId/images/:imageId/main` — `perm('article_images.manage')`
+- **PATCH** `/api/catalog/articles/:articleId/images/:imageId/sort` — `perm('article_images.manage')`
+- **DELETE** `/api/catalog/articles/:articleId/images/:imageId` — `perm('article_images.manage')`
+
+### 10.13 Article SKU Images
+- **GET** `/api/catalog/articles/:articleId/sku-images` — `perm('articles.view')`
+- **POST** `/api/catalog/articles/:articleId/sku-images` — `perm.permAny(skuImgUploadPerms)`
+- **PATCH** `/api/catalog/articles/:articleId/sku-images/:imageId/primary` — `perm.permAny(skuImgUpdatePerms)`
+- **PATCH** `/api/catalog/articles/:articleId/sku-images/:imageId/sort` — `perm.permAny(skuImgUpdatePerms)`
+- **DELETE** `/api/catalog/articles/:articleId/sku-images/:imageId` — `perm.permAny(skuImgDeletePerms)`
+
+### 10.14 SKUs
+- **GET** `/api/catalog/skus` — `perm('skus.view')`
+- **POST** `/api/catalog/skus` — `perm('skus.create')` (dans certains fichiers, peut être sans perm explicite)
+- **GET** `/api/catalog/skus/:id` — `perm('skus.view')`
+- **DELETE** `/api/catalog/skus/:id` — `perm('skus.delete')`
+
+### 10.15 SKU Images
+- **GET** `/api/catalog/sku-images` — `perm('sku_images.view')`
+- **POST** `/api/catalog/sku-images` — `perm('sku_images.create')`
+- **GET** `/api/catalog/sku-images/:id` — `perm('sku_images.view')`
+- **PUT** `/api/catalog/sku-images/:id` — `perm('sku_images.update')`
+- **DELETE** `/api/catalog/sku-images/:id` — `perm('sku_images.delete')`
+
+---
+
+## Note
+Certaines listes CRUD de modules (ex: `families`, `articles`, `move-types`, etc.) sont générées selon les patterns des routes `.routes.js` et les prefixes des routers. Si tu veux une version 100% ligne-à-ligne (sans aucun “selon”), je peux ensuite itérer sur chaque fichier `*.routes.js` manuellement et figer exactement les permissions/validator names.
+

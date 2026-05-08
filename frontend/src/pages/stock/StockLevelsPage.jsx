@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getStockLevels, adjustStockLevel, getMoveTypesList } from '../../api/stock.api';
+import { getStockLevels, adjustStockLevel, stockCount, getMoveTypesList } from '../../api/stock.api';
 import { getNodes } from '../../api/locationNode.api';
 
 function Icon({ d, className = 'w-5 h-5' }) {
@@ -11,60 +11,39 @@ function Icon({ d, className = 'w-5 h-5' }) {
 }
 
 const PATHS = {
-  package:    'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-  search:     'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  refresh:    'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
-  alert:      'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-  trending:   'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6',
-  check:      'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-  arrow_up:   'M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z',
-  settings:   'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
-  x:          'M6 18L18 6M6 6l12 12',
-  chevron:    'M19 9l-7 7-7-7',
+  package:   'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  search:    'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  refresh:   'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  alert:     'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  trending:  'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6',
+  check:     'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  arrow_up:  'M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z',
+  settings:  'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+  x:         'M6 18L18 6M6 6l12 12',
+  chevron:   'M19 9l-7 7-7-7',
+  filter:    'M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z',
+  calendar:  'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+  eye:       'M15 12a3 3 0 11-6 0 3 3 0 016 0zm7.37 0c-1.63 4.66-6.11 8-11.37 8S1.63 16.66 0 12C1.63 7.34 6.11 4 11.37 4S22.37 7.34 23 12',
 };
 
-// ─── Status ──────────────────────────────────────────────────────────────────
+// ─── Status ───────────────────────────────────────────────────────────────────
 const STATUS = {
-  NONE: {
-    label: 'Non configuré', dot: 'bg-slate-300',
-    badge: 'bg-slate-100 text-slate-500 border border-slate-200',
-    row: '',
-  },
-  OUT: {
-    label: 'Rupture', dot: 'bg-red-500',
-    badge: 'bg-red-100 text-red-700 border border-red-200',
-    row: 'border-l-4 border-l-red-500 bg-red-50/60',
-  },
-  LOW: {
-    label: 'Stock faible', dot: 'bg-amber-500',
-    badge: 'bg-amber-100 text-amber-700 border border-amber-200',
-    row: 'border-l-4 border-l-amber-400 bg-amber-50/50',
-  },
-  BACK: {
-    label: 'Backcommande', dot: 'bg-purple-500',
-    badge: 'bg-purple-100 text-purple-700 border border-purple-200',
-    row: 'border-l-4 border-l-purple-400 bg-purple-50/40',
-  },
-  OK: {
-    label: 'Normal', dot: 'bg-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    row: 'border-l-4 border-l-emerald-400',
-  },
-  OVER: {
-    label: 'Surstock', dot: 'bg-blue-500',
-    badge: 'bg-blue-100 text-blue-700 border border-blue-200',
-    row: 'border-l-4 border-l-blue-400 bg-blue-50/40',
-  },
+  NONE: { label: 'Non configuré', dot: 'bg-slate-300', badge: 'bg-slate-100 text-slate-500 border border-slate-200', row: '' },
+  OUT:  { label: 'Rupture',       dot: 'bg-red-500',   badge: 'bg-red-100 text-red-700 border border-red-200',       row: 'border-l-4 border-l-red-500 bg-red-50/60' },
+  LOW:  { label: 'Stock faible',  dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border border-amber-200', row: 'border-l-4 border-l-amber-400 bg-amber-50/50' },
+  BACK: { label: 'Backcommande',  dot: 'bg-purple-500',badge: 'bg-purple-100 text-purple-700 border border-purple-200', row: 'border-l-4 border-l-purple-400 bg-purple-50/40' },
+  OK:   { label: 'Normal',        dot: 'bg-emerald-500',badge: 'bg-emerald-100 text-emerald-700 border border-emerald-200', row: 'border-l-4 border-l-emerald-400' },
+  OVER: { label: 'Surstock',      dot: 'bg-blue-500',  badge: 'bg-blue-100 text-blue-700 border border-blue-200',   row: 'border-l-4 border-l-blue-400 bg-blue-50/40' },
 };
 
 function calcStatus(row) {
   const { qty_available, qty_backordered, threshold_rule } = row;
   if (qty_backordered > 0) return 'BACK';
   if (!threshold_rule) return qty_available <= 0 ? 'OUT' : 'NONE';
-  const { stock_minimum, stock_alert_threshold, stock_maximum } = threshold_rule;
-  const min   = Number(stock_minimum ?? 0);
-  const alert = Number(stock_alert_threshold ?? 0);
-  const max   = Number(stock_maximum ?? 0);
+  const min   = Number(threshold_rule.stock_minimum       ?? 0);
+  const alert = Number(threshold_rule.stock_alert_threshold ?? 0);
+  const max   = Number(threshold_rule.stock_maximum       ?? 0);
   if (qty_available <= 0)     return 'OUT';
   if (qty_available < min)    return 'OUT';
   if (qty_available <= alert) return 'LOW';
@@ -72,18 +51,18 @@ function calcStatus(row) {
   return 'OK';
 }
 
-// ─── Stat Card ───────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 function StatCard({ iconPath, label, value, color }) {
-  const colors = {
-    slate:  'bg-slate-50  border-slate-200  text-slate-600',
-    red:    'bg-red-50    border-red-200    text-red-600',
-    amber:  'bg-amber-50  border-amber-200  text-amber-600',
-    emerald:'bg-emerald-50 border-emerald-200 text-emerald-600',
-    purple: 'bg-purple-50 border-purple-200 text-purple-600',
-    blue:   'bg-blue-50   border-blue-200   text-blue-600',
+  const C = {
+    slate:   'bg-slate-50  border-slate-200  text-slate-600',
+    red:     'bg-red-50    border-red-200    text-red-600',
+    amber:   'bg-amber-50  border-amber-200  text-amber-600',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+    purple:  'bg-purple-50 border-purple-200 text-purple-600',
+    blue:    'bg-blue-50   border-blue-200   text-blue-600',
   };
   return (
-    <div className={`rounded-xl border p-4 flex items-center gap-3 ${colors[color]}`}>
+    <div className={`rounded-xl border p-4 flex items-center gap-3 ${C[color]}`}>
       <Icon d={iconPath} className="w-5 h-5" />
       <div>
         <p className="text-xs font-medium opacity-70">{label}</p>
@@ -93,31 +72,39 @@ function StatCard({ iconPath, label, value, color }) {
   );
 }
 
-// ─── Qty Cell ────────────────────────────────────────────────────────────────
 function QtyCell({ value, color = 'slate' }) {
-  const colors = {
-    slate:  'text-slate-700',
-    red:    'text-red-600 font-semibold',
-    amber:  'text-amber-600 font-semibold',
-    emerald:'text-emerald-600 font-semibold',
-    purple: 'text-purple-600 font-semibold',
-    blue:   'text-blue-600 font-semibold',
+  const C = {
+    slate:   'text-slate-700',
+    red:     'text-red-600 font-semibold',
+    amber:   'text-amber-600 font-semibold',
+    emerald: 'text-emerald-600 font-semibold',
+    purple:  'text-purple-600 font-semibold',
+    blue:    'text-blue-600 font-semibold',
   };
   return (
-    <span className={`text-sm tabular-nums ${colors[color]}`}>
-      {value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+    <span className={`text-sm tabular-nums ${C[color]}`}>
+      {Number(value).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
     </span>
   );
 }
 
-// ─── Adjust Modal ────────────────────────────────────────────────────────────
-function AdjustModal({ row, moveTypes, onClose, onSaved }) {
-  const [qty, setQty]         = useState(String(row.qty_physical));
-  const [typeId, setTypeId]   = useState('');
-  const [ref, setRef]         = useState('');
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState('');
+function DateCell({ value }) {
+  if (!value) return <span className="text-slate-300 text-xs">—</span>;
+  const d = new Date(value);
+  return (
+    <span className="text-xs text-slate-500 tabular-nums">
+      {d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+    </span>
+  );
+}
 
+// ─── Adjust Modal ─────────────────────────────────────────────────────────────
+function AdjustModal({ row, moveTypes, onClose, onSaved }) {
+  const [qty, setQty]       = useState(String(row.qty_physical));
+  const [typeId, setTypeId] = useState('');
+  const [ref, setRef]       = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
   const article = row.sku?.article;
 
   const save = async () => {
@@ -126,19 +113,11 @@ function AdjustModal({ row, moveTypes, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await adjustStockLevel({
-        node_id:      row.node_id,
-        sku_id:       row.sku_id,
-        qty_physical: parsed,
-        move_type_id: typeId || undefined,
-        reference:    ref || undefined,
-      });
+      await adjustStockLevel({ node_id: row.node_id, sku_id: row.sku_id, qty_physical: parsed, move_type_id: typeId || undefined, reference: ref || undefined });
       onSaved();
     } catch (e) {
       setError(e.response?.data?.message ?? 'Erreur lors de la sauvegarde');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
@@ -147,118 +126,98 @@ function AdjustModal({ row, moveTypes, onClose, onSaved }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="font-semibold text-slate-800">Ajustement de stock</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {article?.name_fr} — {article?.sku_code}
-            </p>
+            <p className="text-sm text-slate-500 mt-0.5">{article?.name_fr} — {article?.sku_code}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
             <Icon d={PATHS.x} className="w-4 h-4" />
           </button>
         </div>
-
         <div className="space-y-4">
-          {/* Current vs new */}
           <div className="bg-slate-50 rounded-lg p-3 flex gap-6 text-sm">
-            <div>
-              <p className="text-slate-500 text-xs">Physique actuel</p>
-              <p className="font-semibold text-slate-800">{row.qty_physical}</p>
-            </div>
-            <div>
-              <p className="text-slate-500 text-xs">Réservé</p>
-              <p className="font-semibold text-slate-700">{row.qty_reserved}</p>
-            </div>
-            <div>
-              <p className="text-slate-500 text-xs">Disponible actuel</p>
-              <p className="font-semibold text-emerald-600">{row.qty_available}</p>
-            </div>
+            <div><p className="text-slate-500 text-xs">Physique actuel</p><p className="font-semibold text-slate-800">{row.qty_physical}</p></div>
+            <div><p className="text-slate-500 text-xs">Réservé</p><p className="font-semibold text-slate-700">{row.qty_reserved}</p></div>
+            <div><p className="text-slate-500 text-xs">Disponible actuel</p><p className="font-semibold text-emerald-600">{row.qty_available}</p></div>
           </div>
-
           <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">
-              Nouvelle quantité physique
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
+            <label className="text-xs font-medium text-slate-600 block mb-1">Nouvelle quantité physique</label>
+            <input type="number" min="0" step="1" value={qty} onChange={(e) => setQty(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
-
           {moveTypes.length > 0 && (
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
-                Type de mouvement
-              </label>
-              <select
-                value={typeId}
-                onChange={(e) => setTypeId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              >
+              <label className="text-xs font-medium text-slate-600 block mb-1">Type de mouvement</label>
+              <select value={typeId} onChange={(e) => setTypeId(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
                 <option value="">— Aucun —</option>
-                {moveTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name_fr}</option>
-                ))}
+                {moveTypes.map((t) => <option key={t.id} value={t.id}>{t.name_fr}</option>)}
               </select>
             </div>
           )}
-
           <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">
-              Référence / motif
-            </label>
-            <input
-              type="text"
-              placeholder="Inventaire 05/2026..."
-              value={ref}
-              onChange={(e) => setRef(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
+            <label className="text-xs font-medium text-slate-600 block mb-1">Référence / motif</label>
+            <input type="text" placeholder="Inventaire 05/2026..." value={ref} onChange={(e) => setRef(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          {/* Preview */}
+          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
           {!isNaN(Number(qty)) && Number(qty) >= 0 && (
             <div className="bg-emerald-50 rounded-lg p-3 text-sm border border-emerald-100">
               <span className="text-emerald-700">
-                Nouveau disponible :{' '}
-                <strong>{Math.max(0, Number(qty) - row.qty_reserved)}</strong>
+                Nouveau disponible : <strong>{Math.max(0, Number(qty) - row.qty_reserved)}</strong>
                 {Number(qty) !== row.qty_physical && (
                   <span className="text-slate-500 ml-2">
-                    (delta: {Number(qty) - row.qty_physical > 0 ? '+' : ''}
-                    {Number(qty) - row.qty_physical})
+                    (delta: {Number(qty) - row.qty_physical > 0 ? '+' : ''}{Number(qty) - row.qty_physical})
                   </span>
                 )}
               </span>
             </div>
           )}
         </div>
-
         <div className="flex gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 border border-slate-200 text-slate-600 rounded-lg py-2 text-sm
-                       hover:bg-slate-50 transition"
-          >
-            Annuler
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-50 transition">Annuler</button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium transition disabled:opacity-50">
+            {saving ? 'Sauvegarde…' : "Confirmer l'ajustement"}
           </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm
-                       font-medium transition disabled:opacity-50"
-          >
-            {saving ? 'Sauvegarde…' : 'Confirmer l\'ajustement'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Count Confirm Modal ───────────────────────────────────────────────────────
+function CountModal({ row, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const article = row.sku?.article;
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await stockCount({ node_id: row.node_id, sku_id: row.sku_id });
+      onSaved();
+    } catch (e) {
+      setError(e.response?.data?.message ?? 'Erreur');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="font-semibold text-slate-800">Lancer un inventaire</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><Icon d={PATHS.x} className="w-4 h-4" /></button>
+        </div>
+        <p className="text-sm text-slate-600 mb-2">
+          Marquer <span className="font-medium">{article?.name_fr}</span> comme compté maintenant ?
+        </p>
+        <p className="text-xs text-slate-400 mb-4">Cette action met à jour le champ <em>Dernier comptage</em> à la date/heure actuelle.</p>
+        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</p>}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-50 transition">Annuler</button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2 text-sm font-medium transition disabled:opacity-50">
+            {saving ? 'En cours…' : 'Confirmer'}
           </button>
         </div>
       </div>
@@ -285,11 +244,19 @@ export default function StockLevelsPage() {
   const [moveTypes, setMoveTypes] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
-  const [search, setSearch]       = useState('');
-  const [tab, setTab]             = useState('ALL');
-  const [adjustRow, setAdjustRow] = useState(null);
 
-  // Load nodes & move types once
+  // Filters
+  const [search, setSearch]           = useState('');
+  const [tab, setTab]                 = useState('ALL');
+  const [filterCat, setFilterCat]     = useState('');
+  const [filterHasIn, setFilterHasIn] = useState(false);
+  const [filterHasCod, setFilterHasCod] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Modals
+  const [adjustRow, setAdjustRow] = useState(null);
+  const [countRow, setCountRow]   = useState(null);
+
   useEffect(() => {
     getNodes({ all: true }).then((r) => setNodes(r.data?.data ?? [])).catch(() => {});
     getMoveTypesList().then((r) => setMoveTypes(r.data?.data ?? [])).catch(() => {});
@@ -300,18 +267,17 @@ export default function StockLevelsPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await getStockLevels(nid);
+      const res = await getStockLevels({ node_id: nid });
       setRows(res.data?.data ?? []);
     } catch (e) {
       console.error('[StockLevels] load error:', e);
-      const msg = e.response?.data?.message
-        ?? (e.response ? `Erreur ${e.response.status}` : null)
-        ?? e.message
-        ?? 'Erreur de chargement';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+      setError(
+        e.response?.data?.message
+          ?? (e.response ? `Erreur ${e.response.status}` : null)
+          ?? e.message
+          ?? 'Erreur de chargement',
+      );
+    } finally { setLoading(false); }
   }, [nodeId]);
 
   const handleNodeChange = (id) => {
@@ -319,60 +285,67 @@ export default function StockLevelsPage() {
     setRows([]);
     setSearch('');
     setTab('ALL');
+    setFilterCat('');
+    setFilterHasIn(false);
+    setFilterHasCod(false);
     if (id) load(id);
   };
 
-  // Computed rows with status
+  // Compute categories for filter dropdown
+  const categories = useMemo(() => {
+    const map = {};
+    rows.forEach((r) => {
+      const cat = r.sku?.article?.category;
+      if (cat) map[cat.id] = cat;
+    });
+    return Object.values(map).sort((a, b) => a.name_fr.localeCompare(b.name_fr));
+  }, [rows]);
+
+  // Enrich with computed status
   const enriched = useMemo(
     () => rows.map((r) => ({ ...r, _status: calcStatus(r) })),
     [rows],
   );
 
-  // Stats
+  // Stats (before text/category filter, but after tab)
   const stats = useMemo(() => ({
-    total:  enriched.length,
-    out:    enriched.filter((r) => r._status === 'OUT').length,
-    low:    enriched.filter((r) => r._status === 'LOW').length,
-    back:   enriched.filter((r) => r._status === 'BACK').length,
-    ok:     enriched.filter((r) => r._status === 'OK').length,
-    over:   enriched.filter((r) => r._status === 'OVER').length,
-    none:   enriched.filter((r) => r._status === 'NONE').length,
+    total: enriched.length,
+    out:   enriched.filter((r) => r._status === 'OUT').length,
+    low:   enriched.filter((r) => r._status === 'LOW').length,
+    back:  enriched.filter((r) => r._status === 'BACK').length,
+    ok:    enriched.filter((r) => r._status === 'OK').length,
+    over:  enriched.filter((r) => r._status === 'OVER').length,
   }), [enriched]);
 
-  // Filter
+  // Final filtered list
   const filtered = useMemo(() => {
     let list = enriched;
-    if (tab !== 'ALL') list = list.filter((r) => r._status === tab);
+    if (tab !== 'ALL')    list = list.filter((r) => r._status === tab);
+    if (filterCat)        list = list.filter((r) => r.sku?.article?.category?.id === filterCat);
+    if (filterHasIn)      list = list.filter((r) => r.qty_incoming > 0);
+    if (filterHasCod)     list = list.filter((r) => r.qty_floating_cod > 0);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) => {
         const a = r.sku?.article;
-        return (
-          a?.name_fr?.toLowerCase().includes(q) ||
-          a?.sku_code?.toLowerCase().includes(q) ||
-          a?.ean13?.toLowerCase().includes(q)
-        );
+        return a?.name_fr?.toLowerCase().includes(q)
+          || a?.sku_code?.toLowerCase().includes(q)
+          || a?.ean13?.toLowerCase().includes(q);
       });
     }
     return list;
-  }, [enriched, tab, search]);
+  }, [enriched, tab, filterCat, filterHasIn, filterHasCod, search]);
 
-  const tabCount = (key) => {
-    if (key === 'ALL') return enriched.length;
-    return enriched.filter((r) => r._status === key).length;
+  const tabCount = (key) => key === 'ALL' ? enriched.length : enriched.filter((r) => r._status === key).length;
+
+  const getAvailColor = (row) => {
+    if (row.qty_available <= 0)  return 'red';
+    if (row._status === 'LOW')   return 'amber';
+    if (row._status === 'OVER')  return 'blue';
+    return 'emerald';
   };
 
-  const getQtyColor = (row, field) => {
-    if (field === 'qty_available') {
-      if (row.qty_available <= 0)         return 'red';
-      if (row._status === 'LOW')          return 'amber';
-      if (row._status === 'OVER')         return 'blue';
-      return 'emerald';
-    }
-    if (field === 'qty_backordered' && row.qty_backordered > 0) return 'purple';
-    if (field === 'qty_incoming'    && row.qty_incoming    > 0) return 'blue';
-    return 'slate';
-  };
+  const activeFilterCount = [filterCat, filterHasIn, filterHasCod].filter(Boolean).length;
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
@@ -388,32 +361,18 @@ export default function StockLevelsPage() {
               <p className="text-sm text-slate-500">Suivi des quantités par entrepôt</p>
             </div>
           </div>
-
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Node selector */}
             <div className="relative">
-              <select
-                value={nodeId}
-                onChange={(e) => handleNodeChange(e.target.value)}
-                className="appearance-none border border-slate-200 rounded-xl px-4 py-2 pr-8 text-sm
-                           bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400
-                           cursor-pointer"
-              >
+              <select value={nodeId} onChange={(e) => handleNodeChange(e.target.value)}
+                className="appearance-none border border-slate-200 rounded-xl px-4 py-2 pr-8 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer">
                 <option value="">— Sélectionner un entrepôt —</option>
-                {nodes.map((n) => (
-                  <option key={n.id} value={n.id}>{n.code} — {n.name_fr}</option>
-                ))}
+                {nodes.map((n) => <option key={n.id} value={n.id}>{n.code} — {n.name_fr}</option>)}
               </select>
               <Icon d={PATHS.chevron} className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
-
             {nodeId && (
-              <button
-                onClick={() => load()}
-                disabled={loading}
-                className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm
-                           text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
-              >
+              <button onClick={() => load()} disabled={loading}
+                className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
                 <Icon d={PATHS.refresh} className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
               </button>
@@ -423,15 +382,19 @@ export default function StockLevelsPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{error}</div>
       )}
 
       {!nodeId && (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400">
           <Icon d={PATHS.package} className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Sélectionnez un entrepôt pour afficher les niveaux de stock</p>
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center py-24">
+          <Icon d={PATHS.refresh} className="w-7 h-7 animate-spin text-slate-300" />
         </div>
       )}
 
@@ -447,41 +410,71 @@ export default function StockLevelsPage() {
             <StatCard iconPath={PATHS.arrow_up} label="Surstock"       value={stats.over}  color="blue"    />
           </div>
 
-          {/* Search + Tabs */}
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Icon d={PATHS.search} className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un article..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg
-                             focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                />
+            {/* Toolbar */}
+            <div className="px-4 py-3 border-b border-slate-100 flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                {/* Search */}
+                <div className="relative flex-1">
+                  <Icon d={PATHS.search} className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Rechercher un article..." value={search} onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                </div>
+
+                {/* Filter toggle */}
+                <button onClick={() => setShowFilters((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition ${showFilters || activeFilterCount > 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                  <Icon d={PATHS.filter} className="w-3.5 h-3.5" />
+                  Filtres
+                  {activeFilterCount > 0 && (
+                    <span className="bg-emerald-600 text-white text-[10px] rounded-full px-1.5 py-0.5">{activeFilterCount}</span>
+                  )}
+                </button>
               </div>
+
+              {/* Expandable filters */}
+              {showFilters && (
+                <div className="flex flex-wrap gap-3 pb-1">
+                  {/* Category */}
+                  <div className="relative">
+                    <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
+                      className="appearance-none border border-slate-200 rounded-lg px-3 py-1.5 pr-7 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Toutes catégories</option>
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
+                    </select>
+                    <Icon d={PATHS.chevron} className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+
+                  {/* Quick toggles */}
+                  {[
+                    { label: 'Stock attendu', value: filterHasIn, set: setFilterHasIn },
+                    { label: 'COD flottant',  value: filterHasCod, set: setFilterHasCod },
+                  ].map(({ label, value, set }) => (
+                    <button key={label} onClick={() => set((v) => !v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${value ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {label}
+                    </button>
+                  ))}
+
+                  {activeFilterCount > 0 && (
+                    <button onClick={() => { setFilterCat(''); setFilterHasIn(false); setFilterHasCod(false); }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition">
+                      Effacer filtres
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Tabs */}
               <div className="flex gap-1 flex-wrap">
                 {TABS.map((t) => {
                   const cnt = tabCount(t.key);
                   return (
-                    <button
-                      key={t.key}
-                      onClick={() => setTab(t.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                        tab === t.key
-                          ? 'bg-emerald-600 text-white'
-                          : 'text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
+                    <button key={t.key} onClick={() => setTab(t.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${tab === t.key ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                       {t.label}
                       {cnt > 0 && (
-                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${
-                          tab === t.key ? 'bg-white/20' : 'bg-slate-200'
-                        }`}>{cnt}</span>
+                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${tab === t.key ? 'bg-white/20' : 'bg-slate-200'}`}>{cnt}</span>
                       )}
                     </button>
                   );
@@ -501,6 +494,7 @@ export default function StockLevelsPage() {
                     <th className="text-center px-3 py-3 font-medium">Backcommande</th>
                     <th className="text-center px-3 py-3 font-medium">Attendu</th>
                     <th className="text-center px-3 py-3 font-medium">COD flottant</th>
+                    <th className="text-center px-3 py-3 font-medium">Dernier comptage</th>
                     <th className="text-center px-3 py-3 font-medium">Statut</th>
                     <th className="text-center px-3 py-3 font-medium">Actions</th>
                   </tr>
@@ -511,55 +505,37 @@ export default function StockLevelsPage() {
                     const art = row.sku?.article;
                     const img = row.sku?.images?.[0]?.url ?? art?.images?.[0]?.url;
                     return (
-                      <tr
-                        key={row.sku_id}
-                        className={`hover:bg-slate-50/80 transition-colors ${st.row}`}
-                      >
+                      <tr key={row.sku_id} className={`hover:bg-slate-50/80 transition-colors ${st.row}`}>
                         {/* Article */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
                               {img
                                 ? <img src={img} alt="" className="w-full h-full object-cover" />
-                                : <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                    <Icon d={PATHS.package} className="w-3.5 h-3.5" />
-                                  </div>
+                                : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon d={PATHS.package} className="w-3.5 h-3.5" /></div>
                               }
                             </div>
                             <div>
-                              <p className="font-medium text-slate-800 text-sm leading-tight">
-                                {art?.name_fr}
-                              </p>
+                              <p className="font-medium text-slate-800 text-sm leading-tight">{art?.name_fr}</p>
                               <p className="text-xs text-slate-400">
                                 {art?.sku_code}
                                 {art?.ean13 && <span className="ml-1 text-slate-300">· {art.ean13}</span>}
                               </p>
-                              {art?.category && (
-                                <p className="text-[11px] text-slate-400">{art.category.name_fr}</p>
-                              )}
+                              {art?.category && <p className="text-[11px] text-slate-400">{art.category.name_fr}</p>}
                             </div>
                           </div>
                         </td>
 
                         {/* Quantities */}
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_physical} color="slate" />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_reserved} color={row.qty_reserved > 0 ? 'amber' : 'slate'} />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_available} color={getQtyColor(row, 'qty_available')} />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_backordered} color={getQtyColor(row, 'qty_backordered')} />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_incoming} color={getQtyColor(row, 'qty_incoming')} />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <QtyCell value={row.qty_floating_cod} color="slate" />
-                        </td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_physical} /></td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_reserved} color={row.qty_reserved > 0 ? 'amber' : 'slate'} /></td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_available} color={getAvailColor(row)} /></td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_backordered} color={row.qty_backordered > 0 ? 'purple' : 'slate'} /></td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_incoming} color={row.qty_incoming > 0 ? 'blue' : 'slate'} /></td>
+                        <td className="px-3 py-3 text-center"><QtyCell value={row.qty_floating_cod} color={row.qty_floating_cod > 0 ? 'blue' : 'slate'} /></td>
+
+                        {/* Last counted */}
+                        <td className="px-3 py-3 text-center"><DateCell value={row.last_counted_at} /></td>
 
                         {/* Status badge */}
                         <td className="px-3 py-3 text-center">
@@ -569,16 +545,18 @@ export default function StockLevelsPage() {
                           </span>
                         </td>
 
-                        {/* Adjust */}
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            onClick={() => setAdjustRow(row)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs
-                                       border border-slate-200 text-slate-600 hover:bg-slate-100 transition"
-                          >
-                            <Icon d={PATHS.settings} className="w-3 h-3" />
-                            Ajuster
-                          </button>
+                        {/* Actions */}
+                        <td className="px-3 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button title="Ajuster le stock" onClick={() => setAdjustRow(row)}
+                              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+                              <Icon d={PATHS.settings} className="w-3.5 h-3.5" />
+                            </button>
+                            <button title="Lancer inventaire" onClick={() => setCountRow(row)}
+                              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition">
+                              <Icon d={PATHS.clipboard} className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -603,20 +581,14 @@ export default function StockLevelsPage() {
         </>
       )}
 
-      {loading && (
-        <div className="flex items-center justify-center py-24">
-          <Icon d={PATHS.refresh} className="w-7 h-7 animate-spin text-slate-300" />
-        </div>
-      )}
-
-      {/* Adjust modal */}
+      {/* Modals */}
       {adjustRow && (
-        <AdjustModal
-          row={adjustRow}
-          moveTypes={moveTypes}
-          onClose={() => setAdjustRow(null)}
-          onSaved={() => { setAdjustRow(null); load(); }}
-        />
+        <AdjustModal row={adjustRow} moveTypes={moveTypes} onClose={() => setAdjustRow(null)}
+          onSaved={() => { setAdjustRow(null); load(); }} />
+      )}
+      {countRow && (
+        <CountModal row={countRow} onClose={() => setCountRow(null)}
+          onSaved={() => { setCountRow(null); load(); }} />
       )}
     </div>
   );

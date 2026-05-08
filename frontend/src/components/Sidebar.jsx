@@ -84,7 +84,8 @@ const navItems = [
   {
     label: 'Stock', key: 'stockOps', group: true, icon: ICONS.warehouse,
     children: [
-      { label: 'Niveaux de stock', path: '/stock/levels', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Niveaux de stock', path: '/stock/levels',        anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Règles de vente',  path: '/stock/selling-rules', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
   {

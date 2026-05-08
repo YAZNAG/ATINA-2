@@ -39,6 +39,7 @@ import InventoryStatusesPage from '../pages/stock/InventoryStatusesPage';
 import InventoryGapTypesPage from '../pages/stock/InventoryGapTypesPage';
 import StockThresholdsPage from '../pages/stock/StockThresholdsPage';
 import StockLevelsPage from '../pages/stock/StockLevelsPage';
+import SellingRulesPage from '../pages/stock/SellingRulesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -109,6 +110,7 @@ export default function AppRoutes() {
           <Route path="/stock/inventory-gap-types" element={<InventoryGapTypesPage />} />
           <Route path="/stock/thresholds"          element={<StockThresholdsPage />} />
           <Route path="/stock/levels"              element={<StockLevelsPage />} />
+          <Route path="/stock/selling-rules"       element={<SellingRulesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

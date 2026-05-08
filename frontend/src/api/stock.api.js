@@ -55,6 +55,18 @@ export const adjustStockLevel    = (data)    => api.post(`${s}/levels/adjust`, d
 export const recalculateStock    = (data)    => api.post(`${s}/levels/recalculate`, data);
 export const applyStockMove      = (data)    => api.post(`${s}/levels/move`, data);
 
+// ——— Selling Rules ———
+export const getSellingRules        = (params)   => api.get(`${s}/selling-rules`, { params });
+export const getSellingRulesByNode  = (node_id)  => api.get(`${s}/selling-rules/by-node/${node_id}`);
+export const getSellingRuleById     = (id)       => api.get(`${s}/selling-rules/${id}`);
+export const upsertSellingRule      = (data)     => api.post(`${s}/selling-rules`, data);
+export const updateSellingRule      = (id, data) => api.put(`${s}/selling-rules/${id}`, data);
+export const deleteSellingRule      = (id)       => api.delete(`${s}/selling-rules/${id}`);
+export const canSellSKU             = (data)     => api.post(`${s}/selling-rules/can-sell`, data);
+export const reserveBackorder       = (data)     => api.post(`${s}/selling-rules/reserve-backorder`, data);
+export const releaseBackorder       = (data)     => api.post(`${s}/selling-rules/release-backorder`, data);
+export const getEstimatedDelivery   = (params)   => api.get(`${s}/selling-rules/estimated-delivery`, { params });
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

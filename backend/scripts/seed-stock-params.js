@@ -1,7 +1,7 @@
 /**
  * seed-stock-params.js
  * Seeds stock parameter lookup tables:
- *   StockStatus, InventoryType
+ *   StockStatus, InventoryType, InventoryStatus
  *
  * Run: node scripts/seed-stock-params.js
  * Safe to re-run (upsert on code).
@@ -80,6 +80,18 @@ const INVENTORY_TYPES = [
   },
 ];
 
+// ── InventoryStatus ───────────────────────────────────────────────────────────
+
+const INVENTORY_STATUSES = [
+  { code: 'DRAFT',       name_fr: 'Brouillon',    name_ar: 'مسودة',           color: '#94a3b8', description_fr: 'Inventaire créé mais pas encore démarré.',                   is_active: true, sort_order: 1 },
+  { code: 'IN_PROGRESS', name_fr: 'En cours',     name_ar: 'قيد التنفيذ',     color: '#3b82f6', description_fr: 'Comptage en cours — agents en train de scanner.',            is_active: true, sort_order: 2 },
+  { code: 'PAUSED',      name_fr: 'En pause',     name_ar: 'معلّق',           color: '#f59e0b', description_fr: 'Inventaire temporairement suspendu.',                        is_active: true, sort_order: 3 },
+  { code: 'COMPLETED',   name_fr: 'Terminé',      name_ar: 'مكتمل',           color: '#10b981', description_fr: 'Comptage terminé, en attente de validation.',               is_active: true, sort_order: 4 },
+  { code: 'VALIDATED',   name_fr: 'Validé',       name_ar: 'مُعتمد',          color: '#059669', description_fr: 'Résultats validés et ajustements de stock appliqués.',       is_active: true, sort_order: 5 },
+  { code: 'CANCELLED',   name_fr: 'Annulé',       name_ar: 'ملغى',            color: '#ef4444', description_fr: 'Inventaire annulé — aucun ajustement appliqué.',             is_active: true, sort_order: 6 },
+  { code: 'PARTIAL',     name_fr: 'Partiel',      name_ar: 'جزئي',            color: '#8b5cf6', description_fr: 'Seule une partie du périmètre a été comptée.',               is_active: true, sort_order: 7 },
+];
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -93,9 +105,14 @@ async function main() {
   for (const d of INVENTORY_TYPES) await upCode('inventoryType', d);
   console.log(`✓ ${INVENTORY_TYPES.length}`);
 
+  process.stdout.write('🗂️  InventoryStatuses… ');
+  for (const d of INVENTORY_STATUSES) await upCode('inventoryStatus', d);
+  console.log(`✓ ${INVENTORY_STATUSES.length}`);
+
   console.log('\n✅  Seed terminé!');
-  console.log(`   StockStatuses:   ${STOCK_STATUSES.length}`);
-  console.log(`   InventoryTypes:  ${INVENTORY_TYPES.length}\n`);
+  console.log(`   StockStatuses:      ${STOCK_STATUSES.length}`);
+  console.log(`   InventoryTypes:     ${INVENTORY_TYPES.length}`);
+  console.log(`   InventoryStatuses:  ${INVENTORY_STATUSES.length}\n`);
 }
 
 main()

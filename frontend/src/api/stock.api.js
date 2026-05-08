@@ -41,9 +41,19 @@ export const deleteStockThreshold = (id)              => api.delete(`${s}/thresh
 export const bulkSaveThresholds   = (node_id, rows)   => api.post(`${s}/thresholds/bulk-save`, { node_id, rows });
 
 // ——— Stock Levels ———
-export const getStockLevels   = (node_id) => api.get(`${s}/levels`, { params: { node_id } });
-export const applyStockMove   = (data)    => api.post(`${s}/levels/move`, data);
-export const adjustStockLevel = (data)    => api.post(`${s}/levels/adjust`, data);
+export const getStockLevels      = (params)  => api.get(`${s}/levels`, { params: typeof params === 'string' ? { node_id: params } : params });
+export const getStockLevelById   = (id)      => api.get(`${s}/levels/${id}`);
+export const stockReceipt        = (data)    => api.post(`${s}/levels/receipt`, data);
+export const stockReserve        = (data)    => api.post(`${s}/levels/reserve`, data);
+export const stockPicking        = (data)    => api.post(`${s}/levels/picking`, data);
+export const stockCancelReserve  = (data)    => api.post(`${s}/levels/cancel`, data);
+export const stockUpdateIncoming = (data)    => api.post(`${s}/levels/incoming`, data);
+export const stockCODDelivered   = (data)    => api.post(`${s}/levels/cod-delivered`, data);
+export const stockCODCollected   = (data)    => api.post(`${s}/levels/cod-collected`, data);
+export const stockCount          = (data)    => api.post(`${s}/levels/count`, data);
+export const adjustStockLevel    = (data)    => api.post(`${s}/levels/adjust`, data);
+export const recalculateStock    = (data)    => api.post(`${s}/levels/recalculate`, data);
+export const applyStockMove      = (data)    => api.post(`${s}/levels/move`, data);
 
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });

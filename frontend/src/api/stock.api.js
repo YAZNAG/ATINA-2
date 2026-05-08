@@ -25,6 +25,14 @@ export const createInventoryStatus    = (data)     => api.post(`${s}/inventory-s
 export const updateInventoryStatus    = (id, data) => api.put(`${s}/inventory-statuses/${id}`, data);
 export const deleteInventoryStatus    = (id)       => api.delete(`${s}/inventory-statuses/${id}`);
 
+// ——— Inventory Gap Types ———
+export const getInventoryGapTypes     = (params)   => api.get(`${s}/inventory-gap-types`, { params });
+export const getInventoryGapTypesList = ()         => api.get(`${s}/inventory-gap-types`, { params: { all: true } });
+export const getInventoryGapType      = (id)       => api.get(`${s}/inventory-gap-types/${id}`);
+export const createInventoryGapType   = (data)     => api.post(`${s}/inventory-gap-types`, data);
+export const updateInventoryGapType   = (id, data) => api.put(`${s}/inventory-gap-types/${id}`, data);
+export const deleteInventoryGapType   = (id)       => api.delete(`${s}/inventory-gap-types/${id}`);
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

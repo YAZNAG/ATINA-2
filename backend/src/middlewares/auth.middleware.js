@@ -5,12 +5,14 @@ const prisma = require('../config/database');
 
 const authMiddleware = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return response.error(res, 'Access token required', 401);
+    // Extra safety: normalize possible header casing.
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (!authHeader || !String(authHeader).toLowerCase().startsWith('bearer ')) {
+      // If header exists but does not look like Bearer, still treat as missing.
+      return response.error(res, 'Access token required', 400);
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = String(authHeader).split(' ')[1];
     const decoded = jwt.verify(token, jwtConfig.secret);
 
     const user = await prisma.user.findUnique({

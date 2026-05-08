@@ -6,5 +6,6 @@ router.use('/move-types',      require('./move_types/move_type.routes'));
 router.use('/stock-statuses',  require('./stock_statuses/stock_status.routes'));
 router.use('/inventory-types',    require('./inventory_types/inventory_type.routes'));
 router.use('/inventory-statuses', require('./inventory_statuses/inventory_status.routes'));
+router.use('/inventory-gap-types', require('./inventory_gap_types/inventory_gap_type.routes'));
 
 module.exports = router;

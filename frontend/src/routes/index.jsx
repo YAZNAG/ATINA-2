@@ -35,6 +35,7 @@ import LevelsPage from '../pages/warehouse/LevelsPage';
 import MoveTypesPage from '../pages/stock/MoveTypesPage';
 import StockStatusesPage from '../pages/stock/StockStatusesPage';
 import InventoryTypesPage from '../pages/stock/InventoryTypesPage';
+import InventoryStatusesPage from '../pages/stock/InventoryStatusesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -101,6 +102,7 @@ export default function AppRoutes() {
           <Route path="/stock/move-types"       element={<MoveTypesPage />} />
           <Route path="/stock/stock-statuses"  element={<StockStatusesPage />} />
           <Route path="/stock/inventory-types" element={<InventoryTypesPage />} />
+          <Route path="/stock/inventory-statuses" element={<InventoryStatusesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -82,6 +82,12 @@ const navItems = [
     ],
   },
   {
+    label: 'Stock', key: 'stockOps', group: true, icon: ICONS.warehouse,
+    children: [
+      { label: 'Niveaux de stock', path: '/stock/levels', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+    ],
+  },
+  {
     label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
     children: [
       { label: 'Types de mouvement', path: '/stock/move-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
@@ -179,7 +185,7 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState({
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
-    geo: false, nodes: false, nodeRef: false, stockRef: false, p0tables: false,
+    geo: false, nodes: false, nodeRef: false, stockOps: false, stockRef: false, p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
 
@@ -235,6 +241,7 @@ export default function Sidebar() {
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
+    if (pathname.startsWith('/stock/levels')) open('stockOps');
     if (pathname.startsWith('/stock')) open('stockRef');
   }, [pathname]);
 

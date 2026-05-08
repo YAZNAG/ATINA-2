@@ -7,5 +7,6 @@ router.use('/stock-statuses',  require('./stock_statuses/stock_status.routes'));
 router.use('/inventory-types',    require('./inventory_types/inventory_type.routes'));
 router.use('/inventory-statuses', require('./inventory_statuses/inventory_status.routes'));
 router.use('/inventory-gap-types', require('./inventory_gap_types/inventory_gap_type.routes'));
+router.use('/thresholds',          require('./stock_threshold_rules/stock_threshold_rule.routes'));
 
 module.exports = router;

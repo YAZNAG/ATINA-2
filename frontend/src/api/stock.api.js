@@ -33,6 +33,13 @@ export const createInventoryGapType   = (data)     => api.post(`${s}/inventory-g
 export const updateInventoryGapType   = (id, data) => api.put(`${s}/inventory-gap-types/${id}`, data);
 export const deleteInventoryGapType   = (id)       => api.delete(`${s}/inventory-gap-types/${id}`);
 
+// ——— Stock Threshold Rules ———
+export const getStockThresholds   = (node_id)        => api.get(`${s}/thresholds`, { params: { node_id } });
+export const createStockThreshold = (data)            => api.post(`${s}/thresholds`, data);
+export const updateStockThreshold = (id, data)        => api.put(`${s}/thresholds/${id}`, data);
+export const deleteStockThreshold = (id)              => api.delete(`${s}/thresholds/${id}`);
+export const bulkSaveThresholds   = (node_id, rows)   => api.post(`${s}/thresholds/bulk-save`, { node_id, rows });
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

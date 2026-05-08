@@ -87,7 +87,8 @@ const navItems = [
       { label: 'Types de mouvement', path: '/stock/move-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
       { label: 'Statuts de stock',   path: '/stock/stock-statuses',   anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
       { label: 'Statuts inventaire', path: '/stock/inventory-statuses', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: "Types d'inventaire", path: '/stock/inventory-types',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: "Types d'inventaire", path: '/stock/inventory-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: "Types d'écarts",     path: '/stock/inventory-gap-types', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
 

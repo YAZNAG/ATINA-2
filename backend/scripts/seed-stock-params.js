@@ -92,6 +92,23 @@ const INVENTORY_STATUSES = [
   { code: 'PARTIAL',     name_fr: 'Partiel',      name_ar: 'جزئي',            color: '#8b5cf6', description_fr: 'Seule une partie du périmètre a été comptée.',               is_active: true, sort_order: 7 },
 ];
 
+// ── InventoryGapType ──────────────────────────────────────────────────────────
+
+const INVENTORY_GAP_TYPES = [
+  { code: 'MISSING',      name_fr: 'Article manquant',        name_ar: 'مادة مفقودة',          description_fr: 'Article compté en moins par rapport au stock théorique.',           color: '#ef4444', impact_stock: 'NEGATIVE', requires_validation: false, is_active: true, sort_order: 1  },
+  { code: 'SURPLUS',      name_fr: 'Surplus / Excédent',      name_ar: 'فائض',                  description_fr: 'Article compté en plus par rapport au stock théorique.',             color: '#10b981', impact_stock: 'POSITIVE', requires_validation: true,  is_active: true, sort_order: 2  },
+  { code: 'DAMAGE',       name_fr: 'Avarie / Casse',          name_ar: 'تلف',                   description_fr: 'Article endommagé détecté lors du comptage.',                        color: '#f97316', impact_stock: 'NEGATIVE', requires_validation: false, is_active: true, sort_order: 3  },
+  { code: 'INPUT_ERROR',  name_fr: 'Erreur de saisie',        name_ar: 'خطأ في الإدخال',        description_fr: 'Écart dû à une erreur de saisie ou de scan corrigée.',              color: '#6366f1', impact_stock: 'NEUTRAL',  requires_validation: false, is_active: true, sort_order: 4  },
+  { code: 'EXPIRED',      name_fr: 'Péremption',              name_ar: 'انتهاء الصلاحية',       description_fr: 'Article détecté périmé et retiré du stock vendable.',                color: '#dc2626', impact_stock: 'NEGATIVE', requires_validation: false, is_active: true, sort_order: 5  },
+  { code: 'DAMAGED',      name_fr: 'Produit détérioré',       name_ar: 'منتج تالف',             description_fr: 'Produit inutilisable suite à mauvaises conditions de stockage.',      color: '#b91c1c', impact_stock: 'NEGATIVE', requires_validation: true,  is_active: true, sort_order: 6  },
+  { code: 'THEFT',        name_fr: 'Vol / Perte inexpliquée', name_ar: 'سرقة / فقدان',          description_fr: 'Disparition d\'articles sans explication logistique identifiée.',    color: '#7f1d1d', impact_stock: 'NEGATIVE', requires_validation: true,  is_active: true, sort_order: 7  },
+  { code: 'MISPLACE',     name_fr: 'Mauvais emplacement',     name_ar: 'خطأ في الموضع',         description_fr: 'Article rangé au mauvais endroit — non perdu, juste mal localisé.',  color: '#f59e0b', impact_stock: 'NEUTRAL',  requires_validation: false, is_active: true, sort_order: 8  },
+  { code: 'COUNT_DIFF',   name_fr: 'Différence de comptage',  name_ar: 'فارق العد',             description_fr: 'Écart entre deux comptages successifs, sans cause claire.',           color: '#8b5cf6', impact_stock: 'NEUTRAL',  requires_validation: true,  is_active: true, sort_order: 9  },
+  { code: 'TRANSFER_GAP', name_fr: 'Écart de transfert',      name_ar: 'فارق النقل',            description_fr: 'Différence entre quantité expédiée et quantité reçue lors d\'un transfert.', color: '#3b82f6', impact_stock: 'NEGATIVE', requires_validation: true, is_active: true, sort_order: 10 },
+  { code: 'RECEIPT_GAP',  name_fr: 'Écart de réception',      name_ar: 'فارق الاستلام',         description_fr: 'Différence entre quantité commandée fournisseur et quantité effectivement reçue.', color: '#0891b2', impact_stock: 'NEGATIVE', requires_validation: true, is_active: true, sort_order: 11 },
+  { code: 'PREP_GAP',     name_fr: 'Écart de préparation',    name_ar: 'فارق التحضير',          description_fr: 'Différence constatée lors de la préparation de commandes clients.',   color: '#059669', impact_stock: 'NEGATIVE', requires_validation: false, is_active: true, sort_order: 12 },
+];
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -109,10 +126,15 @@ async function main() {
   for (const d of INVENTORY_STATUSES) await upCode('inventoryStatus', d);
   console.log(`✓ ${INVENTORY_STATUSES.length}`);
 
+  process.stdout.write('⚡ InventoryGapTypes… ');
+  for (const d of INVENTORY_GAP_TYPES) await upCode('inventoryGapType', d);
+  console.log(`✓ ${INVENTORY_GAP_TYPES.length}`);
+
   console.log('\n✅  Seed terminé!');
-  console.log(`   StockStatuses:      ${STOCK_STATUSES.length}`);
-  console.log(`   InventoryTypes:     ${INVENTORY_TYPES.length}`);
-  console.log(`   InventoryStatuses:  ${INVENTORY_STATUSES.length}\n`);
+  console.log(`   StockStatuses:       ${STOCK_STATUSES.length}`);
+  console.log(`   InventoryTypes:      ${INVENTORY_TYPES.length}`);
+  console.log(`   InventoryStatuses:   ${INVENTORY_STATUSES.length}`);
+  console.log(`   InventoryGapTypes:   ${INVENTORY_GAP_TYPES.length}\n`);
 }
 
 main()

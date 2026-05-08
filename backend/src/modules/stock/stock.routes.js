@@ -8,5 +8,6 @@ router.use('/inventory-types',    require('./inventory_types/inventory_type.rout
 router.use('/inventory-statuses', require('./inventory_statuses/inventory_status.routes'));
 router.use('/inventory-gap-types', require('./inventory_gap_types/inventory_gap_type.routes'));
 router.use('/thresholds',          require('./stock_threshold_rules/stock_threshold_rule.routes'));
+router.use('/levels',              require('./stock_levels/stock_level.routes'));
 
 module.exports = router;

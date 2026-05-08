@@ -40,6 +40,11 @@ export const updateStockThreshold = (id, data)        => api.put(`${s}/threshold
 export const deleteStockThreshold = (id)              => api.delete(`${s}/thresholds/${id}`);
 export const bulkSaveThresholds   = (node_id, rows)   => api.post(`${s}/thresholds/bulk-save`, { node_id, rows });
 
+// ——— Stock Levels ———
+export const getStockLevels   = (node_id) => api.get(`${s}/levels`, { params: { node_id } });
+export const applyStockMove   = (data)    => api.post(`${s}/levels/move`, data);
+export const adjustStockLevel = (data)    => api.post(`${s}/levels/adjust`, data);
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

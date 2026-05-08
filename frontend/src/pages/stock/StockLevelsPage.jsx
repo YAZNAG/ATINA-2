@@ -303,7 +303,12 @@ export default function StockLevelsPage() {
       const res = await getStockLevels(nid);
       setRows(res.data?.data ?? []);
     } catch (e) {
-      setError(e.response?.data?.message ?? 'Erreur de chargement');
+      console.error('[StockLevels] load error:', e);
+      const msg = e.response?.data?.message
+        ?? (e.response ? `Erreur ${e.response.status}` : null)
+        ?? e.message
+        ?? 'Erreur de chargement';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -396,7 +401,7 @@ export default function StockLevelsPage() {
               >
                 <option value="">— Sélectionner un entrepôt —</option>
                 {nodes.map((n) => (
-                  <option key={n.id} value={n.id}>{n.name}</option>
+                  <option key={n.id} value={n.id}>{n.code} — {n.name_fr}</option>
                 ))}
               </select>
               <Icon d={PATHS.chevron} className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />

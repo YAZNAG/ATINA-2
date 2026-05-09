@@ -85,7 +85,8 @@ const navItems = [
     label: 'Stock', key: 'stockOps', group: true, icon: ICONS.warehouse,
     children: [
       { label: 'Niveaux de stock', path: '/stock/levels',        anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Règles de vente',  path: '/stock/selling-rules', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Règles de vente',  path: '/stock/selling-rules',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Règles réappro.',  path: '/stock/reorder-rules',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
   {
@@ -242,7 +243,7 @@ export default function Sidebar() {
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
-    if (pathname.startsWith('/stock/levels')) open('stockOps');
+    if (pathname.startsWith('/stock/levels') || pathname.startsWith('/stock/selling-rules') || pathname.startsWith('/stock/reorder-rules')) open('stockOps');
     if (pathname.startsWith('/stock')) open('stockRef');
   }, [pathname]);
 

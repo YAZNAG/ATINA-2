@@ -68,6 +68,19 @@ export const releaseBackorder       = (data)     => api.post(`${s}/selling-rules
 export const getEstimatedDelivery   = (params)   => api.get(`${s}/selling-rules/estimated-delivery`, { params });
 export const bulkSaveSellingRules   = (rows)     => api.post(`${s}/selling-rules/bulk-save`, rows);
 
+// ——— Reorder Rules ———
+export const getReorderRules        = (params)   => api.get(`${s}/reorder-rules`, { params });
+export const getReorderRulesByNode  = (node_id)  => api.get(`${s}/reorder-rules/by-node/${node_id}`);
+export const getReorderRuleById     = (id)       => api.get(`${s}/reorder-rules/${id}`);
+export const getReorderRuleRefs     = ()         => api.get(`${s}/reorder-rules/refs`);
+export const createReorderRule      = (data)     => api.post(`${s}/reorder-rules`, data);
+export const updateReorderRule      = (id, data) => api.put(`${s}/reorder-rules/${id}`, data);
+export const deleteReorderRule      = (id)       => api.delete(`${s}/reorder-rules/${id}`);
+export const bulkSaveReorderRules   = (rows)     => api.post(`${s}/reorder-rules/bulk-save`, rows);
+export const checkShouldReorder     = (data)     => api.post(`${s}/reorder-rules/should-reorder`, data);
+export const checkCriticalStock     = (data)     => api.post(`${s}/reorder-rules/detect-critical`, data);
+export const checkOverstock         = (data)     => api.post(`${s}/reorder-rules/detect-overstock`, data);
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

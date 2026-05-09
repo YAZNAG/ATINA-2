@@ -113,8 +113,8 @@ const findByNode = (node_id) => findWithFilters({ node_id });
 
 // ─── Mutations (all in $transaction) ─────────────────────────────────────────
 
-// Receipt: +qty_physical, backorder → reserved, -qty_incoming
-const applyReceipt = async (node_id, sku_id, qty, move_type_id, reference) =>
+// Receipt: +qty_physical, backorder → reserved, -qty_incoming + CREATE stock_lot (FIFO)
+const applyReceipt = async (node_id, sku_id, qty, move_type_id, reference, { cost_unit = 0, lot_number = null, expiry_date = null } = {}) =>
   prisma.$transaction(async (tx) => {
     const cur = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
     const old_phys = N(cur?.qty_physical);
@@ -122,22 +122,32 @@ const applyReceipt = async (node_id, sku_id, qty, move_type_id, reference) =>
     const old_back = N(cur?.qty_backordered);
     const old_inc  = N(cur?.qty_incoming);
 
-    const new_phys = old_phys + qty;
+    const new_phys  = old_phys + qty;
     const allocated = cur && old_back > 0 ? Math.min(qty, old_back) : 0;
     const new_res   = old_res  + allocated;
     const new_back  = old_back - allocated;
     const new_inc   = Math.max(0, old_inc - qty);
     const new_avail = avail(new_phys, new_res);
 
+    const lot = await tx.stockLot.create({
+      data: {
+        sku_id, node_id,
+        qty_initial:   qty,
+        qty_remaining: qty,
+        cost_unit:     Number(cost_unit),
+        lot_number:    lot_number ?? null,
+        expiry_date:   expiry_date ? new Date(expiry_date) : null,
+      },
+    });
     const move = await tx.stockMove.create({
-      data: { node_id, sku_id, move_type_id: move_type_id ?? null, qty_delta: qty, reference: reference ?? 'Réception' },
+      data: { node_id, sku_id, move_type_id: move_type_id ?? null, lot_id: lot.id, qty_delta: qty, reference: reference ?? 'Réception' },
     });
     const level = await tx.stockLevel.upsert({
       where:  { node_id_sku_id: { node_id, sku_id } },
       update: { qty_physical: new_phys, qty_reserved: new_res, qty_available: new_avail, qty_backordered: new_back, qty_incoming: new_inc, last_move_id: move.id, updated_at: new Date() },
       create: { node_id, sku_id, qty_physical: new_phys, qty_reserved: new_res, qty_available: new_avail, qty_backordered: new_back, qty_incoming: new_inc, last_move_id: move.id },
     });
-    return { move, level };
+    return { move, level, lot };
   });
 
 // Reserve: available → reserved; overflow → backordered

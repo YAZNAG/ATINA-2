@@ -81,6 +81,22 @@ export const checkShouldReorder     = (data)     => api.post(`${s}/reorder-rules
 export const checkCriticalStock     = (data)     => api.post(`${s}/reorder-rules/detect-critical`, data);
 export const checkOverstock         = (data)     => api.post(`${s}/reorder-rules/detect-overstock`, data);
 
+// ——— Stock Operations ———
+export const getStockOperations = ()      => api.get(`${s}/operations`);
+export const seedStockOperations = ()     => api.post(`${s}/operations/seed`);
+
+// ——— Stock Moves ———
+export const getStockMoves      = (params) => api.get(`${s}/moves`, { params });
+export const getStockMoveById   = (id)     => api.get(`${s}/moves/${id}`);
+export const getStockMoveStats  = (node_id) => api.get(`${s}/moves/stats`, { params: { node_id } });
+
+// ——— Stock Lots ———
+export const getStockLots       = (params) => api.get(`${s}/lots`, { params });
+export const getStockLotById    = (id)     => api.get(`${s}/lots/${id}`);
+export const getStockLotAlerts  = (node_id) => api.get(`${s}/lots/alerts`, { params: { node_id } });
+export const createStockLot     = (data)   => api.post(`${s}/lots`, data);
+export const deleteStockLot     = (id)     => api.delete(`${s}/lots/${id}`);
+
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });
 export const getStockStatusesList = ()          => api.get(`${s}/stock-statuses`, { params: { all: true } });

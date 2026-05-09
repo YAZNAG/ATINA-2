@@ -42,7 +42,8 @@ import StockLevelsPage from '../pages/stock/StockLevelsPage';
 import SellingRulesPage from '../pages/stock/SellingRulesPage';
 import ReorderRulesPage from '../pages/stock/ReorderRulesPage';
 import StockMovesPage   from '../pages/stock/StockMovesPage';
-import StockLotsPage    from '../pages/stock/StockLotsPage';
+import StockLotsPage        from '../pages/stock/StockLotsPage';
+import DeliveryTypesPage    from '../pages/delivery/DeliveryTypesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -117,6 +118,8 @@ export default function AppRoutes() {
           <Route path="/stock/reorder-rules"      element={<ReorderRulesPage />} />
           <Route path="/stock/moves"               element={<StockMovesPage />} />
           <Route path="/stock/lots"                element={<StockLotsPage />} />
+          {/* Delivery */}
+          <Route path="/delivery/types"            element={<DeliveryTypesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

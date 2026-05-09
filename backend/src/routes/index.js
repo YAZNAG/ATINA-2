@@ -9,7 +9,8 @@ const nodeRoutes = require('../modules/node/node.routes');
 const p0Routes = require('../modules/p0/p0.routes');
 const customersRoutes = require('../modules/customers/customers.routes');
 const warehouseRoutes = require('../modules/warehouse/warehouse.routes');
-const stockRoutes = require('../modules/stock/stock.routes');
+const stockRoutes    = require('../modules/stock/stock.routes');
+const deliveryRoutes = require('../modules/delivery/delivery.routes');
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.use('/', nodeRoutes);
 router.use('/p0', p0Routes);
 router.use('/customers', customersRoutes);
 router.use('/warehouse', warehouseRoutes);
-router.use('/stock', stockRoutes);
+router.use('/stock',    stockRoutes);
+router.use('/delivery', deliveryRoutes);
 
 module.exports = router;

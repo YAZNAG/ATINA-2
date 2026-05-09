@@ -66,6 +66,7 @@ export const canSellSKU             = (data)     => api.post(`${s}/selling-rules
 export const reserveBackorder       = (data)     => api.post(`${s}/selling-rules/reserve-backorder`, data);
 export const releaseBackorder       = (data)     => api.post(`${s}/selling-rules/release-backorder`, data);
 export const getEstimatedDelivery   = (params)   => api.get(`${s}/selling-rules/estimated-delivery`, { params });
+export const bulkSaveSellingRules   = (rows)     => api.post(`${s}/selling-rules/bulk-save`, rows);
 
 // ——— Stock Statuses ———
 export const getStockStatuses     = (params)    => api.get(`${s}/stock-statuses`, { params });

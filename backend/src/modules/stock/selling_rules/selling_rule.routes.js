@@ -12,6 +12,7 @@ router.get('/estimated-delivery',     perm('stock.view'),   ctrl.estimatedDelive
 router.get('/',                       perm('stock.view'),   ctrl.list.bind(ctrl));
 router.get('/:id',                    perm('stock.view'),   ctrl.getById.bind(ctrl));
 
+router.post('/bulk-save',             perm('stock.manage'), ctrl.bulkSave.bind(ctrl));
 router.post('/can-sell',              perm('stock.view'),   ctrl.canSell.bind(ctrl));
 router.post('/reserve-backorder',     perm('stock.manage'), ctrl.reserveBackorder.bind(ctrl));
 router.post('/release-backorder',     perm('stock.manage'), ctrl.releaseBackorder.bind(ctrl));

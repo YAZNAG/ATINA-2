@@ -41,6 +41,8 @@ import StockThresholdsPage from '../pages/stock/StockThresholdsPage';
 import StockLevelsPage from '../pages/stock/StockLevelsPage';
 import SellingRulesPage from '../pages/stock/SellingRulesPage';
 import ReorderRulesPage from '../pages/stock/ReorderRulesPage';
+import StockMovesPage   from '../pages/stock/StockMovesPage';
+import StockLotsPage    from '../pages/stock/StockLotsPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -113,6 +115,8 @@ export default function AppRoutes() {
           <Route path="/stock/levels"              element={<StockLevelsPage />} />
           <Route path="/stock/selling-rules"       element={<SellingRulesPage />} />
           <Route path="/stock/reorder-rules"      element={<ReorderRulesPage />} />
+          <Route path="/stock/moves"               element={<StockMovesPage />} />
+          <Route path="/stock/lots"                element={<StockLotsPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

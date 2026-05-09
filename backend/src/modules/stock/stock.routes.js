@@ -10,5 +10,6 @@ router.use('/inventory-gap-types', require('./inventory_gap_types/inventory_gap_
 router.use('/thresholds',          require('./stock_threshold_rules/stock_threshold_rule.routes'));
 router.use('/levels',              require('./stock_levels/stock_level.routes'));
 router.use('/selling-rules',       require('./selling_rules/selling_rule.routes'));
+router.use('/reorder-rules',       require('./reorder_rules/reorder_rule.routes'));
 
 module.exports = router;

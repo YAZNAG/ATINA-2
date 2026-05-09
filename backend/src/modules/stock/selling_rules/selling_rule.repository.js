@@ -117,27 +117,50 @@ const canSellSKU = async (node_id, sku_id, requested_qty) => {
     prisma.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } }),
   ]);
 
-  const qty_available = N(level?.qty_available);
+  const qty_available  = N(level?.qty_available);
+  const qty_backordered = N(rule?.backordered_quantity);
+  const restock_days    = rule?.estimated_restock_days ?? 1;
+
+  const estimatedDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + restock_days);
+    return d;
+  };
 
   if (qty_available >= requested_qty) {
-    return { allowed: true, reason: 'in_stock', estimated_delivery_date: null };
+    return {
+      allowed: true, mode: 'NORMAL',
+      available_qty: qty_available, backorder_qty: qty_backordered,
+      estimated_restock_days: restock_days, estimated_available_date: null,
+      reason: 'in_stock',
+    };
   }
 
   if (!rule || !rule.is_backorderable) {
-    return { allowed: false, reason: 'out_of_stock', estimated_delivery_date: null };
+    return {
+      allowed: false, mode: 'BLOCKED',
+      available_qty: qty_available, backorder_qty: qty_backordered,
+      estimated_restock_days: restock_days, estimated_available_date: null,
+      reason: 'out_of_stock',
+    };
   }
 
-  const limit      = N(rule.backorder_limit);
-  const backordered = N(rule.backordered_quantity);
-  if (limit > 0 && backordered + requested_qty > limit) {
-    return { allowed: false, reason: 'backorder_limit_reached', estimated_delivery_date: null };
+  const limit = N(rule.backorder_limit);
+  if (limit > 0 && qty_backordered + requested_qty > limit) {
+    return {
+      allowed: false, mode: 'BLOCKED',
+      available_qty: qty_available, backorder_qty: qty_backordered,
+      estimated_restock_days: restock_days, estimated_available_date: null,
+      reason: 'backorder_limit_reached',
+    };
   }
 
-  const days = rule.estimated_restock_days ?? 1;
-  const delivery = new Date();
-  delivery.setDate(delivery.getDate() + days);
-
-  return { allowed: true, reason: 'backorder', estimated_delivery_date: delivery };
+  return {
+    allowed: true, mode: 'BACKORDER',
+    available_qty: qty_available, backorder_qty: qty_backordered,
+    estimated_restock_days: restock_days, estimated_available_date: estimatedDate(),
+    reason: 'backorder',
+  };
 };
 
 const reserveBackorder = async (node_id, sku_id, qty) => {
@@ -168,8 +191,23 @@ const calculateEstimatedDelivery = async (node_id, sku_id) => {
   return { estimated_delivery_date: date, estimated_restock_days: days };
 };
 
+const bulkSave = (rows) =>
+  prisma.$transaction(
+    rows.map(({ node_id, sku_id, is_backorderable, backorder_limit, estimated_restock_days }) => {
+      const data = {};
+      if (is_backorderable !== undefined)    data.is_backorderable    = Boolean(is_backorderable);
+      if (backorder_limit !== undefined)     data.backorder_limit     = Number(backorder_limit);
+      if (estimated_restock_days !== undefined) data.estimated_restock_days = parseInt(estimated_restock_days, 10);
+      return prisma.sellingRule.upsert({
+        where:  { node_id_sku_id: { node_id, sku_id } },
+        update: data,
+        create: { node_id, sku_id, ...data },
+      });
+    })
+  );
+
 module.exports = {
   findWithFilters, findByNode, findById, findOne,
-  upsert, update, remove,
+  upsert, update, remove, bulkSave,
   canSellSKU, reserveBackorder, releaseBackorder, calculateEstimatedDelivery,
 };

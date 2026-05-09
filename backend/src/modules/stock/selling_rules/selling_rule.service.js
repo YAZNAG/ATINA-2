@@ -73,6 +73,31 @@ class SellingRuleService {
     return repo.remove(id);
   }
 
+  async bulkSave(rows) {
+    if (!Array.isArray(rows) || rows.length === 0)
+      throw { statusCode: 400, message: 'rows doit être un tableau non vide' };
+
+    const validated = rows.map((row, i) => {
+      const { node_id, sku_id, is_backorderable, backorder_limit, estimated_restock_days } = row;
+      if (!node_id) throw { statusCode: 400, message: `Ligne ${i + 1} : node_id requis` };
+      if (!sku_id)  throw { statusCode: 400, message: `Ligne ${i + 1} : sku_id requis` };
+
+      const bl = Number(backorder_limit ?? 0);
+      const rd = parseInt(estimated_restock_days ?? 1, 10);
+      if (isNaN(bl) || bl < 0) throw { statusCode: 400, message: `Ligne ${i + 1} : backorder_limit >= 0` };
+      if (isNaN(rd) || rd < 0) throw { statusCode: 400, message: `Ligne ${i + 1} : estimated_restock_days >= 0` };
+
+      return {
+        node_id, sku_id,
+        is_backorderable:      is_backorderable !== undefined ? Boolean(is_backorderable) : true,
+        backorder_limit:       bl,
+        estimated_restock_days: rd,
+      };
+    });
+
+    return repo.bulkSave(validated);
+  }
+
   // ─── Business logic ──────────────────────────────────────────────────────────
 
   async canSell(body) {

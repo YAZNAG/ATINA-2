@@ -44,6 +44,14 @@ class SellingRuleController {
     catch (e) { next(e); }
   }
 
+  // POST /selling-rules/bulk-save
+  async bulkSave(req, res, next) {
+    try {
+      const results = await service.bulkSave(req.body);
+      return response.success(res, results, `${results.length} règle(s) enregistrée(s)`, 200);
+    } catch (e) { next(e); }
+  }
+
   // POST /selling-rules/can-sell
   async canSell(req, res, next) {
     try { return res.json({ success: true, data: await service.canSell(req.body) }); }

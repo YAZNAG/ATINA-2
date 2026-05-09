@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getSellingRules, upsertSellingRule, updateSellingRule } from '../../api/stock.api';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  getSellingRules, upsertSellingRule, updateSellingRule, bulkSaveSellingRules,
+} from '../../api/stock.api';
 import { getNodes } from '../../api/locationNode.api';
 
+// ─── Icon helper ─────────────────────────────────────────────────────────────
 function Icon({ d, className = 'w-5 h-5' }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -11,56 +14,104 @@ function Icon({ d, className = 'w-5 h-5' }) {
 }
 
 const PATHS = {
-  package:  'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-  search:   'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  refresh:  'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
-  save:     'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4',
-  chevron:  'M19 9l-7 7-7-7',
-  filter:   'M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z',
-  check:    'M5 13l4 4L19 7',
-  x:        'M6 18L18 6M6 6l12 12',
-  clock:    'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-  tag:      'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
-  alert:    'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  package:   'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  search:    'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  refresh:   'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  save:      'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4',
+  saveAll:   'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12',
+  chevron:   'M19 9l-7 7-7-7',
+  filter:    'M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z',
+  check:     'M5 13l4 4L19 7',
+  x:         'M6 18L18 6M6 6l12 12',
+  clock:     'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  tag:       'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
+  alert:     'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  download:  'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
+  reset:     'M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6',
+  calendar:  'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
 };
 
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
 // ─── Status logic ─────────────────────────────────────────────────────────────
-function calcStatus(row) {
-  const { qty_available, is_backorderable, backorder_limit, backordered_quantity } = row;
-  if (!row.has_stock_level) return 'NO_LEVEL';
-  if (qty_available > 0)    return 'AVAILABLE';
-  if (!is_backorderable)    return 'OUT_NO_BACK';
-  if (backorder_limit > 0 && backordered_quantity >= backorder_limit) return 'LIMIT_REACHED';
+function calcStatus({ qty_available, is_backorderable, backorder_limit, backordered_quantity, has_stock_level }) {
+  if (!has_stock_level)                                                          return 'NO_LEVEL';
+  if (qty_available > 0)                                                         return 'AVAILABLE';
+  if (!is_backorderable)                                                         return 'OUT_NO_BACK';
+  if (backorder_limit > 0 && backordered_quantity >= backorder_limit)            return 'LIMIT_REACHED';
   return 'BACKORDER_OPEN';
 }
 
 const STATUS_CFG = {
-  AVAILABLE:    { label: 'Disponible',         badge: 'bg-emerald-100 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
-  OUT_NO_BACK:  { label: 'Rupture',            badge: 'bg-red-100 text-red-700 border border-red-200',             dot: 'bg-red-500'     },
-  BACKORDER_OPEN:{ label: 'Backorder autorisé',badge: 'bg-purple-100 text-purple-700 border border-purple-200',   dot: 'bg-purple-500'  },
-  LIMIT_REACHED:{ label: 'Limite atteinte',    badge: 'bg-orange-100 text-orange-700 border border-orange-200',   dot: 'bg-orange-500'  },
-  NO_LEVEL:     { label: 'Non configuré',      badge: 'bg-slate-100 text-slate-500 border border-slate-200',      dot: 'bg-slate-300'   },
+  AVAILABLE:     { label: 'Disponible',          badge: 'bg-emerald-100 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
+  OUT_NO_BACK:   { label: 'Rupture',             badge: 'bg-red-100 text-red-700 border border-red-200',             dot: 'bg-red-500'     },
+  BACKORDER_OPEN:{ label: 'Backorder autorisé',  badge: 'bg-purple-100 text-purple-700 border border-purple-200',   dot: 'bg-purple-500'  },
+  LIMIT_REACHED: { label: 'Limite atteinte',     badge: 'bg-orange-100 text-orange-700 border border-orange-200',   dot: 'bg-orange-500'  },
+  NO_LEVEL:      { label: 'Non configuré',       badge: 'bg-slate-100 text-slate-500 border border-slate-200',      dot: 'bg-slate-300'   },
 };
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'ALL',           label: 'Tout' },
   { key: 'AVAILABLE',     label: 'Disponible' },
-  { key: 'BACKORDER_OPEN',label: 'Backorder autorisé' },
+  { key: 'BACKORDER_OPEN',label: 'Backorder' },
   { key: 'OUT_NO_BACK',   label: 'Rupture' },
   { key: 'LIMIT_REACHED', label: 'Limite atteinte' },
   { key: 'NO_LEVEL',      label: 'Non configuré' },
 ];
 
-// ─── Row component (inline editing) ──────────────────────────────────────────
-function RuleRow({ row, nodeId, onSaved }) {
-  const [draft, setDraft]     = useState(null);
-  const [saving, setSaving]   = useState(false);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return null;
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function estimatedDate(restock_days) {
+  const d = new Date();
+  d.setDate(d.getDate() + Number(restock_days ?? 1));
+  return d;
+}
+
+function exportCSV(rows) {
+  const headers = [
+    'SKU Code','EAN13','Nom FR','Nom AR','Catégorie',
+    'Stock dispo','Backorder autorisé','Limite backorder',
+    'Qté backorder','Délai réappr. (j)','Date estimée dispo','Statut',
+  ];
+  const lines = rows.map((r) => {
+    const art = r.sku?.article;
+    const status = calcStatus(r);
+    const estDate = (status === 'BACKORDER_OPEN') ? fmtDate(estimatedDate(r.estimated_restock_days)) : '';
+    return [
+      art?.sku_code ?? '',
+      art?.ean13 ?? '',
+      art?.name_fr ?? '',
+      art?.name_ar ?? '',
+      art?.category?.name_fr ?? '',
+      r.qty_available,
+      r.is_backorderable ? 'Oui' : 'Non',
+      r.backorder_limit,
+      r.backordered_quantity,
+      r.estimated_restock_days,
+      estDate,
+      STATUS_CFG[status]?.label ?? '',
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+  const csv = [headers.join(','), ...lines].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'regles_vente.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Row component ────────────────────────────────────────────────────────────
+function RuleRow({ row, nodeId, draft, onDraftChange, onSaved }) {
+  const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
 
   const cur = draft ?? {
-    is_backorderable:     row.is_backorderable,
-    backorder_limit:      String(row.backorder_limit),
+    is_backorderable:      row.is_backorderable,
+    backorder_limit:       String(row.backorder_limit),
     estimated_restock_days: String(row.estimated_restock_days),
   };
 
@@ -68,35 +119,31 @@ function RuleRow({ row, nodeId, onSaved }) {
 
   const set = (field, val) => {
     setSaveErr('');
-    setDraft((d) => ({
-      ...(d ?? {
-        is_backorderable:     row.is_backorderable,
-        backorder_limit:      String(row.backorder_limit),
+    onDraftChange({
+      ...(draft ?? {
+        is_backorderable:      row.is_backorderable,
+        backorder_limit:       String(row.backorder_limit),
         estimated_restock_days: String(row.estimated_restock_days),
       }),
       [field]: val,
-    }));
+    });
   };
 
-  const cancel = () => { setDraft(null); setSaveErr(''); };
+  const cancel = () => { onDraftChange(null); setSaveErr(''); };
 
   const save = async () => {
-    setSaving(true);
-    setSaveErr('');
+    setSaving(true); setSaveErr('');
     try {
       const payload = {
-        node_id:              nodeId,
-        sku_id:               row.sku_id,
-        is_backorderable:     cur.is_backorderable,
-        backorder_limit:      Number(cur.backorder_limit),
+        node_id:               nodeId,
+        sku_id:                row.sku_id,
+        is_backorderable:      cur.is_backorderable,
+        backorder_limit:       Number(cur.backorder_limit),
         estimated_restock_days: parseInt(cur.estimated_restock_days, 10),
       };
-      if (row.rule_id) {
-        await updateSellingRule(row.rule_id, payload);
-      } else {
-        await upsertSellingRule(payload);
-      }
-      setDraft(null);
+      if (row.rule_id) await updateSellingRule(row.rule_id, payload);
+      else             await upsertSellingRule(payload);
+      onDraftChange(null);
       onSaved();
     } catch (e) {
       setSaveErr(e.response?.data?.message ?? 'Erreur de sauvegarde');
@@ -105,13 +152,26 @@ function RuleRow({ row, nodeId, onSaved }) {
 
   const art    = row.sku?.article;
   const img    = row.sku?.images?.[0]?.url ?? art?.images?.[0]?.url;
-  const status = calcStatus({ ...row, ...cur, backorder_limit: Number(cur.backorder_limit), is_backorderable: cur.is_backorderable });
+  const curLimit = Number(cur.backorder_limit);
+
+  // Status computed from current draft values
+  const liveRow = {
+    ...row,
+    is_backorderable:      cur.is_backorderable,
+    backorder_limit:       curLimit,
+    estimated_restock_days: parseInt(cur.estimated_restock_days, 10),
+  };
+  const status = calcStatus(liveRow);
   const st     = STATUS_CFG[status];
+
+  // Estimated delivery date
+  const showEstDate = status === 'BACKORDER_OPEN';
+  const estDate = showEstDate ? estimatedDate(liveRow.estimated_restock_days) : null;
 
   return (
     <tr className={`hover:bg-slate-50/80 transition-colors ${dirty ? 'bg-blue-50/40 border-l-4 border-l-blue-400' : ''}`}>
       {/* Article */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 min-w-[220px]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
             {img
@@ -119,80 +179,100 @@ function RuleRow({ row, nodeId, onSaved }) {
               : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon d={PATHS.package} className="w-3.5 h-3.5" /></div>
             }
           </div>
-          <div>
-            <p className="font-medium text-slate-800 text-sm leading-tight">{art?.name_fr}</p>
-            <p className="text-xs text-slate-400">{art?.sku_code}{art?.ean13 && <span className="ml-1 text-slate-300">· {art.ean13}</span>}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-slate-800 text-sm leading-tight truncate">{art?.name_fr}</p>
+            {art?.name_ar && <p className="text-xs text-slate-400 truncate" dir="rtl">{art.name_ar}</p>}
+            <p className="text-xs text-slate-400">
+              {art?.sku_code}
+              {art?.ean13 && <span className="ml-1 text-slate-300">· {art.ean13}</span>}
+            </p>
             {art?.category && <p className="text-[11px] text-slate-400">{art.category.name_fr}</p>}
           </div>
         </div>
       </td>
 
-      {/* qty_available */}
-      <td className="px-3 py-3 text-center">
+      {/* Stock dispo */}
+      <td className="px-3 py-3 text-center whitespace-nowrap">
         <span className={`text-sm font-semibold tabular-nums ${row.qty_available > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
           {row.qty_available.toLocaleString('fr-FR')}
         </span>
       </td>
 
-      {/* is_backorderable toggle */}
+      {/* Backorder autorisé */}
       <td className="px-3 py-3 text-center">
         <button
           onClick={() => set('is_backorderable', !cur.is_backorderable)}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${cur.is_backorderable ? 'bg-purple-500' : 'bg-slate-300'}`}
+          title={cur.is_backorderable ? 'Désactiver le backorder' : 'Activer le backorder'}
         >
           <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${cur.is_backorderable ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
         </button>
       </td>
 
-      {/* backorder_limit */}
+      {/* Limite backorder */}
       <td className="px-3 py-3 text-center">
         <input
-          type="number"
-          min="0"
-          step="1"
+          type="number" min="0" step="1"
           value={cur.backorder_limit}
           onChange={(e) => set('backorder_limit', e.target.value)}
-          className="w-20 text-center border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 tabular-nums"
+          disabled={!cur.is_backorderable}
+          className="w-20 text-center border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 tabular-nums disabled:bg-slate-50 disabled:text-slate-300"
         />
-        {Number(cur.backorder_limit) === 0 && (
+        {curLimit === 0 && cur.is_backorderable && (
           <p className="text-[10px] text-slate-400 mt-0.5">illimité</p>
         )}
       </td>
 
-      {/* backordered_quantity (readonly) */}
+      {/* En backorder (readonly) */}
       <td className="px-3 py-3 text-center">
         <span className={`text-sm tabular-nums font-semibold ${row.backordered_quantity > 0 ? 'text-purple-600' : 'text-slate-400'}`}>
           {row.backordered_quantity.toLocaleString('fr-FR')}
         </span>
-        {Number(cur.backorder_limit) > 0 && row.backordered_quantity > 0 && (
+        {curLimit > 0 && row.backordered_quantity > 0 && (
           <div className="w-16 mx-auto mt-1 h-1 bg-slate-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-purple-500 rounded-full"
-              style={{ width: `${Math.min(100, (row.backordered_quantity / Number(cur.backorder_limit)) * 100)}%` }}
+              style={{ width: `${Math.min(100, (row.backordered_quantity / curLimit) * 100)}%` }}
             />
           </div>
         )}
       </td>
 
-      {/* estimated_restock_days */}
+      {/* Délai réappr. */}
       <td className="px-3 py-3 text-center">
         <div className="flex items-center justify-center gap-1">
           <input
-            type="number"
-            min="0"
-            step="1"
+            type="number" min="0" step="1"
             value={cur.estimated_restock_days}
             onChange={(e) => set('estimated_restock_days', e.target.value)}
-            className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 tabular-nums"
+            disabled={!cur.is_backorderable}
+            className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 tabular-nums disabled:bg-slate-50 disabled:text-slate-300"
           />
           <span className="text-xs text-slate-400">j</span>
         </div>
       </td>
 
-      {/* Status */}
+      {/* Date estimée dispo */}
+      <td className="px-3 py-3 text-center whitespace-nowrap">
+        {status === 'AVAILABLE' ? (
+          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+            <Icon d={PATHS.check} className="w-3.5 h-3.5" />
+            En stock
+          </span>
+        ) : estDate ? (
+          <span className="inline-flex items-center gap-1 text-xs text-purple-600 font-medium">
+            <Icon d={PATHS.calendar} className="w-3.5 h-3.5" />
+            {fmtDate(estDate)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        )}
+      </td>
+
+      {/* Statut */}
       <td className="px-3 py-3 text-center">
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${st.badge}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.badge}`}>
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
           {st.label}
         </span>
       </td>
@@ -201,7 +281,7 @@ function RuleRow({ row, nodeId, onSaved }) {
       <td className="px-3 py-3 text-center">
         {dirty ? (
           <div className="flex items-center justify-center gap-1">
-            <button onClick={save} disabled={saving} title="Enregistrer"
+            <button onClick={save} disabled={saving} title="Enregistrer cette ligne"
               className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50">
               <Icon d={PATHS.save} className="w-3.5 h-3.5" />
             </button>
@@ -221,16 +301,29 @@ function RuleRow({ row, nodeId, onSaved }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SellingRulesPage() {
-  const [nodes, setNodes]   = useState([]);
-  const [nodeId, setNodeId] = useState('');
-  const [rows, setRows]     = useState([]);
+  const [nodes, setNodes]     = useState([]);
+  const [nodeId, setNodeId]   = useState('');
+  const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
 
-  const [search, setSearch]         = useState('');
-  const [tab, setTab]               = useState('ALL');
-  const [filterCat, setFilterCat]   = useState('');
+  // Centralized drafts: { [sku_id]: { is_backorderable, backorder_limit, estimated_restock_days } | null }
+  const [drafts, setDrafts] = useState({});
+
+  // Filters
+  const [search, setSearch]           = useState('');
+  const [tab, setTab]                 = useState('ALL');
+  const [filterCat, setFilterCat]     = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Pagination
+  const [page, setPage]           = useState(1);
+  const [pageSize, setPageSize]   = useState(20);
+
+  // Bulk save state
+  const [bulkSaving, setBulkSaving]   = useState(false);
+  const [bulkSuccess, setBulkSuccess] = useState('');
+  const [bulkError, setBulkError]     = useState('');
 
   useEffect(() => {
     getNodes({ all: true }).then((r) => setNodes(r.data?.data ?? [])).catch(() => {});
@@ -238,62 +331,67 @@ export default function SellingRulesPage() {
 
   const load = useCallback(async (nid = nodeId) => {
     if (!nid) return;
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await getSellingRules({ node_id: nid });
       setRows(res.data?.data ?? []);
+      setDrafts({});
+      setPage(1);
     } catch (e) {
-      console.error('[SellingRules] load error:', e);
-      setError(
-        e.response?.data?.message
-          ?? (e.response ? `Erreur ${e.response.status}` : null)
-          ?? e.message ?? 'Erreur de chargement',
-      );
+      setError(e.response?.data?.message ?? e.message ?? 'Erreur de chargement');
     } finally { setLoading(false); }
   }, [nodeId]);
 
   const handleNodeChange = (id) => {
     setNodeId(id);
-    setRows([]);
-    setSearch('');
-    setTab('ALL');
-    setFilterCat('');
+    setRows([]); setDrafts({});
+    setSearch(''); setTab('ALL'); setFilterCat(''); setPage(1);
+    setBulkSuccess(''); setBulkError('');
     if (id) load(id);
   };
 
-  // Categories for filter
+  const setDraft = (sku_id, val) =>
+    setDrafts((prev) => ({ ...prev, [sku_id]: val }));
+
+  // Categories list
   const categories = useMemo(() => {
     const map = {};
-    rows.forEach((r) => {
-      const cat = r.sku?.article?.category;
-      if (cat) map[cat.id] = cat;
-    });
+    rows.forEach((r) => { const c = r.sku?.article?.category; if (c) map[c.id] = c; });
     return Object.values(map).sort((a, b) => a.name_fr.localeCompare(b.name_fr));
   }, [rows]);
 
-  // Enrich with status
-  const enriched = useMemo(() => rows.map((r) => ({ ...r, _status: calcStatus(r) })), [rows]);
+  // Enrich rows with live draft values for status calculation
+  const enriched = useMemo(() => rows.map((r) => {
+    const d = drafts[r.sku_id];
+    const live = d ? {
+      ...r,
+      is_backorderable:      d.is_backorderable,
+      backorder_limit:       Number(d.backorder_limit),
+      estimated_restock_days: parseInt(d.estimated_restock_days, 10),
+    } : r;
+    return { ...live, _status: calcStatus(live) };
+  }), [rows, drafts]);
 
   // Stats
   const stats = useMemo(() => ({
-    total:   enriched.length,
-    avail:   enriched.filter((r) => r._status === 'AVAILABLE').length,
-    back:    enriched.filter((r) => r._status === 'BACKORDER_OPEN').length,
-    out:     enriched.filter((r) => r._status === 'OUT_NO_BACK').length,
-    limit:   enriched.filter((r) => r._status === 'LIMIT_REACHED').length,
+    total: enriched.length,
+    avail: enriched.filter((r) => r._status === 'AVAILABLE').length,
+    back:  enriched.filter((r) => r._status === 'BACKORDER_OPEN').length,
+    out:   enriched.filter((r) => r._status === 'OUT_NO_BACK').length,
+    limit: enriched.filter((r) => r._status === 'LIMIT_REACHED').length,
   }), [enriched]);
 
-  // Filtered list
+  // Filter
   const filtered = useMemo(() => {
     let list = enriched;
-    if (tab !== 'ALL')  list = list.filter((r) => r._status === tab);
-    if (filterCat)      list = list.filter((r) => r.sku?.article?.category?.id === filterCat);
+    if (tab !== 'ALL') list = list.filter((r) => r._status === tab);
+    if (filterCat)     list = list.filter((r) => r.sku?.article?.category?.id === filterCat);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) => {
         const a = r.sku?.article;
         return a?.name_fr?.toLowerCase().includes(q)
+          || a?.name_ar?.toLowerCase().includes(q)
           || a?.sku_code?.toLowerCase().includes(q)
           || a?.ean13?.toLowerCase().includes(q);
       });
@@ -301,7 +399,48 @@ export default function SellingRulesPage() {
     return list;
   }, [enriched, tab, filterCat, search]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated  = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
   const tabCount = (key) => key === 'ALL' ? enriched.length : enriched.filter((r) => r._status === key).length;
+
+  // Dirty rows count
+  const dirtyCount = Object.values(drafts).filter(Boolean).length;
+
+  // Bulk save all dirty rows
+  const handleBulkSave = async () => {
+    const dirtyRows = enriched.filter((r) => drafts[r.sku_id] != null);
+    if (!dirtyRows.length) return;
+    setBulkSaving(true); setBulkError(''); setBulkSuccess('');
+    try {
+      const payload = dirtyRows.map((r) => {
+        const d = drafts[r.sku_id];
+        return {
+          node_id:               nodeId,
+          sku_id:                r.sku_id,
+          is_backorderable:      d.is_backorderable,
+          backorder_limit:       Number(d.backorder_limit),
+          estimated_restock_days: parseInt(d.estimated_restock_days, 10),
+        };
+      });
+      await bulkSaveSellingRules(payload);
+      setBulkSuccess(`${dirtyRows.length} règle(s) sauvegardée(s)`);
+      setTimeout(() => setBulkSuccess(''), 4000);
+      await load(nodeId);
+    } catch (e) {
+      setBulkError(e.response?.data?.message ?? 'Erreur lors de la sauvegarde groupée');
+    } finally { setBulkSaving(false); }
+  };
+
+  // Reset all drafts
+  const handleResetAll = () => {
+    setDrafts({});
+    setBulkSuccess(''); setBulkError('');
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
@@ -317,7 +456,9 @@ export default function SellingRulesPage() {
               <p className="text-sm text-slate-500">Backorder & délais par entrepôt × SKU</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Node selector */}
             <div className="relative">
               <select value={nodeId} onChange={(e) => handleNodeChange(e.target.value)}
                 className="appearance-none border border-slate-200 rounded-xl px-4 py-2 pr-8 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer">
@@ -326,11 +467,20 @@ export default function SellingRulesPage() {
               </select>
               <Icon d={PATHS.chevron} className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
+
             {nodeId && (
               <button onClick={() => load()} disabled={loading}
                 className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
                 <Icon d={PATHS.refresh} className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
+              </button>
+            )}
+
+            {rows.length > 0 && (
+              <button onClick={() => exportCSV(filtered)}
+                className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition">
+                <Icon d={PATHS.download} className="w-3.5 h-3.5" />
+                Export CSV
               </button>
             )}
           </div>
@@ -357,28 +507,60 @@ export default function SellingRulesPage() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
-              { label: 'Total articles', value: stats.total,  color: 'slate',   icon: PATHS.package },
-              { label: 'Disponibles',    value: stats.avail,  color: 'emerald', icon: PATHS.check   },
-              { label: 'Backorder ouvert',value: stats.back,  color: 'purple',  icon: PATHS.clock   },
-              { label: 'Rupture ferme',  value: stats.out,    color: 'red',     icon: PATHS.alert   },
+              { label: 'Total articles',   value: stats.total, color: 'slate',   icon: PATHS.package },
+              { label: 'Disponibles',      value: stats.avail, color: 'emerald', icon: PATHS.check   },
+              { label: 'Backorder ouvert', value: stats.back,  color: 'purple',  icon: PATHS.clock   },
+              { label: 'Rupture ferme',    value: stats.out,   color: 'red',     icon: PATHS.alert   },
             ].map(({ label, value, color, icon }) => {
               const C = {
                 slate:   'bg-slate-50  border-slate-200  text-slate-600',
                 emerald: 'bg-emerald-50 border-emerald-200 text-emerald-600',
-                purple:  'bg-purple-50 border-purple-200 text-purple-600',
-                red:     'bg-red-50    border-red-200    text-red-600',
+                purple:  'bg-purple-50  border-purple-200  text-purple-600',
+                red:     'bg-red-50     border-red-200     text-red-600',
               }[color];
               return (
                 <div key={label} className={`rounded-xl border p-4 flex items-center gap-3 ${C}`}>
                   <Icon d={icon} className="w-5 h-5" />
                   <div>
                     <p className="text-xs font-medium opacity-70">{label}</p>
-                    <p className="text-2xl font-bold">{value}</p>
+                    <p className="text-2xl font-bold tabular-nums">{value}</p>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Bulk action bar — shown when there are dirty rows */}
+          {dirtyCount > 0 && (
+            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <Icon d={PATHS.alert} className="w-4 h-4" />
+                <span><strong>{dirtyCount}</strong> ligne{dirtyCount > 1 ? 's' : ''} modifiée{dirtyCount > 1 ? 's' : ''} non sauvegardée{dirtyCount > 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleResetAll}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 text-sm hover:bg-blue-100 transition">
+                  <Icon d={PATHS.reset} className="w-3.5 h-3.5" />
+                  Réinitialiser
+                </button>
+                <button onClick={handleBulkSave} disabled={bulkSaving}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition disabled:opacity-50">
+                  <Icon d={PATHS.saveAll} className={`w-3.5 h-3.5 ${bulkSaving ? 'animate-spin' : ''}`} />
+                  {bulkSaving ? 'Sauvegarde…' : 'Tout sauvegarder'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {bulkSuccess && (
+            <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+              <Icon d={PATHS.check} className="w-4 h-4" />
+              {bulkSuccess}
+            </div>
+          )}
+          {bulkError && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{bulkError}</div>
+          )}
 
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             {/* Toolbar */}
@@ -386,7 +568,8 @@ export default function SellingRulesPage() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                   <Icon d={PATHS.search} className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" placeholder="Rechercher un article..." value={search} onChange={(e) => setSearch(e.target.value)}
+                  <input type="text" placeholder="Rechercher SKU, article, EAN13, nom arabe…"
+                    value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                     className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
                 </div>
                 <button onClick={() => setShowFilters((v) => !v)}
@@ -400,7 +583,7 @@ export default function SellingRulesPage() {
               {showFilters && (
                 <div className="flex flex-wrap gap-3 pb-1">
                   <div className="relative">
-                    <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
+                    <select value={filterCat} onChange={(e) => { setFilterCat(e.target.value); setPage(1); }}
                       className="appearance-none border border-slate-200 rounded-lg px-3 py-1.5 pr-7 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-400">
                       <option value="">Toutes catégories</option>
                       {categories.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
@@ -421,7 +604,7 @@ export default function SellingRulesPage() {
                 {TABS.map((t) => {
                   const cnt = tabCount(t.key);
                   return (
-                    <button key={t.key} onClick={() => setTab(t.key)}
+                    <button key={t.key} onClick={() => { setTab(t.key); setPage(1); }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${tab === t.key ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                       {t.label}
                       {cnt > 0 && (
@@ -436,7 +619,7 @@ export default function SellingRulesPage() {
             {/* Hint */}
             <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-600 flex items-center gap-2">
               <Icon d={PATHS.check} className="w-3.5 h-3.5" />
-              Modifiez directement les champs dans le tableau — un bouton d'enregistrement apparaîtra sur chaque ligne modifiée.
+              Modifiez directement les champs — sauvegardez ligne par ligne ou utilisez "Tout sauvegarder".
             </div>
 
             {/* Table */}
@@ -450,13 +633,21 @@ export default function SellingRulesPage() {
                     <th className="text-center px-3 py-3 font-medium">Limite</th>
                     <th className="text-center px-3 py-3 font-medium">En backorder</th>
                     <th className="text-center px-3 py-3 font-medium">Délai réappr.</th>
-                    <th className="text-center px-3 py-3 font-medium">Statut vente</th>
+                    <th className="text-center px-3 py-3 font-medium">Date estimée</th>
+                    <th className="text-center px-3 py-3 font-medium">Statut</th>
                     <th className="text-center px-3 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filtered.map((row) => (
-                    <RuleRow key={row.sku_id} row={row} nodeId={nodeId} onSaved={() => load()} />
+                  {paginated.map((row) => (
+                    <RuleRow
+                      key={row.sku_id}
+                      row={row}
+                      nodeId={nodeId}
+                      draft={drafts[row.sku_id] ?? null}
+                      onDraftChange={(val) => setDraft(row.sku_id, val)}
+                      onSaved={() => load()}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -469,10 +660,49 @@ export default function SellingRulesPage() {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400">
-              {filtered.length} article{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}
-              {rows.length !== filtered.length && ` sur ${rows.length}`}
+            {/* Footer — pagination */}
+            <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-xs text-slate-400">
+                <span>
+                  {filtered.length > 0
+                    ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} sur ${filtered.length}`
+                    : '0 article'}
+                  {rows.length !== filtered.length && ` (${rows.length} total)`}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span>Lignes :</span>
+                  <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                    className="border border-slate-200 rounded-md px-1.5 py-0.5 text-xs focus:outline-none">
+                    {PAGE_SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition">
+                    ‹ Préc.
+                  </button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let p;
+                    if (totalPages <= 5)           p = i + 1;
+                    else if (page <= 3)            p = i + 1;
+                    else if (page >= totalPages - 2) p = totalPages - 4 + i;
+                    else                            p = page - 2 + i;
+                    return (
+                      <button key={p} onClick={() => setPage(p)}
+                        className={`w-7 h-7 rounded-lg text-xs font-medium transition ${page === p ? 'bg-purple-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                        {p}
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition">
+                    Suiv. ›
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>

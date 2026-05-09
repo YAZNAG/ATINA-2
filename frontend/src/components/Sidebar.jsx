@@ -82,24 +82,24 @@ const navItems = [
     ],
   },
   {
-    label: 'Stock', key: 'stockOps', group: true, icon: ICONS.warehouse,
+    label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
     children: [
-      { label: 'Niveaux de stock', path: '/stock/levels',        anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Règles de vente',  path: '/stock/selling-rules',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Règles réappro.',  path: '/stock/reorder-rules',  anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Mouvements stock', path: '/stock/moves',           anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Lots de stock',    path: '/stock/lots',            anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Types de mouvement',  path: '/stock/move-types',           anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Statuts de stock',    path: '/stock/stock-statuses',        anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: "Types d'inventaire",  path: '/stock/inventory-types',       anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Statuts inventaire',  path: '/stock/inventory-statuses',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: "Types d'écarts",      path: '/stock/inventory-gap-types',   anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Seuils de stock',     path: '/stock/thresholds',            anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
   {
-    label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
+    label: 'Suivi de stock', key: 'stockOps', group: true, icon: ICONS.warehouse,
     children: [
-      { label: 'Types de mouvement', path: '/stock/move-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Statuts de stock',   path: '/stock/stock-statuses',   anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Statuts inventaire', path: '/stock/inventory-statuses', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: "Types d'inventaire", path: '/stock/inventory-types',    anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: "Types d'écarts",     path: '/stock/inventory-gap-types', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
-      { label: 'Seuils de stock',    path: '/stock/thresholds',          anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Niveaux de stock',    path: '/stock/levels',        anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Règles de vente',     path: '/stock/selling-rules', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Règles réappro.',     path: '/stock/reorder-rules', anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Mouvements stock',    path: '/stock/moves',         anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
+      { label: 'Lots de stock',       path: '/stock/lots',          anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
   },
 
@@ -245,8 +245,8 @@ export default function Sidebar() {
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
-    if (pathname.startsWith('/stock/levels') || pathname.startsWith('/stock/selling-rules') || pathname.startsWith('/stock/reorder-rules') || pathname.startsWith('/stock/moves') || pathname.startsWith('/stock/lots')) open('stockOps');
-    if (pathname.startsWith('/stock')) open('stockRef');
+    if (['/stock/levels', '/stock/selling-rules', '/stock/reorder-rules', '/stock/moves', '/stock/lots'].some((p) => pathname.startsWith(p))) open('stockOps');
+    if (['/stock/move-types', '/stock/stock-statuses', '/stock/inventory', '/stock/thresholds'].some((p) => pathname.startsWith(p))) open('stockRef');
   }, [pathname]);
 
   const initials = user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';

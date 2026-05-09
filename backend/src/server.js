@@ -3,6 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const prisma = require('./config/database');
+const { ensureArticlesPrismaColumns } = require('./utils/articleSkuLink');
+const { ensureNodeTypesPrismaColumns } = require('./utils/ensureNodeTypesDb');
+const { ensureZonesLevelsTables } = require('./utils/ensureWarehouseZonesLevelsDb');
+const { ensureMoveTypesPrismaColumns } = require('./utils/ensureMoveTypesDb');
 const routes = require('./routes');
 const errorMiddleware = require('./middlewares/error.middleware');
 
@@ -28,8 +33,20 @@ app.use('/api', routes);
 
 app.use(errorMiddleware);
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+async function start() {
+  try {
+    await ensureArticlesPrismaColumns(prisma);
+    await ensureNodeTypesPrismaColumns(prisma);
+    await ensureZonesLevelsTables(prisma);
+    await ensureMoveTypesPrismaColumns(prisma);
+  } catch (e) {
+    console.warn('[server] schema self-heal:', e?.message ?? e);
+  }
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+start();
 
 module.exports = app;

@@ -95,9 +95,15 @@ const LOCATION_NODE_PERMISSIONS = [
   { name: 'Supprimer les créneaux', code: 'delivery_slots.delete', module: 'node', description: '' },
 ];
 
+const WAREHOUSE_PERMISSIONS = [
+  { name: "Voir l'entrepôt (zones, niveaux, emplacements, SKU)", code: 'warehouse.view', module: 'warehouse', description: '' },
+  { name: "Gérer l'entrepôt", code: 'warehouse.manage', module: 'warehouse', description: '' },
+];
+
 async function seedCatalogPermissions() {
   console.log('Seeding catalog permissions...');
-  for (const perm of [...CATALOG_PERMISSIONS, ...LOCATION_NODE_PERMISSIONS]) {
+  const allCatalogPerms = [...CATALOG_PERMISSIONS, ...LOCATION_NODE_PERMISSIONS, ...WAREHOUSE_PERMISSIONS];
+  for (const perm of allCatalogPerms) {
     await prisma.permission.upsert({
       where: { code: perm.code },
       update: {},
@@ -117,7 +123,7 @@ async function seedCatalogPermissions() {
       });
     }
   }
-  console.log(`${CATALOG_PERMISSIONS.length + LOCATION_NODE_PERMISSIONS.length} permissions created.`);
+  console.log(`${allCatalogPerms.length} catalog / location / warehouse permissions upserted.`);
 }
 
 async function seedFamilies() {

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import * as catalog from '../../api/catalog.api';
-import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -193,8 +193,6 @@ const ENTITIES = [
     },
   },
 ];
-
-const ENTITY_MAP = Object.fromEntries(ENTITIES.map((e) => [e.key, e]));
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
 
@@ -655,13 +653,24 @@ function RefDrawer({ entity, editItem, onClose, onSaved }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Main shell (réutilisable : catalogue + types livraison, etc.) ─────────────
 
-export default function CatalogRefPage() {
-  const { hasPermission } = useAuth();
-
-  const [activeKey, setActiveKey] = useState('brands');
+export function CatalogRefShell({
+  entities = ENTITIES,
+  defaultEntityKey = 'brands',
+  pageTitle = 'Référentiels catalogue',
+  pageSubtitle = 'Marques, unités, types et paramètres',
+  showEntityTabs = true,
+}) {
+  const entityMap = useMemo(() => Object.fromEntries(entities.map((e) => [e.key, e])), [entities]);
+  const [activeKey, setActiveKey] = useState(defaultEntityKey);
   const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    if (entityMap[activeKey]) return;
+    const k = entities[0]?.key;
+    if (k) setActiveKey(k);
+  }, [activeKey, entities, entityMap]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -671,7 +680,7 @@ export default function CatalogRefPage() {
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const entity = ENTITY_MAP[activeKey];
+  const entity = entityMap[activeKey];
 
   const load = useCallback(async () => {
     if (!entity) return;
@@ -711,6 +720,14 @@ export default function CatalogRefPage() {
       setDeleteLoading(false);
     }
   };
+
+  if (!entity) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">
+        Référentiel indisponible.
+      </div>
+    );
+  }
 
   // Client-side filter
   const q = search.toLowerCase();
@@ -753,8 +770,13 @@ export default function CatalogRefPage() {
           {/* Top */}
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Référentiels catalogue</h1>
-              <p className="text-sm text-gray-400 mt-0.5">Marques, unités, types et paramètres</p>
+              <nav className="text-xs text-gray-400 mb-1.5">
+                <Link to="/dashboard" className="hover:text-gray-600">Accueil</Link>
+                <span className="text-gray-300 mx-1.5">/</span>
+                <span className="text-red-600 font-semibold">{pageTitle}</span>
+              </nav>
+              <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
+              <p className="text-sm text-gray-400 mt-0.5">{pageSubtitle}</p>
             </div>
             <button
               onClick={() => setDrawer({ editItem: null })}
@@ -768,8 +790,9 @@ export default function CatalogRefPage() {
           </div>
 
           {/* Entity tabs — horizontal scroll */}
+          {showEntityTabs && (
           <div className="flex gap-1.5 overflow-x-auto pb-1 mb-4 scrollbar-hide">
-            {ENTITIES.map((e) => (
+            {entities.map((e) => (
               <button
                 key={e.key}
                 onClick={() => setActiveKey(e.key)}
@@ -786,6 +809,7 @@ export default function CatalogRefPage() {
               </button>
             ))}
           </div>
+          )}
 
           {/* Filters row */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -903,5 +927,17 @@ export default function CatalogRefPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CatalogRefPage() {
+  return (
+    <CatalogRefShell
+      entities={ENTITIES}
+      defaultEntityKey="brands"
+      pageTitle="Référentiels catalogue"
+      pageSubtitle="Marques, unités, types et paramètres"
+      showEntityTabs
+    />
   );
 }

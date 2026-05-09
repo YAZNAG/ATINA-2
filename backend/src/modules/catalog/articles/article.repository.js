@@ -1,4 +1,5 @@
 const prisma = require('../../../config/database');
+const { ensureArticlesPrismaColumns } = require('../../../utils/articleSkuLink');
 
 const BASE_WHERE = { deleted_at: null, is_deleted: false };
 
@@ -38,6 +39,7 @@ const buildWhere = ({ search, is_active, family_id, category_id, sub_category_id
 });
 
 const findAll = async (params) => {
+  await ensureArticlesPrismaColumns(prisma);
   const { page = 1, limit = 20, ...filters } = params;
   const where = buildWhere(filters);
   const skip = (Number(page) - 1) * Number(limit);
@@ -48,26 +50,41 @@ const findAll = async (params) => {
   return { data, total };
 };
 
-const findById = (id) => prisma.article.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
+const findById = async (id) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
+};
 /** `select: { id: true }` uniquement : évite un `SELECT *` sur toutes les colonnes Prisma (ex. `sku_uuid`) si la BDD n'est pas encore migrée -- erreur PG « colonne … inexistante ». */
-const findBySkuCode = (sku_code, excludeId) =>
-  prisma.article.findFirst({
+const findBySkuCode = async (sku_code, excludeId) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.findFirst({
     where: { sku_code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) },
     select: { id: true },
   });
-const findByEan13 = (ean13, excludeId) =>
-  prisma.article.findFirst({
+};
+const findByEan13 = async (ean13, excludeId) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.findFirst({
     where: { ean13, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) },
     select: { id: true },
   });
+};
 
-const create = (data) => prisma.article.create({ data, include: INCLUDE });
-const update = (id, data) => prisma.article.update({ where: { id }, data, include: INCLUDE });
-const softDelete = (id) =>
-  prisma.article.update({
+const create = async (data) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.create({ data, include: INCLUDE });
+};
+const update = async (id, data) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.update({ where: { id }, data, include: INCLUDE });
+};
+const softDelete = async (id) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.update({
     where: { id },
     data: { deleted_at: new Date(), is_active: false, is_deleted: true },
   });
+};
 
 module.exports = {
   findAll,

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getP0Registry } from '../api/p0.api';
+import { DELIVERY_PARAM_ITEMS } from '../pages/delivery/deliveryParamConfig';
+import { PAYMENT_PARAM_ITEMS } from '../pages/payment/paymentParamConfig';
 
 const Icon = ({ d, className = 'w-5 h-5' }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,12 +84,6 @@ const navItems = [
     ],
   },
   {
-    label: 'Paramétrage Livraison', key: 'deliveryRef', group: true, icon: ICONS.gear,
-    children: [
-      { label: 'Types de livraison', path: '/delivery/types', anyPermissions: ['dashboard.view'] },
-    ],
-  },
-  {
     label: 'Paramétrage Stock', key: 'stockRef', group: true, icon: ICONS.gear,
     children: [
       { label: 'Types de mouvement',  path: '/stock/move-types',           anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
@@ -107,6 +103,28 @@ const navItems = [
       { label: 'Mouvements stock',    path: '/stock/moves',         anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
       { label: 'Lots de stock',       path: '/stock/lots',          anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'] },
     ],
+  },
+  {
+    label: 'Paramétrage Livraison',
+    key: 'deliveryRef',
+    group: true,
+    icon: ICONS.gear,
+    children: DELIVERY_PARAM_ITEMS.map(({ slug, label }) => ({
+      label,
+      path: `/delivery/${slug}`,
+      anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'],
+    })),
+  },
+  {
+    label: 'Paramétrage Paiement',
+    key: 'paymentRef',
+    group: true,
+    icon: ICONS.gear,
+    children: PAYMENT_PARAM_ITEMS.map(({ slug, label }) => ({
+      label,
+      path: `/payment/${slug}`,
+      anyPermissions: ['stock.manage', 'stock.view', 'dashboard.view'],
+    })),
   },
 
 ];
@@ -195,7 +213,7 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState({
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
-    geo: false, nodes: false, nodeRef: false, stockOps: false, stockRef: false, deliveryRef: false, p0tables: false,
+    geo: false, nodes: false, nodeRef: false, stockOps: false, stockRef: false, deliveryRef: false, paymentRef: false, p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
 
@@ -254,6 +272,7 @@ export default function Sidebar() {
     if (['/stock/levels', '/stock/selling-rules', '/stock/reorder-rules', '/stock/moves', '/stock/lots'].some((p) => pathname.startsWith(p))) open('stockOps');
     if (['/stock/move-types', '/stock/stock-statuses', '/stock/inventory', '/stock/thresholds'].some((p) => pathname.startsWith(p))) open('stockRef');
     if (pathname.startsWith('/delivery')) open('deliveryRef');
+    if (pathname.startsWith('/payment')) open('paymentRef');
   }, [pathname]);
 
   const initials = user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';

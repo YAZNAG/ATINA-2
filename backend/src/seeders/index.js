@@ -2,6 +2,7 @@ require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const catalogSeeder = require('./catalog.seeder');
+const { seedDemoCustomers } = require('./customers.seeder');
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,9 @@ const PERMISSIONS = [
   { name: 'Assign Permissions', code: 'permissions.assign', module: 'permissions', description: 'Assign permissions to roles' },
   { name: 'View Dashboard', code: 'dashboard.view', module: 'dashboard', description: 'Access the dashboard' },
   { name: 'View App Customers', code: 'customers.view', module: 'customers', description: 'List P0 app customers (mobile)' },
+  { name: 'Create App Customers', code: 'customers.create', module: 'customers', description: 'Create customers from back-office' },
+  { name: 'Update App Customers', code: 'customers.update', module: 'customers', description: 'Edit / block customers' },
+  { name: 'Delete App Customers', code: 'customers.delete', module: 'customers', description: 'Soft-delete customers' },
 ];
 
 async function main() {
@@ -49,6 +53,12 @@ async function main() {
 
   // Seed catalog data (permissions + reference data)
   await catalogSeeder.main();
+
+  try {
+    await seedDemoCustomers(prisma);
+  } catch (e) {
+    console.warn('Customers demo seed:', e.message || e);
+  }
 
   // Assign ALL permissions to Super Admin
   const allPermissions = await prisma.permission.findMany();

@@ -29,6 +29,7 @@ import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
 import CustomerList from '../pages/customers/CustomerList';
 import CustomerDetail from '../pages/customers/CustomerDetail';
+import CustomerForm from '../pages/customers/CustomerForm';
 import WarehousePage from '../pages/warehouse/WarehousePage';
 import ZonesPage from '../pages/warehouse/ZonesPage';
 import LevelsPage from '../pages/warehouse/LevelsPage';
@@ -41,9 +42,14 @@ import StockThresholdsPage from '../pages/stock/StockThresholdsPage';
 import StockLevelsPage from '../pages/stock/StockLevelsPage';
 import SellingRulesPage from '../pages/stock/SellingRulesPage';
 import ReorderRulesPage from '../pages/stock/ReorderRulesPage';
-import StockMovesPage   from '../pages/stock/StockMovesPage';
-import StockLotsPage        from '../pages/stock/StockLotsPage';
-import DeliveryTypesPage    from '../pages/delivery/DeliveryTypesPage';
+import StockMovesPage from '../pages/stock/StockMovesPage';
+import StockLotsPage from '../pages/stock/StockLotsPage';
+import DeliveryTypesPage from '../pages/delivery/DeliveryTypesPage';
+import DeliveryLookupPage from '../pages/delivery/DeliveryLookupPage';
+import DeliveryTypesRefPage from '../pages/delivery/DeliveryTypesRefPage';
+import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
+import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
+import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -68,6 +74,8 @@ export default function AppRoutes() {
           <Route path="/p0/tables" element={<P0TablesHub />} />
           <Route path="/p0/tables/:sql" element={<P0TablePage />} />
           <Route path="/customers" element={<CustomerList />} />
+          <Route path="/customers/new" element={<CustomerForm />} />
+          <Route path="/customers/:id/edit" element={<CustomerForm />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/users" element={<UserList />} />
           <Route path="/users/new" element={<UserForm />} />
@@ -116,10 +124,14 @@ export default function AppRoutes() {
           <Route path="/stock/levels"              element={<StockLevelsPage />} />
           <Route path="/stock/selling-rules"       element={<SellingRulesPage />} />
           <Route path="/stock/reorder-rules"      element={<ReorderRulesPage />} />
-          <Route path="/stock/moves"               element={<StockMovesPage />} />
-          <Route path="/stock/lots"                element={<StockLotsPage />} />
-          {/* Delivery */}
-          <Route path="/delivery/types"            element={<DeliveryTypesPage />} />
+          <Route path="/stock/moves" element={<StockMovesPage />} />
+          <Route path="/stock/lots" element={<StockLotsPage />} />
+          <Route path="/delivery/types" element={<DeliveryTypesPage />} />
+          <Route path="/delivery/delivery-types" element={<DeliveryTypesRefPage />} />
+          <Route path="/delivery/:slug" element={<DeliveryLookupPage />} />
+          <Route path="/payment/payment-statuses" element={<PaymentStatusesRefPage />} />
+          <Route path="/payment/payment-methods" element={<PaymentMethodsRefPage />} />
+          <Route path="/payment/:slug" element={<PaymentLookupPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

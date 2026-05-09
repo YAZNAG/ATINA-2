@@ -33,7 +33,7 @@ class MoveTypeService {
       throw { statusCode: 400, message: 'Opération invalide — valeurs autorisées : IN, OUT, ADJ, TRF' };
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code de type de mouvement existe déjà' };
-    return repo.create(payload);
+    return await repo.create(payload);
   }
 
   async update(id, data) {
@@ -46,7 +46,7 @@ class MoveTypeService {
       const exists = await repo.findByCode(payload.code, id);
       if (exists) throw { statusCode: 409, message: 'Ce code de type de mouvement existe déjà' };
     }
-    return repo.update(id, payload);
+    return await repo.update(id, payload);
   }
 
   async delete(id) {

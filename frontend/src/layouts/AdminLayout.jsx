@@ -9,10 +9,14 @@ const pageTitles = {
   '/roles': 'Gestion des rôles',
   '/roles/new': 'Nouveau rôle',
   '/permissions': 'Permissions système',
+  '/customers': 'Clients',
+  '/customers/new': 'Nouveau client',
 };
 
 const getTitle = (pathname) => {
   if (pageTitles[pathname]) return pageTitles[pathname];
+  if (pathname.startsWith('/customers/') && pathname.endsWith('/edit')) return 'Modifier client';
+  if (pathname.startsWith('/customers/')) return 'Fiche client';
   if (pathname.includes('/edit')) return 'Modification';
   return 'Dark Store';
 };

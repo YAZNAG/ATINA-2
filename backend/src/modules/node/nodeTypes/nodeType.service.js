@@ -24,7 +24,7 @@ class NodeTypeService {
   async create(data) {
     const exists = await repo.findByCode(data.code);
     if (exists) throw { statusCode: 409, message: 'Ce code type node existe déjà' };
-    return repo.create(pick(data));
+    return await repo.create(pick(data));
   }
 
   async update(id, data) {
@@ -34,7 +34,7 @@ class NodeTypeService {
       const exists = await repo.findByCode(data.code, id);
       if (exists) throw { statusCode: 409, message: 'Ce code type node existe déjà' };
     }
-    return repo.update(id, pick(data));
+    return await repo.update(id, pick(data));
   }
 
   async delete(id) {

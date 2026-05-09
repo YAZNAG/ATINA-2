@@ -30,7 +30,7 @@ class LevelService {
     if (!payload.code) throw { statusCode: 400, message: 'Code requis' };
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code niveau existe déjà' };
-    return repo.create(payload);
+    return await repo.create(payload);
   }
 
   async update(id, data) {
@@ -41,7 +41,7 @@ class LevelService {
       const exists = await repo.findByCode(payload.code, id);
       if (exists) throw { statusCode: 409, message: 'Ce code niveau existe déjà' };
     }
-    return repo.update(id, payload);
+    return await repo.update(id, payload);
   }
 
   async delete(id) {

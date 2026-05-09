@@ -1,4 +1,5 @@
 const prisma = require('../../../config/database');
+const { ensureMoveTypesPrismaColumns } = require('../../../utils/ensureMoveTypesDb');
 
 const buildWhere = ({ search, operation } = {}) => ({
   ...(operation && { operation }),
@@ -12,6 +13,7 @@ const buildWhere = ({ search, operation } = {}) => ({
 });
 
 const findAll = async ({ page = 1, limit = 20, all, ...filters } = {}) => {
+  await ensureMoveTypesPrismaColumns(prisma);
   const where = buildWhere(filters);
   if (all === 'true' || all === true) {
     const data = await prisma.moveType.findMany({ where, orderBy: [{ name_fr: 'asc' }] });
@@ -26,11 +28,25 @@ const findAll = async ({ page = 1, limit = 20, all, ...filters } = {}) => {
   return { data, total };
 };
 
-const findById = (id) => prisma.moveType.findUnique({ where: { id } });
-const findByCode = (code, excludeId) =>
-  prisma.moveType.findFirst({ where: { code, ...(excludeId && { NOT: { id: excludeId } }) } });
-const create = (data) => prisma.moveType.create({ data });
-const update = (id, data) => prisma.moveType.update({ where: { id }, data });
-const remove = (id) => prisma.moveType.delete({ where: { id } });
+const findById = async (id) => {
+  await ensureMoveTypesPrismaColumns(prisma);
+  return prisma.moveType.findUnique({ where: { id } });
+};
+const findByCode = async (code, excludeId) => {
+  await ensureMoveTypesPrismaColumns(prisma);
+  return prisma.moveType.findFirst({ where: { code, ...(excludeId && { NOT: { id: excludeId } }) } });
+};
+const create = async (data) => {
+  await ensureMoveTypesPrismaColumns(prisma);
+  return prisma.moveType.create({ data });
+};
+const update = async (id, data) => {
+  await ensureMoveTypesPrismaColumns(prisma);
+  return prisma.moveType.update({ where: { id }, data });
+};
+const remove = async (id) => {
+  await ensureMoveTypesPrismaColumns(prisma);
+  return prisma.moveType.delete({ where: { id } });
+};
 
 module.exports = { findAll, findById, findByCode, create, update, remove };

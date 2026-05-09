@@ -49,7 +49,7 @@ async function main() {
 
   // Find or create the Super Admin role
   const superAdmin = await prisma.role.findFirst({
-    where: { OR: [{ code: 'SUPER_ADMIN' }, { name: 'Super Admin' }] },
+    where: { OR: [{ code: 'SUPER_ADMIN' }, { code: 'super_admin' }, { name: 'Super Admin' }] },
   });
 
   if (!superAdmin) {

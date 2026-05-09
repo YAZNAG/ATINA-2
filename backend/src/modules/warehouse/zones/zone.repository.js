@@ -1,4 +1,5 @@
 const prisma = require('../../../config/database');
+const { ensureZonesLevelsTables } = require('../../../utils/ensureWarehouseZonesLevelsDb');
 
 const buildWhere = ({ search, is_active } = {}) => ({
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
@@ -12,6 +13,7 @@ const buildWhere = ({ search, is_active } = {}) => ({
 });
 
 const findAll = async ({ page = 1, limit = 20, all, ...filters } = {}) => {
+  await ensureZonesLevelsTables(prisma);
   const where = buildWhere(filters);
   if (all === 'true' || all === true) {
     const data = await prisma.zone.findMany({ where, orderBy: [{ name_fr: 'asc' }] });
@@ -26,11 +28,25 @@ const findAll = async ({ page = 1, limit = 20, all, ...filters } = {}) => {
   return { data, total };
 };
 
-const findById = (id) => prisma.zone.findUnique({ where: { id } });
-const findByCode = (code, excludeId) =>
-  prisma.zone.findFirst({ where: { code, ...(excludeId && { NOT: { id: excludeId } }) } });
-const create = (data) => prisma.zone.create({ data });
-const update = (id, data) => prisma.zone.update({ where: { id }, data });
-const remove = (id) => prisma.zone.delete({ where: { id } });
+const findById = async (id) => {
+  await ensureZonesLevelsTables(prisma);
+  return prisma.zone.findUnique({ where: { id } });
+};
+const findByCode = async (code, excludeId) => {
+  await ensureZonesLevelsTables(prisma);
+  return prisma.zone.findFirst({ where: { code, ...(excludeId && { NOT: { id: excludeId } }) } });
+};
+const create = async (data) => {
+  await ensureZonesLevelsTables(prisma);
+  return prisma.zone.create({ data });
+};
+const update = async (id, data) => {
+  await ensureZonesLevelsTables(prisma);
+  return prisma.zone.update({ where: { id }, data });
+};
+const remove = async (id) => {
+  await ensureZonesLevelsTables(prisma);
+  return prisma.zone.delete({ where: { id } });
+};
 
 module.exports = { findAll, findById, findByCode, create, update, remove };

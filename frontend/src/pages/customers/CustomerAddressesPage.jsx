@@ -5,6 +5,7 @@ import {
   getCustomer,
   getAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress,
 } from '../../api/customers.api';
+import { getCities } from '../../api/locationNode.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 
@@ -37,7 +38,7 @@ function Fld({ label, req, children }) {
 
 const EMPTY = {
   label: '', street_number: '', street_name: '', quartier: '',
-  city: 'Rabat', postal_code: '', delivery_notes: '', is_default: false,
+  city: '', postal_code: '', delivery_notes: '', is_default: false,
 };
 
 function DeleteModal({ addr, onCancel, onConfirm, loading }) {
@@ -64,8 +65,22 @@ function DeleteModal({ addr, onCancel, onConfirm, loading }) {
 
 function Drawer({ editAddr, customerId, onClose, onSaved }) {
   const isEdit = !!editAddr;
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm]     = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+  const [cities, setCities] = useState([]);   // { name_fr, postal_code }[]
+
+  // Charger les villes depuis la table cities
+  useEffect(() => {
+    getCities({ all: true, limit: 500 })
+      .then(r => {
+        const raw = r.data?.data ?? r.data ?? [];
+        const list = (Array.isArray(raw) ? raw : [])
+          .filter(c => c.is_active && !c.is_deleted)
+          .sort((a, b) => a.name_fr.localeCompare(b.name_fr, 'fr'));
+        setCities(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setForm(editAddr ? {
@@ -73,7 +88,7 @@ function Drawer({ editAddr, customerId, onClose, onSaved }) {
       street_number:  editAddr.street_number  ?? '',
       street_name:    editAddr.street_name    ?? '',
       quartier:       editAddr.quartier       ?? '',
-      city:           editAddr.city           ?? 'Rabat',
+      city:           editAddr.city           ?? '',
       postal_code:    editAddr.postal_code    ?? '',
       delivery_notes: editAddr.delivery_notes ?? '',
       is_default:     editAddr.is_default     ?? false,
@@ -82,10 +97,21 @@ function Drawer({ editAddr, customerId, onClose, onSaved }) {
 
   const hc = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
+  // Sélection ville → auto-remplissage code postal
+  const handleCityChange = (e) => {
+    const cityName = e.target.value;
+    const found = cities.find(c => c.name_fr === cityName);
+    setForm(f => ({
+      ...f,
+      city: cityName,
+      postal_code: found?.postal_code ?? f.postal_code,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.street_name.trim()) return toast.error('Nom de rue requis');
-    if (!form.city.trim()) return toast.error('Ville requise');
+    if (!form.city.trim())        return toast.error('Ville requise');
     setSaving(true);
     try {
       if (isEdit) await updateAddress(editAddr.id, form);
@@ -95,6 +121,10 @@ function Drawer({ editAddr, customerId, onClose, onSaved }) {
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setSaving(false); }
   };
+
+  // Indicateur si le code postal a été auto-rempli depuis la ville
+  const autoPostal = cities.find(c => c.name_fr === form.city)?.postal_code;
+  const isAutoFilled = !!autoPostal && form.postal_code === autoPostal;
 
   return (
     <>
@@ -124,23 +154,57 @@ function Drawer({ editAddr, customerId, onClose, onSaved }) {
               <input name="street_number" className={inp} value={form.street_number} onChange={hc} placeholder="12B" />
             </Fld>
           </div>
+
           <Fld label="Nom de rue" req>
             <input name="street_name" className={inp} value={form.street_name} onChange={hc} placeholder="Rue Mohammed V" />
           </Fld>
-          <div className="grid grid-cols-2 gap-3">
-            <Fld label="Quartier">
-              <input name="quartier" className={inp} value={form.quartier} onChange={hc} placeholder="Agdal" />
-            </Fld>
-            <Fld label="Ville" req>
-              <input name="city" className={inp} value={form.city} onChange={hc} placeholder="Rabat" />
-            </Fld>
-          </div>
-          <Fld label="Code postal">
-            <input name="postal_code" className={inp} value={form.postal_code} onChange={hc} placeholder="10000" maxLength={5} />
+
+          <Fld label="Quartier">
+            <input name="quartier" className={inp} value={form.quartier} onChange={hc} placeholder="Agdal" />
           </Fld>
+
+          {/* Ville — select depuis table cities */}
+          <Fld label="Ville" req>
+            <select
+              value={form.city}
+              onChange={handleCityChange}
+              className={`${inp} cursor-pointer`}
+            >
+              <option value="">— Sélectionner une ville —</option>
+              {cities.map(c => (
+                <option key={c.name_fr} value={c.name_fr}>{c.name_fr}</option>
+              ))}
+            </select>
+          </Fld>
+
+          {/* Code postal — auto-rempli depuis cities.postal_code, modifiable */}
+          <Fld label="Code postal">
+            <div className="relative">
+              <input
+                name="postal_code"
+                className={`${inp} pr-16 ${isAutoFilled ? 'border-emerald-300 bg-emerald-50/40 focus:ring-emerald-400' : ''}`}
+                value={form.postal_code}
+                onChange={hc}
+                placeholder="10000"
+                maxLength={5}
+              />
+              {isAutoFilled && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-emerald-600 font-semibold pointer-events-none">
+                  Auto ✓
+                </span>
+              )}
+            </div>
+            {isAutoFilled && (
+              <p className="text-[11px] text-emerald-600 mt-1">
+                Code postal rempli automatiquement depuis la table villes · modifiable
+              </p>
+            )}
+          </Fld>
+
           <Fld label="Instructions livraison">
             <textarea name="delivery_notes" className={inp} value={form.delivery_notes} onChange={hc} rows={2} placeholder="Sonner 2 fois, 3ème étage…" />
           </Fld>
+
           {!isEdit && (
             <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50">
               <input type="checkbox" checked={form.is_default}

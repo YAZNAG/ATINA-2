@@ -10,6 +10,7 @@ const canView   = perm.permAny(['orders.view',   'dashboard.view']);
 const canCreate = perm.permAny(['orders.create',  'dashboard.view']);
 
 router.get('/meta',            canView,   ctrl.meta.bind(ctrl));
+router.get('/articles',        canView,   ctrl.articles.bind(ctrl));
 router.post('/eligible-nodes', canView,   ctrl.eligibleNodes.bind(ctrl));
 router.get('/delivery-slots',  canView,   ctrl.deliverySlots.bind(ctrl));
 router.post('/create-order',   canCreate, ctrl.createOrder.bind(ctrl));

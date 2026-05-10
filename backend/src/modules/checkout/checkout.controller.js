@@ -55,6 +55,15 @@ class CheckoutController {
       resp.success(res, { delivery_types: deliveryTypes, payment_methods: paymentMethods });
     } catch (e) { next(e); }
   }
+
+  // GET /api/checkout/articles?search=xxx&limit=20
+  async articles(req, res, next) {
+    try {
+      const { search, limit = 20 } = req.query;
+      const data = await repo.searchArticles(search, limit);
+      resp.success(res, data);
+    } catch (e) { next(e); }
+  }
 }
 
 module.exports = new CheckoutController();

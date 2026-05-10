@@ -25,3 +25,17 @@ export const createOrderSlotStatus  = (data)   => api.post(`${b}/slot-statuses`,
 export const updateOrderSlotStatus  = (id, data) => api.put(`${b}/slot-statuses/${id}`, data);
 export const deleteOrderSlotStatus  = (id)     => api.delete(`${b}/slot-statuses/${id}`);
 export const seedOrderSlotStatuses  = ()       => api.post(`${b}/slot-statuses/seed`);
+
+// Delivery slots (per node)
+export const getDeliverySlots    = (params)   => api.get(`${b}/delivery-slots`, { params });
+export const getDeliverySlot     = (id)       => api.get(`${b}/delivery-slots/${id}`);
+export const createDeliverySlot  = (data)     => api.post(`${b}/delivery-slots`, data);
+export const updateDeliverySlot  = (id, data) => api.put(`${b}/delivery-slots/${id}`, data);
+export const deleteDeliverySlot  = (id)       => api.delete(`${b}/delivery-slots/${id}`);
+
+// App configs (order rules + payment per node)
+export const getOrderConfigs     = (params)   => api.get(`${b}/configs`, { params });
+export const getConfigKeys       = ()         => api.get(`${b}/configs/keys`);
+export const saveOrderConfig     = (data)     => api.post(`${b}/configs`, data);
+export const deleteOrderConfig   = (id)       => api.delete(`${b}/configs/${id}`);
+export const seedOrderConfigs    = ()         => api.post(`${b}/configs/seed`);

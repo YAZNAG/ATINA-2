@@ -105,9 +105,12 @@ const navItems = [
   {
     label: 'Paramétrage Commandes', key: 'ordersRef', group: true, icon: ICONS.gear,
     children: [
-      { label: 'Statuts commande',       path: '/orders/statuses',       anyPermissions: ['dashboard.view'] },
-      { label: 'Statuts ligne commande', path: '/orders/item-statuses',  anyPermissions: ['dashboard.view'] },
-      { label: 'Statuts créneaux',       path: '/orders/slot-statuses',  anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts commande',       path: '/orders/statuses',        anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts ligne commande', path: '/orders/item-statuses',   anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts créneaux',       path: '/orders/slot-statuses',   anyPermissions: ['dashboard.view'] },
+      { label: 'Créneaux livraison',     path: '/orders/delivery-slots',  anyPermissions: ['dashboard.view'] },
+      { label: 'Méthodes paiement',      path: '/orders/payment-config',  anyPermissions: ['dashboard.view'] },
+      { label: 'Règles par node',        path: '/orders/rules',           anyPermissions: ['dashboard.view'] },
     ],
   },
   {

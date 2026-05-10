@@ -27,30 +27,30 @@ FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM delivery_types d WHERE d.code = v.code);
 
 -- order_statuses
-INSERT INTO order_statuses (id, code, name_fr, name_ar, is_terminal, sort_order)
-SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, v.is_terminal::boolean, v.sort_order::smallint
+INSERT INTO order_statuses (id, code, name_fr, name_ar, is_terminal, sort_order, color)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, v.is_terminal::boolean, v.sort_order::smallint, v.color
 FROM (VALUES
-  ('pending', 'En attente', 'قيد الانتظار', false, 0),
-  ('confirmed', 'Confirmée', 'مؤكدة', false, 1),
-  ('picking', 'Préparation', 'جاري التحضير', false, 2),
-  ('ready', 'Prête', 'جاهزة', false, 3),
-  ('in_delivery', 'En livraison', 'قيد التوصيل', false, 4),
-  ('delivered', 'Livrée', 'تم التسليم', true, 5),
-  ('cancelled', 'Annulée', 'ملغاة', true, 6),
-  ('returned', 'Retournée', 'مرتجعة', true, 7),
-  ('awaiting_stock', 'En attente stock', 'في انتظار المخزون', false, 8)
-) AS v(code, name_fr, name_ar, is_terminal, sort_order)
+  ('pending', 'En attente', 'قيد الانتظار', false, 0, 'orange'),
+  ('confirmed', 'Confirmée', 'مؤكدة', false, 1, 'blue'),
+  ('picking', 'Préparation', 'جاري التحضير', false, 2, 'purple'),
+  ('ready', 'Prête', 'جاهزة', false, 3, 'cyan'),
+  ('in_delivery', 'En livraison', 'قيد التوصيل', false, 4, 'indigo'),
+  ('delivered', 'Livrée', 'تم التسليم', true, 5, 'green'),
+  ('cancelled', 'Annulée', 'ملغاة', true, 6, 'red'),
+  ('returned', 'Retournée', 'مرتجعة', true, 7, 'gray'),
+  ('awaiting_stock', 'En attente stock', 'في انتظار المخزون', false, 8, 'yellow')
+) AS v(code, name_fr, name_ar, is_terminal, sort_order, color)
 WHERE NOT EXISTS (SELECT 1 FROM order_statuses o WHERE o.code = v.code);
 
 -- order_item_statuses
-INSERT INTO order_item_statuses (id, code, name_fr, name_ar)
-SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+INSERT INTO order_item_statuses (id, code, name_fr, name_ar, color)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, v.color
 FROM (VALUES
-  ('active', 'Actif', 'نشط'),
-  ('cancelled', 'Annulé', 'ملغى'),
-  ('substituted', 'Substitué', 'مستبدل'),
-  ('out_of_stock', 'Rupture', 'نفاد')
-) AS v(code, name_fr, name_ar)
+  ('active', 'Actif', 'نشط', 'green'),
+  ('cancelled', 'Annulé', 'ملغى', 'red'),
+  ('substituted', 'Substitué', 'مستبدل', 'blue'),
+  ('out_of_stock', 'Rupture', 'نفاد', 'orange')
+) AS v(code, name_fr, name_ar, color)
 WHERE NOT EXISTS (SELECT 1 FROM order_item_statuses o WHERE o.code = v.code);
 
 -- payment_statuses

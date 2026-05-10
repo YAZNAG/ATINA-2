@@ -8,3 +8,4 @@ export const getOrder             = (id)            => api.get(`${b}/${id}`);
 export const getOrderTransitions  = (id)            => api.get(`${b}/${id}/transitions`);
 export const changeOrderStatus    = (id, status_code) => api.patch(`${b}/${id}/status`, { status_code });
 export const cancelOrder          = (id, reason)    => api.patch(`${b}/${id}/cancel`, { reason });
+export const getOrderHistory      = (id)            => api.get(`${b}/${id}/history`);

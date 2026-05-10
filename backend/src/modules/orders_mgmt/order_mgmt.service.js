@@ -41,7 +41,7 @@ class OrderMgmtService {
     return allowed.map(code => ({ code, label: STATUS_LABELS[code] ?? code }));
   }
 
-  async changeStatus(id, new_status_code) {
+  async changeStatus(id, new_status_code, changed_by = null) {
     const order = await repo.findById(id);
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
     if (order.status.is_terminal)
@@ -54,11 +54,17 @@ class OrderMgmtService {
     const newStatus = await repo.getStatusByCode(new_status_code);
     if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
 
-    return repo.updateStatus(id, newStatus.id);
+    return repo.updateStatus(id, newStatus.id, changed_by);
   }
 
-  async cancel(id, reason) {
-    return this.changeStatus(id, 'cancelled');
+  async cancel(id, reason, changed_by = null) {
+    return this.changeStatus(id, 'cancelled', changed_by);
+  }
+
+  async getHistory(id) {
+    const order = await repo.findById(id);
+    if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+    return repo.getHistory(id);
   }
 
   async meta() {

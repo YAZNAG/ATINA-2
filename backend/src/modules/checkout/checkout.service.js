@@ -382,6 +382,11 @@ async function createOrder(payload) {
       });
     }
 
+    // Initial history entry
+    await tx.orderHistory.create({
+      data: { order_id: newOrder.id, status_id: orderStatus.id, note: 'Commande créée' },
+    });
+
     return newOrder;
   });
 

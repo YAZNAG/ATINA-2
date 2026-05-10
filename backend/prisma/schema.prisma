@@ -674,7 +674,8 @@ model OrderStatus {
   color       String   @default("gray") @db.VarChar(20)
   is_terminal Boolean  @default(false)
   sort_order  Int      @default(0) @db.SmallInt
-  orders      Order[]
+  orders    Order[]
+  histories OrderHistory[]
 
   @@map("order_statuses")
 }
@@ -1079,8 +1080,23 @@ model Order {
   referrals_qualifying Referral[]
   gamification_plays   GamificationPlay[] @relation("GamificationPlayOrder")
   stock_moves          StockMove[]
+  history              OrderHistory[]
 
   @@map("orders")
+}
+
+model OrderHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  order_id   String   @db.Uuid
+  status_id  String   @db.Uuid
+  changed_by Int?
+  note       String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  order  Order       @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  status OrderStatus @relation(fields: [status_id], references: [id])
+
+  @@map("order_histories")
 }
 
 model OrderItem {

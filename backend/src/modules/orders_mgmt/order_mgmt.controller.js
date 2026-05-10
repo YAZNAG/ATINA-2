@@ -15,11 +15,18 @@ class OrderMgmtController {
     try {
       const { status_code } = req.body;
       if (!status_code) return resp.error(res, 'status_code requis', 400);
-      resp.success(res, await svc.changeStatus(req.params.id, status_code), 'Statut mis à jour');
+      const changed_by = req.user?.id ?? null;
+      resp.success(res, await svc.changeStatus(req.params.id, status_code, changed_by), 'Statut mis à jour');
     } catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
   }
   async cancel(req, res, next) {
-    try { resp.success(res, await svc.cancel(req.params.id, req.body.reason), 'Commande annulée'); }
+    try {
+      const changed_by = req.user?.id ?? null;
+      resp.success(res, await svc.cancel(req.params.id, req.body.reason, changed_by), 'Commande annulée');
+    } catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+  async history(req, res, next) {
+    try { resp.success(res, await svc.getHistory(req.params.id)); }
     catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
   }
   async meta(req, res, next) {

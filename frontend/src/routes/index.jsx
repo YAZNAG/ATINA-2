@@ -30,6 +30,7 @@ import P0TablePage from '../pages/p0/P0TablePage';
 import CustomerList from '../pages/customers/CustomerList';
 import CustomerDetail from '../pages/customers/CustomerDetail';
 import CustomerForm from '../pages/customers/CustomerForm';
+import CustomerAddressesPage from '../pages/customers/CustomerAddressesPage';
 import WarehousePage from '../pages/warehouse/WarehousePage';
 import ZonesPage from '../pages/warehouse/ZonesPage';
 import LevelsPage from '../pages/warehouse/LevelsPage';
@@ -90,6 +91,7 @@ export default function AppRoutes() {
           <Route path="/customers" element={<CustomerList />} />
           <Route path="/customers/new" element={<CustomerForm />} />
           <Route path="/customers/:id/edit" element={<CustomerForm />} />
+          <Route path="/customers/:id/addresses" element={<CustomerAddressesPage />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/users" element={<UserList />} />
           <Route path="/users/new" element={<UserForm />} />

@@ -22,24 +22,8 @@ const getDeliveryTypeByCode = (code) => prisma.deliveryType.findFirst({ where: {
 const getAllDeliveryTypes = () => prisma.deliveryType.findMany({ orderBy: { code: 'asc' } });
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
-const getActiveNodesInCity = async (cityName) => {
-  // Match by City.name_fr → get city UUID → filter nodes
-  const city = cityName
-    ? await prisma.city.findFirst({ where: { name_fr: cityName, is_active: true, is_deleted: false }, select: { id: true } })
-    : null;
-
-  return prisma.node.findMany({
-    where: {
-      is_active:  true,
-      is_deleted: false,
-      ...(city ? { city_id: city.id } : {}),
-    },
-    include: {
-      city:           { select: { id: true, name_fr: true, name_ar: true } },
-      delivery_slots: { where: { is_active: true }, orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }] },
-    },
-  });
-};
+// Returns ALL active nodes — city filtering happens in service with normalization
+const getActiveNodesInCity = () => getAllActiveNodes();
 
 const getAllActiveNodes = () =>
   prisma.node.findMany({

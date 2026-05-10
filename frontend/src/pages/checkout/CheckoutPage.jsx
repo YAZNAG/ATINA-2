@@ -279,26 +279,44 @@ export default function CheckoutPage() {
 
   // ── Create order ───────────────────────────────────────────────────────────
   const handleConfirm = async () => {
-    if (!selectedCustomer) return toast.error('Client requis');
-    if (!deliveryTypeId)   return toast.error('Type de livraison requis');
-    if (cartLines === 0)   return toast.error('Panier vide');
+    // Frontend validations
+    if (!selectedCustomer) return toast.error('Sélectionnez un client');
+    if (!deliveryTypeId)   return toast.error('Sélectionnez un type de livraison');
+    if (cartLines === 0)   return toast.error('Panier vide — ajoutez au moins un article');
+    if (!paymentMethodId)  return toast.error('Sélectionnez une méthode de paiement');
+
+    const delivType = meta.delivery_types?.find(d => d.id === deliveryTypeId);
+
+    if (delivType?.code === 'home') {
+      if (!selectedAddress) return toast.error('Sélectionnez une adresse de livraison');
+      if (!slotsData?.node) return toast.error('Aucun node disponible pour cette adresse — vérifiez l\'étape Livraison');
+    }
+    if (delivType?.code === 'pickup' && !selectedPickupNode) {
+      return toast.error('Sélectionnez un node de retrait');
+    }
+
+    // node_id explicitement envoyé — le backend l'utilise directement sans re-run
+    const node_id = slotsData?.node?.id ?? selectedPickupNode?.id ?? null;
+    if (!node_id) return toast.error('Aucun node sélectionné — revenez à l\'étape Livraison');
 
     setCreating(true);
     try {
-      const node_id = selectedPickupNode?.id ?? slotsData?.node?.id;
       const res = await createOrder({
         customer_id:       selectedCustomer.id,
         address_id:        selectedAddress?.id ?? null,
         delivery_type_id:  deliveryTypeId,
-        node_id:           node_id ?? undefined,
+        node_id,
         selected_slot_id:  selectedSlot?.id ?? null,
-        payment_method_id: paymentMethodId || null,
+        payment_method_id: paymentMethodId,
         cart_items:        cartItems,
         notes,
       });
       setCreatedOrder(res.data?.data);
-      toast.success('Commande créée !');
-    } catch (err) { toast.error(getErrorMessage(err)); }
+      toast.success('Commande créée avec succès !');
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? getErrorMessage(err);
+      toast.error(msg, { duration: 6000 });
+    }
     finally { setCreating(false); }
   };
 

@@ -6,13 +6,13 @@ const perm = require('../../middlewares/permission.middleware');
 const router = Router();
 router.use(auth);
 
-const canView   = perm.permAny(['orders.view',   'dashboard.view']);
-const canCreate = perm.permAny(['orders.create',  'dashboard.view']);
+// dashboard.view covers all back-office roles (superadmin, backoffice_admin, manager_node)
+const canAccess = perm.permAny(['dashboard.view', 'orders.view', 'orders.create']);
 
-router.get('/meta',            canView,   ctrl.meta.bind(ctrl));
-router.get('/articles',        canView,   ctrl.articles.bind(ctrl));
-router.post('/eligible-nodes', canView,   ctrl.eligibleNodes.bind(ctrl));
-router.get('/delivery-slots',  canView,   ctrl.deliverySlots.bind(ctrl));
-router.post('/create-order',   canCreate, ctrl.createOrder.bind(ctrl));
+router.get('/meta',            canAccess, ctrl.meta.bind(ctrl));
+router.get('/articles',        canAccess, ctrl.articles.bind(ctrl));
+router.post('/eligible-nodes', canAccess, ctrl.eligibleNodes.bind(ctrl));
+router.get('/delivery-slots',  canAccess, ctrl.deliverySlots.bind(ctrl));
+router.post('/create-order',   canAccess, ctrl.createOrder.bind(ctrl));
 
 module.exports = router;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { getOrdersMeta, getOrders, getOrder, getOrderTransitions, changeOrderStatus, cancelOrder } from '../../api/orders_mgmt.api';
+import { getOrdersMeta, getOrders, getOrder, getOrderTransitions, getOrderHistory, changeOrderStatus, cancelOrder } from '../../api/orders_mgmt.api';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ function StatusBadge({ status, size = 'sm' }) {
 function DetailPanel({ orderId, onClose, onStatusChanged }) {
   const [order, setOrder]           = useState(null);
   const [transitions, setTransitions] = useState([]);
+  const [history, setHistory]       = useState([]);
   const [tab, setTab]               = useState('resume');
   const [loading, setLoading]       = useState(true);
   const [acting, setActing]         = useState(false);
@@ -79,9 +80,14 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
     if (!orderId) return;
     setLoading(true);
     try {
-      const [oRes, tRes] = await Promise.all([getOrder(orderId), getOrderTransitions(orderId)]);
+      const [oRes, tRes, hRes] = await Promise.all([
+        getOrder(orderId),
+        getOrderTransitions(orderId),
+        getOrderHistory(orderId),
+      ]);
       setOrder(oRes.data?.data);
       setTransitions(tRes.data?.data ?? []);
+      setHistory(hRes.data?.data ?? []);
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setLoading(false); }
   }, [orderId]);
@@ -313,27 +319,61 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
             {/* ── HISTORIQUE ─────────────────────────────────────────────── */}
             {tab === 'historique' && (
               <div className="p-6">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Historique</p>
-                <div className="space-y-3">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={hexBadge(order.status?.color)}>
-                      <Icon d={SVG.check} className="w-4 h-4" style={{ color: order.status?.color }} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">Statut actuel : {order.status?.name_fr}</p>
-                      <p className="text-xs text-gray-400">{formatDate(order.updated_at)}</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-5">
+                  Historique — {history.length} événement{history.length !== 1 ? 's' : ''}
+                </p>
+                {history.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">Aucun historique disponible</p>
+                ) : (
+                  <div className="relative">
+                    {/* Vertical line */}
+                    <div className="absolute left-4 top-4 bottom-4 w-px bg-gray-200" />
+
+                    <div className="space-y-0">
+                      {history.map((entry, i) => {
+                        const hex     = entry.status?.color?.startsWith('#') ? entry.status.color : '#64748b';
+                        const isLast  = i === history.length - 1;
+                        const isFirst = i === 0;
+                        const d       = new Date(entry.created_at);
+                        const date    = d.toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' });
+                        const time    = d.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+
+                        return (
+                          <div key={entry.id} className={`flex gap-4 ${!isLast ? 'pb-6' : ''}`}>
+                            {/* Dot */}
+                            <div className="relative z-10 flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-white"
+                                style={{ backgroundColor: `${hex}20`, border: `2px solid ${hex}` }}>
+                                {isLast
+                                  ? <span style={{ backgroundColor: hex }} className="w-3 h-3 rounded-full" />
+                                  : <Icon d={SVG.check} className="w-3.5 h-3.5" style={{ color: hex }} />
+                                }
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="text-sm font-bold" style={{ color: hex }}>
+                                    {entry.status?.name_fr}
+                                  </span>
+                                  {entry.note && (
+                                    <p className="text-xs text-gray-500 mt-0.5 italic">{entry.note}</p>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-xs font-semibold text-gray-700">{time}</p>
+                                  <p className="text-[11px] text-gray-400">{date}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <Icon d={SVG.box} className="w-4 h-4 text-gray-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">Commande créée</p>
-                      <p className="text-xs text-gray-400">{formatDate(order.created_at)}</p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </>

@@ -65,8 +65,22 @@ const findById = (id) => prisma.order.findFirst({ where: { id, is_deleted: false
 
 const getStatusByCode = (code) => prisma.orderStatus.findFirst({ where: { code } });
 
-const updateStatus = (id, status_id) =>
-  prisma.order.update({ where: { id }, data: { status_id }, include: DETAIL_INCLUDE });
+const updateStatus = async (id, status_id, changed_by = null, note = null) => {
+  const order = await prisma.order.update({ where: { id }, data: { status_id }, include: DETAIL_INCLUDE });
+  // Write history entry
+  await prisma.orderHistory.create({ data: { order_id: id, status_id, changed_by, note } });
+  return order;
+};
+
+const getHistory = (order_id) =>
+  prisma.orderHistory.findMany({
+    where:   { order_id },
+    include: { status: { select: { id: true, code: true, name_fr: true, color: true } } },
+    orderBy: { created_at: 'asc' },
+  });
+
+const addHistory = (order_id, status_id, changed_by = null, note = null) =>
+  prisma.orderHistory.create({ data: { order_id, status_id, changed_by, note } });
 
 const softDelete = (id) =>
   prisma.order.update({ where: { id }, data: { is_deleted: true, deleted_at: new Date() } });
@@ -87,4 +101,4 @@ const getNodes = () =>
 const getDeliveryTypes = () =>
   prisma.deliveryType.findMany({ select: { id: true, code: true, name_fr: true }, orderBy: { code: 'asc' } });
 
-module.exports = { findAll, findById, getStatusByCode, updateStatus, softDelete, countByStatus, getNodes, getDeliveryTypes };
+module.exports = { findAll, findById, getStatusByCode, updateStatus, getHistory, addHistory, softDelete, countByStatus, getNodes, getDeliveryTypes };

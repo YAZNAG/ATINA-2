@@ -13,6 +13,7 @@ router.get('/meta',                   canView,   ctrl.meta.bind(ctrl));
 router.get('/',                       canView,   ctrl.index.bind(ctrl));
 router.get('/:id',                    canView,   ctrl.show.bind(ctrl));
 router.get('/:id/transitions',        canView,   ctrl.transitions.bind(ctrl));
+router.get('/:id/history',            canView,   ctrl.history.bind(ctrl));
 router.patch('/:id/status',           canUpdate, ctrl.changeStatus.bind(ctrl));
 router.patch('/:id/cancel',           canUpdate, ctrl.cancel.bind(ctrl));
 

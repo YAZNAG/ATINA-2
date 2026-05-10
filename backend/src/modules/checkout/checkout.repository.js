@@ -84,7 +84,32 @@ const getPaymentMethod         = (id)   => prisma.paymentMethod.findUnique({ whe
 const getAllPaymentMethods      = ()     => prisma.paymentMethod.findMany({ where: { is_active: true }, orderBy: { code: 'asc' } });
 
 // ── Customer & SKUs ───────────────────────────────────────────────────────────
-const getCustomer = (id) => prisma.customer.findFirst({ where: { id, is_deleted: false }, select: { id: true, name: true, wallet_balance: true, is_active: true } });
+const getCustomer = (id) => prisma.customer.findFirst({
+  where: { id, is_deleted: false },
+  select: { id: true, name: true, wallet_balance: true, points_balance: true, is_active: true },
+});
+
+const searchArticles = (search, limit = 20) => {
+  const where = { is_deleted: false, is_active: true };
+  if (search?.trim()) {
+    const s = search.trim();
+    where.OR = [
+      { name_fr:   { contains: s, mode: 'insensitive' } },
+      { sku_code:  { contains: s, mode: 'insensitive' } },
+      { ean13:     { contains: s, mode: 'insensitive' } },
+    ];
+  }
+  return prisma.article.findMany({
+    where,
+    take: Number(limit),
+    orderBy: { name_fr: 'asc' },
+    select: {
+      id: true, name_fr: true, name_ar: true,
+      sku_code: true, sku_uuid: true,
+      price: true, vat_rate: true,
+    },
+  });
+};
 
 module.exports = {
   haversineKm, getAddress, getDeliveryType, getDeliveryTypeByCode, getAllDeliveryTypes,
@@ -92,5 +117,5 @@ module.exports = {
   countOrdersForNodeDay, countOrdersForSlotDay,
   getStockLevels, getSellingRules,
   getOrderStatusByCode, getOrderItemStatusByCode, getPaymentStatusByCode,
-  getPaymentMethod, getAllPaymentMethods, getCustomer,
+  getPaymentMethod, getAllPaymentMethods, getCustomer, searchArticles,
 };

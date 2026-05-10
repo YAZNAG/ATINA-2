@@ -53,6 +53,9 @@ import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
 import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
 import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
+import RolesPage from '../pages/access/RolesPage';
+import PermissionsPage from '../pages/access/PermissionsPage';
+import RolePermissionsPage from '../pages/access/RolePermissionsPage';
 import OrderStatusesPage from '../pages/orders/OrderStatusesPage';
 import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
 import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
@@ -79,6 +82,9 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/access/roles"             element={<RolesPage />} />
+          <Route path="/access/permissions"       element={<PermissionsPage />} />
+          <Route path="/access/role-permissions"  element={<RolePermissionsPage />} />
           <Route path="/p0/tables" element={<P0TablesHub />} />
           <Route path="/p0/tables/:sql" element={<P0TablePage />} />
           <Route path="/customers" element={<CustomerList />} />

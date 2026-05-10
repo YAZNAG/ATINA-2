@@ -15,6 +15,7 @@ const paymentRoutes  = require('../modules/payment/payment.routes');
 const walletRoutes   = require('../modules/wallet/wallet.routes');
 const ordersRoutes   = require('../modules/orders/orders.routes');
 const { router: addressRouter } = require('../modules/addresses/address.routes');
+const checkoutRoutes = require('../modules/checkout/checkout.routes');
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/payment',  paymentRoutes);
 router.use('/wallet',   walletRoutes);
 router.use('/orders',    ordersRoutes);
 router.use('/addresses', addressRouter);
+router.use('/checkout',  checkoutRoutes);
 
 module.exports = router;

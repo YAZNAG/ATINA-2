@@ -53,6 +53,9 @@ import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
 import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
 import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
+import OrderStatusesPage from '../pages/orders/OrderStatusesPage';
+import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
+import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -141,6 +144,10 @@ export default function AppRoutes() {
           <Route path="/payment/:slug"             element={<PaymentLookupPage />} />
           {/* Wallet */}
           <Route path="/wallet/txn-types"          element={<WalletTxnTypesPage />} />
+          {/* Orders paramétrage */}
+          <Route path="/orders/statuses"            element={<OrderStatusesPage />} />
+          <Route path="/orders/item-statuses"       element={<OrderItemStatusesPage />} />
+          <Route path="/orders/slot-statuses"       element={<OrderSlotStatusesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

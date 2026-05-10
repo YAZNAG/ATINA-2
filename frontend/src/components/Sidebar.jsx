@@ -103,6 +103,14 @@ const navItems = [
     ],
   },
   {
+    label: 'Paramétrage Commandes', key: 'ordersRef', group: true, icon: ICONS.gear,
+    children: [
+      { label: 'Statuts commande',       path: '/orders/statuses',       anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts ligne commande', path: '/orders/item-statuses',  anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts créneaux',       path: '/orders/slot-statuses',  anyPermissions: ['dashboard.view'] },
+    ],
+  },
+  {
     label: 'Paramétrage Livraison', key: 'deliveryRef', group: true, icon: ICONS.gear,
     children: [
       { label: 'Types de livraison', path: '/delivery/types', anyPermissions: ['dashboard.view'] },
@@ -209,7 +217,7 @@ export default function Sidebar() {
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
     stockOps: false, stockRef: false,
-    deliveryRef: false, paymentRef: false, walletRef: false,
+    ordersRef: false, deliveryRef: false, paymentRef: false, walletRef: false,
     p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
@@ -268,6 +276,7 @@ export default function Sidebar() {
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
     if (['/stock/levels', '/stock/selling-rules', '/stock/reorder-rules', '/stock/moves', '/stock/lots'].some((p) => pathname.startsWith(p))) open('stockOps');
     if (['/stock/move-types', '/stock/stock-statuses', '/stock/inventory', '/stock/thresholds'].some((p) => pathname.startsWith(p))) open('stockRef');
+    if (pathname.startsWith('/orders'))   open('ordersRef');
     if (pathname.startsWith('/delivery')) open('deliveryRef');
     if (pathname.startsWith('/payment')) open('paymentRef');
     if (pathname.startsWith('/wallet'))  open('walletRef');

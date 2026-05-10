@@ -28,9 +28,15 @@ const ICONS = {
 const navItems = [
   { label: 'Clients', path: '/customers', anyPermissions: ['customers.view', 'dashboard.view'], icon: ICONS.customers },
   { label: 'Tableau de bord', path: '/dashboard', permission: 'dashboard.view', icon: ICONS.dashboard },
-  { label: 'Utilisateurs', path: '/users', permission: 'users.view', icon: ICONS.users },
-  { label: 'Rôles', path: '/roles', permission: 'roles.view', icon: ICONS.roles },
-  { label: 'Permissions', path: '/permissions', permission: 'permissions.view', icon: ICONS.perms },
+  {
+    label: 'Utilisateurs & Accès', key: 'accessRef', group: true, icon: ICONS.users,
+    children: [
+      { label: 'Utilisateurs',          path: '/users',                      permission: 'users.view'       },
+      { label: 'Rôles',                 path: '/access/roles',               permission: 'roles.view'       },
+      { label: 'Permissions',           path: '/access/permissions',         permission: 'permissions.view' },
+      { label: 'Attribution permissions', path: '/access/role-permissions',  permission: 'permissions.assign' },
+    ],
+  },
   {
     label: 'Catalogue', key: 'catalog', group: true, icon: ICONS.catalog,
     children: [
@@ -220,6 +226,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
+    accessRef: false,
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
@@ -275,6 +282,7 @@ export default function Sidebar() {
   useEffect(() => {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
+    if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');
     if (pathname.startsWith('/geo')) open('geo');

@@ -20,8 +20,8 @@ const listInclude = {
   },
 };
 
-const findAll = () =>
-  prisma.user.findMany({ include: listInclude, orderBy: { created_at: 'desc' } });
+const findAll = (where = {}) =>
+  prisma.user.findMany({ where, include: listInclude, orderBy: { created_at: 'desc' } });
 
 const findById = (id) =>
   prisma.user.findUnique({ where: { id }, include: userInclude });
@@ -38,6 +38,12 @@ const update = (id, data) =>
 const remove = (id) =>
   prisma.user.delete({ where: { id } });
 
+const softDelete = (id) =>
+  prisma.user.update({ where: { id }, data: { is_deleted: true, is_active: false, deleted_at: new Date() } });
+
+const updateLastLogin = (id) =>
+  prisma.user.update({ where: { id }, data: { last_login_at: new Date() } });
+
 const assignRole = (userId, roleId) =>
   prisma.userRole.create({ data: { user_id: userId, role_id: roleId } });
 
@@ -51,6 +57,8 @@ module.exports = {
   create,
   update,
   remove,
+  softDelete,
+  updateLastLogin,
   assignRole,
   removeAllRoles,
 };

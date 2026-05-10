@@ -6,14 +6,18 @@ const { compare } = require('../utils/password');
 class AuthService {
   async login(email, password) {
     const user = await userRepository.findByEmail(email);
-    if (!user) throw { statusCode: 401, message: 'Invalid credentials' };
-    if (user.status !== 'active') throw { statusCode: 403, message: 'Account is inactive' };
+    if (!user) throw { statusCode: 401, message: 'Identifiants invalides' };
+    if (user.is_deleted)          throw { statusCode: 403, message: 'Compte supprimé' };
+    if (!user.is_active || user.status !== 'active') throw { statusCode: 403, message: 'Compte inactif' };
 
     const isValid = await compare(password, user.password_hash);
-    if (!isValid) throw { statusCode: 401, message: 'Invalid credentials' };
+    if (!isValid) throw { statusCode: 401, message: 'Identifiants invalides' };
 
     const permissions = this._extractPermissions(user);
     const token = this._generateToken(user);
+
+    // Track last login (non-blocking)
+    userRepository.updateLastLogin(user.id).catch(() => {});
 
     return { token, user: this._sanitizeUser(user, permissions) };
   }

@@ -26,7 +26,12 @@ const ICONS = {
 };
 
 const navItems = [
-  { label: 'Clients', path: '/customers', anyPermissions: ['customers.view', 'dashboard.view'], icon: ICONS.customers },
+  {
+    label: 'Clients', key: 'clientsRef', group: true, icon: ICONS.customers,
+    children: [
+      { label: 'Clients',         path: '/customers', anyPermissions: ['customers.view', 'dashboard.view'] },
+    ],
+  },
   { label: 'Tableau de bord', path: '/dashboard', permission: 'dashboard.view', icon: ICONS.dashboard },
   {
     label: 'Utilisateurs & Accès', key: 'accessRef', group: true, icon: ICONS.users,
@@ -226,7 +231,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
-    accessRef: false,
+    clientsRef: false, accessRef: false,
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
@@ -282,6 +287,7 @@ export default function Sidebar() {
   useEffect(() => {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
+    if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');

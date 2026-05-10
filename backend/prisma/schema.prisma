@@ -33,6 +33,7 @@ model User {
   backoffice_admin        BackofficeAdmin?
   picker                  Picker?
   driver                  Driver?
+  customer                Customer?
   regions_created         Region[]           @relation("RegionCreatedBy")
   regions_updated         Region[]           @relation("RegionUpdatedBy")
   regions_deleted         Region[]           @relation("RegionDeletedBy")
@@ -918,6 +919,8 @@ model SlotAssignmentSource {
 /// Table P0 `customers` — un enregistrement par client app. Contraintes CHECK + index téléphone actif : voir prisma/sql/customers_p0_constraints.sql
 model Customer {
   id               String    @id @default(uuid()) @db.Uuid
+  user_id          Int?      @unique
+  user             User?     @relation(fields: [user_id], references: [id], onDelete: SetNull)
   phone_country    String    @default("+212") @db.VarChar(5)
   phone_number     String    @db.VarChar(15)
   phone_verified_at DateTime? @db.Timestamptz(6)

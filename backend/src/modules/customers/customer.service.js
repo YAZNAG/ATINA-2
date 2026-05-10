@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const repo = require('./customer.repository');
+const prisma = require('../../config/database');
 
 function serializeCustomer(row) {
   if (!row) return row;
@@ -121,14 +122,18 @@ class CustomerService {
     const existing = await repo.findByIdWithIncludes(id);
     if (!existing) throw { statusCode: 404, message: 'Client introuvable' };
     if (existing.is_deleted) throw { statusCode: 400, message: 'Client supprimé' };
-    return serializeCustomer(await repo.updateById(id, { is_active: false }));
+    const result = await repo.updateById(id, { is_active: false });
+    if (existing.user_id) await prisma.user.update({ where: { id: existing.user_id }, data: { is_active: false } }).catch(() => {});
+    return serializeCustomer(result);
   }
 
   async unblock(id) {
     const existing = await repo.findByIdWithIncludes(id);
     if (!existing) throw { statusCode: 404, message: 'Client introuvable' };
     if (existing.is_deleted) throw { statusCode: 400, message: 'Client supprimé' };
-    return serializeCustomer(await repo.updateById(id, { is_active: true }));
+    const result = await repo.updateById(id, { is_active: true });
+    if (existing.user_id) await prisma.user.update({ where: { id: existing.user_id }, data: { is_active: true } }).catch(() => {});
+    return serializeCustomer(result);
   }
 
   async softDelete(id) {

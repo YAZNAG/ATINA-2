@@ -103,17 +103,6 @@ const navItems = [
     ],
   },
   {
-    label: 'Paramétrage Commandes', key: 'ordersRef', group: true, icon: ICONS.gear,
-    children: [
-      { label: 'Statuts commande',       path: '/orders/statuses',        anyPermissions: ['dashboard.view'] },
-      { label: 'Statuts ligne commande', path: '/orders/item-statuses',   anyPermissions: ['dashboard.view'] },
-      { label: 'Statuts créneaux',       path: '/orders/slot-statuses',   anyPermissions: ['dashboard.view'] },
-      { label: 'Créneaux livraison',     path: '/orders/delivery-slots',  anyPermissions: ['dashboard.view'] },
-      { label: 'Méthodes paiement',      path: '/orders/payment-config',  anyPermissions: ['dashboard.view'] },
-      { label: 'Règles par node',        path: '/orders/rules',           anyPermissions: ['dashboard.view'] },
-    ],
-  },
-  {
     label: 'Paramétrage Livraison', key: 'deliveryRef', group: true, icon: ICONS.gear,
     children: [
       { label: 'Types de livraison', path: '/delivery/types', anyPermissions: ['dashboard.view'] },
@@ -130,6 +119,21 @@ const navItems = [
     label: 'Paramétrage Wallet', key: 'walletRef', group: true, icon: ICONS.gear,
     children: [
       { label: 'Types transactions', path: '/wallet/txn-types', anyPermissions: ['dashboard.view'] },
+    ],
+  },
+  {
+    label: 'Paramétrage Commandes', key: 'ordersRef', group: true, icon: ICONS.gear,
+    children: [
+      { label: 'Statuts commande',       path: '/orders/statuses',       anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts ligne commande', path: '/orders/item-statuses',  anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts créneaux',       path: '/orders/slot-statuses',  anyPermissions: ['dashboard.view'] },
+    ],
+  },
+  {
+    label: 'Config Commandes / Node', key: 'ordersNodeRef', group: true, icon: ICONS.node,
+    children: [
+      { label: 'Créneaux livraison', path: '/orders/delivery-slots', anyPermissions: ['dashboard.view'] },
+      { label: 'Config par node',    path: '/orders/node-config',    anyPermissions: ['dashboard.view'] },
     ],
   },
 ];
@@ -220,7 +224,8 @@ export default function Sidebar() {
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
     stockOps: false, stockRef: false,
-    ordersRef: false, deliveryRef: false, paymentRef: false, walletRef: false,
+    ordersRef: false, ordersNodeRef: false,
+    deliveryRef: false, paymentRef: false, walletRef: false,
     p0tables: false,
   });
   const [p0GroupChildren, setP0GroupChildren] = useState([]);
@@ -279,7 +284,8 @@ export default function Sidebar() {
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }
     if (['/stock/levels', '/stock/selling-rules', '/stock/reorder-rules', '/stock/moves', '/stock/lots'].some((p) => pathname.startsWith(p))) open('stockOps');
     if (['/stock/move-types', '/stock/stock-statuses', '/stock/inventory', '/stock/thresholds'].some((p) => pathname.startsWith(p))) open('stockRef');
-    if (pathname.startsWith('/orders'))   open('ordersRef');
+    if (['/orders/statuses', '/orders/item-statuses', '/orders/slot-statuses'].some(p => pathname.startsWith(p))) open('ordersRef');
+    if (['/orders/delivery-slots', '/orders/node-config', '/orders/rules', '/orders/payment-config'].some(p => pathname.startsWith(p))) open('ordersNodeRef');
     if (pathname.startsWith('/delivery')) open('deliveryRef');
     if (pathname.startsWith('/payment')) open('paymentRef');
     if (pathname.startsWith('/wallet'))  open('walletRef');

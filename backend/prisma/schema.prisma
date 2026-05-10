@@ -615,6 +615,7 @@ model OrderStatus {
   code        String   @unique @db.VarChar(50)
   name_fr     String   @db.VarChar(100)
   name_ar     String   @db.VarChar(100)
+  color       String   @default("gray") @db.VarChar(20)
   is_terminal Boolean  @default(false)
   sort_order  Int      @default(0) @db.SmallInt
   orders      Order[]
@@ -627,6 +628,7 @@ model OrderItemStatus {
   code        String      @unique @db.VarChar(50)
   name_fr     String      @db.VarChar(100)
   name_ar     String      @db.VarChar(100)
+  color       String      @default("gray") @db.VarChar(20)
   order_items OrderItem[]
 
   @@map("order_item_statuses")
@@ -637,6 +639,7 @@ model OrderSlotStatus {
   code   String @unique @db.VarChar(50)
   name_fr String @db.VarChar(100)
   name_ar String @db.VarChar(100)
+  color  String @default("gray") @db.VarChar(20)
 
   @@map("order_slot_statuses")
 }

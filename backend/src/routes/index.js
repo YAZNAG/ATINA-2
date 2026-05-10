@@ -13,6 +13,7 @@ const stockRoutes    = require('../modules/stock/stock.routes');
 const deliveryRoutes = require('../modules/delivery/delivery.routes');
 const paymentRoutes  = require('../modules/payment/payment.routes');
 const walletRoutes   = require('../modules/wallet/wallet.routes');
+const ordersRoutes   = require('../modules/orders/orders.routes');
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/stock',    stockRoutes);
 router.use('/delivery', deliveryRoutes);
 router.use('/payment',  paymentRoutes);
 router.use('/wallet',   walletRoutes);
+router.use('/orders',   ordersRoutes);
 
 module.exports = router;

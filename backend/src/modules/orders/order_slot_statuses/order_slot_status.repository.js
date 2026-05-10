@@ -24,10 +24,10 @@ const remove     = (id)   => prisma.orderSlotStatus.delete({ where: { id } });
 const countUsage = ()     => Promise.resolve(0);
 
 const seed = () => prisma.$transaction([
-  prisma.orderSlotStatus.upsert({ where: { code: 'preferred' }, update: {}, create: { code: 'preferred', name_fr: 'Préféré',  name_ar: 'مفضل',  color: 'blue'   } }),
-  prisma.orderSlotStatus.upsert({ where: { code: 'confirmed' }, update: {}, create: { code: 'confirmed', name_fr: 'Confirmé', name_ar: 'مؤكد',   color: 'green'  } }),
-  prisma.orderSlotStatus.upsert({ where: { code: 'rejected'  }, update: {}, create: { code: 'rejected',  name_fr: 'Refusé',   name_ar: 'مرفوض',  color: 'red'    } }),
-  prisma.orderSlotStatus.upsert({ where: { code: 'expired'   }, update: {}, create: { code: 'expired',   name_fr: 'Expiré',   name_ar: 'منتهي',  color: 'gray'   } }),
+  prisma.orderSlotStatus.upsert({ where: { code: 'preferred' }, update: { color: '#3b82f6' }, create: { code: 'preferred', name_fr: 'Préféré',  name_ar: 'مفضل',  color: '#3b82f6' } }),
+  prisma.orderSlotStatus.upsert({ where: { code: 'confirmed' }, update: { color: '#10b981' }, create: { code: 'confirmed', name_fr: 'Confirmé', name_ar: 'مؤكد',   color: '#10b981' } }),
+  prisma.orderSlotStatus.upsert({ where: { code: 'rejected'  }, update: { color: '#ef4444' }, create: { code: 'rejected',  name_fr: 'Refusé',   name_ar: 'مرفوض',  color: '#ef4444' } }),
+  prisma.orderSlotStatus.upsert({ where: { code: 'expired'   }, update: { color: '#64748b' }, create: { code: 'expired',   name_fr: 'Expiré',   name_ar: 'منتهي',  color: '#64748b' } }),
 ]);
 
 module.exports = { findAll, findById, findByCode, create, update, remove, countUsage, seed };

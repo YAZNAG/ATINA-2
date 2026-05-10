@@ -17,24 +17,32 @@ function Icon({ d, className = 'w-5 h-5' }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} /></svg>;
 }
 
-const COLOR_MAP = {
-  gray:    { badge: 'bg-gray-100 text-gray-700',       dot: 'bg-gray-400',    ring: 'ring-gray-200'    },
-  red:     { badge: 'bg-red-100 text-red-700',         dot: 'bg-red-500',     ring: 'ring-red-200'     },
-  orange:  { badge: 'bg-orange-100 text-orange-700',   dot: 'bg-orange-400',  ring: 'ring-orange-200'  },
-  yellow:  { badge: 'bg-yellow-100 text-yellow-700',   dot: 'bg-yellow-400',  ring: 'ring-yellow-200'  },
-  green:   { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', ring: 'ring-emerald-200' },
-  blue:    { badge: 'bg-blue-100 text-blue-700',       dot: 'bg-blue-500',    ring: 'ring-blue-200'    },
-  indigo:  { badge: 'bg-indigo-100 text-indigo-700',   dot: 'bg-indigo-500',  ring: 'ring-indigo-200'  },
-  purple:  { badge: 'bg-violet-100 text-violet-700',   dot: 'bg-violet-500',  ring: 'ring-violet-200'  },
-  cyan:    { badge: 'bg-cyan-100 text-cyan-700',       dot: 'bg-cyan-500',    ring: 'ring-cyan-200'    },
-};
+const PRESET_COLORS = [
+  { label: 'Préféré',   color: '#3b82f6' },
+  { label: 'Confirmé',  color: '#10b981' },
+  { label: 'Refusé',    color: '#ef4444' },
+  { label: 'Expiré',    color: '#64748b' },
+  { label: 'Orange',    color: '#f97316' },
+  { label: 'Violet',    color: '#8b5cf6' },
+  { label: 'Cyan',      color: '#06b6d4' },
+  { label: 'Jaune',     color: '#eab308' },
+];
 
-function StatusBadge({ color, children }) {
-  const cfg = COLOR_MAP[color] ?? COLOR_MAP.gray;
+function hexColor(c) {
+  if (!c) return '#64748b';
+  if (c.startsWith('#')) return c;
+  const map = { blue:'#3b82f6', green:'#10b981', red:'#ef4444', gray:'#64748b',
+    orange:'#f97316', purple:'#8b5cf6', cyan:'#06b6d4', yellow:'#eab308', indigo:'#6366f1' };
+  return map[c] ?? '#64748b';
+}
+
+function StatusBadge({ item }) {
+  const hex = hexColor(item.color);
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {children}
+    <span style={{ backgroundColor: `${hex}18`, color: hex, border: `1px solid ${hex}40` }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold">
+      <span style={{ backgroundColor: hex }} className="w-1.5 h-1.5 rounded-full" />
+      {item.code}
     </span>
   );
 }
@@ -74,7 +82,7 @@ function Fld({ label, req, children }) {
   );
 }
 
-const EMPTY = { code: '', name_fr: '', name_ar: '', color: 'gray' };
+const EMPTY = { code: '', name_fr: '', name_ar: '', color: '#3b82f6' };
 
 function Drawer({ editItem, onClose, onSaved }) {
   const isEdit = !!editItem;
@@ -82,7 +90,9 @@ function Drawer({ editItem, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setForm(editItem ? { code: editItem.code ?? '', name_fr: editItem.name_fr ?? '', name_ar: editItem.name_ar ?? '', color: editItem.color ?? 'gray' } : { ...EMPTY });
+    setForm(editItem
+      ? { code: editItem.code ?? '', name_fr: editItem.name_fr ?? '', name_ar: editItem.name_ar ?? '', color: hexColor(editItem.color) }
+      : { ...EMPTY });
   }, [editItem]);
 
   const hc = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -102,8 +112,6 @@ function Drawer({ editItem, onClose, onSaved }) {
     finally { setSaving(false); }
   };
 
-  const colorCfg = COLOR_MAP[form.color] ?? COLOR_MAP.gray;
-
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-30 backdrop-blur-sm" onClick={onClose} />
@@ -122,11 +130,12 @@ function Drawer({ editItem, onClose, onSaved }) {
             <Icon d={SVG.x} className="w-5 h-5 text-white" />
           </button>
         </div>
+
         <form id="oss-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           <Fld label="Code" req>
             {isEdit ? (
               <div className="px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 font-mono text-gray-500 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${colorCfg.dot}`} />
+                <span style={{ backgroundColor: hexColor(form.color) }} className="w-2 h-2 rounded-full" />
                 {form.code}
                 <span className="ml-auto text-[11px] text-gray-400">Non modifiable</span>
               </div>
@@ -135,39 +144,33 @@ function Drawer({ editItem, onClose, onSaved }) {
                 <input name="code" className={`${inp} font-mono`} value={form.code}
                   onChange={(e) => hc({ target: { name: 'code', value: e.target.value.toLowerCase().replace(/\s+/g, '_') } })}
                   placeholder="preferred" />
-                <p className="text-[11px] text-gray-400 mt-1">Minuscules, tirets bas — ex: preferred, confirmed, rejected</p>
+                <p className="text-[11px] text-gray-400 mt-1">Minuscules, tirets bas</p>
               </>
             )}
           </Fld>
-          {form.color && (
-            <div className={`px-4 py-2.5 rounded-xl border ring-1 ${colorCfg.ring} flex items-center gap-2`}>
-              <span className={`w-2 h-2 rounded-full ${colorCfg.dot}`} />
-              <span className={`text-sm font-semibold ${colorCfg.badge?.split(' ').find(c => c.startsWith('text-'))}`}>{form.name_fr || 'Aperçu'}</span>
-            </div>
-          )}
+
           <Fld label="Couleur">
-            <div className="flex flex-wrap gap-2">
-              {Object.keys(COLOR_MAP).map((c) => {
-                const cfg = COLOR_MAP[c];
-                const active = form.color === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, color: c }))}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
-                      active
-                        ? `${cfg.badge} border-transparent`
-                        : `bg-white border-gray-200 hover:border-gray-300 text-gray-700`
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                    {c}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-3">
+              <input type="color" name="color" value={form.color} onChange={hc}
+                className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
+              <input name="color" className={`${inp} flex-1 font-mono uppercase`} value={form.color}
+                onChange={hc} maxLength={7} placeholder="#3B82F6" />
+              <div className="w-10 h-10 rounded-xl border border-gray-200 flex-shrink-0"
+                style={{ background: form.color }} />
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {PRESET_COLORS.map(({ label, color }) => (
+                <button key={color} type="button" onClick={() => setForm((f) => ({ ...f, color }))}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
+                    form.color === color ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <span className="w-3 h-3 rounded-full" style={{ background: color }} />
+                  {label}
+                </button>
+              ))}
             </div>
           </Fld>
+
           <Fld label="Nom (Français)" req>
             <input name="name_fr" className={inp} value={form.name_fr} onChange={hc} placeholder="Préféré" />
           </Fld>
@@ -175,6 +178,7 @@ function Drawer({ editItem, onClose, onSaved }) {
             <input name="name_ar" className={inp} value={form.name_ar} onChange={hc} dir="rtl" placeholder="مفضل" />
           </Fld>
         </form>
+
         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100">Annuler</button>
           <button type="submit" form="oss-form" disabled={saving} className="flex-1 py-2.5 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50">
@@ -239,10 +243,10 @@ export default function OrderSlotStatusesPage() {
             <div>
               <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
                 <span>Paramétrage</span><span>›</span><span>Commandes</span><span>›</span>
-                <span className="text-teal-600 font-medium">Statuts créneaux commande</span>
+                <span className="text-teal-600 font-medium">Statuts créneaux</span>
               </div>
               <h1 className="text-2xl font-bold text-gray-900">Statuts créneaux commande</h1>
-              <p className="text-sm text-gray-400 mt-0.5">Statuts des créneaux de livraison choisis par le client — preferred → confirmed ou rejected/expired</p>
+              <p className="text-sm text-gray-400 mt-0.5">Statuts des créneaux de livraison — preferred → confirmed ou rejected/expired</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={handleSeed} disabled={seeding} className="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl disabled:opacity-50">
@@ -271,19 +275,6 @@ export default function OrderSlotStatusesPage() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</p>
             <p className="text-2xl font-bold text-gray-900 mt-0.5">{total}</p>
           </div>
-          {items.reduce((acc, item) => {
-            const c = item.color || 'gray';
-            if (!acc.find(a => a.color === c)) acc.push({ color: c, count: items.filter(i => (i.color || 'gray') === c).length });
-            return acc;
-          }, []).map(({ color, count }) => {
-            const cfg = COLOR_MAP[color] || COLOR_MAP.gray;
-            return (
-              <div key={color} className={`rounded-xl border px-4 py-3 min-w-[100px] ${cfg.badge?.replace(/text-\S+/, '')} ring-1 ${cfg.ring}`}>
-                <p className={`text-xs font-semibold uppercase tracking-wide opacity-70 ${cfg.badge?.split(' ').find(c => c.startsWith('text-'))}`}>{color}</p>
-                <p className={`text-2xl font-bold mt-0.5 ${cfg.badge?.split(' ').find(c => c.startsWith('text-'))}`}>{count}</p>
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -314,37 +305,18 @@ export default function OrderSlotStatusesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Badge<div className="text-[10px] font-normal normal-case text-gray-400 mt-0.5">Aperçu couleur</div>
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Code<div className="text-[10px] font-normal normal-case text-gray-400 mt-0.5">Identifiant technique</div>
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Nom français<div className="text-[10px] font-normal normal-case text-gray-400 mt-0.5">Affiché dans l'app</div>
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Nom arabe<div className="text-[10px] font-normal normal-case text-gray-400 mt-0.5">Version AR</div>
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Couleur<div className="text-[10px] font-normal normal-case text-gray-400 mt-0.5">Badge UI</div>
-                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Code</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nom français</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nom arabe</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {items.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-5 py-3.5"><StatusBadge color={item.color}>{item.name_fr}</StatusBadge></td>
-                      <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{item.code}</td>
+                      <td className="px-5 py-3.5"><StatusBadge item={item} /></td>
                       <td className="px-5 py-3.5 font-semibold text-gray-900">{item.name_fr}</td>
                       <td className="px-5 py-3.5 text-gray-600" dir="rtl">{item.name_ar}</td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${(COLOR_MAP[item.color] ?? COLOR_MAP.gray).badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${(COLOR_MAP[item.color] ?? COLOR_MAP.gray).dot}`} />
-                          {item.color}
-                        </span>
-                      </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => setDrawer(item)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg" title="Modifier">

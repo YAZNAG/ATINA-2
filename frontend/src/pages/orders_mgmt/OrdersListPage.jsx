@@ -18,7 +18,17 @@ function hexBadge(color, label) {
   return { backgroundColor: `${hex}18`, color: hex, border: `1px solid ${hex}40` };
 }
 
-const DAYS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAYS_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAYS_FULL  = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+// Compute the next calendar date matching day_of_week, starting from refDate
+function nextSlotDate(day_of_week, refDateStr) {
+  const ref  = refDateStr ? new Date(refDateStr) : new Date();
+  const diff = (day_of_week - ref.getDay() + 7) % 7;
+  const d    = new Date(ref);
+  d.setDate(d.getDate() + diff);
+  return d.toLocaleDateString('fr-MA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const SVG = {
@@ -246,14 +256,20 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
               <div className="p-6">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Créneau de livraison</p>
                 {order.confirmed_slot ? (
-                  <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                      <Icon d={SVG.clock} className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-blue-800">{order.confirmed_slot.name_fr}</p>
-                      <p className="text-sm text-blue-600 font-mono">{order.confirmed_slot.slot_start} – {order.confirmed_slot.slot_end}</p>
-                      <p className="text-xs text-blue-500">{DAYS[order.confirmed_slot.day_of_week]}</p>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Icon d={SVG.clock} className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-blue-800 text-base">{order.confirmed_slot.name_fr}</p>
+                        <p className="text-lg font-mono font-bold text-blue-700 mt-0.5">
+                          {order.confirmed_slot.slot_start} – {order.confirmed_slot.slot_end}
+                        </p>
+                        <p className="text-sm text-blue-600 font-semibold capitalize mt-1">
+                          {nextSlotDate(order.confirmed_slot.day_of_week, order.created_at)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ) : (

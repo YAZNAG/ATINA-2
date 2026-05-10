@@ -97,14 +97,15 @@ function Drawer({ editAddr, customerId, onClose, onSaved }) {
 
   const hc = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
-  // Sélection ville → auto-remplissage code postal
+  // Sélection ville → auto-remplissage code postal (tronqué à 5 chars)
   const handleCityChange = (e) => {
     const cityName = e.target.value;
     const found = cities.find(c => c.name_fr === cityName);
+    const rawPostal = found?.postal_code ?? '';
     setForm(f => ({
       ...f,
       city: cityName,
-      postal_code: found?.postal_code ?? f.postal_code,
+      postal_code: rawPostal ? rawPostal.trim().slice(0, 5) : f.postal_code,
     }));
   };
 

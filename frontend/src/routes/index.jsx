@@ -47,9 +47,12 @@ import StockLotsPage from '../pages/stock/StockLotsPage';
 import DeliveryTypesPage from '../pages/delivery/DeliveryTypesPage';
 import DeliveryLookupPage from '../pages/delivery/DeliveryLookupPage';
 import DeliveryTypesRefPage from '../pages/delivery/DeliveryTypesRefPage';
+import PaymentStatusesPage from '../pages/payment/PaymentStatusesPage';
+import PaymentMethodsPage from '../pages/payment/PaymentMethodsPage';
 import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
 import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
 import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
+import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -98,7 +101,7 @@ export default function AppRoutes() {
           <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
-          {/* Geography — GeoPage handles regions / provinces / cities drill-down */}
+          {/* Geography */}
           <Route path="/geo" element={<GeoPage />} />
           <Route path="/geo/regions" element={<GeoPage />} />
           <Route path="/geo/provinces" element={<GeoPage />} />
@@ -115,23 +118,29 @@ export default function AppRoutes() {
           <Route path="/warehouse/zones" element={<ZonesPage />} />
           <Route path="/warehouse/levels" element={<LevelsPage />} />
           {/* Stock paramétrage */}
-          <Route path="/stock/move-types"       element={<MoveTypesPage />} />
-          <Route path="/stock/stock-statuses"  element={<StockStatusesPage />} />
-          <Route path="/stock/inventory-types" element={<InventoryTypesPage />} />
+          <Route path="/stock/move-types"          element={<MoveTypesPage />} />
+          <Route path="/stock/stock-statuses"      element={<StockStatusesPage />} />
+          <Route path="/stock/inventory-types"     element={<InventoryTypesPage />} />
           <Route path="/stock/inventory-statuses"  element={<InventoryStatusesPage />} />
           <Route path="/stock/inventory-gap-types" element={<InventoryGapTypesPage />} />
           <Route path="/stock/thresholds"          element={<StockThresholdsPage />} />
           <Route path="/stock/levels"              element={<StockLevelsPage />} />
           <Route path="/stock/selling-rules"       element={<SellingRulesPage />} />
-          <Route path="/stock/reorder-rules"      element={<ReorderRulesPage />} />
-          <Route path="/stock/moves" element={<StockMovesPage />} />
-          <Route path="/stock/lots" element={<StockLotsPage />} />
-          <Route path="/delivery/types" element={<DeliveryTypesPage />} />
-          <Route path="/delivery/delivery-types" element={<DeliveryTypesRefPage />} />
-          <Route path="/delivery/:slug" element={<DeliveryLookupPage />} />
-          <Route path="/payment/payment-statuses" element={<PaymentStatusesRefPage />} />
-          <Route path="/payment/payment-methods" element={<PaymentMethodsRefPage />} />
-          <Route path="/payment/:slug" element={<PaymentLookupPage />} />
+          <Route path="/stock/reorder-rules"       element={<ReorderRulesPage />} />
+          <Route path="/stock/moves"               element={<StockMovesPage />} />
+          <Route path="/stock/lots"                element={<StockLotsPage />} />
+          {/* Delivery */}
+          <Route path="/delivery/types"            element={<DeliveryTypesPage />} />
+          <Route path="/delivery/delivery-types"   element={<DeliveryTypesRefPage />} />
+          <Route path="/delivery/:slug"            element={<DeliveryLookupPage />} />
+          {/* Payment */}
+          <Route path="/payment/statuses"          element={<PaymentStatusesPage />} />
+          <Route path="/payment/methods"           element={<PaymentMethodsPage />} />
+          <Route path="/payment/payment-statuses"  element={<PaymentStatusesRefPage />} />
+          <Route path="/payment/payment-methods"   element={<PaymentMethodsRefPage />} />
+          <Route path="/payment/:slug"             element={<PaymentLookupPage />} />
+          {/* Wallet */}
+          <Route path="/wallet/txn-types"          element={<WalletTxnTypesPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -89,20 +89,27 @@ async function main() {
     const total_ttc = parseFloat((subtotal_ht + vat_amount + tpl.delivery_fee - tpl.discount).toFixed(2));
 
     try {
+      // Pick a delivery slot for this node
+      const slot = await p.deliverySlot.findFirst({
+        where: { node_id: node.id, is_active: true },
+        orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }],
+      });
+
       const order = await p.order.create({
         data: {
-          customer_id:     customer.id,
-          node_id:         node.id,
-          address_id:      address.id,
-          status_id:       statusId,
-          delivery_type_id: homeType.id,
-          subtotal_ht:     parseFloat(subtotal_ht.toFixed(2)),
-          vat_amount:      parseFloat(vat_amount.toFixed(2)),
-          delivery_fee:    tpl.delivery_fee,
-          discount_amount: tpl.discount,
-          wallet_used:     tpl.wallet,
+          customer_id:       customer.id,
+          node_id:           node.id,
+          address_id:        address.id,
+          status_id:         statusId,
+          delivery_type_id:  homeType.id,
+          confirmed_slot_id: slot?.id ?? null,
+          subtotal_ht:       parseFloat(subtotal_ht.toFixed(2)),
+          vat_amount:        parseFloat(vat_amount.toFixed(2)),
+          delivery_fee:      tpl.delivery_fee,
+          discount_amount:   tpl.discount,
+          wallet_used:       tpl.wallet,
           total_ttc,
-          notes:           i % 3 === 0 ? 'Sonner 2 fois, code: 1234' : null,
+          notes:             i % 3 === 0 ? 'Sonner 2 fois, code: 1234' : null,
           items: { create: itemsData },
         },
       });

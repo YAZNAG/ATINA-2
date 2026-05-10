@@ -57,8 +57,7 @@ import OrderStatusesPage from '../pages/orders/OrderStatusesPage';
 import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
 import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
 import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
-import NodeOrderRulesPage from '../pages/orders/NodeOrderRulesPage';
-import NodePaymentConfigPage from '../pages/orders/NodePaymentConfigPage';
+import NodeConfigPage from '../pages/orders/NodeConfigPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -152,8 +151,7 @@ export default function AppRoutes() {
           <Route path="/orders/item-statuses"       element={<OrderItemStatusesPage />} />
           <Route path="/orders/slot-statuses"       element={<OrderSlotStatusesPage />} />
           <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
-          <Route path="/orders/rules"               element={<NodeOrderRulesPage />} />
-          <Route path="/orders/payment-config"      element={<NodePaymentConfigPage />} />
+          <Route path="/orders/node-config"         element={<NodeConfigPage />} />
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

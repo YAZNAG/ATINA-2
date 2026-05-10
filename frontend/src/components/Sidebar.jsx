@@ -29,7 +29,8 @@ const navItems = [
   {
     label: 'Clients', key: 'clientsRef', group: true, icon: ICONS.customers,
     children: [
-      { label: 'Clients',         path: '/customers', anyPermissions: ['customers.view', 'dashboard.view'] },
+      { label: 'Clients',          path: '/customers',   anyPermissions: ['customers.view',  'dashboard.view'] },
+      { label: 'Nouveau checkout', path: '/checkout/new', anyPermissions: ['orders.create',   'dashboard.view'] },
     ],
   },
   { label: 'Tableau de bord', path: '/dashboard', permission: 'dashboard.view', icon: ICONS.dashboard },

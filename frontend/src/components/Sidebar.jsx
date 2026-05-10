@@ -22,15 +22,22 @@ const ICONS = {
   customers: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
   tables: 'M4 7h16M4 12h16M4 17h10',
   chevron: 'M19 9l-7 7-7-7',
-  gear: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  gear:  'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  order: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
 };
 
 const navItems = [
   {
+    label: 'Commandes', key: 'commandesRef', group: true, icon: ICONS.order,
+    children: [
+      { label: 'Commandes client',  path: '/orders-mgmt',   anyPermissions: ['orders.view',   'dashboard.view'] },
+      { label: 'Nouveau checkout',  path: '/checkout/new',   anyPermissions: ['orders.create',  'dashboard.view'] },
+    ],
+  },
+  {
     label: 'Clients', key: 'clientsRef', group: true, icon: ICONS.customers,
     children: [
-      { label: 'Clients',          path: '/customers',   anyPermissions: ['customers.view',  'dashboard.view'] },
-      { label: 'Nouveau checkout', path: '/checkout/new', anyPermissions: ['orders.create',   'dashboard.view'] },
+      { label: 'Clients',           path: '/customers',      anyPermissions: ['customers.view', 'dashboard.view'] },
     ],
   },
   { label: 'Tableau de bord', path: '/dashboard', permission: 'dashboard.view', icon: ICONS.dashboard },
@@ -232,7 +239,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
-    clientsRef: false, accessRef: false,
+    commandesRef: false, clientsRef: false, accessRef: false,
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
@@ -288,6 +295,7 @@ export default function Sidebar() {
   useEffect(() => {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
+    if (['/orders-mgmt', '/checkout'].some(p => pathname.startsWith(p))) open('commandesRef');
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');

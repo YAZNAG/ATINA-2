@@ -55,6 +55,7 @@ import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
 import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
 import CheckoutPage from '../pages/checkout/CheckoutPage';
+import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
 import RolesPage from '../pages/access/RolesPage';
 import PermissionsPage from '../pages/access/PermissionsPage';
 import RolePermissionsPage from '../pages/access/RolePermissionsPage';
@@ -84,7 +85,8 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/checkout/new" element={<CheckoutPage />} />
+          <Route path="/checkout/new"    element={<CheckoutPage />} />
+          <Route path="/orders-mgmt"     element={<OrdersListPage />} />
           <Route path="/access/roles"             element={<RolesPage />} />
           <Route path="/access/permissions"       element={<PermissionsPage />} />
           <Route path="/access/role-permissions"  element={<RolePermissionsPage />} />

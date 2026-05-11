@@ -61,6 +61,30 @@ class PickerService {
     if (!p || p.is_deleted) throw { statusCode: 404, message: 'Picker introuvable' };
     return repo.softDelete(id);
   }
+
+  async getStats(id, params) {
+    const p = await repo.findById(id);
+    if (!p || p.is_deleted) throw { statusCode: 404, message: 'Picker introuvable' };
+    return repo.findStats(id, params);
+  }
+
+  async getSessions(id, params) {
+    const p = await repo.findById(id);
+    if (!p || p.is_deleted) throw { statusCode: 404, message: 'Picker introuvable' };
+    const page = Math.max(1, parseInt(params.page || 1));
+    const limit = Math.min(100, parseInt(params.limit || 25));
+    const { data, total } = await repo.findSessions(id, { ...params, page, limit });
+    return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
+  }
+
+  async getOrders(id, params) {
+    const p = await repo.findById(id);
+    if (!p || p.is_deleted) throw { statusCode: 404, message: 'Picker introuvable' };
+    const page = Math.max(1, parseInt(params.page || 1));
+    const limit = Math.min(50, parseInt(params.limit || 20));
+    const { data, total } = await repo.findOrders(id, { ...params, page, limit });
+    return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
+  }
 }
 
 module.exports = new PickerService();

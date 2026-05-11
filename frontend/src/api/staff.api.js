@@ -12,6 +12,9 @@ export const activatePicker      = (id)             => api.patch(`${pb}/${id}/ac
 export const deactivatePicker    = (id)             => api.patch(`${pb}/${id}/deactivate`);
 export const resetPickerPassword = (id, password)   => api.patch(`${pb}/${id}/reset-password`, { password });
 export const deletePicker        = (id)             => api.delete(`${pb}/${id}`);
+export const getPickerStats      = (id, params)     => api.get(`${pb}/${id}/stats`, { params });
+export const getPickerSessions   = (id, params)     => api.get(`${pb}/${id}/sessions`, { params });
+export const getPickerOrders     = (id, params)     => api.get(`${pb}/${id}/orders`, { params });
 
 // ── Drivers ───────────────────────────────────────────────────────────────────
 export const getDrivers          = (params)         => api.get(db, { params });

@@ -17,5 +17,8 @@ class PickerController {
     } catch(e){E(res,next,e);}
   }
   async destroy(req, res, next)     { try { resp.success(res, await svc.delete(req.params.id), 'Picker supprimé'); }           catch(e){E(res,next,e);} }
+  async stats(req, res, next)       { try { resp.success(res, await svc.getStats(req.params.id, req.query)); }                   catch(e){E(res,next,e);} }
+  async sessions(req, res, next)    { try { res.json({ success:true, ...(await svc.getSessions(req.params.id, req.query)) }); }  catch(e){E(res,next,e);} }
+  async orders(req, res, next)      { try { res.json({ success:true, ...(await svc.getOrders(req.params.id, req.query)) }); }   catch(e){E(res,next,e);} }
 }
 module.exports = new PickerController();

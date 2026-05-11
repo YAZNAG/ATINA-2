@@ -56,6 +56,8 @@ import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
 import CheckoutPage from '../pages/checkout/CheckoutPage';
 import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
+import PickingSessionsPage from '../pages/picking/PickingSessionsPage';
+import PickingSessionDetailPage from '../pages/picking/PickingSessionDetailPage';
 import RolesPage from '../pages/access/RolesPage';
 import PermissionsPage from '../pages/access/PermissionsPage';
 import RolePermissionsPage from '../pages/access/RolePermissionsPage';
@@ -86,7 +88,9 @@ export default function AppRoutes() {
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/checkout/new"    element={<CheckoutPage />} />
-          <Route path="/orders-mgmt"     element={<OrdersListPage />} />
+          <Route path="/orders-mgmt"              element={<OrdersListPage />} />
+          <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
+          <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />
           <Route path="/access/roles"             element={<RolesPage />} />
           <Route path="/access/permissions"       element={<PermissionsPage />} />
           <Route path="/access/role-permissions"  element={<RolePermissionsPage />} />

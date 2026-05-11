@@ -1,4 +1,5 @@
-const repo = require('./order_mgmt.repository');
+const repo          = require('./order_mgmt.repository');
+const pickingService = require('../picking/picking.service');
 
 // ── Status transition rules ───────────────────────────────────────────────────
 const TRANSITIONS = {
@@ -54,7 +55,16 @@ class OrderMgmtService {
     const newStatus = await repo.getStatusByCode(new_status_code);
     if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
 
-    return repo.updateStatus(id, newStatus.id, changed_by);
+    const updated = await repo.updateStatus(id, newStatus.id, changed_by);
+
+    // Auto-create picking session when order → picking
+    if (new_status_code === 'picking') {
+      pickingService.createSession(id).catch(err =>
+        console.warn('[picking] Création session auto échouée:', err.message)
+      );
+    }
+
+    return updated;
   }
 
   async cancel(id, reason, changed_by = null) {

@@ -30,8 +30,9 @@ const navItems = [
   {
     label: 'Commandes', key: 'commandesRef', group: true, icon: ICONS.order,
     children: [
-      { label: 'Commandes client',  path: '/orders-mgmt',   anyPermissions: ['orders.view',   'dashboard.view'] },
-      { label: 'Nouveau checkout',  path: '/checkout/new',   anyPermissions: ['orders.create',  'dashboard.view'] },
+      { label: 'Commandes client',  path: '/orders-mgmt',        anyPermissions: ['orders.view',   'dashboard.view'] },
+      { label: 'Nouveau checkout',  path: '/checkout/new',        anyPermissions: ['orders.create', 'dashboard.view'] },
+      { label: 'Sessions Picking',  path: '/picking/sessions',    anyPermissions: ['picking.view',  'dashboard.view'] },
     ],
   },
   {
@@ -295,7 +296,7 @@ export default function Sidebar() {
   useEffect(() => {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
-    if (['/orders-mgmt', '/checkout'].some(p => pathname.startsWith(p))) open('commandesRef');
+    if (['/orders-mgmt', '/checkout', '/picking'].some(p => pathname.startsWith(p))) open('commandesRef');
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');

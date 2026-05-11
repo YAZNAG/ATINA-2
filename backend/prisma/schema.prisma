@@ -31,8 +31,7 @@ model User {
   updated_at        DateTime   @updatedAt
   user_roles              UserRole[]
   backoffice_admin        BackofficeAdmin?
-  // picker relation removed (pickers now standalone with phone/password auth)
-  driver                  Driver?
+  // picker + driver relations removed (standalone phone/password auth tables)
   customer                Customer?
   regions_created         Region[]           @relation("RegionCreatedBy")
   regions_updated         Region[]           @relation("RegionUpdatedBy")
@@ -152,14 +151,22 @@ model PickingSessionItem {
 }
 
 model Driver {
-  id            Int      @id @default(autoincrement())
-  user_id       Int      @unique
-  node_id       String   @db.Uuid
-  vehicle_type  String?  @db.VarChar(50)
-  vehicle_plate String?  @db.VarChar(20)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid()) @db.Uuid
+  node_id       String    @db.Uuid
+  phone_country String    @default("+212") @db.VarChar(5)
+  phone_number  String    @db.VarChar(15)
+  name          String    @db.VarChar(150)
+  password_hash String
+  vehicle_type  String?   @db.VarChar(50)
+  vehicle_plate String?   @db.VarChar(20)
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  deleted_at    DateTime? @db.Timestamptz(6)
+  created_by    Int?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
+
+  node Node @relation(fields: [node_id], references: [id])
 
   @@map("drivers")
 }
@@ -588,6 +595,7 @@ model Node {
   referral_configs        ReferralConfig[]
   stock_threshold_rules   StockThresholdRule[]
   pickers                 Picker[]
+  drivers                 Driver[]
   picking_sessions        PickingSession[] @relation("NodePickingSessions")
 
   @@map("nodes")

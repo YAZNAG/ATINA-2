@@ -58,6 +58,8 @@ import CheckoutPage from '../pages/checkout/CheckoutPage';
 import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
 import PickingSessionsPage from '../pages/picking/PickingSessionsPage';
 import PickingSessionDetailPage from '../pages/picking/PickingSessionDetailPage';
+import PickersPage from '../pages/staff/PickersPage';
+import DriversPage from '../pages/staff/DriversPage';
 import RolesPage from '../pages/access/RolesPage';
 import PermissionsPage from '../pages/access/PermissionsPage';
 import RolePermissionsPage from '../pages/access/RolePermissionsPage';
@@ -91,6 +93,8 @@ export default function AppRoutes() {
           <Route path="/orders-mgmt"              element={<OrdersListPage />} />
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />
+          <Route path="/staff/pickers"            element={<PickersPage />} />
+          <Route path="/staff/drivers"            element={<DriversPage />} />
           <Route path="/access/roles"             element={<RolesPage />} />
           <Route path="/access/permissions"       element={<PermissionsPage />} />
           <Route path="/access/role-permissions"  element={<RolePermissionsPage />} />

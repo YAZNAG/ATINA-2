@@ -30,9 +30,16 @@ const navItems = [
   {
     label: 'Commandes', key: 'commandesRef', group: true, icon: ICONS.order,
     children: [
-      { label: 'Commandes client',  path: '/orders-mgmt',        anyPermissions: ['orders.view',   'dashboard.view'] },
-      { label: 'Nouveau checkout',  path: '/checkout/new',        anyPermissions: ['orders.create', 'dashboard.view'] },
-      { label: 'Sessions Picking',  path: '/picking/sessions',    anyPermissions: ['picking.view',  'dashboard.view'] },
+      { label: 'Commandes client',  path: '/orders-mgmt',        anyPermissions: ['orders.view',    'dashboard.view'] },
+      { label: 'Nouveau checkout',  path: '/checkout/new',        anyPermissions: ['orders.create',  'dashboard.view'] },
+      { label: 'Sessions Picking',  path: '/picking/sessions',    anyPermissions: ['picking.read',   'dashboard.view'] },
+    ],
+  },
+  {
+    label: 'Staff', key: 'staffRef', group: true, icon: ICONS.users,
+    children: [
+      { label: 'Pickers',   path: '/staff/pickers', anyPermissions: ['pickers.read', 'dashboard.view'] },
+      { label: 'Livreurs',  path: '/staff/drivers', anyPermissions: ['drivers.read', 'dashboard.view'] },
     ],
   },
   {
@@ -240,7 +247,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
-    commandesRef: false, clientsRef: false, accessRef: false,
+    commandesRef: false, staffRef: false, clientsRef: false, accessRef: false,
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
@@ -297,6 +304,7 @@ export default function Sidebar() {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
     if (['/orders-mgmt', '/checkout', '/picking'].some(p => pathname.startsWith(p))) open('commandesRef');
+    if (pathname.startsWith('/staff')) open('staffRef');
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');

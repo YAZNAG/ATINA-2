@@ -36,7 +36,14 @@ const navItems = [
     ],
   },
   {
-    label: 'Staff', key: 'staffRef', group: true, icon: ICONS.users,
+    label: 'Paramétrage Picking', key: 'pickingCfgRef', group: true, icon: ICONS.gear,
+    children: [
+      { label: 'Statuts picking',    path: '/picking/statuses',      anyPermissions: ['dashboard.view'] },
+      { label: 'Statuts articles',   path: '/picking/item-statuses', anyPermissions: ['dashboard.view'] },
+    ],
+  },
+  {
+    label: 'Staff opérationnel', key: 'staffRef', group: true, icon: ICONS.users,
     children: [
       { label: 'Pickers',   path: '/staff/pickers', anyPermissions: ['pickers.read', 'dashboard.view'] },
       { label: 'Livreurs',  path: '/staff/drivers', anyPermissions: ['drivers.read', 'dashboard.view'] },
@@ -247,7 +254,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
-    commandesRef: false, staffRef: false, clientsRef: false, accessRef: false,
+    commandesRef: false, pickingCfgRef: false, staffRef: false, clientsRef: false, accessRef: false,
     catalog: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
@@ -303,7 +310,8 @@ export default function Sidebar() {
   useEffect(() => {
     const open = (key) => setOpenGroups((p) => ({ ...p, [key]: true }));
     if (pathname.startsWith('/p0/tables')) open('p0tables');
-    if (['/orders-mgmt', '/checkout', '/picking'].some(p => pathname.startsWith(p))) open('commandesRef');
+    if (['/orders-mgmt', '/checkout'].some(p => pathname.startsWith(p)) || pathname === '/picking/sessions' || pathname.startsWith('/picking/sessions/')) open('commandesRef');
+    if (['/picking/statuses', '/picking/item-statuses'].some(p => pathname.startsWith(p))) open('pickingCfgRef');
     if (pathname.startsWith('/staff')) open('staffRef');
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');

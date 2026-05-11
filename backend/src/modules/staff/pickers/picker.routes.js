@@ -18,6 +18,9 @@ router.put('/:id',                      canUpdate, ctrl.update.bind(ctrl));
 router.patch('/:id/activate',           canUpdate, ctrl.activate.bind(ctrl));
 router.patch('/:id/deactivate',         canUpdate, ctrl.deactivate.bind(ctrl));
 router.patch('/:id/reset-password',     canUpdate, ctrl.resetPassword.bind(ctrl));
-router.delete('/:id',                   canDelete, ctrl.destroy.bind(ctrl));
+router.delete('/:id',               canDelete, ctrl.destroy.bind(ctrl));
+router.get('/:id/stats',            canRead,   ctrl.stats.bind(ctrl));
+router.get('/:id/sessions',         canRead,   ctrl.sessions.bind(ctrl));
+router.get('/:id/orders',           canRead,   ctrl.orders.bind(ctrl));
 
 module.exports = router;

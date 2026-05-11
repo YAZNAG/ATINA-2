@@ -25,3 +25,4 @@ export const activateDriver      = (id)             => api.patch(`${db}/${id}/ac
 export const deactivateDriver    = (id)             => api.patch(`${db}/${id}/deactivate`);
 export const resetDriverPassword = (id, password)   => api.patch(`${db}/${id}/reset-password`, { password });
 export const deleteDriver        = (id)             => api.delete(`${db}/${id}`);
+export const getDriverStats      = (id, params)     => api.get(`${db}/${id}/stats`, { params });

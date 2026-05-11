@@ -28,4 +28,24 @@ const create     = (data) => prisma.driver.create({ data, select: SELECT });
 const update     = (id, data) => prisma.driver.update({ where: { id }, data, select: SELECT });
 const softDelete = (id) => prisma.driver.update({ where: { id }, data: { is_deleted: true, is_active: false, deleted_at: new Date() }, select: SELECT });
 
-module.exports = { findAll, findById, findByPhone, create, update, softDelete };
+// Stats placeholder — tours not yet linked to drivers, returns empty stats ready for future
+const findStats  = async (id) => ({
+  total_tours:      0,
+  completed_tours:  0,
+  total_deliveries: 0,
+  cod_collected:    '0.00',
+  avg_tour_duration_min: 0,
+  note: 'Les tournées seront liées au module Livraison',
+});
+
+// Vehicle type distribution across all drivers
+const countByVehicleType = async () => {
+  const rows = await prisma.driver.groupBy({
+    by: ['vehicle_type'],
+    where: { is_deleted: false, is_active: true },
+    _count: { id: true },
+  });
+  return rows.map(r => ({ vehicle_type: r.vehicle_type ?? 'Non défini', count: r._count.id }));
+};
+
+module.exports = { findAll, findById, findByPhone, create, update, softDelete, findStats, countByVehicleType };

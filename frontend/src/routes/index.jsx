@@ -60,6 +60,9 @@ import PickingSessionsPage from '../pages/picking/PickingSessionsPage';
 import PickingSessionDetailPage from '../pages/picking/PickingSessionDetailPage';
 import PickersPage from '../pages/staff/PickersPage';
 import DriversPage from '../pages/staff/DriversPage';
+import PickerDetailsPage from '../pages/staff/PickerDetailsPage';
+import PickingStatusesPage from '../pages/picking/PickingStatusesPage';
+import PickItemStatusesPage from '../pages/picking/PickItemStatusesPage';
 import RolesPage from '../pages/access/RolesPage';
 import PermissionsPage from '../pages/access/PermissionsPage';
 import RolePermissionsPage from '../pages/access/RolePermissionsPage';
@@ -93,6 +96,9 @@ export default function AppRoutes() {
           <Route path="/orders-mgmt"              element={<OrdersListPage />} />
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />
+          <Route path="/picking/statuses"          element={<PickingStatusesPage />} />
+          <Route path="/picking/item-statuses"      element={<PickItemStatusesPage />} />
+          <Route path="/staff/pickers/:id"          element={<PickerDetailsPage />} />
           <Route path="/staff/pickers"            element={<PickersPage />} />
           <Route path="/staff/drivers"            element={<DriversPage />} />
           <Route path="/access/roles"             element={<RolesPage />} />

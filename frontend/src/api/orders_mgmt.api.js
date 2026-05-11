@@ -9,3 +9,6 @@ export const getOrderTransitions  = (id)            => api.get(`${b}/${id}/trans
 export const changeOrderStatus    = (id, status_code) => api.patch(`${b}/${id}/status`, { status_code });
 export const cancelOrder          = (id, reason)    => api.patch(`${b}/${id}/cancel`, { reason });
 export const getOrderHistory      = (id)            => api.get(`${b}/${id}/history`);
+export const getOrderPickers      = (id)            => api.get(`${b}/${id}/pickers`);
+export const assignOrderPicker    = (id, picker_id) => api.post(`${b}/${id}/assign-picker`, { picker_id });
+export const confirmOrderPickup   = (id, data)      => api.patch(`${b}/${id}/confirm-pickup`, data ?? {});

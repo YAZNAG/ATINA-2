@@ -29,6 +29,27 @@ class OrderMgmtController {
     try { resp.success(res, await svc.getHistory(req.params.id)); }
     catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
   }
+  async assignPicker(req, res, next) {
+    try {
+      const { picker_id } = req.body;
+      if (!picker_id) return resp.error(res, 'picker_id requis', 400);
+      const session = await svc.assignPicker(req.params.id, picker_id, req.user?.id ?? null);
+      resp.success(res, session, 'Picker affecté — session picking créée', 201);
+    } catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+  async confirmPickup(req, res, next) {
+    try {
+      const order = await svc.confirmPickup(req.params.id, req.body ?? {}, req.user?.id ?? null);
+      resp.success(res, order, 'Retrait confirmé — commande clôturée');
+    } catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+  async pickersForNode(req, res, next) {
+    try {
+      const order = await svc.getById(req.params.id);
+      const pickers = await svc.getPickersForNode(order.node?.id ?? order.node_id);
+      resp.success(res, pickers);
+    } catch(e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
   async meta(req, res, next) {
     try { resp.success(res, await svc.meta()); } catch(e) { next(e); }
   }

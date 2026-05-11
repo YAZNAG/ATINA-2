@@ -18,6 +18,7 @@ const { router: addressRouter } = require('../modules/addresses/address.routes')
 const checkoutRoutes    = require('../modules/checkout/checkout.routes');
 const ordersMgmtRoutes  = require('../modules/orders_mgmt/order_mgmt.routes');
 const pickingRoutes     = require('../modules/picking/picking.routes');
+const staffRoutes       = require('../modules/staff/staff.routes');
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/addresses', addressRouter);
 router.use('/checkout',    checkoutRoutes);
 router.use('/orders-mgmt', ordersMgmtRoutes);
 router.use('/picking',     pickingRoutes);
+router.use('/staff',       staffRoutes);
 
 module.exports = router;

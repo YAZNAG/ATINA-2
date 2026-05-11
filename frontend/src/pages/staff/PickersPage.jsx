@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getPickers, createPicker, updatePicker, activatePicker, deactivatePicker, resetPickerPassword, deletePicker } from '../../api/staff.api';
 import { getNodes } from '../../api/locationNode.api';
@@ -147,6 +148,7 @@ function ResetModal({ item, onClose }) {
 }
 
 export default function PickersPage() {
+  const navigate = useNavigate();
   const [items, setItems]   = useState([]);
   const [nodes, setNodes]   = useState([]);
   const [total, setTotal]   = useState(0);
@@ -257,7 +259,7 @@ export default function PickersPage() {
                   {items.length === 0 ? (
                     <tr><td colSpan={6} className="text-center py-12 text-gray-400">Aucun picker</td></tr>
                   ) : items.map(item => (
-                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <tr key={item.id} onClick={() => navigate(`/staff/pickers/${item.id}`)} className="hover:bg-violet-50/50 transition-colors group cursor-pointer">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${item.is_active ? 'bg-violet-600' : 'bg-gray-400'}`}>
@@ -275,7 +277,7 @@ export default function PickersPage() {
                       </td>
                       <td className="px-4 py-3.5 text-right text-xs text-gray-400">{formatDate(item.created_at)}</td>
                       <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                           <button onClick={() => setDrawer(item)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg" title="Modifier"><Icon d={SVG.edit} className="w-4 h-4" /></button>
                           {item.is_active
                             ? <button onClick={() => act(`d-${item.id}`, () => deactivatePicker(item.id), 'Désactivé')} className="p-1.5 text-gray-500 hover:bg-gray-50 rounded-lg" title="Désactiver"><Icon d={SVG.lock} className="w-4 h-4" /></button>

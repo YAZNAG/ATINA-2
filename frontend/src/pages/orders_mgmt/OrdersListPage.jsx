@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { getOrdersMeta, getOrders, getOrder, getOrderTransitions, getOrderHistory, changeOrderStatus, cancelOrder } from '../../api/orders_mgmt.api';
+import { getOrdersMeta, getOrders, getOrder, getOrderTransitions, getOrderHistory, changeOrderStatus, cancelOrder, getOrderPickers, assignOrderPicker, confirmOrderPickup } from '../../api/orders_mgmt.api';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,6 +76,16 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
   const [loading, setLoading]       = useState(true);
   const [acting, setActing]         = useState(false);
 
+  // Assign picker modal
+  const [showPickerModal, setShowPickerModal] = useState(false);
+  const [pickers, setPickers]               = useState([]);
+  const [selectedPicker, setSelectedPicker] = useState('');
+  const [assigningPicker, setAssigningPicker] = useState(false);
+
+  // Confirm pickup modal
+  const [showPickupModal, setShowPickupModal] = useState(false);
+  const [confirmingPickup, setConfirmingPickup] = useState(false);
+
   const load = useCallback(async () => {
     if (!orderId) return;
     setLoading(true);
@@ -114,11 +124,116 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
     { id: 'historique',label: 'Historique'},
   ];
 
-  const mainActions = transitions.filter(t => t.code !== 'cancelled');
+  const mainActions  = transitions.filter(t => t.code !== 'cancelled' && t.code !== 'picking');
   const cancelAction = transitions.find(t => t.code === 'cancelled');
+
+  const statusCode    = order?.status?.code;
+  const isConfirmed   = statusCode === 'confirmed';
+  const isReadyPickup = statusCode === 'ready' && order?.delivery_type?.code === 'pickup';
+
+  const openPickerModal = async () => {
+    setSelectedPicker('');
+    try {
+      const r = await getOrderPickers(orderId);
+      setPickers(r.data?.data ?? []);
+      setShowPickerModal(true);
+    } catch (err) { toast.error(getErrorMessage(err)); }
+  };
+
+  const handleAssignPicker = async () => {
+    if (!selectedPicker) return toast.error('Sélectionnez un picker');
+    setAssigningPicker(true);
+    try {
+      await assignOrderPicker(orderId, selectedPicker);
+      toast.success('Picker affecté — session picking créée');
+      setShowPickerModal(false);
+      await load();
+      onStatusChanged?.();
+    } catch (err) { toast.error(getErrorMessage(err)); }
+    finally { setAssigningPicker(false); }
+  };
+
+  const handleConfirmPickup = async () => {
+    setConfirmingPickup(true);
+    try {
+      await confirmOrderPickup(orderId, { note: 'Retrait confirmé au magasin' });
+      toast.success('Retrait confirmé — commande livrée ✓');
+      setShowPickupModal(false);
+      await load();
+      onStatusChanged?.();
+    } catch (err) { toast.error(getErrorMessage(err)); }
+    finally { setConfirmingPickup(false); }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white">
+
+      {/* ── Picker assignment modal ──────────────────────────────────────────── */}
+      {showPickerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Affecter un picker</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Commande <span className="font-mono font-bold">{ordId(orderId)}</span> — Node <span className="font-semibold">{order?.node?.code}</span>
+            </p>
+            {pickers.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                <p className="font-medium">Aucun picker actif sur ce node</p>
+                <p className="text-xs mt-1">Créez d'abord un picker dans Staff → Pickers</p>
+              </div>
+            ) : (
+              <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                {pickers.map(p => (
+                  <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedPicker === p.id ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" name="picker" value={p.id} checked={selectedPicker === p.id} onChange={() => setSelectedPicker(p.id)} className="accent-violet-600" />
+                    <div>
+                      <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                      <p className="text-xs font-mono text-gray-400">{p.phone_country} {p.phone_number}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setShowPickerModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAssignPicker} disabled={assigningPicker || !selectedPicker}
+                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+                {assigningPicker ? 'Affectation…' : 'Affecter'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm pickup modal ─────────────────────────────────────────────── */}
+      {showPickupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">🏪</span>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Confirmer le retrait</h3>
+            <p className="text-sm text-gray-500 text-center mb-2">
+              <span className="font-mono font-bold">{ordId(orderId)}</span> — {order?.customer?.name}
+            </p>
+            <p className="text-sm text-center font-bold text-gray-800 mb-2">{Number(order?.total_ttc ?? 0).toFixed(2)} MAD</p>
+            {order?.payments?.[0]?.payment_method?.code === 'cod' && (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                <span className="text-amber-600 font-bold text-sm">💵 COD</span>
+                <span className="text-xs text-amber-700">Encaissez le montant en espèces avant de confirmer</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setShowPickupModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">Annuler</button>
+              <button onClick={handleConfirmPickup} disabled={confirmingPickup}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+                {confirmingPickup ? 'Confirmation…' : 'Confirmer retrait ✓'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Panel header */}
       <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
         <div>
@@ -383,6 +498,24 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
       {/* Action buttons */}
       {!loading && order && !order.status?.is_terminal && (
         <div className="border-t border-gray-100 p-4 flex-shrink-0 space-y-2">
+
+          {/* ── Affecter un picker (commande confirmed) ── */}
+          {isConfirmed && (
+            <button onClick={openPickerModal} disabled={acting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded-xl disabled:opacity-50 transition-colors">
+              👷 Affecter un picker
+            </button>
+          )}
+
+          {/* ── Confirmer retrait magasin (commande ready + pickup) ── */}
+          {isReadyPickup && (
+            <button onClick={() => setShowPickupModal(true)} disabled={acting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 transition-colors">
+              🏪 Confirmer retrait magasin
+            </button>
+          )}
+
+          {/* ── Other status transitions ── */}
           {mainActions.length > 0 && (
             <div className="flex gap-2">
               {mainActions.map(t => (
@@ -393,6 +526,7 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
               ))}
             </div>
           )}
+
           {cancelAction && (
             <button onClick={() => handleTransition('cancelled', 'Annuler')} disabled={acting}
               className="w-full py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl disabled:opacity-50 transition-colors">

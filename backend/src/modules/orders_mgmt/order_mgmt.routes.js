@@ -16,5 +16,8 @@ router.get('/:id/transitions',        canView,   ctrl.transitions.bind(ctrl));
 router.get('/:id/history',            canView,   ctrl.history.bind(ctrl));
 router.patch('/:id/status',           canUpdate, ctrl.changeStatus.bind(ctrl));
 router.patch('/:id/cancel',           canUpdate, ctrl.cancel.bind(ctrl));
+router.get('/:id/pickers',            canView,   ctrl.pickersForNode.bind(ctrl));
+router.post('/:id/assign-picker',     canUpdate, ctrl.assignPicker.bind(ctrl));
+router.patch('/:id/confirm-pickup',   canUpdate, ctrl.confirmPickup.bind(ctrl));
 
 module.exports = router;

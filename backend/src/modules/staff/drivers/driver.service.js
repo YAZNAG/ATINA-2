@@ -69,6 +69,12 @@ class DriverService {
     if (!d || d.is_deleted) throw { statusCode: 404, message: 'Livreur introuvable' };
     return repo.softDelete(id);
   }
+
+  async getStats(id) {
+    const d = await repo.findById(id);
+    if (!d || d.is_deleted) throw { statusCode: 404, message: 'Livreur introuvable' };
+    return repo.findStats(id);
+  }
 }
 
 module.exports = new DriverService();

@@ -17,5 +17,6 @@ class DriverController {
     } catch(e){E(res,next,e);}
   }
   async destroy(req, res, next)      { try { resp.success(res, await svc.delete(req.params.id), 'Livreur supprimé'); }           catch(e){E(res,next,e);} }
+  async stats(req, res, next)        { try { resp.success(res, await svc.getStats(req.params.id)); }                               catch(e){E(res,next,e);} }
 }
 module.exports = new DriverController();

@@ -30,7 +30,21 @@ class CustomerApp extends ConsumerWidget {
         theme:             AppTheme.light,
         routerConfig:      router,
         debugShowCheckedModeBanner: false,
-        builder:           (context, child) => child!,
+        // On wide screens (web/tablet) center the app in a phone-width container
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          final isWide = mq.size.width > 480;
+          if (!isWide) return child!;
+          return Scaffold(
+            backgroundColor: const Color(0xFFE5E7EB),
+            body: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: ClipRect(child: child!),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

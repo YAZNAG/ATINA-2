@@ -5,217 +5,314 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../controllers/customer_auth_controller.dart';
 
+// ── Country option ─────────────────────────────────────────────────────────────
+class _Country {
+  final String flag, code, name;
+  const _Country(this.flag, this.code, this.name);
+}
+
+const _countries = [
+  _Country('🇲🇦', '+212', 'Maroc'),
+  _Country('🇫🇷', '+33',  'France'),
+  _Country('🇩🇿', '+213', 'Algérie'),
+  _Country('🇹🇳', '+216', 'Tunisie'),
+  _Country('🇪🇸', '+34',  'Espagne'),
+  _Country('🇧🇪', '+32',  'Belgique'),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 class CustomerLoginScreen extends ConsumerStatefulWidget {
   const CustomerLoginScreen({super.key});
 
   @override
-  ConsumerState<CustomerLoginScreen> createState() => _State();
+  ConsumerState<CustomerLoginScreen> createState() => _CustomerLoginScreenState();
 }
 
-class _State extends ConsumerState<CustomerLoginScreen> {
-  final _ctrl    = TextEditingController();
-  String _country = '+212';
+class _CustomerLoginScreenState extends ConsumerState<CustomerLoginScreen>
+    with SingleTickerProviderStateMixin {
 
-  static const Color _red   = Color(0xFFCC0A0A);
-  static const Color _green = Color(0xFF25D366); // WhatsApp
+  final _phoneCtrl    = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _formKey      = GlobalKey<FormState>();
+  final _phoneFocus   = FocusNode();
+  final _passFocus    = FocusNode();
+
+  _Country _country  = _countries[0];
+  bool     _showPass = false;
+
+  late final AnimationController _anim;
+  late final Animation<double>   _fadeAnim;
+  late final Animation<Offset>   _slideAnim;
+
+  static const _red     = Color(0xFFDC2626);
+  static const _darkRed = Color(0xFFB91C1C);
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor:          Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnim  = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _anim, curve: Curves.easeOut));
+    _anim.forward();
+  }
 
-  String _formatted() => _ctrl.text.trim().replaceAll(' ', '').replaceFirst(RegExp(r'^0'), '');
+  @override
+  void dispose() {
+    _anim.dispose();
+    _phoneCtrl.dispose();
+    _passwordCtrl.dispose();
+    _phoneFocus.dispose();
+    _passFocus.dispose();
+    super.dispose();
+  }
 
-  bool get _valid => _formatted().length >= 9;
-
-  Future<void> _send(String channel) async {
-    if (!_valid) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Entrez un numéro valide (9 chiffres minimum)'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-    final ok = await ref.read(customerAuthProvider.notifier).requestOtp(
-      phoneCountry: _country,
-      phone:        _formatted(),
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final ok = await ref.read(customerAuthProvider.notifier).login(
+      phoneCountry: _country.code,
+      phone:        _phoneCtrl.text.trim(),
+      password:     _passwordCtrl.text,
     );
-    if (ok && mounted) {
-      context.push('/customer/otp', extra: channel);
-    } else if (mounted) {
-      final err = ref.read(customerAuthProvider).errorMessage;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err ?? 'Erreur réseau'), backgroundColor: Colors.red),
-      );
+    if (!ok && mounted) {
+      _showSnack(ref.read(customerAuthProvider).error ?? 'Erreur de connexion');
     }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content:         Text(msg, style: const TextStyle(color: Colors.white)),
+      backgroundColor: const Color(0xFFEF4444),
+      behavior:        SnackBarBehavior.floating,
+      margin:          EdgeInsets.all(16.w),
+      shape:           RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      duration:        const Duration(seconds: 3),
+    ));
+  }
+
+  void _pickCountry() {
+    showModalBottomSheet<void>(
+      context:             context,
+      isScrollControlled:  true,
+      backgroundColor:     Colors.transparent,
+      builder: (_) => _CountrySheet(
+        selected: _country,
+        onPick:   (c) => setState(() => _country = c),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final loading = ref.watch(customerAuthProvider).isLoading;
+    final isLoading = ref.watch(customerAuthProvider).isLoading;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light),
+    ref.listen(customerAuthProvider, (_, next) {
+      if (!mounted) return;
+      if (next.flow == CustomerAuthFlow.authenticated) context.go('/home');
+    });
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: _red,
+        resizeToAvoidBottomInset: true,
         body: Stack(children: [
-          // Red background — full screen
-          Container(color: _red),
-
-          // Content
-          SafeArea(
-            child: Column(children: [
-              // ── Logo area ──────────────────────────────────────────────────
-              Expanded(
-                child: Center(
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    // Logo placeholder (icon)
-                    Container(
-                      width: 90.w, height: 90.w,
-                      decoration: BoxDecoration(
-                        color:        Colors.white,
-                        borderRadius: BorderRadius.circular(22.r),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 20, offset: const Offset(0, 8))],
-                      ),
-                      child: Icon(Icons.storefront_rounded, color: _red, size: 46.sp),
-                    ),
-                    SizedBox(height: 18.h),
-                    Text(
-                      'El Herri',
-                      style: TextStyle(color: Colors.white, fontSize: 32.sp, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'الهري',
-                      style: TextStyle(color: Colors.white70, fontSize: 20.sp, fontWeight: FontWeight.w500),
-                    ),
-                  ]),
+          // ── Red gradient header bg ────────────────────────────────────────
+          Positioned(
+            top: 0, left: 0, right: 0,
+            height: MediaQuery.of(context).size.height * 0.44,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end:   Alignment.bottomRight,
+                  colors: [_red, _darkRed],
                 ),
               ),
+            ),
+          ),
 
-              // ── White card ─────────────────────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                  color:        Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(32.r)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -4))],
-                ),
-                padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 0),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-                  Text(
-                    'Prêt à commander ?',
-                    style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.w800, color: const Color(0xFF1A1A1A)),
-                  ),
-                  SizedBox(height: 6.h),
-                  Text(
-                    'Connectez-vous pour vivre une expérience Fantastic.',
-                    style: TextStyle(fontSize: 14.sp, color: const Color(0xFF6B7280)),
-                  ),
-
-                  SizedBox(height: 28.h),
-
-                  // Phone input
-                  Container(
-                    decoration: BoxDecoration(
-                      border:       Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
-                      borderRadius: BorderRadius.circular(14.r),
-                    ),
-                    child: Row(children: [
-                      // Flag + country
-                      InkWell(
-                        borderRadius: BorderRadius.horizontal(left: Radius.circular(14.r)),
-                        onTap: () => _showCountryPicker(),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 18.h),
+          SafeArea(
+            child: Column(children: [
+              // ── Header ────────────────────────────────────────────────────
+              Padding(
+                padding: EdgeInsets.fromLTRB(28.w, 24.h, 28.w, 0),
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // Logo row
+                      Row(children: [
+                        Container(
+                          width: 46.w, height: 46.w,
                           decoration: BoxDecoration(
-                            color:        _red.withOpacity(0.07),
-                            borderRadius: BorderRadius.horizontal(left: Radius.circular(14.r)),
-                            border:       Border(right: BorderSide(color: const Color(0xFFE5E7EB), width: 1.5)),
+                            color:        Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(14.r),
                           ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(_countryFlag(), style: TextStyle(fontSize: 20.sp)),
-                            SizedBox(width: 6.w),
-                            Text(_country, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w700, color: _red)),
-                            SizedBox(width: 4.w),
-                            Icon(Icons.expand_more, color: _red, size: 18.sp),
+                          child: Stack(alignment: Alignment.center, children: [
+                            Icon(Icons.shopping_bag_rounded, color: Colors.white, size: 26.sp),
+                            Positioned(
+                              bottom: 6.h, right: 6.w,
+                              child: Container(
+                                width: 14.w, height: 14.w,
+                                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                child: Icon(Icons.check_rounded, color: _red, size: 9.sp),
+                              ),
+                            ),
                           ]),
                         ),
+                        SizedBox(width: 12.w),
+                        Text('El Herri', style: TextStyle(color: Colors.white, fontSize: 22.sp, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                      ]),
+
+                      SizedBox(height: 22.h),
+
+                      Text(
+                        'Prêt à\ncommander ?',
+                        style: TextStyle(color: Colors.white, fontSize: 30.sp, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.5),
                       ),
-                      // Number field
-                      Expanded(
-                        child: TextField(
-                          controller:   _ctrl,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s]'))],
-                          style:        TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600, letterSpacing: 1),
-                          decoration:   InputDecoration(
-                            hintText:      'XXX-XXX-XXXXX',
-                            hintStyle:     TextStyle(color: const Color(0xFFCBD5E0), fontSize: 16.sp),
-                            border:        InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-                          ),
-                          onChanged: (_) => setState(() {}),
-                        ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        'Connectez-vous pour accéder à votre compte',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13.sp),
                       ),
                     ]),
                   ),
+                ),
+              ),
 
-                  SizedBox(height: 20.h),
-
-                  // SMS + WhatsApp buttons
-                  Row(children: [
-                    Expanded(
-                      child: _AuthButton(
-                        label:    'SMS',
-                        icon:     Icons.sms_outlined,
-                        color:    _red,
-                        outlined: true,
-                        loading:  loading,
-                        onTap:    () => _send('sms'),
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: _AuthButton(
-                        label:    'WhatsApp',
-                        icon:     Icons.chat_outlined,
-                        color:    _green,
-                        outlined: false,
-                        loading:  loading,
-                        onTap:    () => _send('whatsapp'),
-                      ),
-                    ),
-                  ]),
-
-                  SizedBox(height: 24.h),
-
-                  // Terms
-                  Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: TextStyle(fontSize: 11.sp, color: const Color(0xFF9CA3AF), height: 1.6),
-                          children: [
-                            const TextSpan(text: 'En me connectant, j\'accepte tous les\n'),
-                            TextSpan(
-                              text: 'Conditions générales',
-                              style: TextStyle(color: _red, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
-                            ),
-                            const TextSpan(text: ' et '),
-                            TextSpan(
-                              text: 'Politique de confidentialité',
-                              style: TextStyle(color: _red, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
-                            ),
-                          ],
+              // ── White card ────────────────────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: Container(
+                      margin: EdgeInsets.only(top: 20.h),
+                      decoration: BoxDecoration(
+                        color:        Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft:  Radius.circular(32.r),
+                          topRight: Radius.circular(32.r),
                         ),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 24, offset: const Offset(0, -4))],
+                      ),
+                      padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 32.h),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+                          Text('Bon retour 👋', style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.w800, color: const Color(0xFF111827), letterSpacing: -0.3)),
+                          SizedBox(height: 4.h),
+                          Text('Entrez vos identifiants pour continuer', style: TextStyle(fontSize: 13.sp, color: const Color(0xFF6B7280))),
+
+                          SizedBox(height: 28.h),
+
+                          // Phone
+                          _Label('Téléphone'),
+                          SizedBox(height: 8.h),
+                          Row(children: [
+                            GestureDetector(
+                              onTap: _pickCountry,
+                              child: Container(
+                                height:  54.h,
+                                padding: EdgeInsets.symmetric(horizontal: 14.w),
+                                decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(14.r)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Text(_country.flag, style: TextStyle(fontSize: 20.sp)),
+                                  SizedBox(width: 6.w),
+                                  Text(_country.code, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: const Color(0xFF374151))),
+                                  SizedBox(width: 4.w),
+                                  Icon(Icons.expand_more_rounded, size: 18.sp, color: const Color(0xFF9CA3AF)),
+                                ]),
+                              ),
+                            ),
+                            SizedBox(width: 10.w),
+                            Expanded(
+                              child: TextFormField(
+                                controller:      _phoneCtrl,
+                                focusNode:       _phoneFocus,
+                                keyboardType:    TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: (_) => _passFocus.requestFocus(),
+                                style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w500, color: const Color(0xFF111827)),
+                                decoration: _inputDeco('6X XX XX XX'),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return 'Numéro requis';
+                                  if (v.trim().replaceAll(RegExp(r'\D'), '').length < 9) return 'Numéro invalide';
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ]),
+
+                          SizedBox(height: 16.h),
+
+                          // Password
+                          _Label('Mot de passe'),
+                          SizedBox(height: 8.h),
+                          TextFormField(
+                            controller:      _passwordCtrl,
+                            focusNode:       _passFocus,
+                            obscureText:     !_showPass,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _login(),
+                            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w500, color: const Color(0xFF111827)),
+                            decoration: _inputDeco('••••••••').copyWith(
+                              prefixIcon: Icon(Icons.lock_outline_rounded, size: 20.sp, color: const Color(0xFF9CA3AF)),
+                              suffixIcon: IconButton(
+                                icon: Icon(_showPass ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20.sp, color: const Color(0xFF9CA3AF)),
+                                onPressed: () => setState(() => _showPass = !_showPass),
+                              ),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'Mot de passe requis';
+                              if (v.length < 6) return 'Minimum 6 caractères';
+                              return null;
+                            },
+                          ),
+
+                          SizedBox(height: 32.h),
+
+                          _PrimaryButton(label: 'Se connecter', loading: isLoading, onPressed: _login),
+
+                          SizedBox(height: 20.h),
+
+                          Row(children: [
+                            const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 14.w),
+                              child: Text('ou', style: TextStyle(fontSize: 13.sp, color: const Color(0xFF9CA3AF))),
+                            ),
+                            const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+                          ]),
+
+                          SizedBox(height: 20.h),
+
+                          _SecondaryButton(label: 'Créer un compte', onPressed: () => context.push('/customer/register')),
+
+                          SizedBox(height: 32.h),
+
+                          Center(
+                            child: Wrap(alignment: WrapAlignment.center, children: [
+                              Text('En continuant, vous acceptez nos ', style: TextStyle(fontSize: 11.sp, color: const Color(0xFF9CA3AF))),
+                              GestureDetector(child: Text('Conditions', style: TextStyle(fontSize: 11.sp, color: _red, fontWeight: FontWeight.w600))),
+                              Text(' et notre ', style: TextStyle(fontSize: 11.sp, color: const Color(0xFF9CA3AF))),
+                              GestureDetector(child: Text('Confidentialité', style: TextStyle(fontSize: 11.sp, color: _red, fontWeight: FontWeight.w600))),
+                            ]),
+                          ),
+
+                          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+                        ]),
                       ),
                     ),
                   ),
-
-                  // Bottom safe area
-                  SizedBox(height: MediaQuery.of(context).padding.bottom + 20.h),
-                ]),
+                ),
               ),
             ]),
           ),
@@ -224,91 +321,109 @@ class _State extends ConsumerState<CustomerLoginScreen> {
     );
   }
 
-  void _showCountryPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20.r))),
-      builder: (_) => _CountrySheet(
-        selected: _country,
-        onSelect: (c) { setState(() => _country = c); Navigator.pop(context); },
-      ),
-    );
-  }
-
-  String _countryFlag() {
-    switch (_country) {
-      case '+212': return '🇲🇦';
-      case '+33':  return '🇫🇷';
-      case '+213': return '🇩🇿';
-      case '+216': return '🇹🇳';
-      default:     return '🌍';
-    }
-  }
+  InputDecoration _inputDeco(String hint) => InputDecoration(
+    hintText:    hint,
+    hintStyle:   TextStyle(color: const Color(0xFF9CA3AF), fontSize: 14.sp),
+    filled:      true,
+    fillColor:   const Color(0xFFF3F4F6),
+    border:           OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: BorderSide.none),
+    focusedBorder:    OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: const BorderSide(color: _red, width: 2)),
+    errorBorder:      OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: const BorderSide(color: Color(0xFFEF4444))),
+    focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2)),
+    contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+  );
 }
 
-// ── Auth button ────────────────────────────────────────────────────────────────
-class _AuthButton extends StatelessWidget {
-  final String   label;
-  final IconData icon;
-  final Color    color;
-  final bool     outlined;
-  final bool     loading;
-  final VoidCallback onTap;
+// ── Widgets ────────────────────────────────────────────────────────────────────
+class _Label extends StatelessWidget {
+  final String text;
+  const _Label(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: const Color(0xFF374151)));
+}
 
-  const _AuthButton({required this.label, required this.icon, required this.color, required this.outlined, required this.loading, required this.onTap});
+class _CountrySheet extends StatelessWidget {
+  final _Country selected;
+  final void Function(_Country) onPick;
+  const _CountrySheet({required this.selected, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: loading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 52.h,
-        decoration: BoxDecoration(
-          color:        outlined ? Colors.white : color,
-          border:       Border.all(color: color, width: 2),
-          borderRadius: BorderRadius.circular(14.r),
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24.r))),
+      padding: EdgeInsets.fromLTRB(0, 12.h, 0, 32.h),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40.w, height: 4.h, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2.r))),
+        SizedBox(height: 20.h),
+        Text('Choisir un pays', style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700, color: const Color(0xFF111827))),
+        SizedBox(height: 8.h),
+        ..._countries.map((c) => ListTile(
+          leading:  Text(c.flag, style: TextStyle(fontSize: 24.sp)),
+          title:    Text(c.name, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w500)),
+          trailing: Text(c.code, style: TextStyle(fontSize: 13.sp, color: const Color(0xFF6B7280))),
+          selected: c.code == selected.code,
+          selectedColor:     const Color(0xFFDC2626),
+          selectedTileColor: const Color(0xFFFEF2F2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+          onTap: () { onPick(c); Navigator.pop(context); },
+        )),
+      ]),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final bool   loading;
+  final VoidCallback onPressed;
+  const _PrimaryButton({required this.label, required this.loading, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration:     const Duration(milliseconds: 200),
+      width:        double.infinity,
+      height:       54.h,
+      decoration: BoxDecoration(
+        gradient:     loading ? null : const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFFB91C1C)]),
+        color:        loading ? const Color(0xFFE5E7EB) : null,
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow:    loading ? null : [BoxShadow(color: const Color(0x55DC2626), blurRadius: 20, offset: const Offset(0, 6))],
+      ),
+      child: Material(
+        color:        Colors.transparent,
+        borderRadius: BorderRadius.circular(16.r),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16.r),
+          onTap:       loading ? null : onPressed,
+          child: Center(
+            child: loading
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                : Text(label, style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+          ),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (loading)
-            SizedBox(width: 18.w, height: 18.w, child: CircularProgressIndicator(color: outlined ? color : Colors.white, strokeWidth: 2.5))
-          else ...[
-            Icon(icon, color: outlined ? color : Colors.white, size: 20.sp),
-            SizedBox(width: 8.w),
-            Text(label, style: TextStyle(color: outlined ? color : Colors.white, fontWeight: FontWeight.w700, fontSize: 15.sp)),
-          ],
-        ]),
       ),
     );
   }
 }
 
-// ── Country picker ─────────────────────────────────────────────────────────────
-class _CountrySheet extends StatelessWidget {
-  final String selected;
-  final void Function(String) onSelect;
-  const _CountrySheet({required this.selected, required this.onSelect});
-
-  static const _countries = [
-    ('+212', '🇲🇦', 'Maroc'),
-    ('+33',  '🇫🇷', 'France'),
-    ('+213', '🇩🇿', 'Algérie'),
-    ('+216', '🇹🇳', 'Tunisie'),
-  ];
+class _SecondaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+  const _SecondaryButton({required this.label, required this.onPressed});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.all(20.w),
-    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Choisir l\'indicatif', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700)),
-      SizedBox(height: 16.h),
-      ..._countries.map((c) => ListTile(
-        leading:  Text(c.$2, style: TextStyle(fontSize: 24.sp)),
-        title:    Text('${c.$3} (${c.$1})', style: TextStyle(fontSize: 15.sp)),
-        trailing: selected == c.$1 ? const Icon(Icons.check_circle, color: Color(0xFFCC0A0A)) : null,
-        onTap:    () => onSelect(c.$1),
-      )),
-      SizedBox(height: 12.h),
-    ]),
+  Widget build(BuildContext context) => SizedBox(
+    width:  double.infinity,
+    height: 54.h,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        side:            const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+        shape:           RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        foregroundColor: const Color(0xFFDC2626),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700)),
+    ),
   );
 }

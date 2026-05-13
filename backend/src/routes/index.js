@@ -16,12 +16,21 @@ const walletRoutes   = require('../modules/wallet/wallet.routes');
 const ordersRoutes   = require('../modules/orders/orders.routes');
 const { router: addressRouter } = require('../modules/addresses/address.routes');
 const checkoutRoutes      = require('../modules/checkout/checkout.routes');
-const customerAuthRoutes  = require('../modules/customer_auth/customer_auth.routes');
+const customerAuthRoutes    = require('../modules/customer_auth/customer_auth.routes');
+const customerCatalogRoutes = require('../modules/customer_catalog/customer_catalog.routes');
+const customerMeRoutes      = require('../modules/customer_me/customer_me.routes');
 const ordersMgmtRoutes  = require('../modules/orders_mgmt/order_mgmt.routes');
 const pickingRoutes     = require('../modules/picking/picking.routes');
 const staffRoutes       = require('../modules/staff/staff.routes');
 
 const router = Router();
+
+// ── Public customer routes — MUST come before wildcard mounts ('/') ──────────
+// deliverySlot.routes applies router.use(auth) globally, which intercepts
+// every path when mounted under '/' via nodeRoutes.
+router.use('/customer/auth',    customerAuthRoutes);
+router.use('/customer/catalog', customerCatalogRoutes);
+router.use('/customer/me',      customerMeRoutes);
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -40,7 +49,6 @@ router.use('/wallet',   walletRoutes);
 router.use('/orders',    ordersRoutes);
 router.use('/addresses', addressRouter);
 router.use('/checkout',       checkoutRoutes);
-router.use('/customer/auth',  customerAuthRoutes);
 router.use('/orders-mgmt', ordersMgmtRoutes);
 router.use('/picking',     pickingRoutes);
 router.use('/staff',       staffRoutes);

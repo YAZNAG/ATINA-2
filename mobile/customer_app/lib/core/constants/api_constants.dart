@@ -1,29 +1,61 @@
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+
 class ApiConstants {
   ApiConstants._();
 
-  // Android emulator → 10.0.2.2, iOS simulator → localhost
-  static const String baseUrl =
-      String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:5000/api');
+  // ── Base URL ───────────────────────────────────────────────────────────────
+  // Override at build time:
+  //   flutter run --dart-define=API_URL=http://192.168.100.4:5000/api  (physical Android)
+  //   flutter run --dart-define=API_URL=http://10.0.2.2:5000/api       (Android emulator)
+  static String get baseUrl {
+    const envUrl = String.fromEnvironment('API_URL', defaultValue: '');
+    if (envUrl.isNotEmpty) return envUrl;
+    if (kIsWeb) return 'http://localhost:5000/api';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:5000/api';
+    return 'http://localhost:5000/api';
+  }
 
-  // Auth
+  // Base URL for static assets (images, storage) — strips /api suffix
+  static String get imageBaseUrl {
+    final url = baseUrl;
+    return url.endsWith('/api') ? url.substring(0, url.length - 4) : url;
+  }
+
+  // ── Admin auth ─────────────────────────────────────────────────────────────
   static const String login        = '/auth/login';
   static const String me           = '/auth/me';
   static const String logout       = '/auth/logout';
 
-  // Customers
+  // ── Customer auth ──────────────────────────────────────────────────────────
+  static const String customerLogin       = '/customer/auth/login';
+  static const String customerRegister    = '/customer/auth/register';
+  static const String customerRequestOtp  = '/customer/auth/request-otp';
+  static const String customerVerifyOtp   = '/customer/auth/verify-otp';
+  static const String customerMe          = '/customer/auth/me';
+
+  // ── Customer catalog (public) ──────────────────────────────────────────────
+  static const String catalogCategories   = '/customer/catalog/categories';
+  static const String catalogArticles     = '/customer/catalog/articles';
+
+  // ── Customer Me (authenticated) ────────────────────────────────────────────
+  static const String customerMeProfile   = '/customer/me';
+  static const String customerMeAddresses = '/customer/me/addresses';
+
+  // ── Resources ──────────────────────────────────────────────────────────────
   static const String customers    = '/customers';
-
-  // Catalog
-  static const String articles     = '/catalog/articles';
-  static const String categories   = '/catalog/categories';
-
-  // Checkout
   static const String checkout     = '/checkout';
-
-  // Orders
   static const String orders       = '/orders-mgmt';
 
-  // Timeouts
-  static const Duration connectTimeout = Duration(seconds: 15);
+  // ── Customer orders ────────────────────────────────────────────────────────
+  static const String customerOrders     = '/customer/orders';
+
+  // ── Checkout ───────────────────────────────────────────────────────────────
+  static const String checkoutMeta       = '/checkout/meta';
+  static const String checkoutSlots      = '/checkout/delivery-slots';
+  static const String pickupNodes         = '/checkout/pickup-nodes';
+  static const String createOrder        = '/checkout/create-order';
+
+  // ── Timeouts ───────────────────────────────────────────────────────────────
+  static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 }

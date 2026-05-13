@@ -1,105 +1,213 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../core/storage/auth_storage.dart';
 import '../models/customer_auth_response.dart';
 import '../services/customer_auth_api.dart';
 
-// ── Storage keys ───────────────────────────────────────────────────────────────
-const _kToken      = 'ca_token';
-const _kUserId     = 'ca_user_id';
-const _kPhone      = 'ca_phone';
-const _kCustomerId = 'ca_customer_id';
+// ── Auth flow ──────────────────────────────────────────────────────────────────
+enum CustomerAuthFlow {
+  splash,          // checking stored session on startup
+  unauthenticated, // no session → show login
+  authenticated,   // valid session → show home
+  otpPending,      // waiting for OTP after register / phone-only login
+  success,         // OTP verified for a new account → show success screen
+  loading,
+  error,
+}
 
-const _storage = FlutterSecureStorage(
-  aOptions: AndroidOptions(encryptedSharedPreferences: true),
-);
-
-// ── Auth state ─────────────────────────────────────────────────────────────────
-enum CustomerAuthStatus { initial, loading, otpSent, verified, error }
-
+// ── State ──────────────────────────────────────────────────────────────────────
 class CustomerAuthState {
-  final CustomerAuthStatus status;
-  final String?            errorMessage;
-  final String             phoneCountry;
-  final String             phoneNumber;
-  final OtpVerifyResponse? verifyResponse;
+  final CustomerAuthFlow  flow;
+  final String?           error;
+  final String            phoneCountry;
+  final String            phoneNumber;
+  final CustomerProfile?  profile;
+  final bool              isNewAccount;
 
   const CustomerAuthState({
-    this.status       = CustomerAuthStatus.initial,
-    this.errorMessage,
+    this.flow         = CustomerAuthFlow.splash,
+    this.error,
     this.phoneCountry = '+212',
     this.phoneNumber  = '',
-    this.verifyResponse,
+    this.profile,
+    this.isNewAccount = false,
   });
 
-  CustomerAuthState copyWith({
-    CustomerAuthStatus? status,
-    String?            errorMessage,
-    String?            phoneCountry,
-    String?            phoneNumber,
-    OtpVerifyResponse? verifyResponse,
-  }) => CustomerAuthState(
-    status:          status          ?? this.status,
-    errorMessage:    errorMessage,
-    phoneCountry:    phoneCountry    ?? this.phoneCountry,
-    phoneNumber:     phoneNumber     ?? this.phoneNumber,
-    verifyResponse:  verifyResponse  ?? this.verifyResponse,
-  );
+  bool get isLoading => flow == CustomerAuthFlow.loading;
 
-  bool get isLoading => status == CustomerAuthStatus.loading;
+  CustomerAuthState copyWith({
+    CustomerAuthFlow? flow,
+    String?           error,
+    String?           phoneCountry,
+    String?           phoneNumber,
+    CustomerProfile?  profile,
+    bool?             isNewAccount,
+  }) => CustomerAuthState(
+    flow:         flow         ?? this.flow,
+    error:        error,               // allow clearing error with null
+    phoneCountry: phoneCountry ?? this.phoneCountry,
+    phoneNumber:  phoneNumber  ?? this.phoneNumber,
+    profile:      profile      ?? this.profile,
+    isNewAccount: isNewAccount ?? this.isNewAccount,
+  );
 }
 
 // ── Notifier ───────────────────────────────────────────────────────────────────
 class CustomerAuthNotifier extends StateNotifier<CustomerAuthState> {
-  CustomerAuthNotifier() : super(const CustomerAuthState());
+  CustomerAuthNotifier() : super(const CustomerAuthState()) {
+    initSession();
+  }
 
-  final _api = CustomerAuthApi.instance;
+  final _api     = CustomerAuthApi.instance;
+  final _storage = AuthStorage.instance;
 
-  Future<bool> requestOtp({required String phoneCountry, required String phone}) async {
-    state = state.copyWith(status: CustomerAuthStatus.loading, phoneCountry: phoneCountry, phoneNumber: phone);
+  // Called on app start — checks stored token
+  Future<void> initSession() async {
+    state = state.copyWith(flow: CustomerAuthFlow.splash);
     try {
-      await _api.requestOtp(phoneCountry: phoneCountry, phoneNumber: phone);
-      state = state.copyWith(status: CustomerAuthStatus.otpSent);
+      final hasToken = await _storage.hasToken();
+      if (!hasToken) {
+        state = state.copyWith(flow: CustomerAuthFlow.unauthenticated);
+        return;
+      }
+      // Try to restore profile from storage first (fast path)
+      final raw = await _storage.getUser();
+      if (raw != null) {
+        final profile = CustomerProfile.fromMeJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
+        state = state.copyWith(flow: CustomerAuthFlow.authenticated, profile: profile);
+        return;
+      }
+      // Fallback: call /me
+      final profile = await _api.getMe();
+      await _storage.saveUser(jsonEncode(profile.toJson()));
+      state = state.copyWith(flow: CustomerAuthFlow.authenticated, profile: profile);
+    } catch (_) {
+      await _storage.clear();
+      state = state.copyWith(flow: CustomerAuthFlow.unauthenticated);
+    }
+  }
+
+  // Password-based login
+  Future<bool> login({
+    required String phoneCountry,
+    required String phone,
+    required String password,
+  }) async {
+    state = state.copyWith(flow: CustomerAuthFlow.loading, phoneCountry: phoneCountry, phoneNumber: phone);
+    try {
+      final result = await _api.login(
+        phoneCountry: phoneCountry,
+        phoneNumber:  phone,
+        password:     password,
+      );
+      await _persistSession(result);
+      state = state.copyWith(flow: CustomerAuthFlow.authenticated, profile: result.profile);
       return true;
     } catch (e) {
-      state = state.copyWith(status: CustomerAuthStatus.error, errorMessage: e.toString());
+      state = state.copyWith(flow: CustomerAuthFlow.unauthenticated, error: e.toString());
       return false;
     }
   }
 
-  Future<bool> verifyOtp(String otp) async {
-    state = state.copyWith(status: CustomerAuthStatus.loading);
+  // Register new account → moves to OTP
+  Future<bool> register({
+    required String phoneCountry,
+    required String phone,
+    required String fullName,
+    required String password,
+    String? email,
+  }) async {
+    state = state.copyWith(flow: CustomerAuthFlow.loading, phoneCountry: phoneCountry, phoneNumber: phone);
     try {
-      final resp = await _api.verifyOtp(
+      await _api.register(
+        phoneCountry: phoneCountry,
+        phoneNumber:  phone,
+        fullName:     fullName,
+        password:     password,
+        email:        email,
+      );
+      state = state.copyWith(
+        flow:         CustomerAuthFlow.otpPending,
+        isNewAccount: true,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(flow: CustomerAuthFlow.unauthenticated, error: e.toString());
+      return false;
+    }
+  }
+
+  // Request OTP for phone-only flow
+  Future<bool> requestOtp({required String phoneCountry, required String phone}) async {
+    state = state.copyWith(flow: CustomerAuthFlow.loading, phoneCountry: phoneCountry, phoneNumber: phone);
+    try {
+      await _api.requestOtp(phoneCountry: phoneCountry, phoneNumber: phone);
+      state = state.copyWith(flow: CustomerAuthFlow.otpPending);
+      return true;
+    } catch (e) {
+      state = state.copyWith(flow: CustomerAuthFlow.unauthenticated, error: e.toString());
+      return false;
+    }
+  }
+
+  // Verify OTP → authenticated or success (new account)
+  Future<bool> verifyOtp(String otp) async {
+    state = state.copyWith(flow: CustomerAuthFlow.loading);
+    try {
+      final result = await _api.verifyOtp(
         phoneCountry: state.phoneCountry,
         phoneNumber:  state.phoneNumber,
         otp:          otp,
       );
-      // Persist token locally
-      await _storage.write(key: _kToken,      value: resp.token);
-      await _storage.write(key: _kUserId,     value: resp.userId.toString());
-      await _storage.write(key: _kPhone,      value: resp.phoneNumber);
-      if (resp.customerId != null) {
-        await _storage.write(key: _kCustomerId, value: resp.customerId);
-      }
-      state = state.copyWith(status: CustomerAuthStatus.verified, verifyResponse: resp);
+      await _persistSession(result);
+      final nextFlow = state.isNewAccount
+          ? CustomerAuthFlow.success
+          : CustomerAuthFlow.authenticated;
+      state = state.copyWith(flow: nextFlow, profile: result.profile);
       return true;
     } catch (e) {
-      state = state.copyWith(status: CustomerAuthStatus.error, errorMessage: e.toString());
+      state = state.copyWith(flow: CustomerAuthFlow.otpPending, error: e.toString());
       return false;
     }
   }
 
-  void resetError() => state = state.copyWith(status: CustomerAuthStatus.otpSent);
+  // Resend OTP helper
+  Future<void> resendOtp() async {
+    try {
+      await _api.requestOtp(
+        phoneCountry: state.phoneCountry,
+        phoneNumber:  state.phoneNumber,
+      );
+    } catch (_) {}
+  }
+
+  // Proceed from success screen to home
+  void proceedToHome() {
+    state = state.copyWith(flow: CustomerAuthFlow.authenticated, error: null);
+  }
+
+  // Logout
+  Future<void> logout() async {
+    await _storage.clear();
+    state = const CustomerAuthState(flow: CustomerAuthFlow.unauthenticated);
+  }
+
+  void clearError() => state = state.copyWith(error: null);
+
+  Future<void> _persistSession(CustomerAuthResult result) async {
+    await _storage.saveToken(result.token);
+    await _storage.saveUser(jsonEncode(result.profile.toJson()));
+  }
 }
 
-// ── Provider ───────────────────────────────────────────────────────────────────
+// ── Providers ──────────────────────────────────────────────────────────────────
 final customerAuthProvider =
-    StateNotifierProvider<CustomerAuthNotifier, CustomerAuthState>((_) => CustomerAuthNotifier());
+    StateNotifierProvider<CustomerAuthNotifier, CustomerAuthState>(
+  (_) => CustomerAuthNotifier(),
+);
 
-// ── Has stored token ───────────────────────────────────────────────────────────
-Future<bool> hasStoredToken() async {
-  final t = await _storage.read(key: _kToken);
-  return t != null && t.isNotEmpty;
-}
-
-Future<void> clearStoredToken() async => _storage.deleteAll();
+final customerProfileProvider = Provider<CustomerProfile?>((ref) {
+  return ref.watch(customerAuthProvider).profile;
+});

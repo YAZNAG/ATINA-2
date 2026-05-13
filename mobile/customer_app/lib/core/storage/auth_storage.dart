@@ -2,12 +2,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
 
 class AuthStorage {
-  AuthStorage._();
-  static const AuthStorage instance = AuthStorage._();
+  AuthStorage._internal();
+  static final AuthStorage instance = AuthStorage._internal();
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
   Future<void> saveToken(String token) =>

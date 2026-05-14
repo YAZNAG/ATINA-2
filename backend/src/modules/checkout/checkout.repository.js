@@ -16,13 +16,18 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 const getAddress = (id) =>
   prisma.address.findFirst({ where: { id, is_deleted: false } });
 
+const getCustomerAddresses = (customer_id) =>
+  prisma.address.findMany({
+    where: { customer_id, is_deleted: false },
+    orderBy: [{ is_default: 'desc' }, { created_at: 'desc' }],
+  });
+
 // ── Delivery type ─────────────────────────────────────────────────────────────
-const getDeliveryType  = (id)   => prisma.deliveryType.findUnique({ where: { id } });
-const getDeliveryTypeByCode = (code) => prisma.deliveryType.findFirst({ where: { code } });
-const getAllDeliveryTypes = () => prisma.deliveryType.findMany({ orderBy: { code: 'asc' } });
+const getDeliveryType        = (id)   => prisma.deliveryType.findUnique({ where: { id } });
+const getDeliveryTypeByCode  = (code) => prisma.deliveryType.findFirst({ where: { code } });
+const getAllDeliveryTypes     = ()     => prisma.deliveryType.findMany({ orderBy: { code: 'asc' } });
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
-// Returns ALL active nodes — city filtering happens in service with normalization
 const getActiveNodesInCity = () => getAllActiveNodes();
 
 const getAllActiveNodes = () =>
@@ -33,6 +38,12 @@ const getAllActiveNodes = () =>
       delivery_slots: { where: { is_active: true }, orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }] },
     },
     orderBy: { name_fr: 'asc' },
+  });
+
+const getNodeById = (id) =>
+  prisma.node.findFirst({
+    where: { id, is_active: true, is_deleted: false },
+    include: { city: { select: { id: true, name_fr: true } } },
   });
 
 // ── Slot capacity ─────────────────────────────────────────────────────────────
@@ -54,7 +65,7 @@ const countOrdersForSlotDay = (confirmed_slot_id, date) => {
 };
 
 // ── Stock & selling rules ─────────────────────────────────────────────────────
-const getStockLevels = (node_id, sku_ids) =>
+const getStockLevels  = (node_id, sku_ids) =>
   prisma.stockLevel.findMany({ where: { node_id, sku_id: { in: sku_ids } } });
 
 const getSellingRules = (node_id, sku_ids) =>
@@ -65,22 +76,70 @@ const getOrderStatusByCode     = (code) => prisma.orderStatus.findFirst({ where:
 const getOrderItemStatusByCode = (code) => prisma.orderItemStatus.findFirst({ where: { code } });
 const getPaymentStatusByCode   = (code) => prisma.paymentStatus.findFirst({ where: { code } });
 const getPaymentMethod         = (id)   => prisma.paymentMethod.findUnique({ where: { id } });
+const getPaymentMethodByCode   = (code) => prisma.paymentMethod.findFirst({ where: { code, is_active: true } });
 const getAllPaymentMethods      = ()     => prisma.paymentMethod.findMany({ where: { is_active: true }, orderBy: { code: 'asc' } });
+const getAllOrderStatuses       = ()     => prisma.orderStatus.findMany({ orderBy: { sort_order: 'asc' } });
+const getAllPaymentStatuses     = ()     => prisma.paymentStatus.findMany({ orderBy: { code: 'asc' } });
 
-// ── Customer & SKUs ───────────────────────────────────────────────────────────
-const getCustomer = (id) => prisma.customer.findFirst({
-  where: { id, is_deleted: false },
-  select: { id: true, name: true, wallet_balance: true, points_balance: true, is_active: true },
-});
+// ── AppConfigs ────────────────────────────────────────────────────────────────
+// Returns { key: value } map. node_id=null → global configs. node_id → node override.
+const getAppConfigs = async (node_id = null) => {
+  const where = node_id
+    ? { OR: [{ node_id: null }, { node_id }] }
+    : { node_id: null };
 
+  const rows = await prisma.appConfig.findMany({ where, orderBy: { node_id: 'asc' } });
+
+  // Merge: node config overrides global
+  const map = {};
+  for (const row of rows) {
+    map[row.config_key] = row.config_value;
+  }
+  return map;
+};
+
+// ── SKU prices (lookup from article) ─────────────────────────────────────────
+const getSkusWithPrices = (sku_ids) =>
+  prisma.sku.findMany({
+    where: { id: { in: sku_ids } },
+    include: {
+      article: { select: { id: true, name_fr: true, price: true, vat_rate: true, ean13: true } },
+    },
+  });
+
+// ── Customer ──────────────────────────────────────────────────────────────────
+const getCustomer = (id) =>
+  prisma.customer.findFirst({
+    where: { id, is_deleted: false },
+    select: { id: true, name: true, phone_number: true, phone_country: true, wallet_balance: true, points_balance: true, is_active: true, city: true },
+  });
+
+const searchCustomers = (search, limit = 30) => {
+  const where = { is_deleted: false };
+  if (search?.trim()) {
+    const s = search.trim();
+    where.OR = [
+      { name:         { contains: s, mode: 'insensitive' } },
+      { phone_number: { contains: s, mode: 'insensitive' } },
+    ];
+  }
+  return prisma.customer.findMany({
+    where,
+    take: Number(limit),
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, phone_number: true, phone_country: true, wallet_balance: true, city: true, is_active: true },
+  });
+};
+
+// ── Articles search ───────────────────────────────────────────────────────────
 const searchArticles = (search, limit = 20) => {
   const where = { is_deleted: false, is_active: true };
   if (search?.trim()) {
     const s = search.trim();
     where.OR = [
-      { name_fr:   { contains: s, mode: 'insensitive' } },
-      { sku_code:  { contains: s, mode: 'insensitive' } },
-      { ean13:     { contains: s, mode: 'insensitive' } },
+      { name_fr:  { contains: s, mode: 'insensitive' } },
+      { sku_code: { contains: s, mode: 'insensitive' } },
+      { ean13:    { contains: s, mode: 'insensitive' } },
     ];
   }
   return prisma.article.findMany({
@@ -96,10 +155,15 @@ const searchArticles = (search, limit = 20) => {
 };
 
 module.exports = {
-  haversineKm, getAddress, getDeliveryType, getDeliveryTypeByCode, getAllDeliveryTypes,
-  getActiveNodesInCity, getAllActiveNodes,
+  haversineKm,
+  getAddress, getCustomerAddresses,
+  getDeliveryType, getDeliveryTypeByCode, getAllDeliveryTypes,
+  getActiveNodesInCity, getAllActiveNodes, getNodeById,
   countOrdersForNodeDay, countOrdersForSlotDay,
   getStockLevels, getSellingRules,
-  getOrderStatusByCode, getOrderItemStatusByCode, getPaymentStatusByCode,
-  getPaymentMethod, getAllPaymentMethods, getCustomer, searchArticles,
+  getOrderStatusByCode, getOrderItemStatusByCode,
+  getPaymentStatusByCode, getPaymentMethod, getPaymentMethodByCode,
+  getAllPaymentMethods, getAllOrderStatuses, getAllPaymentStatuses,
+  getAppConfigs, getSkusWithPrices,
+  getCustomer, searchCustomers, searchArticles,
 };

@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePickerAuth } from '../context/PickerAuthContext';
 import PickerProtectedRoute   from '../components/PickerProtectedRoute';
+import PickupOrdersPage      from '../pages/pickup/PickupOrdersPage';
+import PickupOrderDetailPage from '../pages/pickup/PickupOrderDetailPage';
 import PickerLayout from '../layouts/PickerLayout';
 import PickerLoginPage        from '../pages/picker/LoginPage';
 import PickerDashboardPage    from '../pages/picker/DashboardPage';
@@ -118,6 +120,8 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/checkout/new"    element={<CheckoutPage />} />
           <Route path="/checkout-test"   element={<CheckoutTestPage />} />
+          <Route path="/pickup/orders"             element={<PickupOrdersPage />} />
+          <Route path="/pickup/orders/:id"         element={<PickupOrderDetailPage />} />
           <Route path="/orders-mgmt"              element={<OrdersListPage />} />
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />

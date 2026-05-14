@@ -706,9 +706,9 @@ export default function CheckoutPage() {
 
                 <div className="flex gap-3">
                   <button onClick={() => setStep(2)} className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">← Retour</button>
-                  <button onClick={() => setStep(4)} disabled={!selectedNode}
+                  <button onClick={() => setStep(4)} disabled={!selectedNode || !selectedSlot}
                     className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white text-sm font-semibold rounded-xl">
-                    {!selectedNode ? 'Sélectionnez un node' : 'Continuer → Paiement'}
+                    {!selectedNode ? 'Sélectionnez un node' : !selectedSlot ? 'Sélectionnez un créneau' : 'Continuer → Paiement'}
                   </button>
                 </div>
               </>

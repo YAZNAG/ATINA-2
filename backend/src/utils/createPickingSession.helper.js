@@ -19,12 +19,15 @@ const {
  * @returns {Promise<PickingSession>} Session créée avec items inclus
  */
 async function createPickingSessionForOrder(orderId, pickerId, actor = null, actorLabel = 'acteur inconnu') {
-  // 1. Charger la commande
+  // 1. Charger la commande — OrderItem n'a pas de champ is_deleted, filtrer par statut non annulé
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
       status: true,
-      items:  { where: { is_deleted: false }, include: { sku: { select: { id: true } } } },
+      items:  {
+        where: { status: { code: { not: 'cancelled' } } },
+        include: { sku: { select: { id: true } } },
+      },
     },
   });
   if (!order) throw { statusCode: 404, message: 'Commande introuvable' };

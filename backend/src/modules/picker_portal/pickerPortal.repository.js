@@ -9,7 +9,7 @@ const ORDER_SELECT = {
   status:        { select: { code: true, name_fr: true } },
   delivery_type: { select: { code: true, name_fr: true } },
   customer:      { select: { id: true, name: true, phone_number: true } },
-  items:         { where: { is_deleted: false }, select: { id: true, qty: true } },
+  items:         { where: { status: { code: { not: 'cancelled' } } }, select: { id: true, qty: true } },
   confirmed_slot: { select: { slot_start: true, slot_end: true } },
 };
 

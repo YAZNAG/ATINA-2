@@ -22,19 +22,39 @@ function targetDate(input) {
   return now;
 }
 
+// ── opening_hours_json parser ─────────────────────────────────────────────────
+// Supports multiple formats:
+//   { "mon": ["08:00", "22:00"] }     (named keys + array)
+//   { "1": { "open": "08:00", "close": "22:00" } }  (numeric keys + object)
+//   { "1": null }                     (explicitly closed)
+const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+function isDayOpen(openingHoursJson, dayOfWeek) {
+  if (!openingHoursJson || typeof openingHoursJson !== 'object') return true; // no config = open
+
+  const byName   = openingHoursJson[DOW_KEYS[dayOfWeek]];
+  const byNumber = openingHoursJson[String(dayOfWeek)];
+  const entry    = byName !== undefined ? byName : byNumber;
+
+  if (entry === undefined) return false; // key missing = closed
+  if (entry === null || entry === false) return false;
+  if (Array.isArray(entry)) return entry.length >= 2; // ["08:00","22:00"] = open
+  if (typeof entry === 'object') return !!(entry.open); // { open: "08:00" } = open
+  return false;
+}
+
 // ── Is slot still valid for today? ───────────────────────────────────────────
-// Hides slots whose end time has already passed (for today only)
 function isSlotStillValid(slot, checkDate) {
-  const now = new Date();
+  const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const check = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
   if (check > today) return true; // future date → always valid
 
-  // For today: parse slot_start (HH:MM or HH:MM:SS) and compare with now
+  // For today: parse slot_end (HH:MM or HH:MM:SS) and compare with now
   const slotEnd = slot.slot_end;
   if (!slotEnd) return true;
-  const [hh, mm] = slotEnd.toString().split(':').map(Number);
-  const slotEndTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+  const parts = slotEnd.toString().split(':').map(Number);
+  const slotEndTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parts[0], parts[1] ?? 0);
   return now < slotEndTime;
 }
 
@@ -171,9 +191,8 @@ async function getAvailableDates(node_id, delivery_type_code, days_ahead = 14) {
     const dow     = d.getDay(); // 0=dimanche
     const dateStr = d.toISOString().split('T')[0];
 
-    // Vérifier si le node est ouvert ce jour
-    const hours = opening[dow.toString()] ?? opening[String(dow)] ?? null;
-    if (!hours || !hours.open) {
+    // Vérifier si le node est ouvert ce jour (supporte tous les formats opening_hours_json)
+    if (!isDayOpen(opening, dow)) {
       results.push({ date: dateStr, available: false, reason: 'closed' });
       continue;
     }

@@ -30,16 +30,19 @@ function targetDate(input) {
 const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 function isDayOpen(openingHoursJson, dayOfWeek) {
-  if (!openingHoursJson || typeof openingHoursJson !== 'object') return true; // no config = open
+  // Null, undefined, empty object, non-object → aucune restriction → ouvert
+  if (!openingHoursJson || typeof openingHoursJson !== 'object') return true;
+  if (Object.keys(openingHoursJson).length === 0) return true;
 
+  // Config explicite : chercher par nom ('mon') ou par chiffre ('1')
   const byName   = openingHoursJson[DOW_KEYS[dayOfWeek]];
   const byNumber = openingHoursJson[String(dayOfWeek)];
   const entry    = byName !== undefined ? byName : byNumber;
 
-  if (entry === undefined) return false; // key missing = closed
+  if (entry === undefined) return false; // jour non listé dans une config explicite = fermé
   if (entry === null || entry === false) return false;
-  if (Array.isArray(entry)) return entry.length >= 2; // ["08:00","22:00"] = open
-  if (typeof entry === 'object') return !!(entry.open); // { open: "08:00" } = open
+  if (Array.isArray(entry)) return entry.length >= 2;        // ["08:00","22:00"] = ouvert
+  if (typeof entry === 'object') return !!(entry.open);      // { open: "08:00" } = ouvert
   return false;
 }
 

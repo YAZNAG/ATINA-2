@@ -43,7 +43,10 @@ const getAllActiveNodes = () =>
 const getNodeById = (id) =>
   prisma.node.findFirst({
     where: { id, is_active: true, is_deleted: false },
-    include: { city: { select: { id: true, name_fr: true } } },
+    include: {
+      city:           { select: { id: true, name_fr: true, name_ar: true } },
+      delivery_slots: { where: { is_active: true }, orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }] },
+    },
   });
 
 // ── Slot capacity ─────────────────────────────────────────────────────────────

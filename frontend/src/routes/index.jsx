@@ -1,5 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePickerAuth } from '../context/PickerAuthContext';
+import PickerProtectedRoute   from '../components/PickerProtectedRoute';
+import PickerLayout from '../layouts/PickerLayout';
+import PickerLoginPage        from '../pages/picker/LoginPage';
+import PickerDashboardPage    from '../pages/picker/DashboardPage';
+import AvailableOrdersPage    from '../pages/picker/AvailableOrdersPage';
+import MyOrdersPage           from '../pages/picker/MyOrdersPage';
+import PickerSessionDetailPage from '../pages/picker/SessionDetailPage';
 import ProtectedRoute from '../components/ProtectedRoute';
 import AdminLayout from '../layouts/AdminLayout';
 import Login from '../pages/auth/Login';
@@ -54,7 +62,8 @@ import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
 import PaymentStatusesRefPage from '../pages/payment/PaymentStatusesRefPage';
 import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
-import CheckoutPage from '../pages/checkout/CheckoutPage';
+import CheckoutPage     from '../pages/checkout/CheckoutPage';
+import CheckoutTestPage from '../pages/checkout/CheckoutTestPage';
 import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
 import PickingSessionsPage from '../pages/picking/PickingSessionsPage';
 import PickingSessionDetailPage from '../pages/picking/PickingSessionDetailPage';
@@ -75,8 +84,9 @@ import NodeConfigPage from '../pages/orders/NodeConfigPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated: isPickerAuth, loading: pickerLoading } = usePickerAuth();
 
-  if (loading) {
+  if (loading || pickerLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
@@ -86,6 +96,19 @@ export default function AppRoutes() {
 
   return (
     <Routes>
+      {/* ── Picker Portal ───────────────────────────────────────────────────── */}
+      <Route
+        path="/picker/login"
+        element={isPickerAuth ? <Navigate to="/picker/dashboard" replace /> : <PickerLoginPage />}
+      />
+      <Route element={<PickerProtectedRoute />}>
+        <Route element={<PickerLayout />}>
+          <Route path="/picker/dashboard"          element={<PickerDashboardPage />} />
+          <Route path="/picker/available-orders"   element={<AvailableOrdersPage />} />
+          <Route path="/picker/my-orders"          element={<MyOrdersPage />} />
+          <Route path="/picker/sessions/:sessionId" element={<PickerSessionDetailPage />} />
+        </Route>
+      </Route>
       <Route
         path="/login"
         element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />}
@@ -94,6 +117,7 @@ export default function AppRoutes() {
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/checkout/new"    element={<CheckoutPage />} />
+          <Route path="/checkout-test"   element={<CheckoutTestPage />} />
           <Route path="/orders-mgmt"              element={<OrdersListPage />} />
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />

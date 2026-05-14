@@ -12,6 +12,7 @@ import '../../customer_auth/models/customer_auth_response.dart';
 import '../../customer_auth/controllers/customer_auth_controller.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../data/checkout_api.dart';
+import '../providers/checkout_provider.dart';
 import '../models/checkout_meta_model.dart';
 import '../models/delivery_slot_model.dart';
 import '../models/pickup_node_model.dart';

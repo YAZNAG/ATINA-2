@@ -1,12 +1,28 @@
 const prisma = require('../../config/database');
 
 // ── Shared includes ───────────────────────────────────────────────────────────
+const PICKING_SESSION_SUMMARY = {
+  where: { status: { code: { not: 'cancelled' } } },
+  orderBy: { created_at: 'desc' },
+  take: 1,
+  select: {
+    id: true,
+    created_at: true,
+    started_at: true,
+    completed_at: true,
+    picker: { select: { id: true, name: true, phone_number: true } },
+    status: { select: { id: true, code: true, name_fr: true } },
+    items: { select: { id: true, status: { select: { code: true, name_fr: true } } } },
+  },
+};
+
 const LIST_INCLUDE = {
   customer:      { select: { id: true, name: true, phone_country: true, phone_number: true } },
   status:        { select: { id: true, code: true, name_fr: true, color: true, is_terminal: true, sort_order: true } },
   delivery_type: { select: { id: true, code: true, name_fr: true } },
   node:          { select: { id: true, code: true, name_fr: true } },
   _count:        { select: { items: true } },
+  picking_sessions: PICKING_SESSION_SUMMARY,
 };
 
 const DETAIL_INCLUDE = {
@@ -31,6 +47,7 @@ const DETAIL_INCLUDE = {
     },
     orderBy: { created_at: 'desc' },
   },
+  picking_sessions: PICKING_SESSION_SUMMARY,
 };
 
 // ── Build WHERE clause ────────────────────────────────────────────────────────

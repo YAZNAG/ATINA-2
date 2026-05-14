@@ -14,7 +14,9 @@
     "db:seed": "node src/seeders/index.js",
     "db:seed-customers": "node src/seeders/customers.seeder.js",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "test:pickup-picking": "node scripts/testOrderPickingPickupFlow.js",
+    "test": "npm run test:pickup-picking"
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",

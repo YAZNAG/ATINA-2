@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getOrdersMeta, getOrders, getOrder, getOrderTransitions, getOrderHistory, changeOrderStatus, cancelOrder, getOrderPickers, assignOrderPicker, confirmOrderPickup } from '../../api/orders_mgmt.api';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
@@ -13,9 +14,23 @@ function elapsed(dateStr) {
   return `${d}j`;
 }
 
-function hexBadge(color, label) {
-  const hex = color?.startsWith('#') ? color : '#64748b';
-  return { backgroundColor: `${hex}18`, color: hex, border: `1px solid ${hex}40` };
+function pickingSessionProgress(ps) {
+  if (!ps?.items?.length) return { done: 0, total: 0, pct: 0 };
+  const total = ps.items.length;
+  const done = ps.items.filter((i) => i.status?.code !== 'pending').length;
+  return { done, total, pct: Math.round((done / total) * 100) };
+}
+
+function PickingListHint({ order }) {
+  if (order?.status?.code !== 'picking') return null;
+  const ps = order.picking_sessions?.[0];
+  if (!ps) return <p className="text-[11px] text-violet-500 mt-0.5">Préparation…</p>;
+  const { done, total, pct } = pickingSessionProgress(ps);
+  return (
+    <p className="text-[11px] text-violet-600 mt-0.5 font-medium">
+      {ps.picker?.name ?? 'Picker'} · {done}/{total} ({pct}%)
+    </p>
+  );
 }
 
 const DAYS_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -85,6 +100,8 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
   // Confirm pickup modal
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [confirmingPickup, setConfirmingPickup] = useState(false);
+  const [pickupNote, setPickupNote] = useState('');
+  const [pickupPaymentConfirmed, setPickupPaymentConfirmed] = useState(false);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -154,11 +171,20 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
   };
 
   const handleConfirmPickup = async () => {
+    if (!pickupPaymentConfirmed) {
+      toast.error('Cochez la confirmation de paiement / encaissement');
+      return;
+    }
     setConfirmingPickup(true);
     try {
-      await confirmOrderPickup(orderId, { note: 'Retrait confirmé au magasin' });
+      await confirmOrderPickup(orderId, {
+        payment_collected: true,
+        note: pickupNote.trim() || 'Commande retirée au magasin',
+      });
       toast.success('Retrait confirmé — commande livrée ✓');
       setShowPickupModal(false);
+      setPickupNote('');
+      setPickupPaymentConfirmed(false);
       await load();
       onStatusChanged?.();
     } catch (err) { toast.error(getErrorMessage(err)); }
@@ -223,9 +249,16 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
                 <span className="text-xs text-amber-700">Encaissez le montant en espèces avant de confirmer</span>
               </div>
             )}
+            <label className="flex items-start gap-2 mb-3 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={pickupPaymentConfirmed} onChange={(e) => setPickupPaymentConfirmed(e.target.checked)} className="mt-0.5 accent-emerald-600" />
+              <span>J&apos;atteste le paiement encaissé ou vérifié (obligatoire)</span>
+            </label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Note (optionnel)</label>
+            <textarea value={pickupNote} onChange={(e) => setPickupNote(e.target.value)} rows={2} placeholder="Ex. Commande retirée au magasin"
+              className="w-full mb-4 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             <div className="flex gap-3">
-              <button onClick={() => setShowPickupModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">Annuler</button>
-              <button onClick={handleConfirmPickup} disabled={confirmingPickup}
+              <button type="button" onClick={() => { setShowPickupModal(false); setPickupNote(''); setPickupPaymentConfirmed(false); }} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">Annuler</button>
+              <button type="button" onClick={handleConfirmPickup} disabled={confirmingPickup || !pickupPaymentConfirmed}
                 className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
                 {confirmingPickup ? 'Confirmation…' : 'Confirmer retrait ✓'}
               </button>
@@ -295,6 +328,26 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
                     )}
                   </section>
                 )}
+
+                {/* Préparation (picking) */}
+                {order.status?.code === 'picking' && order.picking_sessions?.[0] && (() => {
+                  const ps = order.picking_sessions[0];
+                  const { done, total, pct } = pickingSessionProgress(ps);
+                  return (
+                    <section className="border-t border-gray-50 pt-5">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Préparation picking</p>
+                      <p className="text-sm text-gray-800">
+                        Picker : <strong>{ps.picker?.name ?? '—'}</strong>
+                        {' · '}
+                        Session <span className="font-mono text-violet-600">{ps.status?.name_fr}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{done}/{total} articles traités ({pct}%)</p>
+                      <Link to={`/picking/sessions/${ps.id}`} className="inline-block mt-3 text-sm font-semibold text-violet-600 hover:text-violet-800">
+                        Ouvrir la session picking →
+                      </Link>
+                    </section>
+                  );
+                })()}
 
                 {/* Node */}
                 <section className="border-t border-gray-50 pt-5">
@@ -509,7 +562,7 @@ function DetailPanel({ orderId, onClose, onStatusChanged }) {
 
           {/* ── Confirmer retrait magasin (commande ready + pickup) ── */}
           {isReadyPickup && (
-            <button onClick={() => setShowPickupModal(true)} disabled={acting}
+            <button onClick={() => { setPickupNote(''); setPickupPaymentConfirmed(false); setShowPickupModal(true); }} disabled={acting}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 transition-colors">
               🏪 Confirmer retrait magasin
             </button>
@@ -703,7 +756,10 @@ export default function OrdersListPage() {
                         <td className="px-4 py-4 text-center">
                           <span className="text-xs text-gray-500">{elapsed(o.created_at)}</span>
                         </td>
-                        <td className="px-4 py-4"><StatusBadge status={o.status} /></td>
+                        <td className="px-4 py-4">
+                          <StatusBadge status={o.status} />
+                          <PickingListHint order={o} />
+                        </td>
                         {!selectedId && (
                           <td className="px-4 py-4 text-center">
                             <span className="text-sm font-bold text-gray-700">{o._count?.items ?? 0}</span>

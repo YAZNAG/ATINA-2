@@ -13,8 +13,8 @@ class PickingController {
       resp.success(res, await svc.createSession(order_id), 'Session créée', 201);
     } catch(e) { E(res,next,e); }
   }
-  async startSession(req, res, next)    { try { resp.success(res, await svc.startSession(req.params.id, req.body.picker_id), 'Session démarrée'); } catch(e) { E(res,next,e); } }
-  async completeSession(req, res, next) { try { resp.success(res, await svc.completeSession(req.params.id), 'Session terminée — commande Prête'); } catch(e) { E(res,next,e); } }
+  async startSession(req, res, next)    { try { resp.success(res, await svc.startSession(req.params.id, { ...req.body, changed_by: req.user?.id ?? null }), 'Session démarrée'); } catch(e) { E(res,next,e); } }
+  async completeSession(req, res, next) { try { resp.success(res, await svc.completeSession(req.params.id, req.user?.id ?? null), 'Session terminée — commande Prête'); } catch(e) { E(res,next,e); } }
   async cancelSession(req, res, next)   { try { resp.success(res, await svc.cancelSession(req.params.id), 'Session annulée'); } catch(e) { E(res,next,e); } }
   async pickItem(req, res, next)        { try { resp.success(res, await svc.pickItem(req.params.id, req.body), 'Article préparé'); } catch(e) { E(res,next,e); } }
   async substituteItem(req, res, next)  { try { resp.success(res, await svc.substituteItem(req.params.id), 'Article substitué'); } catch(e) { E(res,next,e); } }

@@ -29,9 +29,9 @@ class PickingService {
     });
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
 
-    // Avoid duplicate sessions
+    // Avoid duplicate active sessions
     const existing = await repo.findSessionByOrder(order_id);
-    if (existing && !['cancelled'].includes(existing.status.code)) return existing;
+    if (existing && ['open', 'in_progress'].includes(existing.status.code)) return existing;
 
     const [openStatus, pendingItemStatus, picker] = await Promise.all([
       repo.getPickingStatusByCode('open'),
@@ -66,7 +66,7 @@ class PickingService {
   }
 
   // ── Start session ──────────────────────────────────────────────────────────
-  async startSession(id, picker_id) {
+  async startSession(id, { picker_id, changed_by } = {}) {
     const session = await repo.findSessionById(id);
     if (!session) throw { statusCode: 404, message: 'Session introuvable' };
     if (session.status.code !== 'open') throw { statusCode: 422, message: `Session déjà ${session.status.name_fr}` };
@@ -74,19 +74,39 @@ class PickingService {
     const inProgressStatus = await repo.getPickingStatusByCode('in_progress');
     if (!inProgressStatus) throw { statusCode: 500, message: 'Statut "in_progress" introuvable' };
 
-    return repo.updateSession(id, {
-      status_id:  inProgressStatus.id,
-      started_at: new Date(),
-      ...(picker_id && { picker_id }),
+    const pickingOrderStatus = await repo.getOrderStatusByCode('picking');
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSession.update({
+        where: { id },
+        data: {
+          status_id:  inProgressStatus.id,
+          started_at: new Date(),
+          ...(picker_id && { picker_id }),
+        },
+      });
+      if (pickingOrderStatus) {
+        await tx.orderHistory.create({
+          data: {
+            order_id:  session.order_id,
+            status_id: pickingOrderStatus.id,
+            changed_by,
+            note:       'Session picking démarrée',
+          },
+        });
+      }
     });
+
+    return repo.findSessionById(id);
   }
 
   // ── Complete session ───────────────────────────────────────────────────────
-  async completeSession(id) {
+  async completeSession(id, changed_by = null) {
     const session = await repo.findSessionById(id);
     if (!session) throw { statusCode: 404, message: 'Session introuvable' };
-    if (!['open', 'in_progress'].includes(session.status.code))
-      throw { statusCode: 422, message: `Session ${session.status.name_fr} — impossible de terminer` };
+    if (session.status.code === 'completed')
+      throw { statusCode: 422, message: 'Session déjà terminée' };
+    if (session.status.code !== 'in_progress')
+      throw { statusCode: 422, message: `Session "${session.status.name_fr}" — démarrez la session avant de terminer` };
 
     // Check all items are resolved
     const pending = session.items?.filter(i => i.status.code === 'pending') ?? [];
@@ -97,24 +117,29 @@ class PickingService {
       repo.getPickingStatusByCode('completed'),
       repo.getOrderStatusByCode('ready'),
     ]);
+    if (!completedStatus) throw { statusCode: 500, message: 'Statut session "completed" introuvable' };
 
-    await repo.updateSession(id, {
-      status_id:    completedStatus.id,
-      completed_at: new Date(),
-    });
-
-    // Transition order → ready
-    if (readyOrderStatus) {
-      const hist = await repo.getOrderStatusByCode('picking');
-      await prisma.order.update({
-        where: { id: session.order_id },
-        data:  { status_id: readyOrderStatus.id },
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSession.update({
+        where: { id },
+        data:  { status_id: completedStatus.id, completed_at: new Date() },
       });
-      // Add history entry
-      await prisma.orderHistory.create({
-        data: { order_id: session.order_id, status_id: readyOrderStatus.id, note: 'Picking terminé → Prête' },
-      }).catch(() => {});
-    }
+
+      if (readyOrderStatus) {
+        await tx.order.update({
+          where: { id: session.order_id },
+          data:  { status_id: readyOrderStatus.id },
+        });
+        await tx.orderHistory.create({
+          data: {
+            order_id:  session.order_id,
+            status_id: readyOrderStatus.id,
+            changed_by,
+            note:      'Picking terminé — commande prête',
+          },
+        });
+      }
+    });
 
     return repo.findSessionById(id);
   }
@@ -131,6 +156,8 @@ class PickingService {
   async pickItem(item_id, { qty_picked, scanned_ean } = {}) {
     const item = await repo.findItemById(item_id);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
+    if (item.session.status.code !== 'in_progress')
+      throw { statusCode: 422, message: 'Démarrez la session picking avant de traiter les articles' };
 
     // EAN validation if provided
     if (scanned_ean) {
@@ -156,7 +183,13 @@ class PickingService {
   async substituteItem(item_id) {
     const item = await repo.findItemById(item_id);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
+    if (item.session.status.code !== 'in_progress')
+      throw { statusCode: 422, message: 'Démarrez la session picking avant de traiter les articles' };
     const status = await repo.getPickItemStatusByCode('substituted');
+    const oisSub = await repo.getOrderItemStatusByCode('substituted');
+    if (oisSub) {
+      await prisma.orderItem.update({ where: { id: item.order_item_id }, data: { status_id: oisSub.id } });
+    }
     return repo.updateItem(item_id, { status_id: status.id, picked_at: new Date() });
   }
 
@@ -164,6 +197,8 @@ class PickingService {
   async outOfStock(item_id) {
     const item = await repo.findItemById(item_id);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
+    if (item.session.status.code !== 'in_progress')
+      throw { statusCode: 422, message: 'Démarrez la session picking avant de traiter les articles' };
     const status = await repo.getPickItemStatusByCode('out_of_stock');
 
     // Also update order_item status

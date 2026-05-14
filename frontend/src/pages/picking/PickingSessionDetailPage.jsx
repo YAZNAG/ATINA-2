@@ -138,6 +138,7 @@ export default function PickingSessionDetailPage() {
 
   const statusCode     = session.status?.code;
   const isActive       = ['open', 'in_progress'].includes(statusCode);
+  const itemsPickable  = statusCode === 'in_progress';
   const isCompleted    = statusCode === 'completed';
   const pendingItems   = session.items?.filter(i => i.status?.code === 'pending') ?? [];
   const progress       = session.items?.length ? Math.round(((session.items.length - pendingItems.length) / session.items.length) * 100) : 0;
@@ -234,8 +235,11 @@ export default function PickingSessionDetailPage() {
           </div>
         )}
 
-        {/* Items */}
-        {!session.items?.length ? (
+          {statusCode === 'open' && (
+            <div className="mb-4 p-3 bg-violet-50 border border-violet-200 rounded-xl text-sm text-violet-800">
+              Démarrez la session pour activer le scan et les actions sur les articles.
+            </div>
+          )}
           <p className="text-center py-12 text-gray-400">Aucun article dans cette session</p>
         ) : (
           <div className="space-y-3">
@@ -243,7 +247,7 @@ export default function PickingSessionDetailPage() {
             {pendingItems.length > 0 && (
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{pendingItems.length} article{pendingItems.length > 1 ? 's' : ''} en attente</p>
-                {pendingItems.map(item => <ItemCard key={item.id} item={item} isActive={isActive} onScan={() => setScanItem(item)} onSubstitute={() => act(`sub-${item.id}`, () => substituteItem(item.id), 'Substitution enregistrée')} onOos={() => act(`oos-${item.id}`, () => outOfStockItem(item.id), 'Rupture enregistrée')} acting={acting} />)}
+                {pendingItems.map(item => <ItemCard key={item.id} item={item} isActive={itemsPickable} onScan={() => setScanItem(item)} onSubstitute={() => act(`sub-${item.id}`, () => substituteItem(item.id), 'Substitution enregistrée')} onOos={() => act(`oos-${item.id}`, () => outOfStockItem(item.id), 'Rupture enregistrée')} acting={acting} />)}
               </>
             )}
 

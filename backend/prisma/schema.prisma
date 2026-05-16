@@ -831,11 +831,12 @@ model ReferralStatus {
 }
 
 model WalletTxnType {
-  id        String   @id @default(uuid()) @db.Uuid
-  code      String   @unique @db.VarChar(50)
-  name_fr   String   @db.VarChar(100)
-  name_ar   String   @db.VarChar(100)
-  direction String   @db.VarChar(10)
+  id           String              @id @default(uuid()) @db.Uuid
+  code         String              @unique @db.VarChar(50)
+  name_fr      String              @db.VarChar(100)
+  name_ar      String              @db.VarChar(100)
+  direction    String              @db.VarChar(10)
+  transactions WalletTransaction[]
 
   @@map("wallet_txn_types")
 }
@@ -912,10 +913,11 @@ model RewardType {
 }
 
 model NotificationChannel {
-  id      String @id @default(uuid()) @db.Uuid
-  code    String @unique @db.VarChar(50)
-  name_fr String @db.VarChar(100)
-  name_ar String @db.VarChar(100)
+  id            String         @id @default(uuid()) @db.Uuid
+  code          String         @unique @db.VarChar(50)
+  name_fr       String         @db.VarChar(100)
+  name_ar       String         @db.VarChar(100)
+  notifications Notification[]
 
   @@map("notification_channels")
 }
@@ -1005,9 +1007,11 @@ model Customer {
   referrals   Customer[] @relation("CustomerReferrals")
   addresses   Address[]
   orders      Order[]
-  referrals_as_referrer Referral[] @relation("ReferralReferrer")
-  referrals_as_referee  Referral[] @relation("ReferralReferee")
+  referrals_as_referrer Referral[]          @relation("ReferralReferrer")
+  referrals_as_referee  Referral[]          @relation("ReferralReferee")
   gamification_plays    GamificationPlay[]
+  wallet_transactions   WalletTransaction[]
+  notifications         Notification[]
 
   @@map("customers")
 }
@@ -1142,6 +1146,8 @@ model Order {
   stock_moves          StockMove[]
   history              OrderHistory[]
   picking_sessions     PickingSession[]
+  wallet_transactions  WalletTransaction[]
+  notifications        Notification[]
 
   @@map("orders")
 }
@@ -1620,4 +1626,46 @@ model TourStop {
   status StopStatus @relation(fields: [status_id], references: [id])
 
   @@map("tour_stops")
+}
+
+// ── Wallet transaction ledger ──────────────────────────────────────────────────
+model WalletTransaction {
+  id             String   @id @default(uuid()) @db.Uuid
+  customer_id    String   @db.Uuid
+  txn_type_id    String   @db.Uuid
+  order_id       String?  @db.Uuid
+  amount         Decimal  @db.Decimal(12, 2)
+  balance_before Decimal  @db.Decimal(12, 2)
+  balance_after  Decimal  @db.Decimal(12, 2)
+  reference      String?  @db.VarChar(100)
+  note           String?  @db.Text
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  customer Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  txn_type WalletTxnType @relation(fields: [txn_type_id], references: [id])
+  order    Order?        @relation(fields: [order_id], references: [id])
+
+  @@index([customer_id])
+  @@map("wallet_transactions")
+}
+
+// ── Notification log ───────────────────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  customer_id String   @db.Uuid
+  order_id    String?  @db.Uuid
+  channel_id  String?  @db.Uuid
+  event_code  String   @db.VarChar(100)
+  title_fr    String?  @db.VarChar(255)
+  body_fr     String?  @db.Text
+  metadata    Json?
+  is_read     Boolean  @default(false)
+  sent_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  customer Customer             @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order    Order?               @relation(fields: [order_id], references: [id])
+  channel  NotificationChannel? @relation(fields: [channel_id], references: [id])
+
+  @@index([customer_id])
+  @@map("notifications")
 }

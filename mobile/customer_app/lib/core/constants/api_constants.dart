@@ -39,9 +39,11 @@ class ApiConstants {
   static const String cities              = '/customer/catalog/cities';
 
   // ── Customer Me (authenticated) ────────────────────────────────────────────
-  static const String customerMeProfile   = '/customer/me';
-  static const String customerMeAddresses = '/customer/me/addresses';
-  static const String customerOrders      = '/customer/me/orders';
+  static const String customerMeProfile       = '/customer/me';
+  static const String customerMeAddresses     = '/customer/me/addresses';
+  static const String customerOrders          = '/customer/me/orders';
+  static const String customerWallet          = '/customer/me/wallet';
+  static const String customerNotifications   = '/customer/me/notifications';
 
   // ── Customer checkout (authenticated) ──────────────────────────────────────
   static const String checkoutMeta        = '/customer/checkout/meta';

@@ -80,11 +80,18 @@ async function createOrder(customerId, payload) {
   const { cart_items, ...rest } = payload;
   const resolved = await resolveCartItems(cart_items || []);
 
-  return checkoutSvc.createOrder({
+  const order = await checkoutSvc.createOrder({
     ...rest,
     customer_id: customerId,
-    cart_items: resolved,
+    cart_items:  resolved,
+    initial_status_code: 'confirmed', // customer checkout → auto-confirmed
   });
+
+  // Fire-and-forget notification
+  const { notifyOrderConfirmed } = require('../../utils/notify');
+  notifyOrderConfirmed(customerId, order.id, order.id.slice(0, 8).toUpperCase()).catch(() => {});
+
+  return order;
 }
 
 module.exports = { getMeta, findEligibleNodes, findPickupNodes, getDeliverySlots, createOrder };

@@ -10,6 +10,8 @@ const canView   = perm.permAny(['orders.view',  'dashboard.view']);
 const canUpdate = perm.permAny(['orders.update_status', 'dashboard.view']);
 
 router.get('/meta',                   canView,   ctrl.meta.bind(ctrl));
+router.get('/by-node/:nodeId',        canView,   ctrl.byNode.bind(ctrl));
+router.get('/by-customer/:custId',    canView,   ctrl.byCustomer.bind(ctrl));
 router.get('/',                       canView,   ctrl.index.bind(ctrl));
 router.get('/:id',                    canView,   ctrl.show.bind(ctrl));
 router.get('/:id/transitions',        canView,   ctrl.transitions.bind(ctrl));

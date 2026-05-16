@@ -87,7 +87,8 @@ async function checkStock(node_id, cart_items, { strict = false } = {}) {
       continue;
     }
 
-    const avail = Number(stock.qty_available);
+    // Effective available = qty_available minus already-reserved (not yet sold)
+    const avail = Math.max(0, Number(stock.qty_available) - Number(stock.qty_reserved));
     if (avail >= qty) continue;
 
     const shortage = qty - avail;
@@ -632,12 +633,13 @@ async function createOrder(payload) {
     });
 
     // Reserve stock + create stock moves
+    // Per spec: only increment qty_reserved. qty_available stays unchanged until actual sale.
     for (const item of cart_items) {
       if (!item.sku_id) continue;
       const qty = Number(item.qty || 1);
       await tx.stockLevel.updateMany({
         where: { node_id: finalNodeId, sku_id: item.sku_id },
-        data:  { qty_reserved: { increment: qty }, qty_available: { decrement: qty } },
+        data:  { qty_reserved: { increment: qty } },
       });
       if (reservationMoveType) {
         await tx.stockMove.create({

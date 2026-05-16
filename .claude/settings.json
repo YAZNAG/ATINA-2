@@ -20,7 +20,8 @@
       "Bash(git -C c:/Users/yassi/Desktop/dark-store-app add frontend/src/pages/location/NodesPage.jsx frontend/src/pages/location/NodeDetailPage.jsx frontend/src/pages/warehouse/ZonesPage.jsx frontend/src/pages/warehouse/LevelsPage.jsx frontend/src/components/Sidebar.jsx frontend/src/routes/index.jsx)",
       "Bash(node scripts/sync-permissions.js)",
       "Bash(powershell -Command \"Get-ChildItem -Recurse -Path 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules' -Directory | Select-Object -ExpandProperty Name | Sort-Object\")",
-      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\routes\\\\index.js' -Head 80\")"
+      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\routes\\\\index.js' -Head 80\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\payment\\\\stripe\")"
     ]
   }
 }

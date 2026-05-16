@@ -52,6 +52,11 @@ class ApiConstants {
   static const String pickupNodes         = '/customer/checkout/pickup-nodes';
   static const String createOrder         = '/customer/checkout/create-order';
 
+  // ── Stripe ─────────────────────────────────────────────────────────────────
+  static const String stripeConfig        = '/payment/stripe/config';
+  static const String stripeCreateIntent  = '/payment/stripe/create-intent';
+  static const String stripeCreateSession = '/payment/stripe/create-session-customer';
+
   // ── Admin resources (back-office only) ────────────────────────────────────
   static const String customers    = '/customers';
   static const String orders       = '/orders-mgmt';

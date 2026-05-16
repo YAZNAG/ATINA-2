@@ -44,6 +44,38 @@ class CustomerMeController {
     try { resp.success(res, await svc.getOrderById(req.customerId, req.params.id)); }
     catch(e) { E(res, next, e); }
   }
+
+  // Wallet
+  async getWallet(req, res, next) {
+    try {
+      const walletSvc = require('../wallet/wallet.service');
+      resp.success(res, await walletSvc.getCustomerWallet(req.customerId));
+    }
+    catch(e) { E(res, next, e); }
+  }
+
+  // Notifications
+  async listNotifications(req, res, next) {
+    try {
+      const notify = require('../../utils/notify');
+      resp.success(res, await notify.listNotifications(req.customerId, req.query));
+    }
+    catch(e) { E(res, next, e); }
+  }
+  async markRead(req, res, next) {
+    try {
+      const notify = require('../../utils/notify');
+      resp.success(res, await notify.markRead(req.customerId, req.params.id));
+    }
+    catch(e) { E(res, next, e); }
+  }
+  async markAllRead(req, res, next) {
+    try {
+      const notify = require('../../utils/notify');
+      resp.success(res, await notify.markAllRead(req.customerId));
+    }
+    catch(e) { E(res, next, e); }
+  }
 }
 
 module.exports = new CustomerMeController();

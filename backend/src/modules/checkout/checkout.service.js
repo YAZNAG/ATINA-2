@@ -477,6 +477,8 @@ async function createOrder(payload) {
     payment_method_id, payment_method_code,
     cart_items, notes, date,
     wallet_used: walletRequested = 0,
+    // 'confirmed' for customer self-checkout; 'pending' for back-office (default)
+    initial_status_code = 'pending',
   } = payload;
 
   // Basic validation
@@ -527,14 +529,16 @@ async function createOrder(payload) {
   }
 
   // Statuses
-  const [pendingOrder, activeItem, pendingPayment] = await Promise.all([
-    repo.getOrderStatusByCode('pending'),
+  const targetCode = needsBackorder ? 'awaiting_stock' : initial_status_code;
+  const [orderStatusRow, activeItem, pendingPayment, reservationMoveType, debitTxnType] = await Promise.all([
+    repo.getOrderStatusByCode(targetCode).then(s => s || repo.getOrderStatusByCode('pending')),
     repo.getOrderItemStatusByCode('active'),
     repo.getPaymentStatusByCode('pending'),
+    prisma.moveType.findFirst({ where: { code: { in: ['reservation', 'RESERVATION', 'reserve'] } } }),
+    prisma.walletTxnType.findFirst({ where: { code: 'debit_order' } }),
   ]);
-  const awaitStock  = needsBackorder ? await repo.getOrderStatusByCode('awaiting_stock') : null;
-  const orderStatus = (needsBackorder && awaitStock) ? awaitStock : pendingOrder;
-  if (!orderStatus) throw { statusCode: 500, message: 'Statut "pending" introuvable — lancez le seed' };
+  const orderStatus = orderStatusRow;
+  if (!orderStatus) throw { statusCode: 500, message: 'Statut commande introuvable — lancez le seed' };
   if (!activeItem)  throw { statusCode: 500, message: 'Statut ligne "active" introuvable — lancez le seed' };
 
   // Payment method (accept code or id)
@@ -627,7 +631,7 @@ async function createOrder(payload) {
       },
     });
 
-    // Reserve stock
+    // Reserve stock + create stock moves
     for (const item of cart_items) {
       if (!item.sku_id) continue;
       const qty = Number(item.qty || 1);
@@ -635,6 +639,41 @@ async function createOrder(payload) {
         where: { node_id: finalNodeId, sku_id: item.sku_id },
         data:  { qty_reserved: { increment: qty }, qty_available: { decrement: qty } },
       });
+      if (reservationMoveType) {
+        await tx.stockMove.create({
+          data: {
+            node_id:      finalNodeId,
+            sku_id:       item.sku_id,
+            move_type_id: reservationMoveType.id,
+            order_id:     newOrder.id,
+            qty_delta:    -qty,
+            reason:       'Réservation commande',
+          },
+        });
+      }
+    }
+
+    // Debit wallet if used
+    if (wallet_used > 0) {
+      const walletBefore = Number(customer.wallet_balance ?? 0);
+      const walletAfter  = Math.max(0, walletBefore - wallet_used);
+      await tx.customer.update({
+        where: { id: customer_id },
+        data:  { wallet_balance: walletAfter },
+      });
+      if (debitTxnType) {
+        await tx.walletTransaction.create({
+          data: {
+            customer_id,
+            txn_type_id:    debitTxnType.id,
+            order_id:       newOrder.id,
+            amount:         wallet_used,
+            balance_before: walletBefore,
+            balance_after:  walletAfter,
+            note:           `Débit commande #${newOrder.id.slice(0, 8)}`,
+          },
+        });
+      }
     }
 
     // Payment
@@ -651,8 +690,11 @@ async function createOrder(payload) {
     }
 
     // History
+    const histNote = initial_status_code === 'confirmed'
+      ? 'Commande créée et confirmée automatiquement'
+      : 'Commande créée depuis le back-office';
     await tx.orderHistory.create({
-      data: { order_id: newOrder.id, status_id: orderStatus.id, note: 'Commande créée depuis le back-office' },
+      data: { order_id: newOrder.id, status_id: orderStatus.id, note: histNote },
     });
 
     return newOrder;

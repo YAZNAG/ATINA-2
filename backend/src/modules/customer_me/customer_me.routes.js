@@ -20,4 +20,12 @@ router.delete('/addresses/:id',            ctrl.deleteAddress.bind(ctrl));
 router.get('/orders',     ctrl.listOrders.bind(ctrl));
 router.get('/orders/:id', ctrl.getOrderById.bind(ctrl));
 
+// Wallet
+router.get('/wallet', ctrl.getWallet.bind(ctrl));
+
+// Notifications
+router.get('/notifications',              ctrl.listNotifications.bind(ctrl));
+router.patch('/notifications/:id/read',   ctrl.markRead.bind(ctrl));
+router.patch('/notifications/read-all',   ctrl.markAllRead.bind(ctrl));
+
 module.exports = router;

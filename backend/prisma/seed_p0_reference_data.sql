@@ -85,3 +85,71 @@ FROM (VALUES
   ('json', 'JSON', 'JSON')
 ) AS v(code, name_fr, name_ar)
 WHERE NOT EXISTS (SELECT 1 FROM config_value_types c WHERE c.code = v.code);
+
+-- picking_statuses
+INSERT INTO picking_statuses (id, code, name_fr, name_ar)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+FROM (VALUES
+  ('open',        'En attente',  'في الانتظار'),
+  ('in_progress', 'En cours',    'جارٍ'),
+  ('completed',   'Terminée',    'مكتملة'),
+  ('cancelled',   'Annulée',     'ملغاة')
+) AS v(code, name_fr, name_ar)
+WHERE NOT EXISTS (SELECT 1 FROM picking_statuses p WHERE p.code = v.code);
+
+-- pick_item_statuses
+INSERT INTO pick_item_statuses (id, code, name_fr, name_ar)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+FROM (VALUES
+  ('pending',      'En attente',   'في الانتظار'),
+  ('picked',       'Prélevé',      'تم الأخذ'),
+  ('substituted',  'Substitué',    'مستبدل'),
+  ('out_of_stock', 'Rupture',      'نفاد')
+) AS v(code, name_fr, name_ar)
+WHERE NOT EXISTS (SELECT 1 FROM pick_item_statuses p WHERE p.code = v.code);
+
+-- tour_statuses
+INSERT INTO tour_statuses (id, code, name_fr, name_ar)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+FROM (VALUES
+  ('planned',     'Planifiée',   'مخططة'),
+  ('in_progress', 'En cours',    'جارية'),
+  ('completed',   'Terminée',    'مكتملة'),
+  ('cancelled',   'Annulée',     'ملغاة')
+) AS v(code, name_fr, name_ar)
+WHERE NOT EXISTS (SELECT 1 FROM tour_statuses t WHERE t.code = v.code);
+
+-- stop_statuses
+INSERT INTO stop_statuses (id, code, name_fr, name_ar)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+FROM (VALUES
+  ('pending',   'En attente',   'في الانتظار'),
+  ('arrived',   'Arrivé',       'وصل'),
+  ('delivered', 'Livré',        'تم التسليم'),
+  ('failed',    'Échec',        'فشل'),
+  ('skipped',   'Ignoré',       'متخطى')
+) AS v(code, name_fr, name_ar)
+WHERE NOT EXISTS (SELECT 1 FROM stop_statuses s WHERE s.code = v.code);
+
+-- wallet_txn_types
+INSERT INTO wallet_txn_types (id, code, name_fr, name_ar, direction)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, v.direction
+FROM (VALUES
+  ('debit_order',     'Débit commande',    'خصم طلب',         'debit'),
+  ('credit_refund',   'Remboursement',     'استرداد',          'credit'),
+  ('credit_recharge', 'Recharge',          'شحن',             'credit'),
+  ('credit_points',   'Conversion points', 'تحويل نقاط',      'credit'),
+  ('debit_adjust',    'Ajustement débit',  'تعديل خصم',       'debit'),
+  ('credit_adjust',   'Ajustement crédit', 'تعديل ائتمان',    'credit')
+) AS v(code, name_fr, name_ar, direction)
+WHERE NOT EXISTS (SELECT 1 FROM wallet_txn_types w WHERE w.code = v.code);
+
+-- notification_channels
+INSERT INTO notification_channels (id, code, name_fr, name_ar)
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar
+FROM (VALUES
+  ('app',   'Application', 'التطبيق'),
+  ('sms',   'SMS',         'رسالة نصية'),
+  ('email', 'Email',       'بريد إلكتروني')
+) AS v(code, name_fr, name_ar)
+WHERE NOT EXISTS (SELECT 1 FROM notification_channels n WHERE n.code = v.code);

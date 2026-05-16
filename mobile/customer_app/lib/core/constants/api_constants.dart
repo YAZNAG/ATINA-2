@@ -36,24 +36,23 @@ class ApiConstants {
   // ── Customer catalog (public) ──────────────────────────────────────────────
   static const String catalogCategories   = '/customer/catalog/categories';
   static const String catalogArticles     = '/customer/catalog/articles';
+  static const String cities              = '/customer/catalog/cities';
 
   // ── Customer Me (authenticated) ────────────────────────────────────────────
   static const String customerMeProfile   = '/customer/me';
   static const String customerMeAddresses = '/customer/me/addresses';
+  static const String customerOrders      = '/customer/me/orders';
 
-  // ── Resources ──────────────────────────────────────────────────────────────
+  // ── Customer checkout (authenticated) ──────────────────────────────────────
+  static const String checkoutMeta        = '/customer/checkout/meta';
+  static const String checkoutSlots       = '/customer/checkout/delivery-slots';
+  static const String eligibleNodes       = '/customer/checkout/eligible-nodes';
+  static const String pickupNodes         = '/customer/checkout/pickup-nodes';
+  static const String createOrder         = '/customer/checkout/create-order';
+
+  // ── Admin resources (back-office only) ────────────────────────────────────
   static const String customers    = '/customers';
-  static const String checkout     = '/checkout';
   static const String orders       = '/orders-mgmt';
-
-  // ── Customer orders ────────────────────────────────────────────────────────
-  static const String customerOrders     = '/customer/orders';
-
-  // ── Checkout ───────────────────────────────────────────────────────────────
-  static const String checkoutMeta       = '/checkout/meta';
-  static const String checkoutSlots      = '/checkout/delivery-slots';
-  static const String pickupNodes         = '/checkout/pickup-nodes';
-  static const String createOrder        = '/checkout/create-order';
 
   // ── Timeouts ───────────────────────────────────────────────────────────────
   static const Duration connectTimeout = Duration(seconds: 30);

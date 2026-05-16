@@ -18,32 +18,42 @@ class CheckoutApi {
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
 
-  Future<List<DeliverySlotModel>> getDeliverySlots({
+  /// Returns slots + detected node for home delivery (or null node for pickup).
+  Future<DeliverySlotsResult> getDeliverySlots({
     String? addressId,
     String? deliveryTypeId,
+    String? deliveryTypeCode,
     String? nodeId,
     String? date,
   }) async {
     try {
       final params = <String, dynamic>{
-        if (addressId != null) 'address_id': addressId,
-        if (deliveryTypeId != null) 'delivery_type_id': deliveryTypeId,
-        if (nodeId != null) 'node_id': nodeId,
-        if (date != null) 'date': date,
+        if (addressId != null)        'address_id':         addressId,
+        if (deliveryTypeId != null)   'delivery_type_id':   deliveryTypeId,
+        if (deliveryTypeCode != null) 'delivery_type_code': deliveryTypeCode,
+        if (nodeId != null)           'node_id':            nodeId,
+        if (date != null)             'date':               date,
       };
-      final res = await _dio.get(ApiConstants.checkoutSlots, queryParameters: params);
-      final list = res.data['data'] as List<dynamic>? ?? [];
-      return list.map((e) => DeliverySlotModel.fromJson(e as Map<String, dynamic>)).toList();
+      final res  = await _dio.get(ApiConstants.checkoutSlots, queryParameters: params);
+      final data = res.data['data'] as Map<String, dynamic>? ?? {};
+
+      final rawSlots = data['slots'] as List<dynamic>? ?? [];
+      final slots = rawSlots.map((e) => DeliverySlotModel.fromJson(e as Map<String, dynamic>)).toList();
+
+      final rawNode = data['node'] as Map<String, dynamic>?;
+      final nodeModel = rawNode != null ? PickupNodeModel.fromJson(rawNode) : null;
+
+      return DeliverySlotsResult(slots: slots, detectedNode: nodeModel, message: data['message']?.toString());
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
 
-  Future<List<PickupNodeModel>> getPickupNodes({String? cartItems}) async {
+  Future<List<PickupNodeModel>> getPickupNodes() async {
     try {
-      final params = <String, dynamic>{
-        if (cartItems != null) 'cart_items': cartItems,
-      };
-      final res = await _dio.get(ApiConstants.pickupNodes, queryParameters: params);
-      final list = res.data['data'] as List<dynamic>? ?? [];
+      final res  = await _dio.get(ApiConstants.pickupNodes);
+      final data = res.data['data'] as Map<String, dynamic>? ?? {};
+      final list = data['eligible'] as List<dynamic>?
+          ?? data['pickup_nodes'] as List<dynamic>?
+          ?? [];
       return list.map((e) => PickupNodeModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
@@ -54,4 +64,11 @@ class CheckoutApi {
       return res.data['data'] as Map<String, dynamic>? ?? {};
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
+}
+
+class DeliverySlotsResult {
+  final List<DeliverySlotModel> slots;
+  final PickupNodeModel? detectedNode;
+  final String? message;
+  const DeliverySlotsResult({required this.slots, this.detectedNode, this.message});
 }

@@ -30,6 +30,11 @@ class CustomerCatalogController {
       res.json({ success: true, ...result });
     } catch(e) { E(res, next, e); }
   }
+
+  async cities(req, res, next) {
+    try { resp.success(res, await svc.getCities()); }
+    catch(e) { E(res, next, e); }
+  }
 }
 
 module.exports = new CustomerCatalogController();

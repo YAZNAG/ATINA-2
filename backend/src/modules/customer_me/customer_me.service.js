@@ -139,4 +139,121 @@ async function deleteAddress(customerId, addressId) {
   return { id: addressId };
 }
 
-module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress };
+// ── Orders ────────────────────────────────────────────────────────────────────
+const ORDER_LIST_INCLUDE = {
+  status:        { select: { id: true, code: true, name_fr: true, name_ar: true, color: true } },
+  delivery_type: { select: { id: true, code: true, name_fr: true } },
+  node:          { select: { id: true, name_fr: true } },
+  _count:        { select: { items: true } },
+  payments: {
+    take: 1,
+    orderBy: { created_at: 'desc' },
+    include: {
+      status:         { select: { code: true, name_fr: true } },
+      payment_method: { select: { code: true, name_fr: true } },
+    },
+  },
+};
+
+const ORDER_DETAIL_INCLUDE = {
+  status:        { select: { id: true, code: true, name_fr: true, name_ar: true, color: true } },
+  delivery_type: { select: { id: true, code: true, name_fr: true } },
+  node:          { select: { id: true, name_fr: true } },
+  address:       true,
+  confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, day_of_week: true } },
+  items: {
+    where: { is_deleted: false },
+    include: {
+      sku: { select: { id: true, article: { select: { name_fr: true, sku_code: true, price: true } } } },
+    },
+    orderBy: { created_at: 'asc' },
+  },
+  payments: {
+    orderBy: { created_at: 'desc' },
+    include: {
+      status:         { select: { code: true, name_fr: true } },
+      payment_method: { select: { code: true, name_fr: true } },
+    },
+  },
+  order_history: {
+    include: { status: { select: { code: true, name_fr: true, color: true } } },
+    orderBy: { created_at: 'asc' },
+  },
+};
+
+function formatOrderList(o) {
+  const payment = o.payments?.[0];
+  return {
+    id:            o.id,
+    reference:     o.reference ?? o.id.slice(0, 8).toUpperCase(),
+    created_at:    o.created_at,
+    delivery_type: o.delivery_type?.code ?? 'home',
+    node_name:     o.node?.name_fr,
+    total_ttc:     Number(o.total_ttc ?? 0),
+    status:        o.status,
+    payment_status: payment?.status?.code ?? 'pending',
+    payment_method_name: payment?.payment_method?.name_fr,
+    item_count:    o._count?.items ?? 0,
+  };
+}
+
+function formatOrderDetail(o) {
+  const payment = o.payments?.[0];
+  const slot    = o.confirmed_slot;
+  const address = o.address;
+  return {
+    id:            o.id,
+    reference:     o.reference ?? o.id.slice(0, 8).toUpperCase(),
+    created_at:    o.created_at,
+    delivery_type: o.delivery_type?.code ?? 'home',
+    node_name:     o.node?.name_fr,
+    total_ttc:     Number(o.total_ttc ?? 0),
+    delivery_fee:  Number(o.delivery_fee ?? 0),
+    wallet_used:   Number(o.wallet_used ?? 0),
+    notes:         o.notes,
+    status:        o.status,
+    payment_status: payment?.status?.code ?? 'pending',
+    payment_method_name: payment?.payment_method?.name_fr,
+    address_label: address?.label,
+    address_full:  [address?.street_number, address?.street_name, address?.quartier, address?.city]
+      .filter(Boolean).join(', '),
+    slot_name:     slot?.name_fr,
+    slot_date:     null,
+    items: (o.items ?? []).map(item => ({
+      id:         item.id,
+      sku_code:   item.sku?.article?.sku_code,
+      name_fr:    item.sku?.article?.name_fr ?? 'Article',
+      qty:        item.qty,
+      unit_price: Number(item.unit_price_sold ?? 0),
+      vat_rate:   Number(item.vat_rate ?? 0),
+      total_ttc:  Number(item.unit_price_sold ?? 0) * (item.qty ?? 1),
+    })),
+    timeline: (o.order_history ?? []).map(h => ({
+      status_code: h.status?.code,
+      name_fr:     h.status?.name_fr,
+      color:       h.status?.color,
+      created_at:  h.created_at,
+      note:        h.note,
+    })),
+  };
+}
+
+async function listOrders(customerId) {
+  const orders = await prisma.order.findMany({
+    where:   { customer_id: customerId, is_deleted: false },
+    include: ORDER_LIST_INCLUDE,
+    orderBy: { created_at: 'desc' },
+  });
+  return orders.map(formatOrderList);
+}
+
+async function getOrderById(customerId, orderId) {
+  const order = await prisma.order.findFirst({
+    where:   { id: orderId, customer_id: customerId, is_deleted: false },
+    include: ORDER_DETAIL_INCLUDE,
+  });
+  if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+  return formatOrderDetail(order);
+}
+
+module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById };

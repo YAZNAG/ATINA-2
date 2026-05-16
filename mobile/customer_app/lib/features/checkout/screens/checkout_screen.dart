@@ -5,9 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/dio_client.dart';
 import '../../addresses/models/address_model.dart';
-import '../../addresses/providers/cities_provider.dart';
 import '../../cart/providers/cart_provider.dart';
-import '../../cart/models/cart_item_model.dart';
 import '../../customer_auth/models/customer_auth_response.dart';
 import '../../customer_auth/controllers/customer_auth_controller.dart';
 import '../../profile/providers/profile_provider.dart';
@@ -47,6 +45,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   List<DeliverySlotModel> _slots = [];
   bool _slotsLoading = false;
+  PickupNodeModel? _detectedNode; // auto-detected for home delivery
 
   List<PickupNodeModel> _pickupNodes = [];
   bool _pickupNodesLoading = false;
@@ -85,22 +84,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() { _slotsLoading = true; _stepError = null; });
 
     try {
-      final params = <String, dynamic>{
-        'delivery_type_id': _selectedDeliveryType!.id,
-        'date': _formatDate(_selectedDate),
-      };
-      if (_selectedDeliveryType!.code == 'home' && _selectedAddress != null) {
-        params['address_id'] = _selectedAddress!.id;
-      }
-      if (_selectedDeliveryType!.code == 'pickup' && _selectedPickupNode != null) {
-        params['node_id'] = _selectedPickupNode!.id;
-      }
-      _slots = await CheckoutApi.instance.getDeliverySlots(
-        addressId: params['address_id'] as String?,
-        deliveryTypeId: params['delivery_type_id'] as String?,
-        nodeId: params['node_id'] as String?,
-        date: params['date'] as String?,
+      final result = await CheckoutApi.instance.getDeliverySlots(
+        addressId:        _selectedDeliveryType!.code == 'home' ? _selectedAddress?.id : null,
+        deliveryTypeId:   _selectedDeliveryType!.id,
+        nodeId:           _selectedDeliveryType!.code == 'pickup' ? _selectedPickupNode?.id : null,
+        date:             _formatDate(_selectedDate),
       );
+      _slots        = result.slots;
+      _detectedNode = result.detectedNode;
+      if (_slots.isEmpty) _stepError = result.message ?? 'Aucun créneau disponible pour cette date';
     } on ApiException catch (e) {
       _stepError = e.message;
       _slots = [];
@@ -158,8 +150,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         }
       }
       await _loadSlots();
-      if (_slots.isEmpty && _stepError == null) {
-        setState(() => _stepError = 'Aucun créneau disponible pour cette date');
+      if (_slots.isEmpty) {
+        setState(() => _stepError ??= 'Aucun créneau disponible pour cette date');
         return;
       }
     } else if (_currentStep == 1) {
@@ -196,8 +188,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         addressId: _selectedDeliveryType!.code == 'home' ? _selectedAddress?.id : null,
         deliveryTypeId: _selectedDeliveryType!.id,
         nodeId: _selectedDeliveryType!.code == 'pickup'
-            ? (_selectedPickupNode?.id ?? '')
-            : (_selectedAddress?.id ?? ''),
+            ? _selectedPickupNode?.id
+            : _detectedNode?.id, // null → backend auto-detects for home delivery
         selectedSlotId: _selectedSlot!.id,
         selectedDate: _formatDate(_selectedDate),
         paymentMethodId: _selectedPayment!.id,

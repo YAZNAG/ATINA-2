@@ -35,11 +35,6 @@ class DateSelector extends StatelessWidget {
     return names[dt.month - 1];
   }
 
-  bool _isToday(DateTime dt) {
-    final now = DateTime.now();
-    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
-  }
-
   @override
   Widget build(BuildContext context) {
     final dates = _getDates();

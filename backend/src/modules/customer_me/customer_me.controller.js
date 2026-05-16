@@ -34,6 +34,16 @@ class CustomerMeController {
     try { await svc.deleteAddress(req.customerId, req.params.id); resp.success(res, null, 'Adresse supprimée'); }
     catch(e) { E(res, next, e); }
   }
+
+  // Orders
+  async listOrders(req, res, next) {
+    try { resp.success(res, await svc.listOrders(req.customerId)); }
+    catch(e) { E(res, next, e); }
+  }
+  async getOrderById(req, res, next) {
+    try { resp.success(res, await svc.getOrderById(req.customerId, req.params.id)); }
+    catch(e) { E(res, next, e); }
+  }
 }
 
 module.exports = new CustomerMeController();

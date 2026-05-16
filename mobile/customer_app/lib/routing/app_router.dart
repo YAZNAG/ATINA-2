@@ -24,6 +24,7 @@ import '../features/orders/screens/orders_screen.dart';
 import '../features/orders/screens/order_details_screen.dart';
 import '../features/checkout/screens/checkout_screen.dart';
 import '../features/checkout/screens/checkout_success_screen.dart';
+import '../features/checkout/screens/stripe_payment_screen.dart';
 
 final routerProvider = Provider<GoRouter>((_) {
   return GoRouter(
@@ -95,6 +96,13 @@ final routerProvider = Provider<GoRouter>((_) {
         path: '/checkout/success/:orderId',
         builder: (_, state) => CheckoutSuccessScreen(
           orderId: state.pathParameters['orderId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/checkout/stripe/:orderId',
+        builder: (_, state) => StripePaymentScreen(
+          orderId: state.pathParameters['orderId']!,
+          amount: double.tryParse(state.uri.queryParameters['amount'] ?? '0') ?? 0,
         ),
       ),
 

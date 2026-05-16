@@ -70,7 +70,27 @@ class OrderMgmtService {
   }
 
   async cancel(id, reason, changed_by = null) {
-    return this.changeStatus(id, 'cancelled', changed_by);
+    const order = await repo.findById(id);
+    if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+
+    const result = await this.changeStatus(id, 'cancelled', changed_by);
+
+    // Release reserved stock on cancellation
+    const items = await prisma.orderItem.findMany({ where: { order_id: id } });
+    for (const item of items) {
+      if (!item.sku_id) continue;
+      const qty = Number(item.qty);
+      await prisma.stockLevel.updateMany({
+        where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty } },
+        data:  { qty_reserved: { decrement: qty } },
+      });
+    }
+
+    if (reason) {
+      await prisma.order.update({ where: { id }, data: { cancelled_reason: reason } });
+    }
+
+    return result;
   }
 
   async getHistory(id) {
@@ -129,8 +149,8 @@ class OrderMgmtService {
         where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } },
       });
       if (!level) throw { statusCode: 422, message: `Stock introuvable pour un article de la commande (SKU)` };
-      if (Number(level.qty_reserved) < qty || Number(level.qty_physical) < qty) {
-        throw { statusCode: 422, message: 'Stock insuffisant (réservé ou physique) pour finaliser le retrait' };
+      if (Number(level.qty_reserved) < qty || Number(level.qty_available) < qty) {
+        throw { statusCode: 422, message: 'Stock insuffisant (réservé ou disponible) pour finaliser le retrait' };
       }
     }
 
@@ -154,14 +174,16 @@ class OrderMgmtService {
       for (const item of order.items) {
         if (!item.sku_id) continue;
         const qty = Number(item.qty);
+        // Per spec: decrement qty_reserved (release hold) + qty_available (mark sold)
+        // qty_physical is NOT decremented (physical stock tracking done via stockMoves)
         const upd = await tx.stockLevel.updateMany({
           where: {
             node_id: order.node_id,
             sku_id: item.sku_id,
-            qty_reserved: { gte: qty },
-            qty_physical: { gte: qty },
+            qty_reserved:  { gte: qty },
+            qty_available: { gte: qty },
           },
-          data: { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
+          data: { qty_reserved: { decrement: qty }, qty_available: { decrement: qty } },
         });
         if (upd.count !== 1) {
           throw { statusCode: 422, message: 'Mise à jour stock impossible (quantités insuffisantes)' };

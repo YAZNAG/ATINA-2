@@ -51,7 +51,7 @@ const DETAIL_INCLUDE = {
 };
 
 // ── Build WHERE clause ────────────────────────────────────────────────────────
-function buildWhere({ search, status_code, delivery_type_code, node_id } = {}) {
+function buildWhere({ search, status_code, delivery_type_code, node_id, customer_id } = {}) {
   const where = { is_deleted: false };
 
   if (search?.trim()) {
@@ -65,6 +65,7 @@ function buildWhere({ search, status_code, delivery_type_code, node_id } = {}) {
   if (status_code)          where.status        = { code: status_code };
   if (delivery_type_code)   where.delivery_type = { code: delivery_type_code };
   if (node_id)              where.node_id       = node_id;
+  if (customer_id)          where.customer_id   = customer_id;
   return where;
 }
 

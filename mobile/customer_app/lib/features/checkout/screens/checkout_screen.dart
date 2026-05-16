@@ -199,10 +199,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
 
       final result = await CheckoutApi.instance.createOrder(payload);
-      ref.read(cartProvider.notifier).clear();
+      final orderId = result['id']?.toString() ?? result['order_id']?.toString() ?? '';
 
+      // Card payment → redirect to Stripe
+      if (_selectedPayment!.code == 'card') {
+        if (mounted) {
+          context.push('/checkout/stripe/$orderId?amount=${ref.read(cartTotalProvider).toStringAsFixed(2)}');
+        }
+        if (mounted) setState(() => _creating = false);
+        return;
+      }
+
+      ref.read(cartProvider.notifier).clear();
       if (mounted) {
-        context.go('/checkout/success/${result['id'] ?? result['order_id'] ?? ''}');
+        context.go('/checkout/success/$orderId');
       }
     } on ApiException catch (e) {
       setState(() => _stepError = e.message);

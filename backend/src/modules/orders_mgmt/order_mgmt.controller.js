@@ -53,6 +53,18 @@ class OrderMgmtController {
   async meta(req, res, next) {
     try { resp.success(res, await svc.meta()); } catch(e) { next(e); }
   }
+
+  async byNode(req, res, next) {
+    try {
+      res.json({ success: true, ...(await svc.list({ ...req.query, node_id: req.params.nodeId })) });
+    } catch(e) { next(e); }
+  }
+
+  async byCustomer(req, res, next) {
+    try {
+      res.json({ success: true, ...(await svc.list({ ...req.query, customer_id: req.params.custId })) });
+    } catch(e) { next(e); }
+  }
 }
 
 module.exports = new OrderMgmtController();

@@ -145,4 +145,14 @@ async function searchArticles({ page = 1, limit = 20, search, category_id } = {}
   };
 }
 
-module.exports = { getCategories, getArticlesByCategory, getArticleDetail, searchArticles };
+// ── cities (public — for address form select) ─────────────────────────────────
+async function getCities() {
+  const cities = await prisma.city.findMany({
+    where:   { is_deleted: false, is_active: true },
+    select:  { id: true, name_fr: true, name_ar: true, postal_code: true, code: true },
+    orderBy: { name_fr: 'asc' },
+  });
+  return cities;
+}
+
+module.exports = { getCategories, getArticlesByCategory, getArticleDetail, searchArticles, getCities };

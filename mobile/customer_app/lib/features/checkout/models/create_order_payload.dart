@@ -4,7 +4,7 @@ class CreateOrderPayload {
   final String customerId;
   final String? addressId;
   final String deliveryTypeId;
-  final String nodeId;
+  final String? nodeId;
   final String selectedSlotId;
   final String selectedDate;
   final String paymentMethodId;
@@ -17,7 +17,7 @@ class CreateOrderPayload {
     required this.customerId,
     this.addressId,
     required this.deliveryTypeId,
-    required this.nodeId,
+    this.nodeId,
     required this.selectedSlotId,
     required this.selectedDate,
     required this.paymentMethodId,
@@ -31,7 +31,7 @@ class CreateOrderPayload {
     'customer_id': customerId,
     if (addressId != null) 'address_id': addressId,
     'delivery_type_id': deliveryTypeId,
-    'node_id': nodeId,
+    if (nodeId != null && nodeId!.isNotEmpty) 'node_id': nodeId,
     'selected_slot_id': selectedSlotId,
     'selected_date': selectedDate,
     'payment_method_id': paymentMethodId,

@@ -87,8 +87,8 @@ async function checkStock(node_id, cart_items, { strict = false } = {}) {
       continue;
     }
 
-    // Effective available = qty_available minus already-reserved (not yet sold)
-    const avail = Math.max(0, Number(stock.qty_available) - Number(stock.qty_reserved));
+    // qty_available = qty_physical - qty_reserved (kept in sync at each operation)
+    const avail = Number(stock.qty_available);
     if (avail >= qty) continue;
 
     const shortage = qty - avail;
@@ -632,26 +632,91 @@ async function createOrder(payload) {
       },
     });
 
-    // Reserve stock + create stock moves
-    // Per spec: only increment qty_reserved. qty_available stays unchanged until actual sale.
+    // ── Pre-load selling rules for backorder checks ───────────────────────────
+    const cartSkuIds   = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
+    const sellingRules = cartSkuIds.length
+      ? await tx.sellingRule.findMany({ where: { node_id: finalNodeId, sku_id: { in: cartSkuIds } } })
+      : [];
+    const txRuleMap = Object.fromEntries(sellingRules.map(r => [r.sku_id, r]));
+
+    // ── Reserve stock (atomic, anti-race-condition) ───────────────────────────
+    // Formula: qty_available = qty_physical - qty_reserved (kept in sync)
+    // Reservation: qty_reserved += qty, qty_available -= qty, qty_physical unchanged
+    // qty_delta = 0 on stock_move (no physical movement, only a reservation trace)
     for (const item of cart_items) {
       if (!item.sku_id) continue;
-      const qty = Number(item.qty || 1);
-      await tx.stockLevel.updateMany({
-        where: { node_id: finalNodeId, sku_id: item.sku_id },
-        data:  { qty_reserved: { increment: qty } },
+      const qty  = Number(item.qty || 1);
+      const rule = txRuleMap[item.sku_id];
+
+      // Attempt atomic reservation: only if qty_available >= qty (anti-survente)
+      const upd = await tx.stockLevel.updateMany({
+        where: { node_id: finalNodeId, sku_id: item.sku_id, qty_available: { gte: qty } },
+        data:  { qty_reserved: { increment: qty }, qty_available: { decrement: qty } },
       });
-      if (reservationMoveType) {
-        await tx.stockMove.create({
-          data: {
-            node_id:      finalNodeId,
-            sku_id:       item.sku_id,
-            move_type_id: reservationMoveType.id,
-            order_id:     newOrder.id,
-            qty_delta:    -qty,
-            reason:       'Réservation commande',
-          },
+
+      if (upd.count === 1) {
+        // Success — normal reservation
+        if (reservationMoveType) {
+          await tx.stockMove.create({
+            data: {
+              node_id:      finalNodeId,
+              sku_id:       item.sku_id,
+              move_type_id: reservationMoveType.id,
+              order_id:     newOrder.id,
+              qty_delta:    0, // Reservation = no physical movement
+              reason:       `Réservation commande ${newOrder.id.slice(0, 8)}`,
+            },
+          });
+        }
+      } else {
+        // qty_available < qty — check backorder
+        const stock = await tx.stockLevel.findUnique({
+          where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } },
         });
+        const avail = stock ? Number(stock.qty_available) : 0;
+        const shortage = qty - avail;
+
+        if (rule?.is_backorderable && (!rule.backorder_limit || Number(rule.backorder_limit) >= shortage)) {
+          // Backorder: reserve what's available, backorder the rest
+          const toReserve   = Math.max(0, avail);
+          const toBackorder = qty - toReserve;
+
+          await tx.stockLevel.updateMany({
+            where: { node_id: finalNodeId, sku_id: item.sku_id },
+            data: {
+              qty_reserved:    { increment: toReserve },
+              qty_available:   { decrement: toReserve },
+              qty_backordered: { increment: toBackorder },
+            },
+          });
+
+          // Update order_item qty_backordered
+          await tx.orderItem.updateMany({
+            where: { order_id: newOrder.id, sku_id: item.sku_id },
+            data:  { qty_backordered: toBackorder },
+          });
+
+          if (reservationMoveType) {
+            await tx.stockMove.create({
+              data: {
+                node_id:      finalNodeId,
+                sku_id:       item.sku_id,
+                move_type_id: reservationMoveType.id,
+                order_id:     newOrder.id,
+                qty_delta:    0,
+                reason:       `Réservation partielle + backorder ${toBackorder} — commande ${newOrder.id.slice(0, 8)}`,
+              },
+            });
+          }
+        } else {
+          // Stock insuffisant sans backorder → rollback
+          const skuInfo = await tx.sku.findUnique({
+            where: { id: item.sku_id },
+            select: { article: { select: { name_fr: true } } },
+          });
+          const name = skuInfo?.article?.name_fr ?? item.sku_id;
+          throw { statusCode: 422, message: `Stock insuffisant pour "${name}" (disponible: ${avail}, demandé: ${qty})` };
+        }
       }
     }
 

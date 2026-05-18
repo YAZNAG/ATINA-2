@@ -75,15 +75,47 @@ class OrderMgmtService {
 
     const result = await this.changeStatus(id, 'cancelled', changed_by);
 
-    // Release reserved stock on cancellation
-    const items = await prisma.orderItem.findMany({ where: { order_id: id } });
+    // Release reserved stock: qty_reserved-- + qty_available++ (restore availability)
+    // Formula: qty_available = qty_physical - qty_reserved → reserved-- → available++ ✓
+    const [items, cancelMoveType] = await Promise.all([
+      prisma.orderItem.findMany({ where: { order_id: id } }),
+      prisma.moveType.findFirst({ where: { code: { in: ['reservation_cancel', 'RESERVATION_CANCEL'] } } }),
+    ]);
+
     for (const item of items) {
       if (!item.sku_id) continue;
-      const qty = Number(item.qty);
-      await prisma.stockLevel.updateMany({
-        where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty } },
-        data:  { qty_reserved: { decrement: qty } },
-      });
+      const qty     = Number(item.qty);
+      const reserved = Number(item.qty) - Number(item.qty_backordered ?? 0);
+      const backordered = Number(item.qty_backordered ?? 0);
+
+      // Release normal reservation
+      if (reserved > 0) {
+        await prisma.stockLevel.updateMany({
+          where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: reserved } },
+          data:  { qty_reserved: { decrement: reserved }, qty_available: { increment: reserved } },
+        });
+      }
+      // Release backorder
+      if (backordered > 0) {
+        await prisma.stockLevel.updateMany({
+          where: { node_id: order.node_id, sku_id: item.sku_id },
+          data:  { qty_backordered: { decrement: backordered } },
+        });
+      }
+
+      // Trace the release via stock_move
+      if (cancelMoveType && qty > 0) {
+        await prisma.stockMove.create({
+          data: {
+            node_id:      order.node_id,
+            sku_id:       item.sku_id,
+            move_type_id: cancelMoveType.id,
+            order_id:     id,
+            qty_delta:    0,
+            reason:       `Annulation réservation — commande ${id.slice(0, 8)}`,
+          },
+        });
+      }
     }
 
     if (reason) {
@@ -149,8 +181,10 @@ class OrderMgmtService {
         where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } },
       });
       if (!level) throw { statusCode: 422, message: `Stock introuvable pour un article de la commande (SKU)` };
-      if (Number(level.qty_reserved) < qty || Number(level.qty_available) < qty) {
-        throw { statusCode: 422, message: 'Stock insuffisant (réservé ou disponible) pour finaliser le retrait' };
+      // qty_physical must be >= qty (real stock on shelves)
+      // qty_reserved must be >= qty (was reserved at checkout)
+      if (Number(level.qty_reserved) < qty || Number(level.qty_physical) < qty) {
+        throw { statusCode: 422, message: 'Stock insuffisant (physique ou réservé) pour finaliser le retrait' };
       }
     }
 
@@ -174,16 +208,17 @@ class OrderMgmtService {
       for (const item of order.items) {
         if (!item.sku_id) continue;
         const qty = Number(item.qty);
-        // Per spec: decrement qty_reserved (release hold) + qty_available (mark sold)
-        // qty_physical is NOT decremented (physical stock tracking done via stockMoves)
+        // Formula: qty_available = qty_physical - qty_reserved
+        // At delivery: physical decrements + reservation released → qty_available unchanged
+        // (physical - qty) - (reserved - qty) = physical - reserved = qty_available ✓
         const upd = await tx.stockLevel.updateMany({
           where: {
             node_id: order.node_id,
             sku_id: item.sku_id,
-            qty_reserved:  { gte: qty },
-            qty_available: { gte: qty },
+            qty_reserved: { gte: qty },
+            qty_physical: { gte: qty },
           },
-          data: { qty_reserved: { decrement: qty }, qty_available: { decrement: qty } },
+          data: { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
         });
         if (upd.count !== 1) {
           throw { statusCode: 422, message: 'Mise à jour stock impossible (quantités insuffisantes)' };

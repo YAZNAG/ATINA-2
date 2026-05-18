@@ -90,6 +90,26 @@ FROM (VALUES
 ) AS v(code, name_fr, name_ar)
 WHERE NOT EXISTS (SELECT 1 FROM config_value_types c WHERE c.code = v.code);
 
+-- move_types (traçabilité stock — idempotent)
+INSERT INTO stock_operations (code, name_fr) VALUES
+  ('IN',      'Entrée'),
+  ('OUT',     'Sortie'),
+  ('NEUTRAL', 'Neutre')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO move_types (id, code, operation, name_fr, name_ar, color)
+SELECT gen_random_uuid(), v.code, v.operation::\"StockOperation\", v.name_fr, v.name_ar, v.color
+FROM (VALUES
+  ('reservation',        'NEUTRAL', 'Réservation commande',   'حجز الطلبية',  '#6366F1'),
+  ('reservation_cancel', 'NEUTRAL', 'Annulation réservation', 'إلغاء الحجز',  '#9CA3AF'),
+  ('sale',               'OUT',     'Vente / sortie',          'بيع / خروج',  '#EF4444'),
+  ('reception',          'IN',      'Réception',               'استلام',      '#10B981'),
+  ('adjustment_in',      'IN',      'Ajustement entrée',       'تسوية دخول',  '#3B82F6'),
+  ('adjustment_out',     'OUT',     'Ajustement sortie',       'تسوية خروج',  '#F59E0B'),
+  ('return_in',          'IN',      'Retour client',           'إرجاع العميل', '#8B5CF6')
+) AS v(code, operation, name_fr, name_ar, color)
+WHERE NOT EXISTS (SELECT 1 FROM move_types m WHERE m.code = v.code);
+
 -- picking_statuses
 INSERT INTO picking_statuses (id, code, name_fr, name_ar)
 SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar

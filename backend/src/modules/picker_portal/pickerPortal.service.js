@@ -62,11 +62,26 @@ class PickerPortalService {
     if (session.status?.code !== 'open')
       throw { statusCode: 422, message: `Impossible de démarrer une session au statut "${session.status?.name_fr}"` };
 
-    const inProgressId = await getPickingStatusId('in_progress');
+    const [inProgressId, pickingStatusRow] = await Promise.all([
+      getPickingStatusId('in_progress'),
+      prisma.orderStatus.findFirst({ where: { code: 'picking' } }),
+    ]);
 
-    await prisma.pickingSession.update({
-      where: { id: sessionId },
-      data:  { status_id: inProgressId, started_at: new Date() },
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSession.update({
+        where: { id: sessionId },
+        data:  { status_id: inProgressId, started_at: new Date() },
+      });
+      if (pickingStatusRow) {
+        await tx.orderHistory.create({
+          data: {
+            order_id:   session.order_id,
+            status_id:  pickingStatusRow.id,
+            changed_by: null, // picker.id is UUID, not Int (User.id)
+            note:       `Préparation démarrée par le picker ${picker.name}`,
+          },
+        });
+      }
     });
 
     return repo.getSessionById(sessionId);
@@ -116,7 +131,7 @@ class PickerPortalService {
   }
 
   // ── Déclarer rupture ───────────────────────────────────────────────────────
-  async outOfStock(itemId, picker) {
+  async outOfStock(itemId, { reason } = {}, picker) {
     const item = await repo.getItemWithSession(itemId);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
     if (item.session.picker_id !== picker.id)
@@ -126,31 +141,44 @@ class PickerPortalService {
     if (item.status?.code !== 'pending')
       throw { statusCode: 422, message: `Article déjà traité (statut : ${item.status?.name_fr})` };
 
-    const [oosItemStatusId, oosOrderItemStatusId] = await Promise.all([
+    const [oosItemStatusId, oosOrderItemStatusId, pickingStatusRow] = await Promise.all([
       getPickItemStatusId('out_of_stock'),
       getOrderItemStatusId('out_of_stock'),
+      prisma.orderStatus.findFirst({ where: { code: 'picking' } }),
     ]);
 
-    await prisma.$transaction([
-      prisma.pickingSessionItem.update({
+    const articleName = item.order_item?.sku?.article?.name_fr ?? 'Article';
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSessionItem.update({
         where: { id: itemId },
-        data:  { status_id: oosItemStatusId },
-      }),
-      prisma.orderItem.update({
+        data:  { status_id: oosItemStatusId, qty_picked: 0 },
+      });
+      await tx.orderItem.update({
         where: { id: item.order_item_id },
         data:  { status_id: oosOrderItemStatusId },
-      }),
-      prisma.pickingSession.update({
+      });
+      await tx.pickingSession.update({
         where: { id: item.session_id },
         data:  { error_count: { increment: 1 } },
-      }),
-    ]);
+      });
+      if (pickingStatusRow) {
+        await tx.orderHistory.create({
+          data: {
+            order_id:   item.session.order_id,
+            status_id:  pickingStatusRow.id,
+            changed_by: null,
+            note:       `Rupture déclarée par ${picker.name} — "${articleName}"${reason ? ' : ' + reason : ''}`,
+          },
+        });
+      }
+    });
 
     return repo.getSessionById(item.session_id);
   }
 
   // ── Substituer un article ──────────────────────────────────────────────────
-  async substituteItem(itemId, { substitute_sku_id, qty_picked }, picker) {
+  async substituteItem(itemId, { substitute_sku_id, substitute_ean, qty_picked, reason }, picker) {
     const item = await repo.getItemWithSession(itemId);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
     if (item.session.picker_id !== picker.id)
@@ -160,30 +188,75 @@ class PickerPortalService {
     if (item.status?.code !== 'pending')
       throw { statusCode: 422, message: `Article déjà traité (statut : ${item.status?.name_fr})` };
 
-    const [subItemStatusId, subOrderItemStatusId] = await Promise.all([
+    // Résoudre le SKU substitut : par ID ou par EAN
+    let resolvedSkuId = substitute_sku_id ?? null;
+    if (!resolvedSkuId && substitute_ean) {
+      const skuByEan = await prisma.sku.findFirst({
+        where: { article: { ean13: substitute_ean }, stock_levels: { some: { node_id: item.session.node_id } } },
+        select: { id: true, article: { select: { name_fr: true, ean13: true } } },
+      });
+      if (!skuByEan) throw { statusCode: 404, message: `Aucun SKU trouvé avec l'EAN ${substitute_ean} dans ce node` };
+      resolvedSkuId = skuByEan.id;
+    }
+
+    // Valider le SKU substitut s'il est fourni
+    let substituteName = null;
+    if (resolvedSkuId) {
+      const subSku = await prisma.sku.findUnique({
+        where: { id: resolvedSkuId },
+        include: {
+          article: { select: { name_fr: true, is_active: true } },
+          stock_levels: { where: { node_id: item.session.node_id } },
+        },
+      });
+      if (!subSku) throw { statusCode: 404, message: 'SKU substitut introuvable' };
+      if (!subSku.article?.is_active) throw { statusCode: 422, message: 'Le produit substitut est inactif' };
+
+      const stockLevel = subSku.stock_levels[0];
+      const avail      = stockLevel ? Number(stockLevel.qty_available) : 0;
+      const needed     = Number(qty_picked ?? 1);
+      if (avail < needed) throw { statusCode: 422, message: `Stock insuffisant pour le substitut (disponible: ${avail})` };
+
+      substituteName = subSku.article?.name_fr;
+    }
+
+    const [subItemStatusId, subOrderItemStatusId, pickingStatusRow] = await Promise.all([
       getPickItemStatusId('substituted'),
       getOrderItemStatusId('substituted'),
+      prisma.orderStatus.findFirst({ where: { code: 'picking' } }),
     ]);
 
-    // TODO: stocker substitute_sku_id quand la colonne est ajoutée au schéma Prisma
-    await prisma.$transaction([
-      prisma.pickingSessionItem.update({
+    const originalName = item.order_item?.sku?.article?.name_fr ?? 'Article';
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSessionItem.update({
         where: { id: itemId },
         data: {
-          status_id:  subItemStatusId,
-          qty_picked: qty_picked ?? item.qty_expected,
-          picked_at:  new Date(),
+          status_id:         subItemStatusId,
+          qty_picked:        qty_picked ?? item.qty_expected,
+          picked_at:         new Date(),
+          substitute_sku_id: resolvedSkuId ?? undefined,
         },
-      }),
-      prisma.orderItem.update({
+      });
+      await tx.orderItem.update({
         where: { id: item.order_item_id },
         data:  { status_id: subOrderItemStatusId },
-      }),
-      prisma.pickingSession.update({
+      });
+      await tx.pickingSession.update({
         where: { id: item.session_id },
         data:  { error_count: { increment: 1 } },
-      }),
-    ]);
+      });
+      if (pickingStatusRow) {
+        await tx.orderHistory.create({
+          data: {
+            order_id:   item.session.order_id,
+            status_id:  pickingStatusRow.id,
+            changed_by: null,
+            note:       `Substitution par ${picker.name} : "${originalName}"${substituteName ? ` → "${substituteName}"` : ''}${reason ? ' (' + reason + ')' : ''}`,
+          },
+        });
+      }
+    });
 
     return repo.getSessionById(item.session_id);
   }

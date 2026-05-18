@@ -2,6 +2,7 @@ const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const prisma   = require('../../config/database');
 const { secret, expiresIn } = require('../../config/jwt');
+const { createReferralOnRegistration } = require('../loyalty/loyalty.service');
 
 const OTP_TEST   = '0000';
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -22,7 +23,7 @@ function signToken(user, phone_country, phone) {
 }
 
 // ── register ──────────────────────────────────────────────────────────────────
-async function register(phone_country, phone_number, full_name, password, email) {
+async function register(phone_country, phone_number, full_name, password, email, referral_code_used = null) {
   const phone = cleanPhone(phone_number);
 
   const existingByPhone = await prisma.user.findFirst({
@@ -57,7 +58,7 @@ async function register(phone_country, phone_number, full_name, password, email)
     });
   }
 
-  await prisma.customer.create({
+  const customer = await prisma.customer.create({
     data: {
       user_id:        user.id,
       phone_country,
@@ -68,6 +69,11 @@ async function register(phone_country, phone_number, full_name, password, email)
       preferred_lang: 'fr',
     },
   });
+
+  // Fire-and-forget referral creation
+  if (referral_code_used) {
+    setImmediate(() => createReferralOnRegistration(customer.id, referral_code_used).catch(() => {}));
+  }
 
   return { message: 'Compte créé. Entrez le code OTP pour activer.', phone_country, phone_number: phone };
 }

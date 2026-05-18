@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const svc  = require('./stripe.service');
 const resp = require('../../../utils/response');
+const E = (res, next, e) => e.statusCode ? resp.error(res, e.message, e.statusCode) : next(e);
 const auth = require('../../../middlewares/auth.middleware');
 const customerAuth = require('../../../middlewares/customer_auth.middleware');
 
@@ -57,5 +58,23 @@ router.post('/webhook',
     } catch(e) { E(res, next, e); }
   }
 );
+
+// ── Refund ─────────────────────────────────────────────────────────────────────
+router.post('/refund', customerAuth, async (req, res, next) => {
+  try {
+    const { payment_id, amount, reason } = req.body;
+    if (!payment_id) return resp.error(res, 'payment_id requis', 400);
+    resp.success(res, await svc.refundPayment(payment_id, { amount, reason }));
+  } catch(e) { E(res, next, e); }
+});
+
+// Admin refund
+router.post('/refund-admin', auth, async (req, res, next) => {
+  try {
+    const { payment_id, amount, reason } = req.body;
+    if (!payment_id) return resp.error(res, 'payment_id requis', 400);
+    resp.success(res, await svc.refundPayment(payment_id, { amount, reason }));
+  } catch(e) { E(res, next, e); }
+});
 
 module.exports = router;

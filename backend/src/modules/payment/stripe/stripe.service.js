@@ -184,6 +184,45 @@ async function _markPaymentFailed(payment_id) {
   console.log(`[stripe] payment ${payment_id} marked as failed`);
 }
 
+// ── Refund a payment ──────────────────────────────────────────────────────────
+async function refundPayment(payment_id, { amount, reason } = {}) {
+  const stripe = getStripe();
+
+  const payment = await prisma.payment.findUnique({
+    where: { id: payment_id },
+    include: { status: true, payment_method: true },
+  });
+  if (!payment) throw { statusCode: 404, message: 'Paiement introuvable' };
+  if (payment.status?.code === 'refunded') throw { statusCode: 409, message: 'Paiement déjà remboursé' };
+  if (payment.status?.code !== 'collected') throw { statusCode: 422, message: 'Seuls les paiements encaissés peuvent être remboursés' };
+
+  const meta            = payment.metadata ?? {};
+  const stripeRef       = meta.stripe_payment_ref ?? meta.stripe_payment_intent_id;
+
+  if (!stripeRef) throw { statusCode: 422, message: 'Aucune référence Stripe trouvée pour ce paiement' };
+
+  const amountCents     = amount ? Math.round(Number(amount) * 100) : undefined;
+
+  const stripeRefund = await stripe.refunds.create({
+    payment_intent: stripeRef,
+    ...(amountCents ? { amount: amountCents } : {}),
+    reason:         reason ?? 'requested_by_customer',
+  });
+
+  const refundedStatus = await prisma.paymentStatus.findFirst({ where: { code: 'refunded' } });
+  if (!refundedStatus) throw { statusCode: 500, message: 'Statut "refunded" introuvable' };
+
+  await prisma.payment.update({
+    where: { id: payment_id },
+    data:  {
+      status_id: refundedStatus.id,
+      metadata:  { ...meta, stripe_refund_id: stripeRefund.id, refunded_at: new Date().toISOString() },
+    },
+  });
+
+  return { refund_id: stripeRefund.id, status: stripeRefund.status, amount: stripeRefund.amount / 100 };
+}
+
 // ── Get Stripe public key (for frontend) ──────────────────────────────────────
 function getPublicKey() {
   const key = process.env.STRIPE_PUBLIC_KEY;
@@ -191,4 +230,4 @@ function getPublicKey() {
   return key;
 }
 
-module.exports = { createPaymentIntent, createCheckoutSession, handleWebhook, getPublicKey };
+module.exports = { createPaymentIntent, createCheckoutSession, handleWebhook, getPublicKey, refundPayment };

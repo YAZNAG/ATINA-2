@@ -83,8 +83,11 @@ async function start() {
   } catch (e) {
     console.warn('[server] schema self-heal:', e?.message ?? e);
   }
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✓ Backend running on http://0.0.0.0:${PORT}`);
+    console.log(`  Local:   http://localhost:${PORT}/api`);
+    console.log(`  Network: http://192.168.1.104:${PORT}/api  ← téléphone Android`);
+    console.log(`  Health:  http://192.168.1.104:${PORT}/api/health`);
   });
 }
 

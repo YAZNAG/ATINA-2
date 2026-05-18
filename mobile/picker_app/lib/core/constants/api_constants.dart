@@ -3,11 +3,15 @@ import 'package:flutter/foundation.dart';
 class ApiConstants {
   ApiConstants._();
 
+  // ── IP backend local — modifier si réseau change ─────────────────────────────
+  static const String _localNetworkIP = '192.168.1.104';
+
   static String get baseUrl {
     const env = String.fromEnvironment('API_URL', defaultValue: '');
     if (env.isNotEmpty) return env;
     if (kIsWeb) return 'http://localhost:5000/api';
-    return 'http://10.0.2.2:5000/api'; // Android emulator → host PC
+    // Appareil physique Android → IP du PC sur le réseau Wi-Fi
+    return 'http://$_localNetworkIP:5000/api';
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthStorage {
   AuthStorage._();
-  static const AuthStorage instance = AuthStorage._();
+  static final AuthStorage instance = AuthStorage._();
 
   static const _tokenKey = 'ds_picker_token';
   static const _userKey  = 'ds_picker_user';

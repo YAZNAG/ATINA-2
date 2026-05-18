@@ -2,6 +2,7 @@ const repo          = require('./order_mgmt.repository');
 const pickingService = require('../picking/picking.service');
 const prisma         = require('../../config/database');
 const { createPickingSessionForOrder } = require('../../utils/createPickingSession.helper');
+const loyalty = require('../loyalty/loyalty.service');
 
 // ── Status transition rules ───────────────────────────────────────────────────
 const TRANSITIONS = {
@@ -197,8 +198,6 @@ class OrderMgmtService {
     if (!collectedPayStatus) throw { statusCode: 500, message: 'Statut paiement "collected" introuvable' };
 
     const historyNote = note?.trim() || 'Commande retirée au magasin';
-    const pointsToCredit =
-      Number(order.points_earned) > 0 ? 0 : Math.max(0, Math.floor(Number(order.total_ttc) / 10));
 
     await prisma.$transaction(async (tx) => {
       if (payCode === 'pending') {
@@ -242,24 +241,19 @@ class OrderMgmtService {
         data: {
           status_id: deliveredStatus.id,
           ...(isCOD && !order.cod_collected_at ? { cod_collected_at: new Date() } : {}),
-          ...(pointsToCredit > 0 ? { points_earned: pointsToCredit } : {}),
         },
       });
 
-      if (pointsToCredit > 0) {
-        await tx.customer.update({
-          where: { id: order.customer_id },
-          data: {
-            points_balance: { increment: pointsToCredit },
-            points_lifetime: { increment: pointsToCredit },
-          },
-        });
-      }
+      // Credit points using rules engine
+      await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: order_id }, deliveredStatus.id);
 
       await tx.orderHistory.create({
         data: { order_id, status_id: deliveredStatus.id, changed_by, note: historyNote },
       });
     });
+
+    // Trigger referral validation (fire-and-forget — never blocks main flow)
+    setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, order_id).catch(() => {}));
 
     return repo.findById(order_id);
   }

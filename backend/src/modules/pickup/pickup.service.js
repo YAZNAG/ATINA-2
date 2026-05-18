@@ -5,6 +5,7 @@
 const prisma  = require('../../config/database');
 const h       = require('../../utils/statusHelpers');
 const { notifyDelivered } = require('../../utils/notify');
+const loyalty = require('../loyalty/loyalty.service');
 
 // ── Shared includes ───────────────────────────────────────────────────────────
 const ORDER_LIST_INCLUDE = {
@@ -205,9 +206,7 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
   ]);
   if (!deliveredStatus) throw { statusCode: 500, message: 'Statut "delivered" introuvable — lancez le seed' };
 
-  // Points to credit (1 point / 10 MAD)
-  const alreadyEarned = Number(order.points_earned ?? 0);
-  const pointsToCredit = alreadyEarned > 0 ? 0 : Math.max(0, Math.floor(Number(order.total_ttc) / 10));
+  // Points calculated via rules engine (see loyalty.service.js)
 
   await prisma.$transaction(async (tx) => {
     // Collect non-COD payment if still pending
@@ -247,9 +246,11 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
       data: {
         status_id:       deliveredStatus.id,
         cod_collected_at: isCOD ? (order.cod_collected_at ?? new Date()) : undefined,
-        ...(pointsToCredit > 0 ? { points_earned: pointsToCredit } : {}),
       },
     });
+
+    // Credit points via rules engine
+    await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: orderId }, deliveredStatus.id);
 
     // Order history — delivered
     await tx.orderHistory.create({
@@ -273,17 +274,10 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
       });
     }
 
-    // Credit points
-    if (pointsToCredit > 0) {
-      await tx.customer.update({
-        where: { id: order.customer_id },
-        data:  { points_balance: { increment: pointsToCredit }, points_lifetime: { increment: pointsToCredit } },
-      });
-    }
-
     // Notification (fire-and-forget outside tx)
     setImmediate(() => {
-      notifyDelivered(order.customer_id, orderId, pointsToCredit).catch(() => {});
+      notifyDelivered(order.customer_id, orderId, 0).catch(() => {});
+      loyalty.validateReferralOnDelivery(order.customer_id, orderId).catch(() => {});
     });
   });
 

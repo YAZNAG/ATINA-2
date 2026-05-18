@@ -36,11 +36,11 @@ class CustomerAuthController {
 
   async register(req, res, next) {
     try {
-      const { phone_country = '+212', phone_number, full_name, password, email } = req.body;
+      const { phone_country = '+212', phone_number, full_name, password, email, referral_code } = req.body;
       if (!phone_number) return resp.error(res, 'phone_number requis', 400);
       if (!full_name)    return resp.error(res, 'full_name requis', 400);
       if (!password || password.length < 6) return resp.error(res, 'Mot de passe minimum 6 caractères', 400);
-      resp.success(res, await svc.register(phone_country, phone_number, full_name, password, email), 'Compte créé avec succès');
+      resp.success(res, await svc.register(phone_country, phone_number, full_name, password, email, referral_code ?? null), 'Compte créé avec succès');
     } catch(e) { E(res, next, e); }
   }
 

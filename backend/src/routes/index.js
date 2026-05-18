@@ -66,5 +66,6 @@ router.use('/reporting',   reportingRoutes);
 router.use('/pickup',      pickupRoutes);
 router.use('/delivery',    deliveryMgmtRoutes);
 router.use('/driver',      driverPortalRoutes);
+router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
 
 module.exports = router;

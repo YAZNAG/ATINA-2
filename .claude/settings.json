@@ -21,7 +21,14 @@
       "Bash(node scripts/sync-permissions.js)",
       "Bash(powershell -Command \"Get-ChildItem -Recurse -Path 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules' -Directory | Select-Object -ExpandProperty Name | Sort-Object\")",
       "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\routes\\\\index.js' -Head 80\")",
-      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\payment\\\\stripe\")"
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\payment\\\\stripe\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\" -Directory)",
+      "Bash(git commit -m 'feat: picking module finalise — substitute_sku_id, history, race condition fix *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\pickup\")",
+      "Bash(git commit -m 'feat: pickup module complet — collect-cod separe, confirm, cancel, stock OUT *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\delivery_mgmt\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yassi\\\\Desktop\\\\dark-store-app\\\\backend\\\\src\\\\modules\\\\driver_portal\")",
+      "Bash(git commit -m 'feat: livraison home complet — tours, stops, COD driver, driver portal *)"
     ]
   }
 }

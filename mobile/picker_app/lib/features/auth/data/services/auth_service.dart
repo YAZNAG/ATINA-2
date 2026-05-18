@@ -25,7 +25,6 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    try { await _dio.post(ApiConstants.logout); } catch (_) {}
     await AuthStorage.instance.clear();
   }
 

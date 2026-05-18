@@ -19,6 +19,6 @@ class AuthService {
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
 
-  Future<void> logout() async { try { await _dio.post(ApiConstants.logout); } catch (_) {} await AuthStorage.instance.clear(); }
+  Future<void> logout() async { await AuthStorage.instance.clear(); }
   Future<bool> isLoggedIn() => AuthStorage.instance.hasToken();
 }

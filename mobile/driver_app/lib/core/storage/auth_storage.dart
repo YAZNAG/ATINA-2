@@ -2,7 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthStorage {
   AuthStorage._();
-  static const AuthStorage instance = AuthStorage._();
+  static final AuthStorage instance = AuthStorage._();
   static const _tokenKey = 'ds_driver_token';
   final _storage = const FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
   Future<void>    saveToken(String t) => _storage.write(key: _tokenKey, value: t);

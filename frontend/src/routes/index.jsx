@@ -58,6 +58,10 @@ import StockLotsPage from '../pages/stock/StockLotsPage';
 import DeliveryTypesPage from '../pages/delivery/DeliveryTypesPage';
 import DeliveryLookupPage from '../pages/delivery/DeliveryLookupPage';
 import DeliveryTypesRefPage from '../pages/delivery/DeliveryTypesRefPage';
+import ReadyHomeOrdersPage from '../pages/delivery/ReadyHomeOrdersPage';
+import ToursListPage       from '../pages/delivery/ToursListPage';
+import TourNewPage         from '../pages/delivery/TourNewPage';
+import TourDetailPage      from '../pages/delivery/TourDetailPage';
 import PaymentStatusesPage from '../pages/payment/PaymentStatusesPage';
 import PaymentMethodsPage from '../pages/payment/PaymentMethodsPage';
 import PaymentLookupPage from '../pages/payment/PaymentLookupPage';
@@ -122,6 +126,10 @@ export default function AppRoutes() {
           <Route path="/checkout-test"   element={<CheckoutTestPage />} />
           <Route path="/pickup/orders"             element={<PickupOrdersPage />} />
           <Route path="/pickup/orders/:id"         element={<PickupOrderDetailPage />} />
+          <Route path="/delivery/ready-orders"     element={<ReadyHomeOrdersPage />} />
+          <Route path="/delivery/tours"            element={<ToursListPage />} />
+          <Route path="/delivery/tours/new"        element={<TourNewPage />} />
+          <Route path="/delivery/tours/:id"        element={<TourDetailPage />} />
           <Route path="/orders-mgmt"              element={<OrdersListPage />} />
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />

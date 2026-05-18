@@ -83,7 +83,13 @@ const getItemWithSession = async (itemId) => {
     where: { id: itemId },
     include: {
       session: {
-        include: { status: { select: { code: true } } },
+        select: {
+          id:        true,
+          order_id:  true,
+          node_id:   true,
+          picker_id: true,
+          status:    { select: { code: true, name_fr: true } },
+        },
       },
       order_item: {
         include: {

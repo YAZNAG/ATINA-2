@@ -104,7 +104,8 @@ class PickerPortalController {
   // PATCH /api/picker/items/:itemId/out-of-stock
   async outOfStock(req, res, next) {
     try {
-      const session = await service.outOfStock(req.params.itemId, req.picker);
+      const { reason } = req.body ?? {};
+      const session = await service.outOfStock(req.params.itemId, { reason }, req.picker);
       return success(res, session, 'Article déclaré en rupture');
     } catch (err) {
       next(err);
@@ -114,8 +115,8 @@ class PickerPortalController {
   // PATCH /api/picker/items/:itemId/substitute
   async substituteItem(req, res, next) {
     try {
-      const { substitute_sku_id, qty_picked } = req.body;
-      const session = await service.substituteItem(req.params.itemId, { substitute_sku_id, qty_picked }, req.picker);
+      const { substitute_sku_id, substitute_ean, qty_picked, reason } = req.body;
+      const session = await service.substituteItem(req.params.itemId, { substitute_sku_id, substitute_ean, qty_picked, reason }, req.picker);
       return success(res, session, 'Article substitué');
     } catch (err) {
       next(err);

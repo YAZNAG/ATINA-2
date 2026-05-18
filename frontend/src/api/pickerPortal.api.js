@@ -43,7 +43,7 @@ export const completeSession = (id) => pickerApi.patch(`/sessions/${id}/complete
 
 // ── Items ─────────────────────────────────────────────────────────────────────
 export const pickItem       = (id, data) => pickerApi.patch(`/items/${id}/pick`, data);
-export const outOfStock     = (id)       => pickerApi.patch(`/items/${id}/out-of-stock`);
+export const outOfStock     = (id, data) => pickerApi.patch(`/items/${id}/out-of-stock`, data);
 export const substituteItem = (id, data) => pickerApi.patch(`/items/${id}/substitute`, data);
 
 export default pickerApi;

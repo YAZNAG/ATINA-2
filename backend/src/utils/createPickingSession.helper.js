@@ -105,11 +105,13 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
       data:  { status_id: pickingOrderStatusId },
     });
 
+    // changed_by expects User.id (Int), but pickers are not Users.
+    // We use null and embed actor info in the note.
     await tx.orderHistory.create({
       data: {
         order_id:   orderId,
         status_id:  pickingOrderStatusId,
-        changed_by: actor,
+        changed_by: null,
         note:       `Commande acceptée par ${actorLabel}`,
       },
     });

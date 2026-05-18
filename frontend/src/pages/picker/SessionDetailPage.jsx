@@ -27,23 +27,32 @@ const StatusBadge = ({ code, label }) => {
 
 // ── Item Row ──────────────────────────────────────────────────────────────────
 function ItemRow({ item, sessionStatus, onAction }) {
-  const [ean, setEan]         = useState('');
-  const [qty, setQty]         = useState(Number(item.qty_expected));
-  const [open, setOpen]       = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode]             = useState('idle'); // 'idle' | 'action' | 'substitute'
+  const [ean, setEan]               = useState('');
+  const [qty, setQty]               = useState(Number(item.qty_expected));
+  const [subEan, setSubEan]         = useState('');
+  const [subReason, setSubReason]   = useState('');
+  const [loading, setLoading]       = useState(false);
 
-  const article = item.order_item?.sku?.article;
-  const isPending   = item.status?.code === 'pending';
+  const article    = item.order_item?.sku?.article;
+  const isPending  = item.status?.code === 'pending';
   const canInteract = sessionStatus === 'in_progress' && isPending;
 
-  const handle = async (action) => {
+  const handle = async (action, extra = {}) => {
     setLoading(true);
     try {
-      await onAction(action, item.id, { scanned_ean: ean || undefined, qty_picked: qty });
+      await onAction(action, item.id, { scanned_ean: ean || undefined, qty_picked: qty, ...extra });
+      setMode('idle');
+    } catch {
+      // toast shown by onAction
     } finally {
       setLoading(false);
-      setOpen(false);
     }
+  };
+
+  const handleSubstitute = () => {
+    if (!subEan.trim()) return;
+    handle('substitute', { substitute_ean: subEan.trim(), reason: subReason || undefined });
   };
 
   return (
@@ -51,7 +60,7 @@ function ItemRow({ item, sessionStatus, onAction }) {
       <div className="flex justify-between items-start mb-2">
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 text-sm truncate">{article?.name_fr ?? 'Article'}</p>
-          <p className="text-gray-400 text-xs">EAN : {article?.ean13 ?? '—'}</p>
+          <p className="text-gray-400 text-xs font-mono">EAN : {article?.ean13 ?? '—'}</p>
           {item.location && (
             <p className="text-indigo-600 text-xs mt-0.5">
               📍 {item.location.label ?? `${item.location.aisle ?? ''}${item.location.shelf ?? ''}`}
@@ -64,67 +73,71 @@ function ItemRow({ item, sessionStatus, onAction }) {
       <div className="flex gap-4 text-xs text-gray-500 mb-3">
         <span>Attendu : <strong>{Number(item.qty_expected)}</strong></span>
         <span>Prélevé : <strong>{Number(item.qty_picked)}</strong></span>
-        {item.scanned_ean && <span>Scanné : {item.scanned_ean}</span>}
+        {item.scanned_ean && <span className="font-mono">Scanné : {item.scanned_ean}</span>}
       </div>
 
-      {canInteract && (
-        open ? (
-          <div className="space-y-2 border-t pt-3">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={ean}
-                onChange={e => setEan(e.target.value)}
-                placeholder="EAN scanné"
-                className="border rounded-lg px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-              <input
-                type="number"
-                value={qty}
-                min={0.001}
-                step={0.001}
-                onChange={e => setQty(parseFloat(e.target.value))}
-                className="border rounded-lg px-3 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handle('pick')}
-                disabled={loading}
-                className="flex-1 bg-green-600 text-white text-xs py-2 rounded-lg hover:bg-green-700 disabled:opacity-60"
-              >
-                ✓ Prélevé
-              </button>
-              <button
-                onClick={() => handle('out_of_stock')}
-                disabled={loading}
-                className="flex-1 bg-red-100 text-red-700 text-xs py-2 rounded-lg hover:bg-red-200 disabled:opacity-60"
-              >
-                Rupture
-              </button>
-              <button
-                onClick={() => handle('substitute')}
-                disabled={loading}
-                className="flex-1 bg-blue-100 text-blue-700 text-xs py-2 rounded-lg hover:bg-blue-200 disabled:opacity-60"
-              >
-                Substituer
-              </button>
-              <button
-                onClick={() => setOpen(false)}
-                className="text-gray-400 text-xs px-2 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
+      {canInteract && mode === 'idle' && (
+        <button onClick={() => setMode('action')}
+          className="w-full border border-indigo-300 text-indigo-600 text-xs py-2 rounded-lg hover:bg-indigo-50">
+          Traiter cet article
+        </button>
+      )}
+
+      {canInteract && mode === 'action' && (
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex gap-2">
+            <input type="text" value={ean} onChange={e => setEan(e.target.value)}
+              placeholder="EAN scanné (optionnel)"
+              className="border rounded-lg px-3 py-1.5 text-sm flex-1 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <input type="number" value={qty} min={0.001} step={0.001}
+              onChange={e => setQty(parseFloat(e.target.value))}
+              className="border rounded-lg px-3 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
           </div>
-        ) : (
-          <button
-            onClick={() => setOpen(true)}
-            className="w-full border border-indigo-300 text-indigo-600 text-xs py-2 rounded-lg hover:bg-indigo-50"
-          >
-            Traiter cet article
-          </button>
-        )
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => handle('pick')} disabled={loading}
+              className="bg-green-600 text-white text-xs py-2 rounded-lg hover:bg-green-700 disabled:opacity-60 font-semibold">
+              ✓ Prélevé
+            </button>
+            <button onClick={() => handle('out_of_stock')} disabled={loading}
+              className="bg-red-100 text-red-700 text-xs py-2 rounded-lg hover:bg-red-200 disabled:opacity-60">
+              Rupture
+            </button>
+            <button onClick={() => setMode('substitute')} disabled={loading}
+              className="bg-blue-100 text-blue-700 text-xs py-2 rounded-lg hover:bg-blue-200">
+              🔄 Substituer
+            </button>
+            <button onClick={() => setMode('idle')}
+              className="text-gray-400 text-xs py-2 rounded-lg hover:bg-gray-50 border border-gray-200">
+              ✕ Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {canInteract && mode === 'substitute' && (
+        <div className="space-y-2 border-t pt-3 bg-blue-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-blue-700 mb-1">Substitution</p>
+          <input type="text" value={subEan} onChange={e => setSubEan(e.target.value)}
+            placeholder="EAN du produit substitut *"
+            className="border rounded-lg px-3 py-1.5 text-sm w-full font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+            autoFocus />
+          <input type="number" value={qty} min={0.001} step={0.001}
+            onChange={e => setQty(parseFloat(e.target.value))}
+            className="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <input type="text" value={subReason} onChange={e => setSubReason(e.target.value)}
+            placeholder="Raison (optionnel)"
+            className="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <div className="flex gap-2">
+            <button onClick={handleSubstitute} disabled={loading || !subEan.trim()}
+              className="flex-1 bg-blue-600 text-white text-xs py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 font-semibold">
+              {loading ? '...' : '✓ Confirmer substitution'}
+            </button>
+            <button onClick={() => setMode('action')}
+              className="text-gray-400 text-xs px-3 py-2 rounded-lg hover:bg-gray-100 border border-gray-200">
+              ← Retour
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -172,14 +185,23 @@ export default function SessionDetailPage() {
     }
   };
 
-  const handleItemAction = async (action, itemId, { scanned_ean, qty_picked }) => {
+  const handleItemAction = async (action, itemId, { scanned_ean, qty_picked, substitute_ean, reason } = {}) => {
     try {
       let res;
-      if (action === 'pick')         res = await pickItem(itemId, { scanned_ean, qty_picked });
-      else if (action === 'out_of_stock') res = await outOfStock(itemId);
-      else if (action === 'substitute')  res = await substituteItem(itemId, { qty_picked });
-      setSession(res.data.data);
-      toast.success(action === 'pick' ? 'Article prélevé' : action === 'out_of_stock' ? 'Rupture déclarée' : 'Article substitué');
+      if (action === 'pick')
+        res = await pickItem(itemId, { scanned_ean, qty_picked });
+      else if (action === 'out_of_stock')
+        res = await outOfStock(itemId, { reason });
+      else if (action === 'substitute')
+        res = await substituteItem(itemId, { substitute_ean, qty_picked, reason });
+      if (res) {
+        setSession(res.data.data);
+        toast.success(
+          action === 'pick' ? 'Article prélevé ✓' :
+          action === 'out_of_stock' ? 'Rupture déclarée' :
+          'Article substitué ✓'
+        );
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message ?? 'Erreur');
     }

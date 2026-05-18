@@ -99,7 +99,7 @@ export default function PickupOrdersPage() {
                   <span>{order._count?.items ?? '?'} article(s)</span>
                 </div>
                 {order.confirmed_slot && (
-                  <span>🕐 {order.confirmed_slot.slot_start}–{order.confirmed_slot.slot_end}</span>
+                  <span>🕐 {order.confirmed_slot.name_fr ?? `${String(order.confirmed_slot.slot_start).substring(0,5)}–${String(order.confirmed_slot.slot_end).substring(0,5)}`}</span>
                 )}
               </div>
             </div>

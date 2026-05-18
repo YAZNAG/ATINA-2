@@ -2,13 +2,19 @@ import api from './axios';
 
 // ── Liste des commandes ready + pickup ────────────────────────────────────────
 export const getPickupOrders = (params) =>
-  api.get('/orders-mgmt', {
-    params: { status_code: 'ready', delivery_type_code: 'pickup', limit: 100, ...params },
-  });
+  api.get('/pickup/ready-orders', { params });
 
 // ── Détail commande ───────────────────────────────────────────────────────────
-export const getPickupOrder = (id) => api.get(`/orders-mgmt/${id}`);
+export const getPickupOrder = (id) => api.get(`/pickup/orders/${id}`);
 
-// ── Confirmer le retrait (décrémente stock, passe à delivered) ────────────────
+// ── Collecte COD au comptoir (étape 1 si COD) ─────────────────────────────────
+export const collectCOD = (id, data) =>
+  api.patch(`/pickup/orders/${id}/collect-cod`, data ?? {});
+
+// ── Confirmer le retrait (étape 2 — décrémente stock, passe à delivered) ──────
 export const confirmPickup = (id, data) =>
-  api.patch(`/orders-mgmt/${id}/confirm-pickup`, data ?? {});
+  api.patch(`/pickup/orders/${id}/confirm`, data ?? {});
+
+// ── Annuler commande ready ────────────────────────────────────────────────────
+export const cancelReadyPickup = (id, data) =>
+  api.patch(`/pickup/orders/${id}/cancel`, data ?? {});

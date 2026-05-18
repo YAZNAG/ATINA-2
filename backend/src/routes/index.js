@@ -22,6 +22,7 @@ const customerMeRoutes       = require('../modules/customer_me/customer_me.route
 const customerCheckoutRoutes = require('../modules/customer_checkout/customer_checkout.routes');
 const tourRoutes             = require('../modules/tours/tour.routes');
 const reportingRoutes        = require('../modules/reporting/reporting.routes');
+const pickupRoutes           = require('../modules/pickup/pickup.routes');
 const ordersMgmtRoutes  = require('../modules/orders_mgmt/order_mgmt.routes');
 const pickingRoutes       = require('../modules/picking/picking.routes');
 const staffRoutes         = require('../modules/staff/staff.routes');
@@ -60,5 +61,6 @@ router.use('/staff',       staffRoutes);
 router.use('/picker',      pickerPortalRoutes);
 router.use('/tours',       tourRoutes);
 router.use('/reporting',   reportingRoutes);
+router.use('/pickup',      pickupRoutes);
 
 module.exports = router;

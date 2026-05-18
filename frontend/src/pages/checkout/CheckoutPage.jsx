@@ -287,6 +287,10 @@ export default function CheckoutPage() {
     setSelectedDate('');
     setSlots([]);
     setSelectedSlot(null);
+    // Reset payment state when node changes (payment methods may differ)
+    setPaymentMethod(null);
+    setWalletUsed(0);
+    setTotals(null);
     await reloadMetaWithNode(n.id);
     // Charger les dates disponibles
     try {
@@ -338,15 +342,21 @@ export default function CheckoutPage() {
   };
 
   const walletBalance = Number(selectedCustomer?.wallet_balance ?? 0);
+  const currentTotal  = Number(totals?.total_ttc ?? cartTotal);
+
   const isMethodDisabled = (pm) => {
-    if (pm.code === 'wallet') return walletBalance <= 0;
-    if (pm.code === 'cod' && pm.cod_max_amount > 0) return (totals?.total_ttc ?? cartTotal) > pm.cod_max_amount;
+    if (pm.code === 'wallet') return walletBalance < currentTotal;
+    if (pm.code === 'cod' && pm.cod_max_amount > 0) return currentTotal > pm.cod_max_amount;
+    if (pm.code === 'points') return true; // TODO: points conversion not yet finalized
     return false;
   };
   const methodDisabledReason = (pm) => {
-    if (pm.code === 'wallet' && walletBalance <= 0) return 'Wallet vide';
-    if (pm.code === 'cod' && pm.cod_max_amount > 0 && (totals?.total_ttc ?? cartTotal) > pm.cod_max_amount)
+    if (pm.code === 'wallet' && walletBalance < currentTotal)
+      return `Solde insuffisant (${walletBalance.toFixed(2)} MAD < ${currentTotal.toFixed(2)} MAD)`;
+    if (pm.code === 'cod' && pm.cod_max_amount > 0 && currentTotal > pm.cod_max_amount)
       return `Total dépasse le max COD (${pm.cod_max_amount} MAD)`;
+    if (pm.code === 'points')
+      return 'Points : conversion non disponible (bientôt)';
     return null;
   };
 
@@ -356,7 +366,10 @@ export default function CheckoutPage() {
     if (cartCount === 0)    return toast.error('Panier vide');
     if (!selectedNode)      return toast.error('Node non sélectionné');
     if (!deliveryType)      return toast.error('Type de livraison requis');
+    if (!selectedSlot)      return toast.error('Créneau obligatoire');
     if (!paymentMethod)     return toast.error('Méthode de paiement requise');
+    if (deliveryType.code === 'home' && !selectedAddress)
+      return toast.error('Adresse de livraison requise');
 
     setCreating(true);
     try {
@@ -365,13 +378,29 @@ export default function CheckoutPage() {
         address_id:         selectedAddress?.id ?? null,
         delivery_type_code: deliveryType.code,
         node_id:            selectedNode.id,
-        selected_slot_id:   selectedSlot?.id ?? null,
+        selected_slot_id:   selectedSlot.id,
         payment_method_code: paymentMethod.code,
         cart_items:         cartItems.map(i => ({ sku_id: i.sku_id, qty: i.qty })),
         wallet_used:        walletUsed,
         notes,
       });
-      setCreatedOrder(r.data?.data);
+      const order = r.data?.data;
+      setCreatedOrder(order);
+
+      // Stripe card → redirect to Stripe Checkout
+      if (paymentMethod.code === 'card' && order?.id) {
+        import('../../api/axios').then(({ default: api }) =>
+          api.post('/payment/stripe/create-session', {
+            order_id: order.id,
+            success_url: `${window.location.origin}/orders-mgmt?stripe_success=${order.id}`,
+            cancel_url: `${window.location.origin}/checkout/new?stripe_cancel=1`,
+          }).then(res => {
+            const url = res.data?.data?.checkout_url;
+            if (url) window.open(url, '_blank');
+          }).catch(() => {})
+        );
+      }
+
       setStep(5);
       toast.success('Commande créée avec succès !');
     } catch (e) {
@@ -685,30 +714,48 @@ export default function CheckoutPage() {
                       <p className="text-sm text-gray-500 text-center py-4">Aucun créneau disponible ce jour</p>
                     )}
                     <div className="grid grid-cols-3 gap-2">
-                      {slots.map(s => (
-                        <button key={s.id} onClick={() => !s.is_full && !s.is_past && setSelectedSlot(s)}
-                          disabled={s.is_full || s.is_past}
-                          className={`p-3 rounded-xl border-2 text-left transition-all ${
-                            selectedSlot?.id === s.id ? 'border-red-500 bg-red-50' :
-                            s.is_full || s.is_past ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed' :
-                            'border-gray-200 hover:border-red-300'
-                          }`}>
-                          <p className="text-xs font-bold font-mono text-gray-700">{s.slot_start}–{s.slot_end}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{s.is_past ? 'Expiré' : s.is_full ? 'Complet' : s.available_capacity != null ? `${s.available_capacity} place${s.available_capacity > 1 ? 's' : ''}` : 'Disponible'}</p>
-                        </button>
-                      ))}
+                      {slots.map(s => {
+                        const fmtTime = (t) => {
+                          if (!t) return '';
+                          const str = typeof t === 'string' ? t : new Date(t).toISOString();
+                          // Extract HH:MM from ISO or HH:MM:SS string
+                          const m = str.match(/(\d{2}:\d{2})/);
+                          return m ? m[1] : str.substring(0, 5);
+                        };
+                        return (
+                          <button key={s.id} onClick={() => !s.is_full && !s.is_past && setSelectedSlot(s)}
+                            disabled={s.is_full || s.is_past}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              selectedSlot?.id === s.id ? 'border-red-500 bg-red-50' :
+                              s.is_full || s.is_past ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed' :
+                              'border-gray-200 hover:border-red-300'
+                            }`}>
+                            <p className="text-xs font-bold text-gray-700">{s.name_fr}</p>
+                            <p className="text-[10px] font-mono text-gray-500">{fmtTime(s.slot_start)}–{fmtTime(s.slot_end)}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {s.is_past ? '⌛ Expiré' : s.is_full ? '🔴 Complet' :
+                               s.available_capacity != null ? `${s.available_capacity} place${s.available_capacity > 1 ? 's' : ''}` : '✓ Disponible'}
+                            </p>
+                          </button>
+                        );
+                      })}
                     </div>
                     {slots.length > 0 && !selectedSlot && (
-                      <p className="text-xs text-amber-500 mt-3">Le créneau est optionnel</p>
+                      <p className="text-xs text-amber-500 mt-3">⚠ Sélectionnez un créneau pour continuer</p>
                     )}
                   </Card>
                 )}
 
                 <div className="flex gap-3">
                   <button onClick={() => setStep(2)} className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">← Retour</button>
-                  <button onClick={() => setStep(4)} disabled={!selectedNode || !selectedSlot}
+                  <button onClick={() => setStep(4)}
+                    disabled={!selectedNode || !selectedDate || !selectedSlot || (deliveryType?.code === 'home' && !selectedAddress)}
                     className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white text-sm font-semibold rounded-xl">
-                    {!selectedNode ? 'Sélectionnez un node' : !selectedSlot ? 'Sélectionnez un créneau' : 'Continuer → Paiement'}
+                    {!selectedNode ? 'Sélectionnez un point de retrait' :
+                     !selectedDate ? 'Sélectionnez une date' :
+                     !selectedSlot ? 'Sélectionnez un créneau' :
+                     (deliveryType?.code === 'home' && !selectedAddress) ? 'Sélectionnez une adresse' :
+                     'Continuer → Paiement'}
                   </button>
                 </div>
               </>
@@ -725,20 +772,32 @@ export default function CheckoutPage() {
                       {meta.payment_methods.map(pm => {
                         const disabled = isMethodDisabled(pm);
                         const reason   = methodDisabledReason(pm);
+                        const isStripe = pm.code === 'card';
+                        const iconColor = pm.code === 'cod' ? 'text-emerald-600' : pm.code === 'wallet' ? 'text-violet-600' : pm.code === 'card' ? 'text-indigo-600' : 'text-amber-600';
+                        const bgColor   = pm.code === 'cod' ? 'bg-emerald-50' : pm.code === 'wallet' ? 'bg-violet-50' : pm.code === 'card' ? 'bg-indigo-50' : 'bg-amber-50';
                         return (
-                          <button key={pm.id} onClick={() => !disabled && setPaymentMethod(pm)} disabled={disabled}
+                          <button key={pm.id} onClick={() => { if (!disabled) { setPaymentMethod(pm); setWalletUsed(0); } }} disabled={disabled}
                             className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-all ${
                               disabled ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed' :
                               paymentMethod?.id === pm.id ? 'border-red-500 bg-red-50' :
                               'border-gray-200 hover:border-gray-300'
                             }`}>
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${disabled ? 'bg-gray-100' : pm.code === 'cod' ? 'bg-emerald-50' : pm.code === 'wallet' ? 'bg-violet-50' : 'bg-amber-50'}`}>
-                                {disabled ? <Icon d={SVG.lock} className="w-5 h-5 text-gray-400" /> : <Icon d={pm.code === 'wallet' ? SVG.wallet : SVG.card} className={`w-5 h-5 ${pm.code === 'cod' ? 'text-emerald-600' : pm.code === 'wallet' ? 'text-violet-600' : 'text-amber-600'}`} />}
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${disabled ? 'bg-gray-100' : bgColor}`}>
+                                {disabled
+                                  ? <Icon d={SVG.lock} className="w-5 h-5 text-gray-400" />
+                                  : <Icon d={pm.code === 'wallet' ? SVG.wallet : SVG.card} className={`w-5 h-5 ${iconColor}`} />}
                               </div>
                               <div className="flex-1">
-                                <p className={`font-semibold text-sm ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>{pm.name_fr}</p>
-                                {reason ? <p className="text-xs text-red-500 mt-0.5">{reason}</p> : <p className="text-[11px] font-mono text-gray-400">{pm.code}</p>}
+                                <div className="flex items-center gap-2">
+                                  <p className={`font-semibold text-sm ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>{pm.name_fr}</p>
+                                  {isStripe && !disabled && (
+                                    <span className="text-[9px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">TEST</span>
+                                  )}
+                                </div>
+                                {reason
+                                  ? <p className="text-xs text-red-500 mt-0.5">{reason}</p>
+                                  : <p className="text-[11px] font-mono text-gray-400">{pm.code}{isStripe ? ' · 4242 4242 4242 4242' : ''}</p>}
                               </div>
                               {!disabled && paymentMethod?.id === pm.id && <Icon d={SVG.check} className="w-5 h-5 text-red-600 shrink-0" />}
                             </div>
@@ -748,18 +807,27 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {/* Wallet slider */}
-                  {walletBalance > 0 && (
+                  {/* Wallet partiel (paiement mixte ou complément) */}
+                  {walletBalance > 0 && paymentMethod?.code !== 'wallet' && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Utiliser le wallet ({walletBalance.toFixed(2)} MAD)</p>
-                      <input type="range" min={0} max={walletBalance} step={1} value={walletUsed}
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Déduire depuis le wallet ({walletBalance.toFixed(2)} MAD disponible)
+                      </p>
+                      <input type="range" min={0}
+                        max={Math.min(walletBalance, currentTotal)}
+                        step={0.5} value={walletUsed}
                         onChange={e => setWalletUsed(parseFloat(e.target.value))}
                         className="w-full accent-red-600" />
                       <div className="flex justify-between text-xs text-gray-500 mt-1">
                         <span>0 MAD</span>
-                        <span className="font-semibold text-red-600">{walletUsed.toFixed(2)} MAD déduit</span>
-                        <span>{walletBalance.toFixed(2)} MAD</span>
+                        <span className="font-semibold text-violet-600">{walletUsed.toFixed(2)} MAD déduit</span>
+                        <span>{Math.min(walletBalance, currentTotal).toFixed(2)} MAD</span>
                       </div>
+                      {walletUsed > 0 && (
+                        <p className="text-[11px] text-violet-600 mt-1">
+                          Reste à payer : {Math.max(0, currentTotal - walletUsed).toFixed(2)} MAD par {paymentMethod?.name_fr}
+                        </p>
+                      )}
                     </div>
                   )}
                 </Card>
@@ -811,10 +879,15 @@ export default function CheckoutPage() {
                   <div className="flex justify-between"><span className="text-gray-500">Total TTC</span><span className="font-bold text-gray-900">{Number(createdOrder.total_ttc).toFixed(2)} MAD</span></div>
                 </div>
                 <div className="bg-emerald-50 rounded-xl p-3 text-xs text-emerald-700 text-left space-y-1 mb-6">
-                  <p>✓ Stock réservé</p>
-                  <p>✓ Paiement pending créé</p>
-                  <p>✓ Historique enregistré</p>
-                  <p className="text-emerald-500 mt-1">→ Confirmez la commande pour la rendre visible aux pickers</p>
+                  <p>✓ Stock réservé (qty_reserved++)</p>
+                  <p>✓ Paiement {paymentMethod?.code === 'wallet' ? 'débité du wallet' : 'en attente créé'}</p>
+                  <p>✓ Historique commande enregistré</p>
+                  {paymentMethod?.code === 'card' && (
+                    <p className="text-indigo-600 mt-1">→ Une fenêtre Stripe s'est ouverte pour le paiement par carte</p>
+                  )}
+                  {paymentMethod?.code !== 'card' && (
+                    <p className="text-emerald-500 mt-1">→ Commande visible par les pickers maintenant</p>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <button onClick={reset} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">

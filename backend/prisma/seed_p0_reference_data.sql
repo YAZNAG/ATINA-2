@@ -66,13 +66,17 @@ WHERE NOT EXISTS (SELECT 1 FROM payment_statuses p WHERE p.code = v.code);
 
 -- payment_methods
 INSERT INTO payment_methods (id, code, name_fr, name_ar, is_active)
-SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, true
+SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar, v.active::boolean
 FROM (VALUES
-  ('cod', 'Paiement à la livraison', 'الدفع عند الاستلام'),
-  ('wallet', 'Portefeuille', 'المحفظة'),
-  ('mixed', 'Mixte', 'مختلط')
-) AS v(code, name_fr, name_ar)
+  ('cod',    'Paiement à la livraison', 'الدفع عند الاستلام', 'true'),
+  ('wallet', 'Portefeuille',            'المحفظة',            'true'),
+  ('mixed',  'Mixte',                   'مختلط',             'false'),
+  ('card',   'Carte bancaire (Stripe)', 'بطاقة بنكية',       'false')
+) AS v(code, name_fr, name_ar, active)
 WHERE NOT EXISTS (SELECT 1 FROM payment_methods p WHERE p.code = v.code);
+-- Activer card si déjà existant mais inactif (ignorer si erreur)
+UPDATE payment_methods SET name_fr = 'Carte bancaire (Stripe)', name_ar = 'بطاقة بنكية'
+WHERE code = 'card';
 
 -- config_value_types
 INSERT INTO config_value_types (id, code, name_fr, name_ar)

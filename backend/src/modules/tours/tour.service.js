@@ -231,13 +231,14 @@ async function deliverStop(stop_id, { payment_collected = false, note } = {}, ch
       await tx.payment.update({ where: { id: payment.id }, data: { status_id: collectedPayId } });
     }
 
-    // Release stock (sale): decrement qty_reserved + qty_available per spec
+    // Release stock (sale): qty_reserved-- + qty_physical-- (qty_available unchanged)
+    // Formula: qty_available = qty_physical - qty_reserved → both decrease by qty → net 0 change
     for (const item of order.items) {
       if (!item.sku_id) continue;
       const qty = Number(item.qty);
       await tx.stockLevel.updateMany({
-        where:  { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty }, qty_available: { gte: qty } },
-        data:   { qty_reserved: { decrement: qty }, qty_available: { decrement: qty } },
+        where:  { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty }, qty_physical: { gte: qty } },
+        data:   { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
       });
       if (saleMoveType) {
         await tx.stockMove.create({

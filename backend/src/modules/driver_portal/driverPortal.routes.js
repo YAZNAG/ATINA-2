@@ -80,6 +80,47 @@ router.get('/tours/:id', async (req, res, next) => {
   } catch(e) { E(res, next, e); }
 });
 
+// ── Start tour (driver-facing) ────────────────────────────────────────────────
+router.patch('/tours/:id/start', async (req, res, next) => {
+  try {
+    const tour = await deliverySvc.getTour(req.params.id);
+    if (tour.driver_id !== req.driver.id)
+      return resp.error(res, 'Tournée non assignée à ce chauffeur', 403);
+    resp.success(res, await deliverySvc.startTour(req.params.id), 'Tournée démarrée');
+  } catch(e) { E(res, next, e); }
+});
+
+// ── Stop detail ───────────────────────────────────────────────────────────────
+router.get('/stops/:stopId', async (req, res, next) => {
+  try {
+    await getStopForDriver(req.params.stopId, req.driver.id);
+    const stop = await prisma.tourStop.findUnique({
+      where: { id: req.params.stopId },
+      include: {
+        status: { select: { id: true, code: true, name_fr: true } },
+        tour: { select: { id: true, driver_id: true, status: { select: { code: true } } } },
+        order: {
+          include: {
+            status:   { select: { code: true, name_fr: true, color: true } },
+            customer: { select: { id: true, name: true, phone_country: true, phone_number: true } },
+            address:  true,
+            node:     { select: { id: true, name_fr: true } },
+            payments: {
+              take: 1, orderBy: { created_at: 'desc' },
+              include: { payment_method: { select: { code: true, name_fr: true } }, status: { select: { code: true, name_fr: true } } },
+            },
+            items: {
+              include: { sku: { include: { article: { select: { name_fr: true, sku_code: true, ean13: true, price: true } } } } },
+            },
+          },
+        },
+      },
+    });
+    if (!stop) return resp.error(res, 'Stop introuvable', 404);
+    resp.success(res, stop);
+  } catch(e) { E(res, next, e); }
+});
+
 // ── Stop actions ──────────────────────────────────────────────────────────────
 async function getStopForDriver(stopId, driverId) {
   const stop = await prisma.tourStop.findUnique({

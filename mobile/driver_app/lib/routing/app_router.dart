@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../features/tours/screens/tours_screen.dart';
+import '../features/tours/screens/tour_detail_screen.dart';
+import '../features/tours/screens/stop_detail_screen.dart';
+import '../features/profile/screens/profile_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) => GoRouter(
   initialLocation: '/login',
@@ -17,13 +21,15 @@ final routerProvider = Provider<GoRouter>((ref) => GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: '/login',     builder: (_, __) => const LoginScreen()),
-    GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
-    GoRoute(path: '/tours',     builder: (_, __) => const Scaffold(body: Center(child: Text('Tournées — Module Livraison à développer')))),
-    GoRoute(path: '/tour/:id',  builder: (_, s)  => Scaffold(appBar: AppBar(title: Text('Tournée ${s.pathParameters['id']}')), body: const Center(child: Text('Détail tournée')))),
+    GoRoute(path: '/login',      builder: (_, __) => const LoginScreen()),
+    GoRoute(path: '/dashboard',  builder: (_, __) => const DashboardScreen()),
+    GoRoute(path: '/tours',      builder: (_, __) => const ToursScreen()),
+    GoRoute(path: '/tour/:id',   builder: (_, s)  => TourDetailScreen(tourId: s.pathParameters['id']!)),
+    GoRoute(path: '/stop/:id',   builder: (_, s)  => StopDetailScreen(stopId: s.pathParameters['id']!)),
+    GoRoute(path: '/profile',    builder: (_, __) => const ProfileScreen()),
   ],
 ));
 
 class _Refresh extends ChangeNotifier {
-  _Refresh(ProviderRef ref) { ref.listen(authProvider, (_, __) => notifyListeners()); }
+  _Refresh(Ref ref) { ref.listen(authProvider, (_, __) => notifyListeners()); }
 }

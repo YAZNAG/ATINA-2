@@ -24,6 +24,20 @@ class AuthService {
     } on DioException catch (e) { throw ApiException.fromDio(e); }
   }
 
+  /// Vérifie que le token en storage est encore valide côté backend.
+  /// Retourne null si token absent ou invalide.
+  Future<PickerModel?> getMe() async {
+    final t = await AuthStorage.instance.getToken();
+    if (t == null || t.isEmpty) return null;
+    try {
+      final res = await _dio.get('/picker/me');
+      final data = res.data['data'] as Map<String, dynamic>? ?? {};
+      return PickerModel.fromJson({'picker': data}, t);
+    } on DioException {
+      return null; // 401 → _AuthInterceptor a déjà vidé le storage
+    }
+  }
+
   Future<void> logout() async {
     await AuthStorage.instance.clear();
   }

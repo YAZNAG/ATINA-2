@@ -15,7 +15,7 @@ class DioClient {
       receiveTimeout: ApiConstants.receiveTimeout,
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
     ));
-    d.interceptors.addAll([_AuthInterceptor(), _ErrorInterceptor()]);
+    d.interceptors.add(_AuthInterceptor());
     return d;
   }
 }
@@ -24,19 +24,36 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions o, RequestInterceptorHandler h) async {
     final t = await AuthStorage.instance.getToken();
-    if (t != null) o.headers['Authorization'] = 'Bearer $t';
+    if (t != null && t.isNotEmpty) {
+      o.headers['Authorization'] = 'Bearer $t';
+      // ignore: avoid_print
+      // print('[DioClient] → ${o.method} ${o.path} (with token)');
+    } else {
+      // ignore: avoid_print
+      // print('[DioClient] → ${o.method} ${o.path} (NO token)');
+    }
     h.next(o);
   }
+
+  @override
+  void onResponse(Response r, ResponseInterceptorHandler h) {
+    // ignore: avoid_print
+    print('[DioClient] ← ${r.statusCode} ${r.requestOptions.path}');
+    h.next(r);
+  }
+
   @override
   void onError(DioException e, ErrorInterceptorHandler h) async {
-    if (e.response?.statusCode == 401) await AuthStorage.instance.clear();
+    final code = e.response?.statusCode;
+    // ignore: avoid_print
+    print('[DioClient] ✗ $code ${e.requestOptions.path} — ${e.response?.data?['message'] ?? e.message}');
+
+    if (code == 401) {
+      // Token invalide ou expiré → vider storage → le stream notifie authProvider
+      await AuthStorage.instance.clear();
+    }
     h.next(e);
   }
-}
-
-class _ErrorInterceptor extends Interceptor {
-  @override
-  void onError(DioException e, ErrorInterceptorHandler h) => h.next(e);
 }
 
 class ApiException implements Exception {

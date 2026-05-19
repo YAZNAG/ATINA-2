@@ -10,19 +10,51 @@ class PickerPortalController {
   // POST /api/picker/login  — PUBLIQUE
   async login(req, res) {
     try {
-      const { phone_country = '+212', phone_number, password } = req.body;
-      if (!phone_number || !password)
+      const body = req.body ?? {};
+      const phone_country = body.phone_country ?? '+212';
+      const phone_number  = String(body.phone_number ?? '').trim();
+      const password      = String(body.password ?? '').trim();
+
+      console.log(`[picker/login] body:`, {
+        phone_country,
+        phone_number: phone_number || '(empty)',
+        password_len: password.length,
+      });
+
+      if (!phone_number || !password) {
+        console.warn('[picker/login] ❌ Missing phone_number or password');
         return error(res, 'phone_number et password requis', 400);
+      }
 
       const phone = phone_number.replace(/^0/, '');
+      console.log(`[picker/login] Looking for: ${phone_country} ${phone}`);
+
       const picker = await prisma.picker.findFirst({
         where: { phone_country, phone_number: phone, is_deleted: false },
       });
-      if (!picker)          return error(res, 'Identifiants invalides', 401);
-      if (!picker.is_active) return error(res, 'Compte inactif', 403);
+
+      if (!picker) {
+        console.warn(`[picker/login] ❌ Not found: ${phone_country} ${phone}`);
+        return error(res, 'Identifiants invalides', 401);
+      }
+
+      console.log(`[picker/login] Found: ${picker.name} | active=${picker.is_active} | hash_set=${!!picker.password_hash}`);
+
+      if (!picker.is_active) {
+        console.warn('[picker/login] ❌ Picker inactive');
+        return error(res, 'Compte picker inactif — contactez votre responsable', 403);
+      }
+
+      if (!picker.password_hash) {
+        console.warn('[picker/login] ❌ password_hash missing — use /staff/pickers to set it');
+        return error(res, 'Mot de passe non configuré. Contactez l\'admin.', 403);
+      }
 
       const valid = await bcrypt.compare(password, picker.password_hash);
-      if (!valid) return error(res, 'Identifiants invalides', 401);
+      if (!valid) {
+        console.warn('[picker/login] ❌ Wrong password');
+        return error(res, 'Identifiants invalides', 401);
+      }
 
       const token = jwt.sign(
         { id: picker.id, profile_type: 'picker', role: 'picker', node_id: picker.node_id },
@@ -31,8 +63,10 @@ class PickerPortalController {
       );
 
       const { password_hash: _, ...safe } = picker;
+      console.log(`[picker/login] ✓ OK: ${picker.name} node=${picker.node_id}`);
       return success(res, { token, picker: { ...safe, profile_type: 'picker', role: 'picker' } });
     } catch (err) {
+      console.error('[picker/login] ❌ Exception:', err.message);
       return error(res, err.message ?? 'Erreur serveur', 500);
     }
   }

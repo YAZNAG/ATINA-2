@@ -1,5 +1,16 @@
 require('dotenv').config();
+const os      = require('os');
 const express = require('express');
+
+function getLanIP() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of (ifaces[name] ?? [])) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return process.env.LAN_IP ?? '?';
+}
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
@@ -83,11 +94,13 @@ async function start() {
   } catch (e) {
     console.warn('[server] schema self-heal:', e?.message ?? e);
   }
+  const LAN = getLanIP();
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✓ Backend running on http://0.0.0.0:${PORT}`);
+    console.log(`✓ Backend démarré sur http://0.0.0.0:${PORT}`);
     console.log(`  Local:   http://localhost:${PORT}/api`);
-    console.log(`  Network: http://192.168.1.104:${PORT}/api  ← téléphone Android`);
-    console.log(`  Health:  http://192.168.1.104:${PORT}/api/health`);
+    console.log(`  Network: http://${LAN}:${PORT}/api  ← téléphone Android`);
+    console.log(`  Health:  http://${LAN}:${PORT}/api/health`);
+    console.log(`  APK URL: --dart-define=API_URL=http://${LAN}:${PORT}/api`);
   });
 }
 

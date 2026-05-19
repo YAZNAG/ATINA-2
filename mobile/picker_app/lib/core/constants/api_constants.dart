@@ -4,7 +4,7 @@ class ApiConstants {
   ApiConstants._();
 
   // ── IP backend local — modifier si réseau change ─────────────────────────────
-  static const String _localNetworkIP = '192.168.1.104';
+  static const String _localNetworkIP = '192.168.100.4';
 
   static String get baseUrl {
     const env = String.fromEnvironment('API_URL', defaultValue: '');

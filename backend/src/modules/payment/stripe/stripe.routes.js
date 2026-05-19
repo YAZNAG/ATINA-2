@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const svc  = require('./stripe.service');
 const resp = require('../../../utils/response');
-const E = (res, next, e) => e.statusCode ? resp.error(res, e.message, e.statusCode) : next(e);
 const auth = require('../../../middlewares/auth.middleware');
 const customerAuth = require('../../../middlewares/customer_auth.middleware');
 

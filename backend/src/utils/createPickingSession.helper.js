@@ -119,7 +119,18 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
     return newSession;
   });
 
-  // 7. Retourner la session avec détails complets
+  // 7. Socket.IO — notifier les autres pickers que la commande est prise
+  try {
+    const { emitOrderTaken } = require('../socket/picker.socket');
+    emitOrderTaken(order.node_id, {
+      order_id:  orderId,
+      picker_id: pickerId,
+      picker_name: picker.name,
+      session_id: session.id,
+    });
+  } catch (_) { /* Socket optionnel */ }
+
+  // 8. Retourner la session avec détails complets
   return prisma.pickingSession.findUnique({
     where: { id: session.id },
     include: {

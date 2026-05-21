@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../realtime/new_order_banner.dart';
+import '../../../realtime/realtime_provider.dart';
 import '../../../sessions/providers/sessions_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -24,6 +26,8 @@ class DashboardScreen extends ConsumerWidget {
     final completedCount = completed.length;
     final errorCount     = active.fold(0, (s, sess) => s + sess.errorCount);
 
+    final notifCount = ref.watch(realtimeProvider).pendingNotifications.length;
+
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -39,7 +43,8 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(icon: const Icon(Icons.person_outline_rounded), onPressed: () => context.push('/profile')),
         ],
       ),
-      body: SafeArea(
+      body: Stack(children: [
+        SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(availableOrdersProvider);
@@ -119,6 +124,9 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
       ),
+        // Bannière temps réel
+        if (notifCount > 0) const NewOrderBanner(),
+      ]),
     );
   }
 }

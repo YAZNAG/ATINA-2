@@ -26,8 +26,16 @@ class PickerPortalController {
         return error(res, 'phone_number et password requis', 400);
       }
 
-      const phone = phone_number.replace(/^0/, '');
-      console.log(`[picker/login] Looking for: ${phone_country} ${phone}`);
+      // Normalisation robuste : accepte 0601020304, 601020304, +212601020304
+      let phone = phone_number;
+      if (phone.startsWith(phone_country.replace('+', ''))) {
+        phone = phone.slice(phone_country.replace('+', '').length); // strip +212 or 212
+      } else if (phone.startsWith(phone_country)) {
+        phone = phone.slice(phone_country.length); // strip +212
+      }
+      phone = phone.replace(/^0+/, ''); // strip leading zeros
+
+      console.log(`[picker/login] Normalized: "${phone_number}" → "${phone}" (country: ${phone_country})`);
 
       const picker = await prisma.picker.findFirst({
         where: { phone_country, phone_number: phone, is_deleted: false },

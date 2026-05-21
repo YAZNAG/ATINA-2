@@ -44,14 +44,21 @@ async function ensureArticlesPrismaColumns(db) {
   } catch (e) {
     console.warn('[articleSkuLink] index articles_sku_uuid_key:', e?.message ?? e);
   }
+  // Vérifier si la FK existe déjà avant de la créer (évite l'erreur 42710 de Prisma)
   try {
-    await db.$executeRawUnsafe(
-      'ALTER TABLE "articles" ADD CONSTRAINT "articles_sku_uuid_fkey" FOREIGN KEY ("sku_uuid") REFERENCES "skus"("id") ON DELETE SET NULL ON UPDATE CASCADE',
-    );
-  } catch (e) {
-    if (e?.code !== '42710') {
-      console.warn('[articleSkuLink] FK articles_sku_uuid_fkey:', e?.message ?? e);
+    const rows = await db.$queryRaw`
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE constraint_name = 'articles_sku_uuid_fkey'
+        AND table_name = 'articles'
+      LIMIT 1
+    `;
+    if (rows.length === 0) {
+      await db.$executeRawUnsafe(
+        'ALTER TABLE "articles" ADD CONSTRAINT "articles_sku_uuid_fkey" FOREIGN KEY ("sku_uuid") REFERENCES "skus"("id") ON DELETE SET NULL ON UPDATE CASCADE',
+      );
     }
+  } catch (e) {
+    // Ignorer silencieusement — FK optionnelle
   }
   articlesPrismaColumnsEnsured = true;
 }

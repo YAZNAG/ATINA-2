@@ -32,13 +32,15 @@ const pickerPortalRoutes  = require('../modules/picker_portal/pickerPortal.route
 
 const router = Router();
 
-// ── Public customer routes — MUST come before wildcard mounts ('/') ──────────
-// deliverySlot.routes applies router.use(auth) globally, which intercepts
-// every path when mounted under '/' via nodeRoutes.
+// ── Routes publiques/propres — MUST come before wildcard mounts ('/') ─────────
+// nodeRoutes / locationRoutes appliquent router.use(auth) qui intercepte TOUT
+// via router.use('/') → ces routes doivent être montées AVANT.
 router.use('/customer/auth',     customerAuthRoutes);
 router.use('/customer/catalog',  customerCatalogRoutes);
 router.use('/customer/me',       customerMeRoutes);
 router.use('/customer/checkout', customerCheckoutRoutes);
+router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
+router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -60,12 +62,10 @@ router.use('/checkout',       checkoutRoutes);
 router.use('/orders-mgmt', ordersMgmtRoutes);
 router.use('/picking',     pickingRoutes);
 router.use('/staff',       staffRoutes);
-router.use('/picker',      pickerPortalRoutes);
 router.use('/tours',       tourRoutes);
 router.use('/reporting',   reportingRoutes);
 router.use('/pickup',      pickupRoutes);
 router.use('/delivery',    deliveryMgmtRoutes);
-router.use('/driver',      driverPortalRoutes);
 router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
 
 module.exports = router;

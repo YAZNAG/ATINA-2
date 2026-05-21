@@ -1,6 +1,6 @@
 const jwt     = require('jsonwebtoken');
 const prisma  = require('../config/database');
-const { JWT_SECRET } = require('../config/jwt');
+const { secret: JWT_SECRET } = require('../config/jwt');
 
 // ── requirePickerAuth ─────────────────────────────────────────────────────────
 // Vérifie que le token JWT appartient à un picker actif.

@@ -94,12 +94,20 @@ async function start() {
   } catch (e) {
     console.warn('[server] schema self-heal:', e?.message ?? e);
   }
+
+  const http = require('http');
+  const { setupPickerSocket } = require('./socket/picker.socket');
+  const httpServer = http.createServer(app);
+
+  setupPickerSocket(httpServer);
+
   const LAN = getLanIP();
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ Backend démarré sur http://0.0.0.0:${PORT}`);
     console.log(`  Local:   http://localhost:${PORT}/api`);
     console.log(`  Network: http://${LAN}:${PORT}/api  ← téléphone Android`);
     console.log(`  Health:  http://${LAN}:${PORT}/api/health`);
+    console.log(`  Socket:  ws://${LAN}:${PORT}/socket/picker  ← temps réel picker`);
     console.log(`  APK URL: --dart-define=API_URL=http://${LAN}:${PORT}/api`);
   });
 }

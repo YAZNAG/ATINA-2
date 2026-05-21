@@ -767,6 +767,22 @@ async function createOrder(payload) {
     return newOrder;
   });
 
+  // ── Socket.IO — notifier les pickers du node en temps réel ──────────────────
+  if (order.status?.code === 'confirmed' || orderStatus.code === 'confirmed') {
+    try {
+      const { emitNewOrder } = require('../../socket/picker.socket');
+      const itemCount = order.items?.length ?? 0;
+      emitNewOrder(finalNodeId, {
+        order_id:      order.id,
+        reference:     order.id.slice(0, 8).toUpperCase(),
+        customer_name: order.customer?.name ?? 'Client',
+        total_ttc:     Number(order.total_ttc ?? 0).toFixed(2),
+        items_count:   itemCount,
+        created_at:    order.created_at ?? new Date().toISOString(),
+      });
+    } catch (_) { /* Socket optionnel — ne pas bloquer */ }
+  }
+
   return order;
 }
 

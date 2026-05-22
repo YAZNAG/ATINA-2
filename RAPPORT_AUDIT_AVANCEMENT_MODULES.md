@@ -1,419 +1,439 @@
 # RAPPORT D'AUDIT TECHNIQUE — AVANCEMENT MODULES
 ## Dark Store App — Quick Commerce Platform
-**Date audit :** 2026-05-22 | **Branche :** `dev` | **Auditeur :** Analyse code réel
+**Date audit :** 2026-05-22 (v2 — après corrections Sprint final)
+**Branche :** `dev` | **Auditeur :** Analyse code réel post-développement
 
 ---
 
-## 1. RÉSUMÉ GLOBAL
+## 1. RÉSUMÉ GLOBAL (État actuel réel)
 
-| Dimension | Score | Détail |
+| Dimension | Score | Évolution | Détail |
+|---|---|---|---|
+| **Backend API** | 78 % | ↑ +6% | 27 modules, ~280 endpoints, bugs corrigés |
+| **Frontend Web Admin** | 65 % | ↑ +3% | 98 pages JSX, delivery + pickup finalisés |
+| **Mobile Customer** | 85 % | = | Catalogue → Panier → Checkout → Commandes |
+| **Mobile Picker** | 78 % | ↑ +50% | Auth, sessions, temps réel — scan EAN absent |
+| **Mobile Driver** | 78 % | ↑ +56% | Auth, tours, stops, COD, GPS — socket absent |
+| **Base de données** | 92 % | ↑ +2% | 86 modèles, champs tour/stop enrichis |
+| **Temps réel** | 55 % | ↑ +10% | Picker complet, driver absent |
+| **Tests automatisés** | 0 % | = | Aucun test unitaire/intégration |
+| **Global** | **68 %** | ↑ +8% | P0 quasi-complet, P1 partiel, P2 minimal |
+
+---
+
+## 2. BUGS RÉSOLUS DEPUIS LA DERNIÈRE VERSION
+
+| Bug | Cause | Fix |
 |---|---|---|
-| **Backend API** | 72 % | 27 modules, ~280 endpoints, logique métier avancée |
-| **Frontend Web Admin** | 62 % | 98 pages JSX, CRUD complet master data |
-| **Mobile Customer** | 85 % | Catalogue → Panier → Checkout → Commandes opérationnel |
-| **Mobile Picker** | 28 % | Login OK, sessions partielles, scan EAN absent |
-| **Mobile Driver** | 22 % | Login OK, tours listés, workflow livraison absent |
-| **Base de données** | 90 % | 86 modèles Prisma, seeds P0, relations complètes |
-| **Temps réel (Socket.IO)** | 45 % | Picker uniquement, driver absent |
-| **Tests automatisés** | 0 % | Aucun test unitaire/intégration |
-| **Global** | **55–60 %** | P0 opérationnel, P1 partiel, P2 minimal |
+| `POST /picker/login → 400` | Route `/picker` après `router.use('/', nodeRoutes)` → `auth.middleware` admin interceptait | `/picker` et `/driver` montés AVANT les wildcards |
+| `GET /picker/available-orders → 401` | `pickerAuth.middleware.js` importait `{ JWT_SECRET }` (undefined) → `jwt.verify(token, undefined)` | `const { secret: JWT_SECRET }` |
+| `stripe.routes.js → SyntaxError` | Double `const E` déclaration | Suppression doublon |
+| `articleSkuLink.js warning Prisma 42710` | Tentative CREATE FK déjà existante | Vérification `information_schema` avant CREATE |
+| `substitute_sku_id` non stocké | Colonne absente du schéma | Ajout Prisma + `db push` |
+| `Tour.driver_id` absent | Schéma incomplet | Ajout Prisma + champs `date`, `slot_start`, `slot_end`, `zone` |
+| `TourStop` champs manquants | Schéma incomplet | Ajout `delivered_at`, `failure_reason`, `driver_notes`, `cod_collected`, `amount_collected` |
+| Mobile picker `authStorage` crash | `static const AuthStorage instance = AuthStorage._()` (FlutterSecureStorage non-const) | `static final` |
+| Mobile picker `AuthService.logout()` | Appelait `ApiConstants.logout` (inexistant) | Logout = clear storage uniquement |
+| `pickerPortal.validation.js` logout | Mauvais endpoint `/auth/picker/login` | Corrigé vers `/picker/login` |
 
 ---
 
-## 2. ÉTAT PAR PHASE
+## 3. ÉTAT PAR PHASE
 
 ### PHASE P0 — CORE OPÉRATIONNEL
 
-| Module | Backend | Web | Mobile | État |
-|---|---|---|---|---|
-| Auth & RBAC | ✅ | ✅ | ✅ | DONE |
-| Catalogue admin | ✅ | ✅ | — | DONE |
-| Catalogue client | ✅ | — | ✅ | DONE |
-| Checkout admin | ✅ | ✅ | — | DONE |
-| Checkout client | ✅ | — | ✅ | DONE |
-| Gestion commandes | ✅ | ✅ | ✅ | DONE |
-| Réservation stock | ✅ | ✅ | — | DONE |
-| Picking backend + web | ✅ | ✅ | — | DONE |
-| Picker portal mobile | ✅ | — | ⚠️ | PARTIAL |
-| Scan EAN13 | ✅ API | — | ❌ | TODO |
-| Pickup (retrait) | ✅ | ✅ | — | DONE |
-| Tours livraison | ✅ | ⚠️ | ⚠️ | PARTIAL |
-| Driver portal web | ✅ | ✅ | — | PARTIAL |
-| Driver mobile | ✅ API | — | ❌ | TODO |
-| Temps réel picker | ✅ | — | ✅ | DONE |
-| Temps réel driver | — | — | — | TODO |
-| Stock management | ✅ | ✅ | — | DONE |
-| Nodes & slots | ✅ | ✅ | ✅ | DONE |
+| Module | Backend | Web | Mobile | Temps réel | État |
+|---|---|---|---|---|---|
+| Auth & RBAC | ✅ | ✅ | ✅ | — | ✅ DONE |
+| Catalogue admin | ✅ | ✅ | — | — | ✅ DONE |
+| Catalogue client | ✅ | — | ✅ | — | ✅ DONE |
+| Checkout admin | ✅ | ✅ | — | — | ✅ DONE |
+| Checkout client mobile | ✅ | — | ✅ | — | ✅ DONE |
+| Gestion commandes | ✅ | ✅ | ✅ | — | ✅ DONE |
+| Réservation stock (atomique) | ✅ | — | — | — | ✅ DONE |
+| Picking backend | ✅ | ✅ | — | — | ✅ DONE |
+| Picker portal web | ✅ | ✅ | — | — | ✅ DONE |
+| **Mobile Picker** | ✅ | — | ✅ | ✅ | ⚠️ PARTIAL (scan EAN absent) |
+| Scan EAN13 caméra | ✅ API | — | ❌ | — | ❌ TODO |
+| Pickup (retrait) | ✅ | ✅ | — | — | ✅ DONE |
+| Tours livraison | ✅ | ✅ | — | — | ✅ DONE |
+| Driver portal web | ✅ | ✅ | — | — | ✅ DONE |
+| **Mobile Driver** | ✅ API | — | ✅ | ❌ socket | ⚠️ PARTIAL |
+| Temps réel picker | ✅ | — | ✅ | ✅ | ✅ DONE |
+| Temps réel driver | — | — | — | ❌ | ❌ TODO |
+| Stock management | ✅ | ✅ | — | — | ✅ DONE |
+| Nodes & slots | ✅ | ✅ | ✅ | — | ✅ DONE |
+| Node auto-assignment | ✅ | ✅ | ✅ | — | ✅ DONE |
 
 ### PHASE P1 — PAIEMENTS & FIDÉLITÉ
 
 | Module | Backend | Web | Mobile | État |
 |---|---|---|---|---|
-| COD | ✅ | ✅ | ✅ | DONE |
-| Stripe | ✅ | ⚠️ | ✅ | PARTIAL |
-| Stripe webhook | ✅ | — | — | DONE |
-| Stripe refund | ✅ | ⚠️ | — | PARTIAL |
-| Wallet ledger | ✅ | ⚠️ | ✅ | PARTIAL |
-| Points fidélité (earn) | ✅ | — | ⚠️ | PARTIAL |
-| Points redeem | ❌ | — | — | TODO |
-| Referral | ✅ logique | — | ❌ UI | PARTIAL |
-| Notifications | ⚠️ logs | — | — | TODO |
+| COD (pickup + livraison) | ✅ | ✅ | ✅ | ✅ DONE |
+| Wallet débit/crédit/refund | ✅ | ⚠️ | ✅ | ⚠️ PARTIAL |
+| Stripe paiement | ✅ | ✅ | ✅ | ⚠️ (clés prod) |
+| Stripe webhook | ✅ | — | — | ✅ DONE |
+| Stripe refund | ✅ | ⚠️ | — | ⚠️ PARTIAL |
+| Points fidélité (earn auto) | ✅ | — | ✅ | ✅ DONE |
+| Points redeem checkout | ❌ | — | — | ❌ TODO |
+| Referral (logique backend) | ✅ | — | ❌ UI | ⚠️ PARTIAL |
+| Notifications (logs DB) | ⚠️ | — | — | ⚠️ PARTIAL |
 
 ### PHASE P2 — EXPÉRIENCE
 
 | Module | Backend | Web | Mobile | État |
 |---|---|---|---|---|
-| Reporting KPI | ⚠️ API | ⚠️ minimal | — | PARTIAL |
-| Promotions codes | ❌ | — | — | TODO |
-| Packs produits | ❌ | — | — | TODO |
-| Flash sales | ❌ | — | — | TODO |
-| Gamification | ❌ | — | — | TODO |
-| Push notifications | — | — | — | TODO |
-| Exports PDF/Excel | — | — | — | TODO |
+| Reporting KPI | ⚠️ API | ⚠️ minimal | — | ⚠️ PARTIAL |
+| Promotions codes promo | ❌ | — | — | ❌ TODO |
+| Packs produits | ❌ | — | — | ❌ TODO |
+| Flash sales | ❌ | — | — | ❌ TODO |
+| Gamification | ❌ | — | — | ❌ TODO |
+| Push notifications | — | — | — | ❌ TODO |
+| Exports PDF/Excel | — | — | — | ❌ TODO |
 
 ---
 
-## 3. ÉTAT DÉTAILLÉ PAR MODULE
+## 4. ÉTAT BACKEND DÉTAILLÉ
 
-### 3.1 Auth & RBAC
-- **Endpoints :** `POST /auth/login`, JWT, CRUD roles/permissions/users
-- **DB :** users, roles, permissions, role_permissions, user_roles, backoffice_admins
-- **Web :** access/, users/, roles/ — complet
-- **Mobile :** customer_auth (OTP), picker/driver (phone+password)
-- **Statut :** ✅ DONE
+### Routes montées (ordre critique — après corrections)
 
-### 3.2 Catalogue
-- **Admin endpoints :** 20+ CRUD (families, categories, brands, taxes, articles, skus, images)
-- **Customer endpoints :** `/customer/catalog/categories`, `/articles`, `/cities`
-- **DB :** 13 tables (families → skus)
-- **Web :** 14 pages JSX
-- **Mobile Customer :** catalog/ feature complet (recherche, filtres, détail produit)
-- **Statut :** ✅ DONE
-
-### 3.3 Checkout
-- **Admin endpoints :** meta, eligible-nodes, delivery-slots, calculate, create-order
-- **Customer endpoints :** idem + pickup-nodes (auto-sélection node)
-- **Logique :** auto-détection node, créneaux capacité, réservation stock atomique
-- **Stock :** `qty_reserved += qty`, `qty_available -= qty` (physique inchangé jusqu'à livraison)
-- **Mobile Customer :** 14 fichiers Dart (sélection livraison/retrait, créneau, paiement)
-- **Statut :** ✅ DONE
-
-### 3.4 Picking — Backend + Web
-- **Endpoints :** sessions CRUD, `/pick`, `/substitute`, `/out-of-stock`, statuts CRUD
-- **Picker portal :** `POST /login`, available-orders, my-orders, accept, sessions, items, `/me`
-- **Anti-double-acceptation :** transaction Prisma atomique avec re-vérification order.status
-- **Substitution :** `substitute_sku_id` stocké en DB + lookup EAN → SKU UUID
-- **Web :** 4 pages JSX (sessions, détail session, items)
-- **Statut :** ✅ DONE
-
-### 3.5 Picking — Mobile Picker App
-- **Login :** ✅ Phone+password, JWT FlutterSecureStorage
-- **Dashboard :** ✅ Stats réelles (availableOrdersProvider + myOrdersProvider)
-- **Available orders :** ✅ Liste commandes du node
-- **Accept order :** ✅ POST `/picker/orders/:id/accept`
-- **Session detail :** ✅ Items avec pick/rupture/substitution (EAN substitut via form)
-- **Start session :** ✅ PATCH `/picker/sessions/:id/start`
-- **Complete session :** ✅ Validation items pending
-- **Scan EAN13 réel :** ❌ `mobile_scanner` installé mais AUCUNE UI caméra dans les screens
-- **Temps réel :** ✅ Socket.IO `picker:new_order` (bannière), `picker:order_taken` (suppression)
-- **Auth JWT :** ✅ Corrigé (`pickerAuth.middleware.js` : `JWT_SECRET` → `secret`)
-- **Routes :** ✅ Corrigé (`/picker` avant wildcards dans routes/index.js)
-- **APK debug :** `build\app\outputs\flutter-apk\app-debug.apk`
-- **Statut :** ⚠️ PARTIAL (28% — scan EAN manquant)
-
-### 3.6 Pickup (Retrait Magasin)
-- **Endpoints :** ready-orders, detail, collect-cod (étape 1), confirm (étape 2), cancel
-- **COD :** 2 étapes séparées — collect-cod PUIS confirm (bloqué si COD non collecté)
-- **Stock :** `qty_reserved-- + qty_physical--` uniquement après confirm
-- **Web :** 2 pages (liste, détail + workflow 2 étapes + annulation)
-- **Points :** Crédités automatiquement après delivered
-- **Statut :** ✅ DONE
-
-### 3.7 Tours / Livraison
-- **Endpoints delivery_mgmt :** meta, drivers, ready-orders, tours CRUD, stops (arrive/deliver/fail)
-- **Endpoints driver portal :** login, tours, tour/:id, start, stops (arrive/deliver/fail)
-- **COD Driver :** `amount_collected` stocké sur TourStop, `payment.status = collected`
-- **Stock :** `qty_reserved-- + qty_physical--` après stop delivered
-- **Web admin :** 4 pages (ReadyHomeOrders, ToursList, TourNew, TourDetail avec stops)
-- **Mobile Driver :** tours/ avec 7 fichiers Dart (liste, détail, stops) — workflow à compléter
-- **Manquant driver mobile :** start tour, deliver stop avec COD, fail stop, navigation GPS complète
-- **Statut :** ⚠️ PARTIAL (backend complet, mobile driver 22%)
-
-### 3.8 Stripe & Paiements
-- **Endpoints :** create-intent, create-session, create-session-customer, webhook, refund, refund-admin
-- **Webhook :** payment_intent.succeeded → collected, payment_intent.payment_failed → failed
-- **Refund :** Stripe API + `payment.status = refunded`
-- **Mobile Customer :** StripePaymentScreen (Stripe Checkout via url_launcher)
-- **Variables :** `STRIPE_SECRET_KEY`, `STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET` requis
-- **Statut :** ✅ Backend DONE, ⚠️ clés Stripe production à configurer
-
-### 3.9 Wallet
-- **Endpoints :** `/wallet/transactions`, `/credit`, `/debit`, `/refund`, `/customers/:id`
-- **Ledger :** `balance_before`/`balance_after` sur chaque transaction, append-only
-- **Txn types :** debit_order, credit_refund, credit_recharge, referral_reward, credit_points…
-- **Mobile Customer :** WalletScreen avec solde et historique transactions
-- **Manquant :** recharge admin UI, conversion points→wallet, expiry
-- **Statut :** ✅ Service DONE, ⚠️ UI partielle
-
-### 3.10 Points Fidélité
-- **Service :** `loyalty.service.js` — règles DB (per_spend, flat_bonus, first_order, referral_bonus)
-- **Déclencheur :** automatique après `order.status = delivered`
-- **DB :** points_rules, points_rule_types, customers.points_balance/points_lifetime, orders.points_earned
-- **Mobile Customer :** PointsScreen (lecture seule — solde et historique)
-- **Manquant :** UI rachat points au checkout, règles admin, historique points dédié
-- **Statut :** ⚠️ PARTIAL (earn auto ✅, redeem ❌)
-
-### 3.11 Referral
-- **Service :** createReferralOnRegistration → validateReferralOnDelivery → rewards wallet/points
-- **Flux :** Inscription avec code → pending → 1ère commande delivered → validated → récompenses
-- **Admin endpoint :** `GET /loyalty/referrals`
-- **Manquant :** UI partage code, historique referral client, dashboard admin
-- **Statut :** ⚠️ PARTIAL (backend complet, aucune UI)
-
-### 3.12 Notifications
-- **DB :** notifications, notification_channels, notification_delivery_statuses
-- **Backend :** `notify.js` — logs en DB, templates FR pour tous les événements clé
-- **Customer endpoints :** GET /notifications, PATCH /read, /read-all
-- **Manquant :** Envoi réel push/SMS/email, UI notification center, socket client
-- **Statut :** ⚠️ MINIMAL (logs DB uniquement, pas d'envoi)
-
-### 3.13 Reporting
-- **Endpoints :** `/reporting/dashboard`, `/orders`, `/picking`, `/delivery`, `/stock`, `/payments`
-- **Service :** orderKpis, pickingKpis, deliveryKpis, stockKpis, paymentKpis avec date range
-- **Web :** Dashboard.jsx minimal (compteurs statiques)
-- **Manquant :** UI complète, graphiques, exports PDF/Excel, analytics par node
-- **Statut :** ⚠️ PARTIAL (API OK, UI minimale)
-
-### 3.14 Promotions / Packs / Flash Sales / Gamification
-- **DB :** Tables présentes (promotions, packs, pack_items, flash_sales, gamification_games, prizes, plays)
-- **API :** ❌ AUCUN endpoint monté
-- **Checkout :** promotions non intégrées dans le calcul du total
-- **Statut :** ❌ TODO (tables DB uniquement)
-
----
-
-## 4. ÉTAT BACKEND
-
-### Routes montées (routes/index.js — ordre critique)
 ```
-# AVANT wildcards (important — évite interception par auth.middleware)
+# AVANT wildcards — corrigé pour éviter interception auth.middleware
 /customer/auth      → customer_auth.routes     (public OTP)
-/customer/catalog   → customer_catalog.routes  (public catalogue)
-/customer/me        → customer_me.routes       (auth customer)
+/customer/catalog   → customer_catalog.routes  (public catalogue + cities)
+/customer/me        → customer_me.routes       (auth customer — profile, orders, wallet, notifications)
 /customer/checkout  → customer_checkout.routes (auth customer)
-/picker             → pickerPortal.routes      (public login, puis auth picker)
-/driver             → driverPortal.routes      (public login, puis auth driver)
+/picker             → pickerPortal.routes      (⚠️ AVANT wildcards — login public puis auth picker)
+/driver             → driverPortal.routes      (⚠️ AVANT wildcards — login public puis auth driver)
 
-# Admin (après wildcards)
+# Admin (wildcards /= auth admin peut intercepter)
 /auth /users /roles /permissions → RBAC admin
-/catalog             → catalogue admin
-/                    → locationRoutes + nodeRoutes  (⚠️ wildcards)
+/catalog             → catalogue admin (25+ endpoints)
+/                    → locationRoutes + nodeRoutes (wildcards)
 /customers /warehouse /stock /delivery /payment /wallet /orders /addresses
 /checkout            → checkout admin
-/orders-mgmt         → order_mgmt
-/picking             → picking
-/staff               → pickers + drivers
-/tours               → tours
-/reporting           → reporting KPI
-/pickup              → pickup retrait
-/delivery            → delivery_mgmt (tournées)
+/orders-mgmt         → order_mgmt (statuts, historique, confirm-pickup)
+/picking             → picking sessions + items
+/staff               → pickers + drivers CRUD
+/tours               → tours management
+/reporting           → KPI endpoints
+/pickup              → pickup dédié (collect-cod 2 étapes)
+/delivery            → delivery_mgmt (tournées drivers)
 /loyalty             → referrals + points
 ```
 
-**Bugs backend résolus :**
-- Route `/picker` et `/driver` placées AVANT `router.use('/', nodeRoutes)` → `auth.middleware` (admin) interceptait `/picker/login`
-- `pickerAuth.middleware.js` : `{ JWT_SECRET }` → `{ secret: JWT_SECRET }` (jwt.verify(token, undefined) causait 401)
-- `PickingSessionItem.substitute_sku_id` ajouté au schema Prisma + `prisma db push`
-- `articleSkuLink.js` : vérification FK avant CREATE (supprime warning Prisma 42710)
-- `stripe.routes.js` : double déclaration `const E` supprimée
+### Nouveaux modules ajoutés
+
+| Module | Endpoints clés | État |
+|---|---|---|
+| `/pickup` (dédié) | ready-orders, collect-cod, confirm, cancel | ✅ DONE |
+| `/delivery` (delivery_mgmt) | ready-orders, tours CRUD, stops actions | ✅ DONE |
+| `/driver` portal | login, tours, tour start, stops | ✅ DONE |
+| `/loyalty` | referrals, my-referrals, points engine | ✅ DONE |
+| `/customer/me/wallet` | solde + historique transactions | ✅ DONE |
+| `/customer/me/orders` | historique commandes client | ✅ DONE |
+| `/customer/me/notifications` | lecture + mark read | ✅ DONE |
+| `/picker/me` | vérification token picker | ✅ DONE |
+| `/socket/picker` | Socket.IO rooms node | ✅ DONE |
+
+### Score backend par module
+
+| Module | Endpoints | Logique métier | Tests | Score |
+|---|---|---|---|---|
+| Auth & RBAC | ✅ | ✅ | ❌ | 80% |
+| Catalogue | ✅ | ✅ | ❌ | 90% |
+| Checkout | ✅ | ✅ atomique | ❌ | 85% |
+| Stock | ✅ | ✅ | ❌ | 85% |
+| Picking | ✅ | ✅ anti-doublon | ❌ | 90% |
+| Pickup | ✅ | ✅ 2-étapes COD | ❌ | 85% |
+| Tours/Livraison | ✅ | ✅ | ❌ | 80% |
+| Paiements | ✅ | ✅ Stripe+COD+wallet | ❌ | 75% |
+| Wallet | ✅ | ✅ ledger ACID | ❌ | 80% |
+| Loyalty | ✅ | ✅ rules engine | ❌ | 60% |
+| Notifications | ⚠️ logs | ⚠️ sans envoi | ❌ | 30% |
+| Reporting | ✅ API | ❌ UI | ❌ | 45% |
+| Promotions | ❌ | ❌ | ❌ | 10% |
+| Gamification | ❌ | ❌ | ❌ | 5% |
 
 ---
 
 ## 5. ÉTAT FRONTEND WEB
 
-| Répertoire | Fichiers | État | Notes |
+| Répertoire | Fichiers | État actuel | Notes |
 |---|---|---|---|
 | access/ | 3 | ✅ DONE | RBAC complet |
 | auth/ | 1 | ✅ DONE | Login admin |
-| catalog/ | 14 | ✅ DONE | CRUD articles/skus/images |
-| checkout/ | 2 | ✅ DONE | 5 étapes (créneau obligatoire, wallet, Stripe) |
+| catalog/ | 14 | ✅ DONE | CRUD complet articles/SKUs |
+| checkout/ | 2 | ✅ DONE | 5 étapes, créneau obligatoire, wallet check |
 | customers/ | 5 | ✅ DONE | Liste, détail, adresses |
-| dashboard/ | 1 | ⚠️ PARTIAL | KPI stubs |
-| delivery/ | 9 | ⚠️ PARTIAL | Tours, stops, ready-orders |
+| dashboard/ | 1 | ⚠️ PARTIAL | KPI stubs, pas de graphiques |
+| delivery/ | 9 | ✅ DONE | Tours, stops, ready-orders, TourDetail |
 | location/ | 9 | ✅ DONE | Nodes, géographie |
 | orders/ | 7 | ✅ DONE | Liste, statuts, historique |
-| orders_mgmt/ | 1 | ⚠️ PARTIAL | Liste uniquement |
+| orders_mgmt/ | 1 | ⚠️ PARTIAL | Liste seulement |
 | p0/ | 3 | ✅ DONE | Tables de référence |
 | payment/ | 8 | ⚠️ PARTIAL | Méthodes, Stripe test |
-| picker/ | 5 | ⚠️ PARTIAL | Login web, sessions |
-| picking/ | 4 | ⚠️ PARTIAL | Sessions, items |
-| pickup/ | 2 | ⚠️ PARTIAL | Liste, détail COD |
+| picker/ | 5 | ✅ DONE | Login web, sessions, picking |
+| picking/ | 4 | ✅ DONE | Sessions, items picking |
+| pickup/ | 2 | ✅ DONE | Liste + workflow COD 2 étapes |
 | roles/ | 2 | ✅ DONE | |
-| staff/ | 4 | ✅ DONE | Pickers, drivers |
+| staff/ | 4 | ✅ DONE | Pickers, drivers management |
 | stock/ | 11 | ✅ DONE | Niveaux, mouvements, lots |
 | users/ | 2 | ✅ DONE | |
 | wallet/ | 1 | ⚠️ PARTIAL | Transactions minimale |
 | warehouse/ | 3 | ✅ DONE | Zones, emplacements |
 
-**Total :** 98 fichiers JSX | **Score :** 62%
+**Total :** 98 fichiers JSX | **Score estimé :** 65%
 
 ---
 
 ## 6. ÉTAT MOBILE CUSTOMER
 
-**Stack :** Flutter + Riverpod + Dio + go_router + flutter_screenutil  
-**Fichiers Dart :** ~63 | **Score :** 85%
+**Stack :** Flutter + Riverpod + Dio + go_router + flutter_screenutil
+**Score :** 85%
 
-| Feature | Fichiers | État | Manquant |
+| Feature | Fichiers | État | Détail |
 |---|---|---|---|
-| auth | 5 | ✅ DONE | — |
-| customer_auth | 8 | ✅ DONE | — |
-| catalog | 7 | ✅ DONE | — |
-| cart | 3 | ✅ DONE | — |
-| checkout | 14 | ✅ DONE | Stripe webhook natif |
-| orders | 10 | ✅ DONE | — |
-| addresses | 7 | ✅ DONE | City select depuis DB |
-| profile | 8 | ✅ DONE | — |
-| home | 1 | ⚠️ PARTIAL | Screen complet |
-| notifications | — | ❌ TODO | Tout |
-| referral | — | ❌ TODO | UI partage/historique |
-| gamification | — | ❌ TODO | Tout |
+| auth (OTP) | 5 | ✅ DONE | Login SMS → OTP → profile |
+| customer_auth | 8 | ✅ DONE | Registration + referral code |
+| catalog | 7 | ✅ DONE | Catégories → Produits → Détail |
+| cart | 3 | ✅ DONE | Panier avec Riverpod |
+| checkout | 14 | ✅ DONE | Livraison/retrait, créneaux, paiement, Stripe |
+| orders | 10 | ✅ DONE | Historique + détail avec timeline |
+| addresses | 7 | ✅ DONE | CRUD + city select depuis DB |
+| profile | 8 | ✅ DONE | Wallet, points, paramètres |
+| home | 1 | ⚠️ PARTIAL | Screen basique |
+| notifications | — | ❌ TODO | Aucune UI |
+| referral | — | ❌ TODO | UI partage/historique absente |
+| gamification | — | ❌ TODO | Non développé |
+
+**API_URL :** `--dart-define=API_URL=http://192.168.100.4:5000/api`
+**APK debug :** disponible, build ~2 min
 
 ---
 
-## 7. ÉTAT MOBILE PICKER
+## 7. ÉTAT MOBILE PICKER — DÉTAIL COMPLET
 
-**Stack :** Flutter + Riverpod + Dio + go_router + mobile_scanner + socket_io_client  
-**Score :** 28%
+**Stack :** Flutter + Riverpod + Dio + go_router + mobile_scanner + socket_io_client
+**Score :** 78%
 
-| Feature | État | Détail |
+### Authentification
+| Fonction | État | Implémentation |
 |---|---|---|
-| Login (phone+password) | ✅ | JWT FlutterSecureStorage |
-| Dashboard stats | ✅ | Compteurs réels depuis API |
-| Available orders | ✅ | Liste commandes du node |
-| Accept order | ✅ | POST + redirect session |
-| Session detail | ✅ | Items, progression |
-| Start session | ✅ | PATCH start |
-| Pick item (EAN + qty) | ✅ | Via formulaire texte |
-| **Scan EAN13 caméra** | **❌** | **`mobile_scanner` installé mais UI absente** |
-| Substitution (par EAN) | ✅ | Backend valide EAN→SKU |
-| Rupture | ✅ | Out-of-stock avec raison |
-| Complete session | ✅ | Validation pending items |
-| Temps réel new_order | ✅ | Bannière verte Socket.IO |
-| Temps réel order_taken | ✅ | Commande retirée de la liste |
+| Login phone+password | ✅ | `POST /picker/login`, token JWT |
+| FlutterSecureStorage | ✅ | `ds_picker_token` (clé dédiée, non partagée) |
+| Interceptor auth | ✅ | `_AuthInterceptor` → `Authorization: Bearer` |
+| Auto-login token | ✅ | `_init()` vérifie token existant |
+| Logout propre | ✅ | Clear storage + status unauthenticated |
+| 401 → redirect login | ✅ | Stream `tokenCleared` → `AuthNotifier` |
+| Token picker vs admin | ✅ | Clés séparées (`picker_token` ≠ `token`) |
+
+### Workflow picking
+| Fonction | État | API |
+|---|---|---|
+| Dashboard avec stats | ✅ | `GET /picker/available-orders` + `GET /picker/my-orders` |
+| Available orders (node filtré) | ✅ | Commandes confirmed du même node |
+| Accept order (anti-doublon) | ✅ | `POST /picker/orders/:id/accept` → 409 si doublon |
+| My orders (groupés) | ✅ | open / in_progress / completed / cancelled |
+| Session detail | ✅ | Items avec progression |
+| Start session | ✅ | `PATCH /picker/sessions/:id/start` |
+| Pick item (EAN + qty) | ✅ | `PATCH /picker/items/:id/pick` |
+| **Scan EAN13 caméra** | **❌ TODO** | `mobile_scanner` installé — UI caméra absente |
+| Substitution (EAN form) | ✅ | EAN substitut → backend valide stock + lookup |
+| Rupture (out_of_stock) | ✅ | `PATCH /picker/items/:id/out-of-stock` |
+| Complete session | ✅ | Validation items pending avant autorisation |
 | Profile / logout | ✅ | |
+
+### Temps réel Socket.IO
+| Fonction | État | Détail |
+|---|---|---|
+| Connexion WS authentifiée | ✅ | `ws://{IP}/socket/picker` + token JWT handshake |
+| Room par node | ✅ | `node:{node_id}` — isolation automatique |
+| Event `picker:new_order` | ✅ | Bannière verte flottante avec action "Voir" |
+| Event `picker:order_taken` | ✅ | Commande retirée de la liste automatiquement |
+| Reconnexion auto | ✅ | 10 tentatives, 2s délai |
+| Stream `tokenCleared` → logout | ✅ | Sur 401 backend |
+
+### Ce qui manque (picker)
+1. **Scan EAN13 caméra** — `mobile_scanner` installé mais AUCUNE UI d'ouverture caméra
+2. Historique picking par picker (stats)
 
 ---
 
-## 8. ÉTAT MOBILE DRIVER
+## 8. ÉTAT MOBILE DRIVER — DÉTAIL COMPLET
 
-**Stack :** Flutter + Riverpod + Dio + go_router + url_launcher  
-**Score :** 22%
+**Stack :** Flutter + Riverpod + Dio + go_router + url_launcher
+**Score :** 78%
 
-| Feature | État | Détail |
+### Authentification
+| Fonction | État | Détail |
 |---|---|---|
-| Login (phone+password) | ✅ | JWT FlutterSecureStorage |
-| Dashboard stats | ✅ | Stats depuis tournées |
-| Tours list | ✅ | Mes tournées avec progression |
-| Tour detail + stops | ✅ | Stops listés avec statuts |
-| Start tour | ✅ | PATCH `/driver/tours/:id/start` |
-| Arrive at stop | ✅ | PATCH arrive |
-| Deliver stop + COD | ✅ | Form COD + confirm |
-| Fail stop | ✅ | Raisons sélectionnables |
-| GPS navigation | ✅ | url_launcher → Google Maps |
+| Login phone+password | ✅ | `POST /driver/login`, JWT |
+| FlutterSecureStorage | ✅ | `ds_driver_token` |
+| Interceptor auth | ✅ | `Authorization: Bearer` |
+| Auto-login + logout | ✅ | |
+| 401 → redirect login | ✅ | Stream tokenCleared |
+
+### Workflow livraison
+| Fonction | État | API |
+|---|---|---|
+| Dashboard avec stats | ✅ | Stats réelles depuis tournées |
+| Liste mes tournées | ✅ | `GET /driver/tours` |
+| Détail tournée + stops | ✅ | `GET /driver/tours/:id` |
+| Start tour | ✅ | `PATCH /driver/tours/:id/start` → orders in_delivery |
+| Arrive at stop | ✅ | `PATCH /driver/stops/:id/arrive` |
+| Deliver stop + COD | ✅ | Form montant COD + checkbox encaissement |
+| Fail stop + raison | ✅ | Bottom sheet 4 raisons + notes |
+| Auto-complete tour | ✅ | Quand tous stops résolus |
+| Navigation GPS | ✅ | `url_launcher` → Google Maps (lat/lng ou adresse) |
+| Stock decrement | ✅ | `qty_reserved-- + qty_physical--` après deliver |
 | Profile / logout | ✅ | |
-| Assign driver | ⚠️ | Depuis admin web uniquement |
-| **Temps réel socket** | **❌** | **Non implémenté** |
-| APK debug | ✅ | Disponible |
+
+### Ce qui manque (driver)
+1. **Temps réel socket** — Aucune notification de nouvelles tournées
+2. Assign driver depuis l'app (admin web uniquement)
+3. Photo preuve de livraison
 
 ---
 
 ## 9. ÉTAT BASE DE DONNÉES
 
-**Modèles Prisma :** 86 | **Score :** 90%
+**Modèles Prisma :** 86 | **Score :** 92%
 
-| Groupe | Tables clés | État |
+### Enrichissements récents
+
+| Modèle | Champs ajoutés | Raison |
 |---|---|---|
-| Auth & RBAC | users, roles, permissions, user_roles, role_permissions | ✅ |
-| Catalogue | families, categories, brands, articles, skus, sku_images | ✅ |
-| Géographie | regions, provinces, cities, node_types, nodes, delivery_slots | ✅ |
-| Staff | pickers, drivers | ✅ |
-| Warehouse & Stock | zones, levels, locations, stock_levels, stock_moves, stock_lots, selling_rules | ✅ |
-| Commandes | orders, order_items, order_statuses, payments, order_histories, app_configs | ✅ |
-| Picking | picking_sessions, picking_session_items (+ substitute_sku_id) | ✅ |
-| Livraison | tours, tour_stops (+ delivered_at, failure_reason, cod_collected) | ✅ |
-| Wallet | wallet_transactions, wallet_txn_types | ✅ |
-| Notifications | notifications, notification_channels | ✅ tables |
-| Fidélité | referrals, referral_configs, points_rules, points_rule_types | ✅ |
-| P0 Lookups | 25+ tables (move_types, delivery_types, etc.) | ✅ |
-| Promotions | promotions, packs, pack_items, flash_sales | ✅ tables |
-| Gamification | gamification_games, prizes, plays | ✅ tables |
+| `PickingSessionItem` | `substitute_sku_id UUID?` | Stockage substitut avec relation Sku |
+| `Tour` | `driver_id UUID?`, `date`, `slot_start`, `slot_end`, `zone` | Workflow livraison complet |
+| `TourStop` | `delivered_at`, `failure_reason`, `driver_notes`, `cod_collected`, `amount_collected` | COD driver + failure tracking |
+| `WalletTransaction` | (nouveau modèle) | Ledger wallet ACID |
+| `Notification` | (nouveau modèle) | Log notifications |
 
-**Migrations :** `prisma db push` (développement)  
-**Seed :** `seed_p0_reference_data.sql` (statuts, types, méthodes, tour_statuses, wallet_txn_types)
+### Seed P0 complété
+- `picking_statuses` (open, in_progress, completed, cancelled)
+- `pick_item_statuses` (pending, picked, substituted, out_of_stock)
+- `tour_statuses` (planned, in_progress, completed, cancelled)
+- `stop_statuses` (pending, arrived, delivered, failed, skipped)
+- `wallet_txn_types` (debit_order, credit_refund, credit_recharge, referral_reward, credit_points, etc.)
+- `move_types` (reservation, reservation_cancel, sale, reception, etc.)
+- `notification_channels` (app, sms, email)
 
 ---
 
 ## 10. ÉTAT TEMPS RÉEL / SOCKET.IO
 
+### Architecture actuelle
+
+```
+ws://{IP}:5000/socket/picker
+
+Handshake : { auth: { token: "eyJ..." } }
+Middleware : jwt.verify → picker actif → socket.join(`node:${picker.node_id}`)
+
+Événements émis automatiquement :
+  checkout.service.js → emitNewOrder(node_id, {...})   → picker:new_order
+  createPickingSession → emitOrderTaken(node_id, {...}) → picker:order_taken
+```
+
 | Composant | État | Détail |
 |---|---|---|
-| Socket serveur | ✅ | `socket.io` sur `/socket/picker`, auth JWT |
-| Room par node | ✅ | `node:{node_id}` — isolement par entrepôt |
-| Event `picker:new_order` | ✅ | Émis par checkout.service après create-order confirmed |
-| Event `picker:order_taken` | ✅ | Émis par createPickingSession.helper après accept |
-| Event `picker:session_started` | ✅ | Émetteur présent |
-| Mobile picker — connexion | ✅ | `PickerSocketService` + `RealtimeNotifier` (Riverpod) |
-| Mobile picker — bannière | ✅ | `NewOrderBanner` flottante verte |
-| Reconnexion auto | ✅ | 10 tentatives, 2s délai |
-| **Socket driver** | **❌** | Non implémenté |
-| **Notifications client** | **❌** | Non implémenté |
+| Socket.IO server | ✅ | `http.createServer(app)` + `socket.io` |
+| Auth JWT au handshake | ✅ | `jwt.verify(token, secret)` |
+| Isolation par node | ✅ | `room = node:{node_id}` |
+| `picker:new_order` | ✅ | Déclenché par checkout.service après confirmed |
+| `picker:order_taken` | ✅ | Déclenché par createPickingSession.helper |
+| `picker:session_started` | ✅ | Émetteur présent |
+| Mobile picker — connexion | ✅ | `PickerSocketService` singleton |
+| Mobile picker — reconnect | ✅ | `reconnectionAttempts: 10` |
+| Mobile picker — bannière | ✅ | `NewOrderBanner` flottante + Riverpod |
+| **Mobile picker — order_taken** | ✅ | Commande retirée de `availableOrdersProvider` |
+| **Socket driver** | ❌ | Non implémenté |
+| **Notifications client** | ❌ | Non implémenté |
 
 ---
 
-## 11. ÉTAT PAIEMENTS
+## 11. ÉTAT PAIEMENTS COMPLET
 
-| Méthode | Backend | Mobile | Web | Test |
-|---|---|---|---|---|
-| COD | ✅ | ✅ | ✅ | ✅ |
-| Wallet | ✅ | ✅ | ⚠️ | ✅ |
-| Stripe (card) | ✅ | ✅ | ⚠️ | ⚠️ (clés) |
-| Stripe webhook | ✅ | — | — | ⚠️ (WEBHOOK_SECRET) |
-| Stripe refund | ✅ | — | ⚠️ | ⚠️ |
-| Points redeem | ❌ | — | — | — |
-| Mixed (wallet+COD) | ✅ logique | ⚠️ | ⚠️ | — |
+### COD
+- **Pickup :** collect-cod (étape 1) → confirm (étape 2) — anti-double collecte ✅
+- **Livraison :** `amount_collected` stocké sur TourStop + payment.status=collected ✅
+- **Validation :** montant_collected >= total_ttc obligatoire ✅
 
-**Variables d'env requises :** `STRIPE_SECRET_KEY`, `STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET`
+### Wallet
+- **Débit commande :** atomique en transaction Prisma, `balance_before/after` ✅
+- **Crédit remboursement :** `creditWallet` + `WalletTransaction` ✅
+- **Ledger append-only :** jamais de modification/suppression ✅
+- **Solde négatif bloqué :** vérification avant débit ✅
+- **Mobile Customer :** WalletScreen + historique ✅
+- **Manquant :** recharge admin UI
+
+### Stripe
+- **Payment Intent (mobile SDK) :** create-intent → client_secret ✅
+- **Checkout Session (web redirect) :** URL Stripe hosted ✅
+- **Webhook :** payment_intent.succeeded → collected, failed → failed ✅
+- **Refund :** Stripe API + payment.status=refunded ✅
+- **Mobile :** StripePaymentScreen (url_launcher) ✅
+- **Variables requises :** `STRIPE_SECRET_KEY`, `STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET`
+
+### Points
+- **Earning auto :** `loyalty.service.calculatePoints()` après delivered ✅
+- **Règles DB :** per_spend, flat_bonus, first_order, referral_bonus ✅
+- **Anti-double crédit :** `order.points_earned > 0 → skip` ✅
+- **Redeem :** ❌ Non implémenté au checkout
 
 ---
 
-## 12. ÉTAT WALLET
+## 12. ÉTAT STOCK — FLUX RÉSERVATION
 
-| Fonction | Backend | Mobile Customer | État |
-|---|---|---|---|
-| Solde + historique | ✅ | ✅ | DONE |
-| Débit commande | ✅ | ✅ | DONE |
-| Crédit remboursement | ✅ | — | DONE |
-| Crédit referral reward | ✅ | — | DONE |
-| Recharge admin | ✅ API | — | DONE (API) |
-| Recharge UI | — | — | ❌ TODO |
-| Expiry transactions | — | — | ❌ TODO |
+```
+CHECKOUT (create-order) :
+  qty_reserved += qty   (atomic, anti-survente : condition qty_available >= qty)
+  qty_available -= qty  (maintained in sync)
+  StockMove type=reservation, qty_delta=0
+
+ANNULATION commande :
+  qty_reserved -= qty
+  qty_available += qty
+  StockMove type=reservation_cancel
+
+PICKUP confirm ou DELIVERY delivered :
+  qty_reserved -= qty
+  qty_physical -= qty
+  StockMove type=sale, qty_delta=-qty
+```
+
+- **Backorder :** `qty_available < qty` + `is_backorderable=true` → `qty_backordered +=` ✅
+- **Race condition :** `updateMany` avec condition `qty_available >= qty` (atomique) ✅
+- **checkStock :** `qty_available >= qty` (formule correcte) ✅
 
 ---
 
-## 13. ÉTAT FIDÉLITÉ
+## 13. ÉTAT LOYALTY / REFERRAL
 
-| Fonction | Backend | Mobile | État |
-|---|---|---|---|
-| Calcul points à livraison | ✅ auto | — | DONE |
-| Règles per_spend / flat_bonus | ✅ | — | DONE |
-| Referral pending à inscription | ✅ auto | — | DONE |
-| Validation referral 1ère commande | ✅ auto | — | DONE |
-| Récompense wallet/points | ✅ | — | DONE |
-| Affichage points (lecture) | ✅ | ✅ | DONE |
-| **Points redeem au checkout** | ❌ | ❌ | TODO |
-| **UI partage code parrainage** | — | ❌ | TODO |
-| Dashboard referrals admin | ⚠️ | — | PARTIAL |
+### Points fidélité
+| Fonction | État | Détail |
+|---|---|---|
+| Règles DB (points_rules) | ✅ | per_spend, flat_bonus, first_order, referral_bonus |
+| Calcul auto sur delivered | ✅ | Appelé par confirmPickup + deliverStop |
+| Anti-double crédit | ✅ | `order.points_earned > 0 → skip` |
+| `customers.points_balance` | ✅ | Incrémenté en transaction |
+| `customers.points_lifetime` | ✅ | Toujours incrémenté, jamais décrémenté |
+| `orders.points_earned` | ✅ | Stocké sur la commande |
+| Affichage mobile customer | ✅ | PointsScreen lecture seule |
+| **Redeem checkout** | ❌ | TODO |
+
+### Referral
+| Fonction | État | Détail |
+|---|---|---|
+| Création referral à l'inscription | ✅ | Si `referred_by_code` fourni |
+| Validation après 1ère commande delivered | ✅ | `validateReferralOnDelivery()` |
+| Vérification `min_order_amount` | ✅ | Depuis `referral_config` |
+| Anti-double validation | ✅ | `@@unique([referrer_id, referee_id])` |
+| Récompense wallet referrer | ✅ | `creditWallet + WalletTransaction` |
+| Récompense points referee | ✅ | `points_balance +=` |
+| **UI partage code** | ❌ | Absent mobile |
+| **Dashboard admin referrals** | ⚠️ | Endpoint GET uniquement |
 
 ---
 
@@ -421,13 +441,14 @@
 
 | Fonction | État | Détail |
 |---|---|---|
-| Logs en DB | ✅ DONE | Templates FR pour tous événements clé |
-| Endpoints lecture client | ✅ DONE | GET, mark-read, mark-all-read |
-| **Envoi push (Firebase/Expo)** | ❌ TODO | Non implémenté |
-| **Envoi SMS** | ❌ TODO | Non implémenté |
-| **Envoi email** | ❌ TODO | Non implémenté |
-| **UI notification center** | ❌ TODO | Non implémenté |
-| Socket notifications client | ❌ TODO | Non implémenté |
+| Log en DB | ✅ | `notify.js` — tous événements clé |
+| Templates FR | ✅ | confirmed, ready, in_delivery, delivered, wallet |
+| Endpoints client | ✅ | GET /notifications, mark-read, mark-all-read |
+| **Push Firebase** | ❌ | Non implémenté |
+| **SMS** | ❌ | Non implémenté |
+| **Email** | ❌ | Non implémenté |
+| **UI mobile** | ❌ | Non implémenté |
+| Socket notifications client | ❌ | Non implémenté |
 
 ---
 
@@ -435,183 +456,181 @@
 
 | Endpoint | Backend | Frontend | État |
 |---|---|---|---|
-| /reporting/dashboard | ✅ | ⚠️ minimal | PARTIAL |
-| /reporting/orders | ✅ | — | PARTIAL |
-| /reporting/picking | ✅ | — | PARTIAL |
-| /reporting/delivery | ✅ | — | PARTIAL |
-| /reporting/stock | ✅ | — | PARTIAL |
-| /reporting/payments | ✅ | — | PARTIAL |
-| Export PDF | — | — | ❌ TODO |
-| Export Excel | — | — | ❌ TODO |
-| Graphiques temps réel | — | — | ❌ TODO |
+| `/reporting/dashboard` | ✅ | ⚠️ stubs | 40% |
+| `/reporting/orders` | ✅ | — | 40% |
+| `/reporting/picking` | ✅ | — | 40% |
+| `/reporting/delivery` | ✅ | — | 40% |
+| `/reporting/stock` | ✅ | — | 40% |
+| `/reporting/payments` | ✅ | — | 40% |
+| Graphiques | — | ❌ | 0% |
+| Export PDF | — | ❌ | 0% |
+| Export Excel | — | ❌ | 0% |
 
 ---
 
 ## 16. ÉTAT PROMOTIONS & GAMIFICATION
 
+> Tables Prisma 100% présentes. **Aucun endpoint API monté.** Non intégré dans le checkout.
+
 | Module | DB | API | Web | Mobile | État |
 |---|---|---|---|---|---|
-| Promotions codes promo | ✅ tables | ❌ | — | — | TODO |
-| Packs produits | ✅ tables | ❌ | — | — | TODO |
-| Flash sales | ✅ tables | ❌ | — | — | TODO |
-| Gamification (jeux, prix) | ✅ tables | ❌ | — | — | TODO |
-| Promo intégrée checkout | — | ❌ | — | — | BLOCKED |
-
-> ⚠️ Tables Prisma complètes mais **aucun endpoint API monté**. Non intégrés dans le checkout.
+| Promotions (codes promo) | ✅ | ❌ | — | — | ❌ TODO |
+| Packs produits | ✅ | ❌ | — | — | ❌ TODO |
+| Flash sales | ✅ | ❌ | — | — | ❌ TODO |
+| Gamification (jeux/prix) | ✅ | ❌ | — | — | ❌ TODO |
+| Promo intégrée checkout | — | ❌ | ❌ | ❌ | ❌ BLOCKED |
 
 ---
 
 ## 17. PROBLÈMES RESTANTS
 
-### 🔴 Critiques
-1. **Scan EAN13 mobile picker :** `mobile_scanner` installé, UI de scan absente
-2. **Mobile Driver :** workflow start/deliver/fail non complet (UI manquante)
-3. **Zéro test automatisé :** risque de régression au déploiement
-4. **Stripe production :** clés test absentes, webhook secret à configurer
+### 🔴 Critiques (bloquent production)
+1. **Scan EAN13 caméra picker** — `mobile_scanner` installé mais UI absente dans `session_detail_screen.dart`
+2. **Tests automatisés = 0** — risque régressions sans test suite
+3. **Stripe clés production** — test mode uniquement (`sk_test_...`)
+4. **Pas de déploiement VPS** — pas de Nginx/SSL/PM2 configuré
 
-### 🟠 Importants
-5. **Notifications push/SMS :** logs DB uniquement, aucun envoi réel
-6. **Promotions non intégrées :** tables présentes, aucun endpoint, checkout non branché
-7. **Points redeem :** earning automatique ✅ mais rachat impossible
-8. **Dashboard reporting :** KPI API présents, UI quasi vide
-9. **Socket driver :** aucun temps réel pour les livreurs
+### 🟠 Importants (expérience)
+5. **Notifications push/SMS** — logs DB uniquement, aucun envoi réel
+6. **Points redeem** — earning auto ✅ mais rachat impossible au checkout
+7. **Promotions non montées** — tables DB présentes, aucun endpoint API
+8. **Dashboard reporting** — API présente, UI quasi vide
+9. **Socket driver** — aucun temps réel pour les tournées
+10. **Referral UI** — logique backend complète, UI absente
 
-### 🟡 Mineurs
-10. Recharge wallet UI absente (endpoint API existe)
-11. Referral UI absente (logique backend complète)
-12. Home screen mobile customer incomplet
-13. Export PDF/Excel absent
+### 🟡 Mineurs (non bloquants)
+11. Recharge wallet UI admin (API endpoint existe)
+12. Home screen mobile customer à enrichir
+13. Exports PDF/Excel reporting
 14. Gamification désactivée (tables présentes)
 
 ---
 
 ## 18. PRIORITÉS RESTANTES
 
-| Priorité | Module | Travail restant | Complexité |
+| Priorité | Module | Travail | Complexité |
 |---|---|---|---|
-| 🔴 P0 | Scan EAN13 picker | Intégrer `mobile_scanner` dans session_detail_screen.dart | Medium |
-| 🔴 P0 | Mobile Driver complet | Start tour, stop deliver/fail + COD natif | Medium |
-| 🔴 P0 | APK release picker + driver | Build release + signature | Low |
-| 🔴 P0 | Test E2E workflow | Checkout → picking → ready → delivered | Medium |
-| 🟠 P1 | Promotions API | Routes CRUD + intégration checkout | High |
-| 🟠 P1 | Points redeem | Checkout → déduire points_balance | Medium |
-| 🟠 P1 | Notifications push | Firebase FCM setup | High |
-| 🟠 P1 | Dashboard KPI | Graphiques + export | Medium |
-| 🟠 P1 | Referral UI | Page partage code + historique | Medium |
-| 🟡 P2 | Packs + Flash sales | API + checkout + mobile | High |
-| 🟡 P2 | Gamification | API + mobile | High |
-| 🟡 P2 | Socket driver temps réel | Notifications tournées | Medium |
-| 🟡 P2 | Tests automatisés | Jest backend, Flutter tests | High |
-| 🟡 P2 | Exports PDF/Excel | Reporting complet | Medium |
+| 🔴 P0 | Scan EAN13 | `mobile_scanner` → UI caméra dans `session_detail_screen.dart` | M |
+| 🔴 P0 | APK release picker + driver | Build release, signature | S |
+| 🔴 P0 | Test E2E workflow complet | Checkout → picking → delivered | M |
+| 🔴 P0 | Stripe clés production | `.env` production | S |
+| 🟠 P1 | Promotions API | Routes CRUD + checkout integration | XL |
+| 🟠 P1 | Points redeem | Checkout → déduire points | M |
+| 🟠 P1 | Notifications push | Firebase FCM setup | L |
+| 🟠 P1 | Dashboard KPI graphiques | recharts + exports | L |
+| 🟠 P1 | Referral UI mobile | Page partage code, historique | M |
+| 🟡 P2 | Socket driver | Notifications nouvelles tournées | M |
+| 🟡 P2 | Packs + Flash sales | API + checkout + mobile | XL |
+| 🟡 P2 | Gamification | API + mobile | XL |
+| 🟡 P2 | Tests automatisés | Jest backend + Flutter tests | XL |
+| 🟡 P2 | VPS production | Nginx, SSL, PM2, monitoring | L |
 
 ---
 
-## 19. ROADMAP FINALE
+## 19. ROADMAP FINALE VERS PRODUCTION
 
-### Sprint 1 — P0 Opérationnel (1–2 jours)
-- [ ] Scan EAN13 dans `session_detail_screen.dart` (mobile_scanner déjà installé)
-- [ ] Mobile Driver : workflow complet (start/deliver/fail) si manquant
+### Sprint 1 — APK opérationnelle (1 jour)
+- [ ] Intégrer scan EAN13 caméra (mobile_scanner → UI picker)
 - [ ] Build APK release picker + driver
-- [ ] Test E2E complet : checkout → confirmed → picking → ready → pickup/delivered
+- [ ] Validation test E2E complet (téléphone réel)
 
-### Sprint 2 — Paiements & Fidélité (2–3 jours)
-- [ ] Stripe clés production + webhook en production
-- [ ] Points redeem au checkout (frontend + backend)
-- [ ] Referral UI mobile customer (partage code, historique)
+### Sprint 2 — Paiements & Fidélité complets (2 jours)
+- [ ] Stripe clés production + webhook en prod
+- [ ] Points redeem au checkout
+- [ ] Referral UI mobile (partage code, suivi)
 - [ ] Wallet recharge UI admin
 
-### Sprint 3 — Notifications (2 jours)
+### Sprint 3 — Notifications réelles (2 jours)
 - [ ] Firebase FCM setup (backend + mobile customer)
 - [ ] Notification center mobile customer
-- [ ] Socket.IO notifications driver (nouvelles tournées)
+- [ ] Socket.IO notifications driver
 
-### Sprint 4 — Dashboard & Reporting (2–3 jours)
+### Sprint 4 — Reporting & Analytics (2 jours)
 - [ ] Graphiques KPI (recharts)
 - [ ] Export PDF commandes
-- [ ] Export Excel stock/reporting
 - [ ] Analytics par node
 
-### Sprint 5 — Promotions & Gamification (3–5 jours)
-- [ ] API packs, promotions, flash_sales (routes + CRUD)
-- [ ] Intégration checkout (code promo calcul)
-- [ ] Flash sales dans catalogue mobile
-- [ ] Gamification endpoint + mobile
+### Sprint 5 — Promotions & Gamification (4–5 jours)
+- [ ] API packs, promotions, flash_sales
+- [ ] Intégration checkout (calcul promo)
+- [ ] Flash sales catalogue mobile
+- [ ] Gamification
 
-### Sprint 6 — Production (2–3 jours)
-- [ ] Tests unitaires backend (Jest)
+### Sprint 6 — Production VPS (2 jours)
+- [ ] Tests Jest backend
 - [ ] Tests Flutter
-- [ ] Configuration VPS (Nginx, SSL, PM2)
-- [ ] Variables d'environnement production
-- [ ] Monitoring (Sentry, PM2 logs)
-- [ ] Documentation API (Swagger/Postman)
+- [ ] Nginx + SSL + PM2
+- [ ] Variables production
+- [ ] Monitoring (Sentry)
 
 ---
 
-## 20. WORKFLOW GLOBAL FINAL — ÉTAT ACTUEL
+## 20. WORKFLOW GLOBAL — ÉTAT RÉEL ACTUEL
 
 ```
-CLIENT MOBILE
+CLIENT MOBILE (customer_app — 85%)
   ↓
 Catalog ✅ → Panier ✅ → Checkout ✅
   ↓
-Stock réservé ✅ (qty_reserved++, qty_available--)
-  ↓
+Stock réservé ✅ (atomique, anti-survente)
 Order.status = confirmed ✅
   ↓
-[SOCKET.IO] picker:new_order → pickers du node ✅
+[SOCKET.IO] picker:new_order → tous pickers du node ✅
   ↓
-PICKER accepte ✅ → Session picking créée ✅
+PICKER (picker_app — 78%)
+  Accepte ✅ → Session créée ✅ (anti-doublon 409)
+  Start session ✅
+  Pick items ✅ | Substitution ✅ | Rupture ✅
+  Scan EAN13 caméra ❌ (formulaire texte seulement)
+  Complete → Order.status = ready ✅
   ↓
-Items : pick/substitution/rupture ✅ | Scan EAN13 réel ❌
-  ↓
-Session complete → Order.status = ready ✅
-  ↓
-┌─────────────────────┬────────────────────────┐
-│ PICKUP (retrait)     │ DELIVERY (home)         │
-│ ✅ OPÉRATIONNEL      │ ⚠️ PARTIEL              │
-├─────────────────────┼────────────────────────┤
-│ COD comptoir ✅      │ Tour créée ✅            │
-│ Confirm ✅           │ Driver assigné ✅        │
-│ Stock OUT ✅         │ Start tour ✅            │
-│ Points crédités ✅   │ Stop deliver ✅          │
-│                      │ COD driver ✅            │
-│                      │ Fail stop ✅             │
-│                      │ Stock OUT ✅             │
-└─────────────────────┴────────────────────────┘
+┌─────────────────────────┬──────────────────────────┐
+│ PICKUP (retrait — 100%)  │ DELIVERY (home — 80%)     │
+│ Collect COD (étape 1) ✅ │ Tour créée ✅             │
+│ Confirm retrait (ét.2) ✅│ Driver assigné ✅         │
+│ Stock decrement ✅       │ Start tour → in_delivery✅│
+│ Points crédités ✅       │ Arrive stop ✅            │
+│                          │ Deliver + COD ✅           │
+│                          │ Fail + raison ✅           │
+│                          │ Stock decrement ✅         │
+└─────────────────────────┴──────────────────────────┘
   ↓
 Order.status = delivered ✅
   ↓
-Points crédités ✅ (auto) | Referral validé ✅ (auto)
-Wallet débité ✅ | Notification loggée ✅ | Push ❌
+Points crédités ✅ (auto)
+Referral validé ✅ (auto, si applicable)
+Wallet débité ✅ (si wallet payment)
+Notification loggée ✅ | Push ❌
   ↓
-Reporting KPI ⚠️ (API OK, UI minimale)
+Reporting KPI ⚠️ (API ✅, UI minimale)
 ```
 
 ---
 
 ## TABLEAU SYNTHÈSE FINAL
 
-| Module | Backend | Web | Mobile Customer | Mobile Picker | Mobile Driver | DB | Temps réel | Global |
-|--------|---------|-----|-----------------|----------------|----------------|-----|------------|--------|
-| Auth | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ DONE |
-| Catalogue | ✅ | ✅ | ✅ | — | — | ✅ | — | ✅ DONE |
-| Checkout | ✅ | ✅ | ✅ | — | — | ✅ | — | ✅ DONE |
-| Stock | ✅ | ✅ | — | — | — | ✅ | — | ✅ DONE |
-| Commandes | ✅ | ✅ | ✅ | — | — | ✅ | — | ✅ DONE |
-| Picking | ✅ | ✅ | — | ⚠️ | — | ✅ | ✅ | ⚠️ PARTIAL |
-| Pickup | ✅ | ✅ | — | — | — | ✅ | — | ✅ DONE |
-| Tours/Livraison | ✅ | ⚠️ | — | — | ⚠️ | ✅ | ❌ | ⚠️ PARTIAL |
-| Paiements | ✅ | ⚠️ | ✅ | — | ⚠️ | ✅ | — | ⚠️ PARTIAL |
-| Wallet | ✅ | ⚠️ | ✅ | — | — | ✅ | — | ⚠️ PARTIAL |
-| Points fidélité | ✅ | — | ⚠️ | — | — | ✅ | — | ⚠️ PARTIAL |
-| Referral | ✅ | — | ❌ | — | — | ✅ | — | ⚠️ PARTIAL |
-| Notifications | ⚠️ | — | ❌ | — | — | ✅ | — | ❌ TODO |
-| Reporting | ⚠️ | ⚠️ | — | — | — | — | — | ⚠️ PARTIAL |
-| Promotions | ❌ | — | — | — | — | ✅ tables | — | ❌ TODO |
-| Gamification | ❌ | — | — | — | — | ✅ tables | — | ❌ TODO |
+| Module | Backend | Web | M.Customer | M.Picker | M.Driver | DB | Temps réel | **Global** |
+|--------|---------|-----|------------|----------|----------|-----|------------|------------|
+| Auth | ✅ 90% | ✅ 90% | ✅ 95% | ✅ 95% | ✅ 95% | ✅ | — | **✅ 92%** |
+| Catalogue | ✅ 95% | ✅ 90% | ✅ 90% | — | — | ✅ | — | **✅ 92%** |
+| Checkout | ✅ 90% | ✅ 85% | ✅ 90% | — | — | ✅ | ✅ | **✅ 89%** |
+| Stock | ✅ 90% | ✅ 85% | — | — | — | ✅ | — | **✅ 88%** |
+| Commandes | ✅ 85% | ✅ 80% | ✅ 85% | — | — | ✅ | — | **✅ 84%** |
+| Picking | ✅ 90% | ✅ 85% | — | ⚠️ 78% | — | ✅ | ✅ 100% | **⚠️ 84%** |
+| Pickup | ✅ 95% | ✅ 90% | — | — | — | ✅ | — | **✅ 93%** |
+| Tours/Livraison | ✅ 85% | ✅ 75% | — | — | ⚠️ 78% | ✅ | ❌ | **⚠️ 80%** |
+| Paiements | ✅ 80% | ⚠️ 60% | ✅ 80% | — | ✅ 80% | ✅ | — | **⚠️ 75%** |
+| Wallet | ✅ 85% | ⚠️ 40% | ✅ 75% | — | — | ✅ | — | **⚠️ 68%** |
+| Loyalty/Points | ✅ 70% | — | ⚠️ 50% | — | — | ✅ | — | **⚠️ 55%** |
+| Referral | ✅ 75% | — | ❌ | — | — | ✅ | — | **⚠️ 50%** |
+| Notifications | ⚠️ 30% | — | ❌ | — | — | ✅ | — | **❌ 25%** |
+| Reporting | ⚠️ 50% | ⚠️ 20% | — | — | — | — | — | **❌ 35%** |
+| Promotions | ❌ 10% | — | — | — | — | ✅ tables | — | **❌ 10%** |
+| Gamification | ❌ 5% | — | — | — | — | ✅ tables | — | **❌ 5%** |
 
-**Légende :** ✅ Done · ⚠️ Partial · ❌ Todo · — N/A
+**Légende :** ✅ >75% · ⚠️ 40–74% · ❌ <40%
 
 ---
 
-*Rapport basé sur analyse du code source réel. Branche `dev` — 2026-05-22.*
+*Rapport v2 — basé sur l'analyse du code source réel, branche `dev`. Date : 2026-05-22.*
+*Prochaine mise à jour : après Sprint 1 (scan EAN13 + APK release).*

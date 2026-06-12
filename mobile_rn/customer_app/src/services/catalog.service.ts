@@ -1,0 +1,151 @@
+import api from '../api/client';
+
+export interface Category {
+  id: number;
+  name_fr: string;
+  name_ar: string;
+  code: string;
+  image_path: string;
+  icon_path: string;
+  sort_order: number;
+  article_count: number;
+}
+
+export interface SubCategory {
+  id:            number;
+  name_fr:       string;
+  name_ar:       string;
+  code:          string;
+  image_path:    string | null;
+  icon_path:     string | null;
+  sort_order:    number;
+  article_count: number;
+}
+
+export interface Article {
+  id:             number;
+  sku_code:       string;
+  sku_id: string | null;
+  ean13:          string | null;
+  name_fr:        string;
+  name_ar:        string;
+  description_fr: string | null;
+  description_ar: string | null;
+  price:          number;
+  price_ttc:      number;
+  vat_rate:       number;
+  unit_sale:      string;
+  is_active:      boolean;
+  image_url:      string | null;
+  brand:          { id: number; name_fr: string; name_ar: string } | null;
+  category:       { id: number; name_fr: string; name_ar: string } | null;
+  sub_category:   { id: number; name_fr: string; name_ar: string } | null;
+}
+
+export interface ArticlesResponse{
+  data:       Article[];
+  pagination: Pagination;
+}
+
+export interface RecommendationsResponse {
+  data: Article[];
+}
+
+export interface Pagination{
+  total: number;
+  page:  number;
+  limit: number;
+  pages: number;
+}
+
+export const CatalogService = {
+  
+  //categories,subCategories
+  async getCategories(): Promise<Category[]>{
+    try{
+      const response = await api.get('/customer/catalog/categories');
+
+      return response.data.data || [];
+    }
+    catch(err:any){
+      throw new Error(err.response?.data?.message || 'Erreur chargement categories');
+    }
+  },
+
+  async getSubCategories(categoryId: number): Promise<SubCategory[]> {
+  try {
+    const response = await api.get(`/customer/catalog/categories/${categoryId}/sub-categories`);
+    return response.data.data || [];
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur sous-catégories');
+  }
+},
+
+  //articles
+  async getArticles(params?: {
+    limit?: number;
+    page?: number;
+    category_id?: number;
+  }): Promise<Article[]>{
+    try{
+    const response = await api.get('/customer/catalog/articles', { params });
+    return response.data.data || [];
+    }
+    catch(err:any){
+      throw new Error(err.response?.data?.message || 'Erreur chargement articles');
+    }
+  },
+
+  async getRecommendedArticles(params?: { limit?: number }): Promise<Article[]> {
+    try {
+      const response = await api.get('/customer/catalog/recommendations', { params });
+      return response.data.data || [];
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Erreur chargement recommandations');
+    }
+  },
+
+  async getArticlesByCategory(
+    categoryId: number,
+    params?: { page?: number; limit?: number; search?: string }
+  ): Promise<ArticlesResponse>{
+    try {
+      const response = await api.get(`/customer/catalog/categories/${categoryId}/articles`, { params });
+      return {
+        data:       response.data.data || [],
+        pagination: response.data.pagination || { total: 0, page: 1, limit: 20, pages: 0 },
+      };
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Erreur chargement articles');
+    }
+  },
+
+  async searchArticles(params?: {
+    page?:        number,
+    limit?:       number,
+    search?:      string,
+    category_id?: number,
+  }): Promise<ArticlesResponse>{
+    try {
+      const response = await api.get('/customer/catalog/articles', { params });
+      return {
+        data:       response.data.data || [],
+        pagination: response.data.pagination || { total: 0, page: 1, limit: 20, pages: 0 },
+      };
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Erreur chargement articles');
+    }
+  },
+
+  async getArticleDetail(id: number): Promise<Article> {
+    try {
+      const response = await api.get(`/customer/catalog/articles/${id}`);
+      return response.data.data;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Article introuvable');
+    }
+  },
+
+  //cities
+
+};

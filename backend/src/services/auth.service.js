@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const jwtConfig = require('../config/jwt');
 const userRepository = require('../repositories/user.repository');
 const { compare } = require('../utils/password');
+const prisma = require('../config/database');
+const { hash } = require('../utils/password');
 
 class AuthService {
   async login(email, password) {
@@ -16,12 +18,12 @@ class AuthService {
     const permissions = this._extractPermissions(user);
     const token = this._generateToken(user);
 
-    // Track last login (non-blocking)
     userRepository.updateLastLogin(user.id).catch(() => {});
 
     return { token, user: this._sanitizeUser(user, permissions) };
   }
 
+  
   async getProfile(userId) {
     const user = await userRepository.findById(userId);
     if (!user) throw { statusCode: 404, message: 'User not found' };
@@ -36,6 +38,8 @@ class AuthService {
       { expiresIn: jwtConfig.expiresIn }
     );
   }
+
+  
 
   _extractPermissions(user) {
     const permissions = new Set();
@@ -52,6 +56,18 @@ class AuthService {
     const roles = user.user_roles?.map((ur) => ur.role) || [];
     return { ...safeUser, roles, permissions };
   }
+
+
+
+async checkEmail(email) {
+  const existing = await userRepository.findByEmail(email);
+  return !existing; 
 }
+
+}
+
+
+
+
 
 module.exports = new AuthService();

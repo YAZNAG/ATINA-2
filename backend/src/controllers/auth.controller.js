@@ -1,5 +1,6 @@
 const authService = require('../services/auth.service');
 const response = require('../utils/response');
+const userRepository   = require('../repositories/user.repository');
 
 class AuthController {
   async login(req, res, next) {
@@ -11,6 +12,7 @@ class AuthController {
       next(err);
     }
   }
+
 
   async me(req, res, next) {
     try {
@@ -24,6 +26,8 @@ class AuthController {
   logout(req, res) {
     return response.success(res, null, 'Logged out successfully');
   }
+
+  
 }
 
 module.exports = new AuthController();

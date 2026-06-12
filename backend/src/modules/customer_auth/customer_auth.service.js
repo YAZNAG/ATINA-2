@@ -23,17 +23,22 @@ function signToken(user, phone_country, phone) {
 }
 
 // ── register ──────────────────────────────────────────────────────────────────
-async function register(phone_country, phone_number, full_name, password, email, referral_code_used = null) {
+async function register(phone_country, phone_number, full_name, password, email = null, referral_code_used = null) {
   const phone = cleanPhone(phone_number);
 
+  // Vérif téléphone
   const existingByPhone = await prisma.user.findFirst({
     where: { phone_country, phone_number: phone, is_deleted: false },
   });
   if (existingByPhone) throw { statusCode: 409, message: 'Ce numéro est déjà utilisé.' };
 
-  const baseEmail   = email?.trim() || `${phone_country.replace('+', '')}${phone}@customer.elherri.local`;
-  const dupEmail    = await prisma.user.findFirst({ where: { email: baseEmail } });
-  const finalEmail  = dupEmail ? `${phone_country.replace('+', '')}${phone}.${Date.now()}@customer.elherri.local` : baseEmail;
+  // Vérif email si fourni
+  if (!email?.trim()) throw { statusCode: 400, message: 'Email obligatoire.' };
+
+const finalEmail = email.trim().toLowerCase();
+
+const dupEmail = await prisma.user.findFirst({ where: { email: finalEmail } });
+if (dupEmail) throw { statusCode: 409, message: 'Cet email est déjà utilisé.' };
 
   const user = await prisma.user.create({
     data: {
@@ -70,7 +75,6 @@ async function register(phone_country, phone_number, full_name, password, email,
     },
   });
 
-  // Fire-and-forget referral creation
   if (referral_code_used) {
     setImmediate(() => createReferralOnRegistration(customer.id, referral_code_used).catch(() => {}));
   }
@@ -79,15 +83,25 @@ async function register(phone_country, phone_number, full_name, password, email,
 }
 
 // ── login ─────────────────────────────────────────────────────────────────────
-async function login(phone_country, phone_number, password) {
-  const phone = cleanPhone(phone_number);
+async function login(phone_country, phone_number, password, email = null) {
+  let user;
 
-  const user = await prisma.user.findFirst({
-    where:   { phone_country, phone_number: phone, is_deleted: false },
-    include: { user_roles: { include: { role: true } } },
-  });
-
-  if (!user) throw { statusCode: 404, message: 'Numéro de téléphone non trouvé.' };
+  if (email) {
+    // Login par email
+    user = await prisma.user.findFirst({
+      where:   { email: email.trim().toLowerCase(), is_deleted: false },
+      include: { user_roles: { include: { role: true } } },
+    });
+    if (!user) throw { statusCode: 404, message: 'Email non trouvé.' };
+  } else {
+    // Login par téléphone
+    const phone = cleanPhone(phone_number);
+    user = await prisma.user.findFirst({
+      where:   { phone_country, phone_number: phone, is_deleted: false },
+      include: { user_roles: { include: { role: true } } },
+    });
+    if (!user) throw { statusCode: 404, message: 'Numéro de téléphone non trouvé.' };
+  }
 
   const isCustomer = user.user_roles.some(ur => ur.role.code === 'customer');
   if (!isCustomer) throw { statusCode: 403, message: 'Accès non autorisé.' };
@@ -99,12 +113,15 @@ async function login(phone_country, phone_number, password) {
 
   await prisma.user.update({ where: { id: user.id }, data: { last_login_at: new Date() } });
 
-  const customer = await prisma.customer.findFirst({ where: { phone_country, phone_number: phone, is_deleted: false } });
-  const token    = signToken(user, phone_country, phone);
+  const customer = await prisma.customer.findFirst({
+    where: { user_id: user.id, is_deleted: false },
+  });
+
+  const token = signToken(user, user.phone_country, user.phone_number);
 
   return {
     token,
-    user:     { id: user.id, name: user.full_name, phone_country, phone_number: phone, email: user.email },
+    user:     { id: user.id, name: user.full_name, phone_country: user.phone_country, phone_number: user.phone_number, email: user.email },
     customer: customer ? { id: customer.id, name: customer.name } : null,
   };
 }
@@ -241,4 +258,49 @@ async function checkPhone(phone_country, phone_number) {
   return { exists: !!user, is_verified: !!(user?.phone_verified_at) };
 }
 
-module.exports = { requestOtp, verifyOtp, checkPhone, login, register, getMe };
+// ── mot de passe oublie ────────────────────────────────────────────────────────────────
+async function forgotPassword(phone_country, phone_number) {
+  const phone = cleanPhone(phone_number);
+
+  const user = await prisma.user.findFirst({
+    where: { phone_country, phone_number: phone, is_deleted: false },
+  });
+
+  if (!user) throw { statusCode: 404, message: 'Numéro non trouvé.' };
+  if (!user.is_active) throw { statusCode: 403, message: 'Compte non activé.' };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data:  { otp_code: OTP_TEST, otp_expires_at: new Date(Date.now() + OTP_TTL_MS) },
+  });
+
+  return { message: 'Code envoyé (mode test : 0000)', phone_country, phone_number: phone };
+}
+
+async function resetPassword(phone_country, phone_number, otp, new_password) {
+  const phone = cleanPhone(phone_number);
+
+  const user = await prisma.user.findFirst({
+    where: { phone_country, phone_number: phone, is_deleted: false },
+  });
+
+  if (!user)                                          throw { statusCode: 404, message: 'Numéro non trouvé.' };
+  if (user.otp_code !== otp)                          throw { statusCode: 400, message: 'Code incorrect.' };
+  if (user.otp_expires_at && user.otp_expires_at < new Date())
+                                                      throw { statusCode: 400, message: 'Code expiré. Demandez un nouveau code.' };
+  if (!new_password || new_password.length < 6)       throw { statusCode: 400, message: 'Mot de passe minimum 6 caractères.' };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data:  {
+      password_hash:  await bcrypt.hash(new_password, 10),
+      otp_code:       null,
+      otp_expires_at: null,
+    },
+  });
+
+  return { message: 'Mot de passe modifié avec succès.' };
+}
+
+
+module.exports = { requestOtp, verifyOtp, checkPhone, login, register, getMe ,forgotPassword, resetPassword};

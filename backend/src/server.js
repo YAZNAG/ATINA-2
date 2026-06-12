@@ -85,6 +85,8 @@ app.use('/api', routes);
 
 app.use(errorMiddleware);
 
+app.use('/storage', express.static(path.join(__dirname, 'storage')));
+
 async function start() {
   try {
     await ensureArticlesPrismaColumns(prisma);

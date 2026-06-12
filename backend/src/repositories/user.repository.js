@@ -50,6 +50,48 @@ const assignRole = (userId, roleId) =>
 const removeAllRoles = (userId) =>
   prisma.userRole.deleteMany({ where: { user_id: userId } });
 
+const findByPhoneNumber = (phoneCountry, phoneNumber) =>
+  prisma.user.findFirst({
+    where: { phone_country: phoneCountry,
+      phone_number: phoneNumber,
+     }
+     , include: userInclude,
+  });
+
+const updateCustomerPhone = (userId, phoneCountry, phoneNumber) =>
+  prisma.customer.update({
+    where: { user_id: userId },
+      data: { phone_country: phoneCountry, phone_number: phoneNumber },
+  });
+
+const createWithCustomerAndRole = ({ fullName, email, password_hash, phoneCountry, phoneNumber, referralCode }) =>
+  prisma.$transaction(async (tx) => {
+
+    const user = await tx.user.create({
+      data: {
+        full_name: fullName, email, password_hash,
+        phone_country: phoneCountry, phone_number: phoneNumber,
+        phone_verified_at: new Date(),
+        status: 'active', is_active: true,
+      },
+    });
+
+    await tx.customer.create({
+      data: {
+        user_id: user.id, name: fullName,
+        phone_country: phoneCountry, phone_number: phoneNumber,
+        phone_verified_at: new Date(), referral_code: referralCode,
+      },
+    });
+
+    const clientRole = await tx.role.findFirst({ where: { code: 'client' } });
+    if (!clientRole) throw { statusCode: 500, message: 'Rôle client introuvable' };
+
+    await tx.userRole.create({ data: { user_id: user.id, role_id: clientRole.id } });
+
+    return user;
+  });
+
 module.exports = {
   findAll,
   findById,
@@ -61,4 +103,7 @@ module.exports = {
   updateLastLogin,
   assignRole,
   removeAllRoles,
+  findByPhoneNumber,
+  updateCustomerPhone,
+  createWithCustomerAndRole,
 };

@@ -440,6 +440,7 @@ model Sku {
   flash_sales        FlashSale[]
   stock_moves               StockMove[]
   stock_lots                StockLot[]
+  cart_items                CartItem[]
   gamification_prizes       GamificationPrize[]
   stock_threshold_rules     StockThresholdRule[]
   substitution_picking_items PickingSessionItem[] @relation("PickingSubstituteSku")
@@ -1016,6 +1017,7 @@ model Customer {
   gamification_plays    GamificationPlay[]
   wallet_transactions   WalletTransaction[]
   notifications         Notification[]
+  cart  Cart? 
 
   @@map("customers")
 }
@@ -1683,4 +1685,40 @@ model Notification {
 
   @@index([customer_id])
   @@map("notifications")
+}
+
+model PendingOtp {
+  id          Int      @id @default(autoincrement())
+  phone       String   @unique
+  otp_code    String
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  @@map("pending_otps")
+}
+
+// Customer Cart
+model Cart {
+  id          String     @id @default(uuid()) @db.Uuid
+  customer_id String     @db.Uuid @unique
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  customer    Customer   @relation(fields: [customer_id], references: [id])
+  items       CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  cart_id    String   @db.Uuid
+  sku_id     String   @db.Uuid
+  quantity   Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  cart       Cart     @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  sku        Sku      @relation(fields: [sku_id], references: [id])
+
+  @@unique([cart_id, sku_id])
+  @@map("cart_items")
 }

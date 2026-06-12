@@ -1,5 +1,6 @@
 const svc  = require('./customer_catalog.service');
 const resp = require('../../utils/response');
+const { subCategory } = require('../../config/database');
 
 const E = (res, next, e) => {
   if (e.statusCode) return resp.error(res, e.message, e.statusCode);
@@ -35,6 +36,26 @@ class CustomerCatalogController {
     try { resp.success(res, await svc.getCities()); }
     catch(e) { E(res, next, e); }
   }
+
+
+async subCategories(req, res, next){
+  try{
+    resp.success(res, await svc.getSubCategories(req.params.id));
+  }
+  catch(e) { E(res, next, e); }
 }
 
+  async recommendedArticles(req, res, next) {
+    try {
+      const customerId = req.customerId; 
+      const limit      = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+
+      if (isNaN(limit) || limit < 1 || limit > 100) {
+        return resp.error(res, 'Paramètre limit invalide (1–100)', 400);
+      }
+
+      resp.success(res, await svc.getRecommendedArticles(customerId, { limit }));
+    } catch (e) { E(res, next, e);  }
+  }
+}
 module.exports = new CustomerCatalogController();

@@ -30,6 +30,9 @@ const pickingRoutes       = require('../modules/picking/picking.routes');
 const staffRoutes         = require('../modules/staff/staff.routes');
 const pickerPortalRoutes  = require('../modules/picker_portal/pickerPortal.routes');
 
+
+const customerCartRoutes = require('../modules/customer_cart/customer_cart.routes');
+
 const router = Router();
 
 // ── Routes publiques/propres — MUST come before wildcard mounts ('/') ─────────
@@ -67,5 +70,8 @@ router.use('/reporting',   reportingRoutes);
 router.use('/pickup',      pickupRoutes);
 router.use('/delivery',    deliveryMgmtRoutes);
 router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
+
+router.use('/customer/cart', customerCartRoutes);
+
 
 module.exports = router;

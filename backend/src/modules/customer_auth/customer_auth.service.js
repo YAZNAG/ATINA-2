@@ -225,6 +225,8 @@ async function verifyOtp(phone_country, phone_number, otp) {
   if (user.otp_expires_at && user.otp_expires_at < new Date())
                                throw { statusCode: 400, message: 'Code expiré. Demandez un nouveau code.' };
 
+  const isNew = !user.phone_verified_at;
+
   await prisma.user.update({
     where: { id: user.id },
     data:  {
@@ -246,7 +248,7 @@ async function verifyOtp(phone_country, phone_number, otp) {
 
   return {
     token,
-    user: { id: user.id, phone_country, phone_number: phone, name: user.full_name, is_new: !user.phone_verified_at },
+    user: { id: user.id, phone_country, phone_number: phone, name: user.full_name, is_new: isNew },
     customer: customer ? { id: customer.id, name: customer.name } : null,
   };
 }

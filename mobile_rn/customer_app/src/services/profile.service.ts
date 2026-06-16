@@ -252,4 +252,40 @@ export const ProfileService = {
             throw new Error(err.response?.data?.message || 'Erreur');
         }
     },
+
+async updateEmail(email: string): Promise<{ message: string }> {
+  try {
+    const response = await api.put('/customer/me/email', { email });
+    return response.data.data ?? response.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur mise à jour email');
+  }
+},
+
+async requestPhoneChange(phone_number: string, phone_country = '+212'): Promise<{ message: string }> {
+  try {
+    const response = await api.post('/customer/me/phone/request-otp', { phone_country, phone_number });
+    return response.data.data ?? response.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur envoi du code');
+  }
+},
+
+async confirmPhoneChange(phone_number: string, otp: string, phone_country = '+212'): Promise<{ message: string }> {
+  try {
+    const response = await api.post('/customer/me/phone/verify-otp', { phone_country, phone_number, otp });
+    return response.data.data ?? response.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Code incorrect');
+  }
+},
+
+async changePassword(old_password: string, new_password: string): Promise<{ message: string }> {
+  try {
+    const response = await api.put('/customer/me/password', { old_password, new_password });
+    return response.data.data ?? response.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur changement mot de passe');
+  }
+},
 }

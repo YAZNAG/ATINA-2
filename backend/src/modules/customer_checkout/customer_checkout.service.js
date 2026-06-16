@@ -9,6 +9,18 @@ const prisma    = require('../../config/database');
 const checkoutSvc = require('../checkout/checkout.service');
 const repo      = require('../checkout/checkout.repository');
 
+// ── Haversine : distance en km entre 2 points GPS ─────────────────────────────
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── Resolve sku_code → sku UUID ───────────────────────────────────────────────
 // Cart items from the mobile app carry sku_code (article.sku_code),
 // but the stock and order systems use sku.id (UUID).
@@ -62,10 +74,70 @@ async function findEligibleNodes(address_id, cart_items, date) {
   return checkoutSvc.findEligibleNodes(address_id, resolved, date);
 }
 
+
+// ── Trie une liste de nodes par distance vs adresse par défaut du client ──────
+// Garde ta logique existante, ajoute juste distance + tri.
+async function sortNodesByDistance(customerId, nodes) {
+  if (!nodes?.length) return nodes;
+ 
+  // coordonnées de référence : adresse par défaut du client
+  const defaultAddress = await prisma.address.findFirst({
+    where:  { customer_id: customerId, is_default: true, is_deleted: false },
+    select: { lat: true, lng: true },
+  });
+
+  console.log('[DEBUG] defaultAddress:', defaultAddress);  // ← ajoute
+ 
+  let refLat = defaultAddress?.lat ? Number(defaultAddress.lat) : null;
+  let refLng = defaultAddress?.lng ? Number(defaultAddress.lng) : null;
+
+  console.log('[DEBUG] refLat/refLng:', refLat, refLng);
+ 
+  // fallback : coordonnées du customer
+  if (refLat == null || refLng == null) {
+    const customer = await prisma.customer.findUnique({
+      where:  { id: customerId },
+      select: { lat: true, lng: true },
+    });
+    if (customer?.lat && customer?.lng) {
+      refLat = Number(customer.lat);
+      refLng = Number(customer.lng);
+    }
+  }
+ 
+  // ajoute la distance sur chaque node
+  const withDistance = nodes.map((n) => {
+    const nLat = n.lat != null ? Number(n.lat) : null;
+    const nLng = n.lng != null ? Number(n.lng) : null;
+    let distance = null;
+    if (refLat != null && refLng != null && nLat != null && nLng != null) {
+      distance = haversineKm(refLat, refLng, nLat, nLng);
+    }
+    return { ...n, distance };
+  });
+ 
+  // trie : plus proche d'abord, ceux sans distance à la fin
+  withDistance.sort((a, b) => {
+    if (a.distance == null && b.distance == null) return 0;
+    if (a.distance == null) return 1;
+    if (b.distance == null) return -1;
+    return a.distance - b.distance;
+  });
+ 
+  return withDistance;
+}
+
 // ── Pickup nodes ──────────────────────────────────────────────────────────────
-async function findPickupNodes(cart_items, date) {
+async function findPickupNodes(customerId, cart_items, date) {
   const resolved = await resolveCartItems(cart_items);
-  return checkoutSvc.findPickupNodes(resolved, date);
+  const result   = await checkoutSvc.findPickupNodes(resolved, date);
+
+  console.log('[DEBUG] findPickupNodes appelé, customerId:', customerId);  // ← ajoute
+
+  if (result?.eligible?.length) {
+    result.eligible = await sortNodesByDistance(customerId, result.eligible);
+  }
+  return result;
 }
 
 // ── Delivery slots ────────────────────────────────────────────────────────────

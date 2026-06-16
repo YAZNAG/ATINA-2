@@ -106,7 +106,7 @@ export default function ProfileScreen() {
           <View style={styles.menuDivider} />
           <MenuItem icon="bell"          label="Notifications"             onPress={() => router.push('/profile/notifications' as any)} />
           <View style={styles.menuDivider} />
-          <MenuItem icon="settings"      label="Paramètres"                onPress={() => {}} />
+          <MenuItem icon="settings"      label="Paramètres"                onPress={() => router.push('/profile/settings' as any)} />
           <View style={styles.menuDivider} />
           <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => {}} />
         </View>

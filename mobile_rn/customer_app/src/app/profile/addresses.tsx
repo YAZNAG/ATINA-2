@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   FlatList, TouchableOpacity, Modal, TextInput,
@@ -7,21 +7,97 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { ProfileService, Address } from '../../services/profile.service';
+import { CatalogService } from '../../services/catalog.service';
 import PageHeader from '../../components/ui/PageHeader';
-
 
 const RED = '#E62A27';
 const { height } = Dimensions.get('window');
+
+type City = { id: string; name_fr: string; name_ar: string; postal_code?: string | null };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  City Picker Modal
+// ─────────────────────────────────────────────────────────────────────────────
+const CityPickerModal = ({
+  visible, cities, selectedCity, onSelect, onClose,
+}: {
+  visible: boolean;
+  cities: City[];
+  selectedCity: string;
+  onSelect: (city: City) => void;
+  onClose: () => void;
+}) => {
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() =>
+    cities.filter((c) =>
+      c.name_fr.toLowerCase().includes(search.toLowerCase()) ||
+      c.name_ar.includes(search)
+    ), [cities, search]
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.pickerOverlay}>
+        <View style={styles.pickerCard}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Choisir la ville</Text>
+            <TouchableOpacity onPress={() => { setSearch(''); onClose(); }}>
+              <Feather name="x" size={22} color="#1a1a1a" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchRow}>
+            <Feather name="search" size={16} color="#9CA3AF" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher une ville..."
+              placeholderTextColor="#9CA3AF"
+              value={search}
+              onChangeText={setSearch}
+              autoFocus
+            />
+          </View>
+
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.cityItem, selectedCity === item.name_fr && styles.cityItemSelected]}
+                onPress={() => { onSelect(item); setSearch(''); }}
+                activeOpacity={0.7}
+              >
+                <Feather name="map-pin" size={16} color={selectedCity === item.name_fr ? RED : '#9CA3AF'} />
+                <Text style={styles.cityName}>{item.name_fr}</Text>
+                {item.postal_code && <Text style={styles.cityPostal}>{item.postal_code}</Text>}
+                {selectedCity === item.name_fr && <Feather name="check" size={16} color={RED} />}
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <View style={styles.pickerEmpty}>
+                <Text style={styles.pickerEmptyText}>Aucune ville trouvée</Text>
+              </View>
+            }
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Address Form Modal
 // ─────────────────────────────────────────────────────────────────────────────
 const AddressFormModal = ({
-  visible, address, onSave, onClose, saving,
+  visible, address, cities, onSave, onClose, saving,
 }: {
   visible:  boolean;
   address:  Address | null;
+  cities:   City[];
   onSave:   (data: Partial<Address>) => void;
   onClose:  () => void;
   saving:   boolean;
@@ -34,6 +110,10 @@ const AddressFormModal = ({
   const [postalCode, setPostalCode]       = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [isDefault, setIsDefault]         = useState(false);
+  const [lat, setLat]                     = useState<number | null>(null);
+  const [lng, setLng]                     = useState<number | null>(null);
+  const [locating, setLocating]           = useState(false);
+  const [cityPickerVisible, setCityPickerVisible] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -45,8 +125,56 @@ const AddressFormModal = ({
       setPostalCode(address?.postal_code || '');
       setDeliveryNotes(address?.delivery_notes || '');
       setIsDefault(address?.is_default || false);
+      setLat(address?.lat != null ? Number(address.lat) : null);
+      setLng(address?.lng != null ? Number(address.lng) : null);
     }
   }, [visible, address]);
+
+  // ── Géolocalisation ──
+  const handleGetLocation = async () => {
+    try {
+      setLocating(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission refusée', 'Autorisez la localisation pour utiliser votre position actuelle.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLat(loc.coords.latitude);
+      setLng(loc.coords.longitude);
+
+      try {
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude:  loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        if (place) {
+          if (place.street && !streetName)      setStreetName(place.street);
+          if (place.district && !quartier)      setQuartier(place.district);
+          if (place.postalCode && !postalCode)  setPostalCode(place.postalCode);
+          // pour la ville : essaie de matcher avec une ville de la DB
+          if (place.city) {
+            const match = cities.find((c) =>
+              c.name_fr.toLowerCase() === place.city!.toLowerCase()
+            );
+            if (match) setCity(match.name_fr);
+          }
+        }
+      } catch { /* géocodage inverse optionnel */ }
+
+      Alert.alert('Position capturée', 'Votre localisation a été enregistrée pour cette adresse.');
+    } catch (e) {
+      Alert.alert('Erreur', "Impossible d'obtenir votre position. Vérifiez que le GPS est activé.");
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleSelectCity = (selected: City) => {
+    setCity(selected.name_fr);
+    if (selected.postal_code && !postalCode) setPostalCode(selected.postal_code);
+    setCityPickerVisible(false);
+  };
 
   const handleSubmit = () => {
     if (!streetName.trim()) { Alert.alert('Erreur', 'Le nom de rue est requis'); return; }
@@ -60,7 +188,9 @@ const AddressFormModal = ({
       postal_code:    postalCode.trim() || null,
       delivery_notes: deliveryNotes.trim() || null,
       is_default:     isDefault,
-    });
+      lat,
+      lng,
+    } as Partial<Address>);
   };
 
   return (
@@ -76,6 +206,29 @@ const AddressFormModal = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            {/* ── Bouton géolocalisation ── */}
+            <TouchableOpacity
+              style={[styles.locationBtn, lat != null && styles.locationBtnDone]}
+              onPress={handleGetLocation}
+              disabled={locating}
+              activeOpacity={0.8}
+            >
+              {locating ? (
+                <ActivityIndicator color={RED} size="small" />
+              ) : (
+                <>
+                  <Feather name={lat != null ? 'check-circle' : 'map-pin'} size={18} color={RED} />
+                  <Text style={styles.locationBtnText}>
+                    {lat != null ? 'Position enregistrée' : 'Utiliser ma position actuelle'}
+                  </Text>
+                  {lat != null && (
+                    <Text style={styles.locationCoords}>{lat.toFixed(4)}, {lng?.toFixed(4)}</Text>
+                  )}
+                </>
+              )}
+            </TouchableOpacity>
+
             <Text style={styles.fieldLabel}>Libellé (ex: Maison, Bureau)</Text>
             <TextInput style={styles.input} value={label} onChangeText={setLabel} placeholder="Maison" placeholderTextColor="#C4C4C4" />
 
@@ -96,7 +249,17 @@ const AddressFormModal = ({
             <View style={styles.row}>
               <View style={{ flex: 2, marginRight: 8 }}>
                 <Text style={styles.fieldLabel}>Ville *</Text>
-                <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Agadir" placeholderTextColor="#C4C4C4" />
+                {/* ── Sélecteur de ville ── */}
+                <TouchableOpacity
+                  style={styles.citySelector}
+                  onPress={() => setCityPickerVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.citySelectorText, !city && styles.citySelectorPlaceholder]}>
+                    {city || 'Choisir une ville'}
+                  </Text>
+                  <Feather name="chevron-down" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.fieldLabel}>Code postal</Text>
@@ -121,6 +284,15 @@ const AddressFormModal = ({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── City Picker ── */}
+      <CityPickerModal
+        visible={cityPickerVisible}
+        cities={cities}
+        selectedCity={city}
+        onSelect={handleSelectCity}
+        onClose={() => setCityPickerVisible(false)}
+      />
     </Modal>
   );
 };
@@ -132,6 +304,7 @@ export default function AddressesScreen() {
   const router = useRouter();
 
   const [addresses, setAddresses]   = useState<Address[]>([]);
+  const [cities, setCities]         = useState<City[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -150,7 +323,16 @@ export default function AddressesScreen() {
     }
   };
 
-  useEffect(() => { loadAddresses(); }, []);
+  const loadCities = async () => {
+    try {
+      const data = await CatalogService.getCities();
+      setCities(data as City[]);
+    } catch (err: any) {
+      console.log('Error loading cities:', err);
+    }
+  };
+
+  useEffect(() => { loadAddresses(); loadCities(); }, []);
   const onRefresh = useCallback(() => { setRefreshing(true); loadAddresses(); }, []);
 
   const handleSave = async (data: Partial<Address>) => {
@@ -193,7 +375,6 @@ export default function AddressesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── Header ── */}
       <PageHeader title="Mes adresses" />
 
       {loading ? (
@@ -251,16 +432,15 @@ export default function AddressesScreen() {
         />
       )}
 
-      {/* ── Add button ── */}
       <TouchableOpacity style={styles.fab} onPress={openAdd} activeOpacity={0.85}>
         <Feather name="plus" size={22} color="#fff" />
         <Text style={styles.fabText}>Ajouter une adresse</Text>
       </TouchableOpacity>
 
-      {/* ── Form Modal ── */}
       <AddressFormModal
         visible={modalVisible}
         address={editAddress}
+        cities={cities}
         saving={saving}
         onSave={handleSave}
         onClose={() => { setModalVisible(false); setEditAddress(null); }}
@@ -272,10 +452,6 @@ export default function AddressesScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F5F5F5' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff' },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
 
   list: { padding: 16, gap: 12, paddingBottom: 100 },
 
@@ -305,10 +481,21 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a1a' },
 
+  // Géoloc
+  locationBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: RED, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, marginTop: 4, backgroundColor: '#FFF8F8' },
+  locationBtnDone: { backgroundColor: '#F0FDF4', borderColor: '#22C55E' },
+  locationBtnText: { fontSize: 14, fontWeight: '600', color: RED },
+  locationCoords:  { fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' },
+
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 6, marginTop: 12 },
   input: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 14 : 11, fontSize: 15, color: '#1a1a1a', backgroundColor: '#FAFAFA' },
   textArea: { height: 70, textAlignVertical: 'top' },
   row: { flexDirection: 'row' },
+
+  // City selector
+  citySelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 14 : 12, backgroundColor: '#FAFAFA' },
+  citySelectorText: { fontSize: 15, color: '#1a1a1a' },
+  citySelectorPlaceholder: { color: '#C4C4C4' },
 
   defaultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center', justifyContent: 'center' },
@@ -317,4 +504,18 @@ const styles = StyleSheet.create({
 
   btnSave: { backgroundColor: RED, borderRadius: 50, paddingVertical: 16, alignItems: 'center', marginTop: 24, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   btnSaveText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // City picker modal
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, maxHeight: height * 0.7 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
+  pickerTitle: { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: '#1a1a1a' },
+  cityItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  cityItemSelected: { backgroundColor: '#FFF5F5' },
+  cityName: { flex: 1, fontSize: 15, color: '#1a1a1a', fontWeight: '500' },
+  cityPostal: { fontSize: 13, color: '#9CA3AF' },
+  pickerEmpty: { alignItems: 'center', padding: 32 },
+  pickerEmptyText: { color: '#9CA3AF', fontSize: 14 },
 });

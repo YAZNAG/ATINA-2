@@ -24,7 +24,7 @@ class CustomerCheckoutController {
         ? JSON.parse(req.query.cart_items)
         : req.body?.cart_items || [];
       const date = req.query.date || req.body?.date;
-      const result = await svc.findPickupNodes(cart_items, date);
+      const result = await svc.findPickupNodes(req.customerId, cart_items, date);
       return resp.success(res, result);
     } catch (e) { next(e); }
   }

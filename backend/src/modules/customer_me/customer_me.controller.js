@@ -76,6 +76,24 @@ class CustomerMeController {
     }
     catch(e) { E(res, next, e); }
   }
+
+   // Account settings
+  async updateEmail(req, res, next) {
+    try { resp.success(res, await svc.updateEmail(req.customerId, req.body), 'Email mis à jour'); }
+    catch(e) { E(res, next, e); }
+  }
+  async requestPhoneChange(req, res, next) {
+    try { resp.success(res, await svc.requestPhoneChange(req.customerId, req.body), 'Code envoyé'); }
+    catch(e) { E(res, next, e); }
+  }
+  async confirmPhoneChange(req, res, next) {
+    try { resp.success(res, await svc.confirmPhoneChange(req.customerId, req.body), 'Téléphone mis à jour'); }
+    catch(e) { E(res, next, e); }
+  }
+  async changePassword(req, res, next) {
+    try { resp.success(res, await svc.changePassword(req.customerId, req.body), 'Mot de passe modifié'); }
+    catch(e) { E(res, next, e); }
+  }
 }
 
 module.exports = new CustomerMeController();

@@ -217,3 +217,7 @@ export async function resetPassword(
     body: JSON.stringify({ phone_country, phone_number, otp, new_password }),
   });
 }
+
+export async function getMe(): Promise<MeResponse> {
+  return request<MeResponse>('/customer/auth/me', { method: 'GET' }, true);
+}

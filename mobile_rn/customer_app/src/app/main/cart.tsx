@@ -209,7 +209,7 @@ export default function CartScreen() {
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{cart.total.toFixed(2)} DH</Text>
             </View>
-            <TouchableOpacity style={styles.btnCheckout} activeOpacity={0.85} onPress={() => router.push('' as any)}>
+            <TouchableOpacity style={styles.btnCheckout} activeOpacity={0.85} onPress={() => router.push('/../order/delivery_type' as any)}>
               <Text style={styles.btnCheckoutText}>Passer la commande</Text>
               <View style={styles.btnCheckoutArrow}>
                 <Feather name="chevron-right" size={18} color={RED} />

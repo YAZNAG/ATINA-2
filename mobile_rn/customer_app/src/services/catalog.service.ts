@@ -1,5 +1,13 @@
 import api from '../api/client';
 
+export interface City {
+  id:          string;
+  name_fr:     string;
+  name_ar:     string;
+  postal_code: string | null;
+  code:        string;
+}
+
 export interface Category {
   id: number;
   name_fr: string;
@@ -147,5 +155,13 @@ export const CatalogService = {
   },
 
   //cities
+    async getCities(): Promise<City[]> {
+    try {
+      const response = await api.get('/customer/catalog/cities');
+      return response.data.data || [];
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Erreur chargement villes');
+    }
+  },
 
 };

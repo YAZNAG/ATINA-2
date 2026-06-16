@@ -41,6 +41,7 @@ const router = Router();
 router.use('/customer/auth',     customerAuthRoutes);
 router.use('/customer/catalog',  customerCatalogRoutes);
 router.use('/customer/me',       customerMeRoutes);
+router.use('/customer/cart', customerCartRoutes);
 router.use('/customer/checkout', customerCheckoutRoutes);
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
 router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
@@ -71,7 +72,7 @@ router.use('/pickup',      pickupRoutes);
 router.use('/delivery',    deliveryMgmtRoutes);
 router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
 
-router.use('/customer/cart', customerCartRoutes);
+
 
 
 module.exports = router;

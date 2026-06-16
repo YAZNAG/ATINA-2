@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, Image, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator, Dimensions,
+  Modal, FlatList,
 } from 'react-native';
 import {
   useFonts, Inter_400Regular, Inter_500Medium,
@@ -12,11 +13,14 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { login } from '../../services/customer_auth.service';
+import countries from '../../constants/countries.json';
 
 SplashScreen.preventAutoHideAsync();
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const RED = '#E10600';
-const COUNTRY = { flag: '🇲🇦', code: '+212' };
+
+type Country = { code: string; flag: string; name: string };
+type LoginMode = 'phone' | 'email';
 
 const Logo = () => (
   <View style={styles.logoContainer}>
@@ -25,8 +29,6 @@ const Logo = () => (
     <Image source={require('../../../assets/images/app/arab.png')} style={styles.logoTextRight} resizeMode="stretch" />
   </View>
 );
-
-type LoginMode = 'phone' | 'email';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -45,6 +47,21 @@ export default function LoginScreen() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
+  // ── Sélecteur de pays ──
+  const countryList = countries as Country[];
+  const [country, setCountry] = useState<Country>(
+    countryList.find((c) => c.code === '+212') || countryList[0]
+  );
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  const filteredCountries = useMemo(() =>
+    countryList.filter((c) =>
+      c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+      c.code.includes(countrySearch)
+    ), [countryList, countrySearch]
+  );
+
   if (!fontsLoaded) return null;
 
   const clearError = () => setError('');
@@ -58,9 +75,9 @@ export default function LoginScreen() {
       setLoading(true);
       clearError();
       if (mode === 'phone') {
-        await login(phone.trim(), password, COUNTRY.code);
+        await login(phone.trim(), password, country.code);
       } else {
-        await login('', password, COUNTRY.code, email.trim());
+        await login('', password, country.code, email.trim());
       }
       router.replace('/main/home');
     } catch (e: any) {
@@ -68,6 +85,12 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectCountry = (c: Country) => {
+    setCountry(c);
+    setCountryPickerVisible(false);
+    setCountrySearch('');
   };
 
   return (
@@ -114,10 +137,16 @@ export default function LoginScreen() {
                 <>
                   <Text style={styles.label}>Numéro de téléphone</Text>
                   <View style={styles.phoneRow}>
-                    <View style={styles.countryPill}>
-                      <Text style={styles.countryFlag}>{COUNTRY.flag}</Text>
-                      <Text style={styles.countryCode}>{COUNTRY.code}</Text>
-                    </View>
+                    {/* Sélecteur de pays */}
+                    <TouchableOpacity
+                      style={styles.countryPill}
+                      onPress={() => setCountryPickerVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.countryFlag}>{country.flag}</Text>
+                      <Text style={styles.countryCode}>{country.code}</Text>
+                      <Feather name="chevron-down" size={14} color="#9CA3AF" />
+                    </TouchableOpacity>
                     <TextInput
                       style={styles.phoneInput}
                       placeholder="6 12 34 56 78"
@@ -166,11 +195,6 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* ── Mot de passe oublié ── */}
-              <TouchableOpacity style={styles.forgotRow} onPress={() => router.push('/auth/forgot-password' as any)} activeOpacity={0.8}>
-                <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
-              </TouchableOpacity>
-
               {/* ── Erreur ── */}
               {!!error && (
                 <View style={styles.errorBox}>
@@ -195,7 +219,6 @@ export default function LoginScreen() {
                 <View style={styles.sepLine} />
               </View>
 
-
               {/* ── Créer un compte ── */}
               <View style={styles.signupRow}>
                 <Text style={styles.signupLabel}>Nouveau ici ? </Text>
@@ -208,6 +231,64 @@ export default function LoginScreen() {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── Country Picker Modal ── */}
+      <Modal
+        visible={countryPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCountryPickerVisible(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHandle} />
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Choisir un pays</Text>
+              <TouchableOpacity onPress={() => { setCountryPickerVisible(false); setCountrySearch(''); }}>
+                <Feather name="x" size={22} color="#1a1a1a" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchRow}>
+              <Feather name="search" size={16} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Rechercher un pays..."
+                placeholderTextColor="#9CA3AF"
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                autoFocus
+              />
+            </View>
+
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={(item) => item.code + item.name}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.countryItem, country.code === item.code && country.name === item.name && styles.countryItemSelected]}
+                  onPress={() => handleSelectCountry(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.countryItemFlag}>{item.flag}</Text>
+                  <Text style={styles.countryItemName}>{item.name}</Text>
+                  <Text style={styles.countryItemCode}>{item.code}</Text>
+                  {country.code === item.code && country.name === item.name && (
+                    <Feather name="check" size={18} color={RED} />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.pickerEmpty}>
+                  <Text style={styles.pickerEmptyText}>Aucun pays trouvé</Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -236,15 +317,8 @@ const styles = StyleSheet.create({
   tabText:       { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
   tabTextActive: { color: '#FFFFFF' },
 
-  // Mode toggle
-  modeRow: {
-    flexDirection: 'row', backgroundColor: '#F5F5F5',
-    borderRadius: 10, padding: 3, marginBottom: 20, gap: 3,
-  },
-  modeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, borderRadius: 8, gap: 6,
-  },
+  modeRow: { flexDirection: 'row', backgroundColor: '#F5F5F5', borderRadius: 10, padding: 3, marginBottom: 20, gap: 3 },
+  modeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 8, gap: 6 },
   modeBtnActive:     { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
   modeBtnText:       { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
   modeBtnTextActive: { color: RED },
@@ -278,7 +352,7 @@ const styles = StyleSheet.create({
   pwdRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#F5F5F5', borderRadius: 12,
-    borderWidth: 1, borderColor: '#EEEEEE', marginBottom: 8,
+    borderWidth: 1, borderColor: '#EEEEEE', marginBottom: 20,
   },
   pwdInput: {
     flex: 1, paddingLeft: 44, paddingRight: 8,
@@ -286,9 +360,6 @@ const styles = StyleSheet.create({
     fontSize: 15, color: '#212121',
   },
   eyeBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-
-  forgotRow: { alignSelf: 'flex-end', marginBottom: 20 },
-  forgotText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: RED },
 
   errorBox:  { backgroundColor: '#FEE2E2', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
   errorText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#B91C1C', textAlign: 'center' },
@@ -305,14 +376,23 @@ const styles = StyleSheet.create({
   sepLine:  { flex: 1, height: 1, backgroundColor: '#E0E0E0' },
   sepLabel: { marginHorizontal: 12, fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
 
-  btnOutline: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 14, paddingVertical: 14,
-    borderWidth: 1.5, borderColor: RED, marginBottom: 20,
-  },
-  btnOutlineText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: RED },
-
   signupRow:   { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
   signupLabel: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   signupLink:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: RED },
+
+  // Country picker
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, maxHeight: height * 0.75 },
+  pickerHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 12 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
+  pickerTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1a1a1a' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#1a1a1a' },
+  countryItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  countryItemSelected: { backgroundColor: '#FFF5F5' },
+  countryItemFlag: { fontSize: 22 },
+  countryItemName: { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', color: '#1a1a1a' },
+  countryItemCode: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  pickerEmpty: { alignItems: 'center', padding: 32 },
+  pickerEmptyText: { color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' },
 });

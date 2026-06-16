@@ -28,4 +28,9 @@ router.get('/notifications',              ctrl.listNotifications.bind(ctrl));
 router.patch('/notifications/:id/read',   ctrl.markRead.bind(ctrl));
 router.patch('/notifications/read-all',   ctrl.markAllRead.bind(ctrl));
 
+router.put('/email',               ctrl.updateEmail.bind(ctrl));
+router.post('/phone/request-otp',  ctrl.requestPhoneChange.bind(ctrl));
+router.post('/phone/verify-otp',   ctrl.confirmPhoneChange.bind(ctrl));
+router.put('/password',            ctrl.changePassword.bind(ctrl));
+
 module.exports = router;

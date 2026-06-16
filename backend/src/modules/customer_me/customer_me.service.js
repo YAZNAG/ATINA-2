@@ -1,4 +1,5 @@
 const prisma = require('../../config/database');
+const bcrypt = require('bcrypt');  
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function getProfile(customerId) {
@@ -256,4 +257,112 @@ async function getOrderById(customerId, orderId) {
   return formatOrderDetail(order);
 }
 
-module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById };
+
+async function getUserId(customerId) {
+  const customer = await prisma.customer.findFirst({
+    where:  { id: customerId, is_deleted: false },
+    select: { user_id: true },
+  });
+  if (!customer?.user_id) throw { statusCode: 404, message: 'Utilisateur introuvable' };
+  return customer.user_id;
+}
+ 
+// Email
+async function updateEmail(customerId, body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) throw { statusCode: 400, message: 'Email invalide' };
+ 
+  const userId = await getUserId(customerId);
+ 
+  // Vérifie unicité
+  const existing = await prisma.user.findFirst({
+    where: { email, id: { not: userId } },
+    select: { id: true },
+  });
+  if (existing) throw { statusCode: 409, message: 'Cet email est déjà utilisé' };
+ 
+  await prisma.user.update({ where: { id: userId }, data: { email } });
+  return { message: 'Email mis à jour' };
+}
+ 
+// Téléphone : étape 1 — demande OTP (test = 0000)
+async function requestPhoneChange(customerId, body) {
+  const phone_country = String(body.phone_country || '+212').trim();
+  const phone_number  = String(body.phone_number || '').trim();
+  if (!phone_number) throw { statusCode: 400, message: 'Numéro requis' };
+ 
+  const userId = await getUserId(customerId);
+ 
+  // Vérifie que le numéro n'est pas déjà pris par un autre user
+  const existing = await prisma.user.findFirst({
+    where: { phone_country, phone_number, id: { not: userId } },
+    select: { id: true },
+  });
+  if (existing) throw { statusCode: 409, message: 'Ce numéro est déjà utilisé' };
+ 
+  // En prod : générer un vrai code + envoyer SMS. Ici test = 0000
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { otp_code: '0000', otp_expires_at: new Date(Date.now() + 10 * 60000) },
+  });
+  return { message: 'Code de vérification envoyé' };
+}
+ 
+// Téléphone : étape 2 — vérifie OTP + met à jour
+async function confirmPhoneChange(customerId, body) {
+  const phone_country = String(body.phone_country || '+212').trim();
+  const phone_number  = String(body.phone_number || '').trim();
+  const otp           = String(body.otp || '').trim();
+  if (!phone_number) throw { statusCode: 400, message: 'Numéro requis' };
+  if (!otp)          throw { statusCode: 400, message: 'Code requis' };
+ 
+  const userId = await getUserId(customerId);
+ 
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { otp_code: true, otp_expires_at: true },
+  });
+  if (user.otp_code !== otp) throw { statusCode: 400, message: 'Code incorrect' };
+  if (user.otp_expires_at && user.otp_expires_at < new Date())
+    throw { statusCode: 400, message: 'Code expiré, redemandez-en un' };
+ 
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data:  {
+        phone_country, phone_number,
+        phone_verified_at: new Date(),
+        otp_code: null, otp_expires_at: null,
+      },
+    }),
+    prisma.customer.update({
+      where: { id: customerId },
+      data:  { phone_country, phone_number, phone_verified_at: new Date() },
+    }),
+  ]);
+  return { message: 'Téléphone mis à jour' };
+}
+ 
+// Mot de passe
+async function changePassword(customerId, body) {
+  const old_password = String(body.old_password || '');
+  const new_password = String(body.new_password || '');
+  if (!old_password || !new_password) throw { statusCode: 400, message: 'Champs requis' };
+  if (new_password.length < 6) throw { statusCode: 400, message: 'Min. 6 caractères' };
+ 
+  const userId = await getUserId(customerId);
+ 
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { password_hash: true },
+  });
+  if (!user?.password_hash) throw { statusCode: 400, message: 'Aucun mot de passe défini' };
+ 
+  const valid = await bcrypt.compare(old_password, user.password_hash);
+  if (!valid) throw { statusCode: 400, message: 'Mot de passe actuel incorrect' };
+ 
+  const hash = await bcrypt.hash(new_password, 10);
+  await prisma.user.update({ where: { id: userId }, data: { password_hash: hash } });
+  return { message: 'Mot de passe modifié' };
+}
+module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById , updateEmail, changePassword, requestPhoneChange, confirmPhoneChange };

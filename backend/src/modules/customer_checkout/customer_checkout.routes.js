@@ -10,5 +10,7 @@ router.get('/delivery-slots',  ctrl.deliverySlots.bind(ctrl));
 router.post('/eligible-nodes', ctrl.eligibleNodes.bind(ctrl));
 router.get('/pickup-nodes',    ctrl.pickupNodes.bind(ctrl));
 router.post('/create-order',   ctrl.createOrder.bind(ctrl));
+router.post('/calculate', ctrl.calculate.bind(ctrl));
+
 
 module.exports = router;

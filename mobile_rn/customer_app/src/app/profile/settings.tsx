@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Image,
   SafeAreaView, StatusBar, Platform, ScrollView,
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Dimensions,
 } from 'react-native';
@@ -10,7 +10,9 @@ import {
   useFonts, Inter_400Regular, Inter_500Medium,
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import * as ImagePicker from 'expo-image-picker';
 import { ProfileService, Profile } from '../../services/profile.service';
+import { CONFIG } from '../../constants/config';
 import PageHeader from '../../components/ui/PageHeader';
 
 const RED = '#E10600';
@@ -28,6 +30,8 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editField, setEditField] = useState<EditField>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [langSaving, setLangSaving] = useState(false);
 
   const loadProfile = async () => {
     try {
@@ -41,6 +45,69 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => { loadProfile(); }, []);
+
+  const avatarUrl = profile?.avatar_url ? CONFIG.STORAGE_URL + profile.avatar_url : null;
+
+  const handleLangChange = async (lang: 'fr' | 'ar') => {
+    if (langSaving || profile?.preferred_lang === lang) return;
+    setLangSaving(true);
+    try {
+      await ProfileService.updateProfile({ preferred_lang: lang });
+      setProfile(prev => prev ? { ...prev, preferred_lang: lang } : prev);
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message);
+    } finally {
+      setLangSaving(false);
+    }
+  };
+
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission refusée', "Autorisez l'accès à la galerie dans les paramètres.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setAvatarLoading(true);
+    try {
+      const updated = await ProfileService.uploadAvatar(result.assets[0].uri);
+      setProfile(updated);
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message);
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    Alert.alert(
+      'Retirer la photo',
+      'Êtes-vous sûr de vouloir supprimer votre photo de profil ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer', style: 'destructive',
+          onPress: async () => {
+            setAvatarLoading(true);
+            try {
+              const updated = await ProfileService.deleteAvatar();
+              setProfile(updated);
+            } catch (e: any) {
+              Alert.alert('Erreur', e.message);
+            } finally {
+              setAvatarLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (!fontsLoaded) return null;
 
@@ -57,6 +124,42 @@ export default function SettingsScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
 
+          {/* ── Section Photo ── */}
+          <Text style={styles.sectionTitle}>Photo de profil</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.photoRow} onPress={handlePickAvatar} activeOpacity={0.7} disabled={avatarLoading}>
+              <View style={styles.photoPreview}>
+                {avatarLoading ? (
+                  <View style={[styles.photoThumb, styles.photoPlaceholder]}>
+                    <ActivityIndicator size="small" color={RED} />
+                  </View>
+                ) : avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.photoThumb} />
+                ) : (
+                  <View style={[styles.photoThumb, styles.photoPlaceholder]}>
+                    <Feather name="camera" size={20} color="#9CA3AF" />
+                  </View>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>Photo de profil</Text>
+                <Text style={styles.rowValue}>{avatarUrl ? 'Modifier la photo' : 'Ajouter une photo'}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="#C0C0C0" />
+            </TouchableOpacity>
+            {avatarUrl && (
+              <>
+                <Divider />
+                <TouchableOpacity style={styles.row} onPress={handleRemoveAvatar} activeOpacity={0.7}>
+                  <View style={[styles.rowIcon, { backgroundColor: '#FFF5F5' }]}>
+                    <Feather name="trash-2" size={18} color="#E10600" />
+                  </View>
+                  <Text style={[styles.rowValue, { color: '#E10600' }]}>Retirer la photo</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
           {/* ── Section Informations ── */}
           <Text style={styles.sectionTitle}>Informations personnelles</Text>
           <View style={styles.card}>
@@ -72,6 +175,42 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Sécurité</Text>
           <View style={styles.card}>
             <Row icon="lock" label="Mot de passe" value="••••••••" onPress={() => setEditField('password')} />
+          </View>
+
+          {/* ── Section Préférences ── */}
+          <Text style={styles.sectionTitle}>Préférences</Text>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather name="globe" size={18} color={RED} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>Langue</Text>
+                <View style={styles.langPills}>
+                  {([
+                    { code: 'fr', label: 'Français', flag: '' },
+                    { code: 'ar', label: 'العربية',  flag: '' },
+                  ] as const).map(opt => {
+                    const active = (profile?.preferred_lang ?? 'fr') === opt.code;
+                    return (
+                      <TouchableOpacity
+                        key={opt.code}
+                        style={[styles.langPill, active && styles.langPillActive]}
+                        onPress={() => handleLangChange(opt.code)}
+                        activeOpacity={0.75}
+                        disabled={langSaving}
+                      >
+                        <Text style={styles.langFlag}>{opt.flag}</Text>
+                        <Text style={[styles.langLabel, active && styles.langLabelActive]}>
+                          {opt.label}
+                        </Text>
+                        {active && <Feather name="check" size={13} color={RED} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
           </View>
 
         </ScrollView>
@@ -324,11 +463,11 @@ const SaveButton = ({ saving, onPress, label }: { saving: boolean; onPress: () =
 );
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F7F7F7' },
+  safeArea: { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   sectionTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF', marginBottom: 10, marginTop: 12, marginLeft: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  card: { backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: '#F0F0F0' },
+  card: { backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: '#e1dfdf' },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   rowIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center' },
@@ -355,4 +494,21 @@ const styles = StyleSheet.create({
 
   btnSave: { backgroundColor: RED, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   btnSaveText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  photoPreview: { width: 38, height: 38 },
+  photoThumb: { width: 38, height: 38, borderRadius: 19 },
+  photoPlaceholder: { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+
+  langPills:      { flexDirection: 'row', gap: 8, marginTop: 8 },
+  langPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  langPillActive:  { borderColor: RED, backgroundColor: '#FFF0F0' },
+  langFlag:        { fontSize: 16 },
+  langLabel:       { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280' },
+  langLabelActive: { color: RED, fontFamily: 'Inter_600SemiBold' },
 });

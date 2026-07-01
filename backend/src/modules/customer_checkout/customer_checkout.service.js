@@ -9,7 +9,7 @@ const prisma    = require('../../config/database');
 const checkoutSvc = require('../checkout/checkout.service');
 const repo      = require('../checkout/checkout.repository');
 
-// ── Haversine : distance en km entre 2 points GPS ─────────────────────────────
+// distance en km entre 2 points GPS 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const R = 6371;
@@ -48,6 +48,7 @@ async function resolveCartItems(cart_items) {
     }),
   ]);
 
+
   const codeMap = Object.fromEntries(byCode.map(s => [s.article.sku_code, s]));
   const idMap   = Object.fromEntries(byId.map(s => [s.id, s]));
 
@@ -60,6 +61,16 @@ async function resolveCartItems(cart_items) {
       unit_price: item.unit_price ?? Number(sku?.article?.price ?? 0),
       vat_rate:   item.vat_rate   ?? Number(sku?.article?.vat_rate ?? 20),
     };
+  });
+}
+
+async function calculate(customerId, payload) {
+  const { cart_items, ...rest } = payload;
+  const resolved = await resolveCartItems(cart_items || []);
+  return checkoutSvc.calculate({
+    ...rest,
+    customer_id: customerId,
+    cart_items:  resolved,
   });
 }
 
@@ -149,14 +160,15 @@ async function getDeliverySlots(params) {
 
 // ── Create order ──────────────────────────────────────────────────────────────
 async function createOrder(customerId, payload) {
-  const { cart_items, ...rest } = payload;
+  const { cart_items, slot_id, ...rest } = payload;
   const resolved = await resolveCartItems(cart_items || []);
 
   const order = await checkoutSvc.createOrder({
     ...rest,
-    customer_id: customerId,
-    cart_items:  resolved,
-    initial_status_code: 'confirmed', // customer checkout → auto-confirmed
+    customer_id:      customerId,
+    cart_items:       resolved,
+    selected_slot_id: slot_id || null,   // checkout.service.js uses selected_slot_id
+    initial_status_code: 'confirmed',
   });
 
   // Fire-and-forget notification
@@ -166,4 +178,4 @@ async function createOrder(customerId, payload) {
   return order;
 }
 
-module.exports = { getMeta, findEligibleNodes, findPickupNodes, getDeliverySlots, createOrder };
+module.exports = { getMeta, findEligibleNodes, findPickupNodes, getDeliverySlots, createOrder, calculate };

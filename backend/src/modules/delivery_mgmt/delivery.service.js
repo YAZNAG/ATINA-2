@@ -43,7 +43,7 @@ async function getTour(id) {
 }
 
 function checkTourStatus(tour, expected) {
-  if (tour.status.code !== expected)
+  if (tour.status.code.toLowerCase() !== expected.toLowerCase())
     throw { statusCode: 422, message: `Tournée au statut "${tour.status.name_fr}" — attendu : "${expected}"` };
 }
 
@@ -122,7 +122,7 @@ async function createTour({ node_id, driver_id, date, slot_start, slot_end, zone
       where: { id: { in: order_ids }, is_deleted: false, tour_id: null },
       include: { status: true, delivery_type: true },
     });
-    validOrders = orders.filter(o => o.status.code === 'ready' && o.delivery_type?.code === 'home' && o.node_id === node_id);
+    validOrders = orders.filter(o => o.status.code.toLowerCase() === 'ready' && o.delivery_type?.code.toLowerCase() === 'home' && o.node_id === node_id);
     const skipped = order_ids.length - validOrders.length;
     if (skipped > 0 && validOrders.length === 0)
       throw { statusCode: 422, message: 'Aucune commande valide (home, ready, même node, sans tournée)' };
@@ -196,7 +196,7 @@ async function addOrdersToTour(tour_id, order_ids) {
     where: { id: { in: order_ids }, is_deleted: false, tour_id: null },
     include: { status: true, delivery_type: true },
   });
-  const valid = orders.filter(o => o.status.code === 'ready' && o.delivery_type?.code === 'home');
+  const valid = orders.filter(o => o.status.code.toLowerCase() === 'ready' && o.delivery_type?.code.toLowerCase() === 'home');
   if (!valid.length) throw { statusCode: 422, message: 'Aucune commande valide à ajouter' };
 
   const maxSort = tour.stops.reduce((m, s) => Math.max(m, s.sort_order), 0);
@@ -256,14 +256,15 @@ async function arriveStop(stop_id, { driver_notes } = {}) {
     include: { tour: { include: { status: true } }, status: true },
   });
   if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
-  if (['delivered', 'failed'].includes(stop.status.code))
+  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
+  if (['delivered', 'failed'].includes(stop.status.code.toLowerCase()))
     throw { statusCode: 422, message: `Stop déjà ${stop.status.name_fr}` };
 
-  const arrivedId = await h.getStopStatusId('arrived');
+  const arrivedStatus = await h.getStopStatus('arrived') ?? await h.getStopStatus('in_progress');
+  if (!arrivedStatus) throw { statusCode: 500, message: 'Statut stop "arrived"/"in_progress" introuvable' };
   await prisma.tourStop.update({
     where: { id: stop_id },
-    data:  { status_id: arrivedId, driver_notes: driver_notes ?? stop.driver_notes ?? null },
+    data:  { status_id: arrivedStatus.id, driver_notes: driver_notes ?? stop.driver_notes ?? null },
   });
   return prisma.tourStop.findUnique({ where: { id: stop_id }, include: STOP_INCLUDE });
 }
@@ -285,16 +286,16 @@ async function deliverStop(stop_id, { cod_collected = false, amount_collected, d
     },
   });
   if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code !== 'in_progress') throw { statusCode: 422, message: 'Démarrez la tournée avant de livrer' };
-  if (stop.status.code === 'delivered') throw { statusCode: 409, message: 'Stop déjà livré' };
+  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Démarrez la tournée avant de livrer' };
+  if (stop.status.code.toLowerCase() === 'delivered') throw { statusCode: 409, message: 'Stop déjà livré' };
   if (!stop.order_id || !stop.order) throw { statusCode: 422, message: 'Stop sans commande' };
 
   const order   = stop.order;
-  if (order.status.code !== 'in_delivery')
+  if (order.status.code.toLowerCase() !== 'in_delivery')
     throw { statusCode: 422, message: `Commande au statut "${order.status.code}" — attendu: in_delivery` };
 
   const payment = order.payments?.[0];
-  const isCOD   = payment?.payment_method?.code === 'cod';
+  const isCOD   = payment?.payment_method?.code.toLowerCase() === 'cod';
   if (isCOD && !cod_collected)
     throw { statusCode: 422, message: 'COD non collecté — indiquez cod_collected: true et amount_collected' };
   if (isCOD && cod_collected) {
@@ -349,7 +350,7 @@ async function deliverStop(stop_id, { cod_collected = false, amount_collected, d
     });
 
     // COD: collect payment
-    if (isCOD && cod_collected && payment && payment.status.code === 'pending') {
+    if (isCOD && cod_collected && payment && payment.status.code.toLowerCase() === 'pending') {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
@@ -388,7 +389,7 @@ async function deliverStop(stop_id, { cod_collected = false, amount_collected, d
 
     // Auto-complete tour if all stops done
     const allStops = await tx.tourStop.findMany({ where: { tour_id: stop.tour_id } });
-    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes(s.status?.code ?? ''));
+    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes((s.status?.code ?? '').toLowerCase()));
     if (allDone) {
       const completedId = await h.getTourStatusId('completed');
       await tx.tour.update({ where: { id: stop.tour_id }, data: { status_id: completedId } });
@@ -408,8 +409,8 @@ async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready
     include: { tour: { include: { status: true } }, status: true, order: { include: { status: true } } },
   });
   if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
-  if (stop.status.code === 'delivered') throw { statusCode: 422, message: 'Stop déjà livré' };
+  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
+  if (stop.status.code.toLowerCase() === 'delivered') throw { statusCode: 422, message: 'Stop déjà livré' };
 
   const [failedStopId, readyStatusRow, inDeliveryRow] = await Promise.all([
     h.getStopStatusId('failed'),
@@ -447,7 +448,7 @@ async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready
 
     // Auto-complete tour if all stops done
     const allStops = await tx.tourStop.findMany({ where: { tour_id: stop.tour_id } });
-    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes(s.status?.code ?? ''));
+    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes((s.status?.code ?? '').toLowerCase()));
     if (allDone) {
       const completedId = await h.getTourStatusId('completed');
       await tx.tour.update({ where: { id: stop.tour_id }, data: { status_id: completedId } });
@@ -461,7 +462,7 @@ async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready
 async function completeTour(tour_id) {
   const tour = await getTour(tour_id);
   checkTourStatus(tour, 'in_progress');
-  const pending = tour.stops.filter(s => s.status.code === 'pending' || s.status.code === 'arrived');
+  const pending = tour.stops.filter(s => ['pending', 'arrived', 'in_progress'].includes(s.status.code.toLowerCase()));
   if (pending.length > 0) throw { statusCode: 422, message: `${pending.length} stop(s) non traités` };
   const completedId = await h.getTourStatusId('completed');
   await prisma.tour.update({ where: { id: tour_id }, data: { status_id: completedId } });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Image, Dimensions, Alert,
@@ -6,6 +6,8 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
+import { ProfileService } from '../../services/profile.service';
+import { useCart } from '../../context/CartContext';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -16,14 +18,26 @@ interface ProductCardProps {
   onPress?:     () => void;
   onAddToCart?: () => void;
   discount?:    number;
+  oldPrice?:    number;
+  isFav?:       boolean;
+  onToggleFav?: (newState: boolean) => void;
 }
 
 export default function ProductCard({
-  article, onPress, onAddToCart, discount,
+  article, onPress, onAddToCart, discount, oldPrice, isFav = false, onToggleFav,
 }: ProductCardProps) {
 
-  const [isFavorite, setIsFavorite]     = useState(false);
+  const [isFavorite, setIsFavorite]     = useState(isFav);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [toggling, setToggling]         = useState(false);
+  const { refreshCartCount } = useCart();
+
+  useEffect(() => { setIsFavorite(isFav); }, [isFav]);
+
+  // Fall back to the article's own promo info when no explicit override is passed,
+  // so any product currently on promotion shows its badge wherever this card is used.
+  const effectiveDiscount = discount ?? article.discount_pct ?? undefined;
+  const effectiveOldPrice = oldPrice ?? article.old_price_ttc ?? undefined;
 
   // ─── Add to cart ───────────────────────────────────────────────────────────
   const handleAddToCart = async () => {
@@ -38,7 +52,7 @@ export default function ProductCard({
     try {
       setAddingToCart(true);
       await CartService.addItem(article.sku_id, 1);
-      Alert.alert('✓ Ajouté', `${article.name_fr} ajouté au panier`);
+      await refreshCartCount();
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Erreur lors de l\'ajout au panier');
     } finally {
@@ -60,16 +74,30 @@ export default function ProductCard({
           </View>
         )}
 
-        {discount && (
+        {effectiveDiscount && (
           <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{discount}%</Text>
+            <Text style={styles.discountText}>-{effectiveDiscount}%</Text>
           </View>
         )}
 
         {/* Favorite button */}
         <TouchableOpacity
           style={styles.favoriteBtn}
-          onPress={() => setIsFavorite(!isFavorite)}
+          onPress={async () => {
+            if (toggling || !article.id) return;
+            setToggling(true);
+            const next = !isFavorite;
+            setIsFavorite(next);
+            try {
+              if (next) await ProfileService.addFavorite(article.id);
+              else      await ProfileService.removeFavorite(article.id);
+              onToggleFav?.(next);
+            } catch {
+              setIsFavorite(!next);
+            } finally {
+              setToggling(false);
+            }
+          }}
           activeOpacity={0.8}
         >
           <Feather name="heart" size={16} color={isFavorite ? RED : '#9CA3AF'} />
@@ -88,7 +116,12 @@ export default function ProductCard({
 
         {/* Price + Add button */}
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{article.price_ttc.toFixed(1)} MAD</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.price}>{article.price_ttc.toFixed(2)} MAD</Text>
+            {effectiveOldPrice != null && effectiveOldPrice > article.price_ttc && (
+              <Text style={styles.oldPrice}>{effectiveOldPrice.toFixed(2)} MAD</Text>
+            )}
+          </View>
           <TouchableOpacity
             style={[styles.addBtn, addingToCart && { opacity: 0.6 }]}
             onPress={handleAddToCart}
@@ -153,6 +186,7 @@ const styles = StyleSheet.create({
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   price:    { fontSize: 16, color: '#E10600', fontFamily: 'Inter_700Bold' },
+  oldPrice: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textDecorationLine: 'line-through', marginTop: 1 },
   addBtn: {
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: RED, alignItems: 'center', justifyContent: 'center',

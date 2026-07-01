@@ -2,6 +2,7 @@ const { selectFields } = require('express-validator/lib/field-selection');
 const prisma = require('../../config/database');
 const { ensureArticlesPrismaColumns } = require('../../utils/articleSkuLink');
 const { toPublicUrl } = require('../../utils/fileStorage');
+const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
 
 const BASE_ARTICLE = { deleted_at: null, is_deleted: false, is_active: true };
 const BASE_CAT     = { deleted_at: null, status: 'active' };
@@ -20,22 +21,36 @@ const ARTICLE_SELECT = {
       id: true,
       images: {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-        take: 1,
         select: { url: true },
       },
     },
   },
+  images: {
+    select: { image_path: true },
+    take: 8,
+  },
 };
 
-function formatArticle(a) {
-  const vatRate  = parseFloat(a.vat_rate ?? 0);       // stored as % e.g. 20 = 20%
+function formatArticle(a, flashSales = []) {
+  const vatRate  = parseFloat(a.vat_rate ?? 0);
   const price    = parseFloat(a.price ?? 0);
-  const priceTtc = price * (1 + vatRate / 100);
-  const imageUrl = a.catalog_sku?.images?.[0]?.url ?? null;
+  const priceTtc = Math.round(price * (1 + vatRate / 100) * 100) / 100;
+
+  const skuImgs     = (a.catalog_sku?.images ?? []).map(i => i.url).filter(Boolean);
+  const articleImgs = (a.images ?? []).map(i => toPublicUrl(i.image_path)).filter(Boolean);
+  const allImages   = [...new Set([...skuImgs, ...articleImgs])];
+
+  const deal = resolveArticleDiscount({
+    articleSkuId: a.catalog_sku?.id ?? null,
+    categoryId:   a.category?.id ?? null,
+    brandId:      a.brand?.id ?? null,
+    priceTtc,
+  }, flashSales);
+
   return {
     id:             a.id,
     sku_code:       a.sku_code,
-    sku_id: a.catalog_sku?.id ?? null,
+    sku_id:         a.catalog_sku?.id ?? null,
     ean13:          a.ean13,
     name_fr:        a.name_fr,
     name_ar:        a.name_ar,
@@ -43,13 +58,16 @@ function formatArticle(a) {
     description_ar: a.description_ar,
     price,
     vat_rate:       vatRate,
-    price_ttc:      Math.round(priceTtc * 100) / 100,
+    price_ttc:      deal ? deal.price_ttc : priceTtc,
+    old_price_ttc:  deal ? deal.old_price_ttc : null,
+    discount_pct:   deal ? deal.discount_pct : null,
     unit_sale:      a.unit_sale,
     is_active:      a.is_active,
     brand:          a.brand,
     category:       a.category,
     sub_category:   a.sub_category,
-    image_url:      imageUrl,
+    image_url:      allImages[0] ?? null,
+    images:         allImages,
   };
 }
 
@@ -76,7 +94,6 @@ async function getCategories() {
   }));
 }
 
-// ── articles by category ──────────────────────────────────────────────────────
 async function getArticlesByCategory(categoryId, { page = 1, limit = 20, search } = {}) {
   await ensureArticlesPrismaColumns(prisma);
   const pageNum  = Number(page);
@@ -92,7 +109,7 @@ async function getArticlesByCategory(categoryId, { page = 1, limit = 20, search 
       ],
     }),
   };
-  const [data, total] = await Promise.all([
+  const [data, total, flashSales] = await Promise.all([
     prisma.article.findMany({
       where,
       skip:    (pageNum - 1) * limitNum,
@@ -101,9 +118,10 @@ async function getArticlesByCategory(categoryId, { page = 1, limit = 20, search 
       orderBy: { name_fr: 'asc' },
     }),
     prisma.article.count({ where }),
+    getActiveFlashSales(),
   ]);
   return {
-    data:       data.map(formatArticle),
+    data:       data.map(a => formatArticle(a, flashSales)),
     pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) },
   };
 }
@@ -111,15 +129,17 @@ async function getArticlesByCategory(categoryId, { page = 1, limit = 20, search 
 // ── article detail ────────────────────────────────────────────────────────────
 async function getArticleDetail(id) {
   await ensureArticlesPrismaColumns(prisma);
-  const a = await prisma.article.findFirst({
-    where:  { id: Number(id), deleted_at: null, is_deleted: false },
-    select: ARTICLE_SELECT,
-  });
+  const [a, flashSales] = await Promise.all([
+    prisma.article.findFirst({
+      where:  { id: Number(id), deleted_at: null, is_deleted: false },
+      select: ARTICLE_SELECT,
+    }),
+    getActiveFlashSales(),
+  ]);
   if (!a) throw { statusCode: 404, message: 'Article introuvable' };
-  return formatArticle(a);
+  return formatArticle(a, flashSales);
 }
 
-// ── search articles ───────────────────────────────────────────────────────────
 async function searchArticles({ page = 1, limit = 20, search, category_id } = {}) {
   await ensureArticlesPrismaColumns(prisma);
   const pageNum  = Number(page);
@@ -136,15 +156,16 @@ async function searchArticles({ page = 1, limit = 20, search, category_id } = {}
       ],
     }),
   };
-  const [data, total] = await Promise.all([
+  const [data, total, flashSales] = await Promise.all([
     prisma.article.findMany({
       where, skip: (pageNum - 1) * limitNum, take: limitNum,
       select: ARTICLE_SELECT, orderBy: { name_fr: 'asc' },
     }),
     prisma.article.count({ where }),
+    getActiveFlashSales(),
   ]);
   return {
-    data:       data.map(formatArticle),
+    data:       data.map(a => formatArticle(a, flashSales)),
     pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) },
   };
 }
@@ -155,15 +176,14 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   await ensureArticlesPrismaColumns(prisma);
   console.log('[DEBUG] req.customerId:', customerId, typeof customerId);
   // ── 1. Vérifie que le client existe ──────────────────────────────────────
-  const customerExists = await prisma.customer.findUnique({
-    where: { id: customerId },
-    select: { id: true },
-  });
+  const [customerExists, flashSales] = await Promise.all([
+    prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } }),
+    getActiveFlashSales(),
+  ]);
   if (!customerExists) {
     throw new Error(`Client introuvable : ${customerId}`);
   }
 
-  // ── 2. Récupère les catégories des produits déjà commandés ───────────────
   const pastOrders = await prisma.order.findMany({
   where: { customer_id: customerId, is_deleted: false },
   select: {
@@ -183,7 +203,7 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   orderBy: { created_at: 'desc' },
 });
 
-  // ── 3. Extrait category_id et article_id déjà commandés ─────────────────
+
   const orderedCategoryIds = new Set();
   const orderedArticleIds  = new Set();
 
@@ -197,7 +217,6 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
 
   const hasPastOrders = orderedCategoryIds.size > 0;
 
-  // ── 4. Pas d'historique → retourne les articles les plus récents ─────────
   if (!hasPastOrders) {
     const fallback = await prisma.article.findMany({
       where:   BASE_ARTICLE,
@@ -205,7 +224,7 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
       take:    limit,
       orderBy: { created_at: 'desc' },
     });
-    return fallback.map(formatArticle);
+    return fallback.map(a => formatArticle(a, flashSales));
   }
 
   // ── 5. Articles des mêmes catégories (hors déjà commandés) ──────────────
@@ -220,9 +239,8 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
     orderBy: { created_at: 'desc' },
   });
 
-  // ── 6. Complète si pas assez de résultats ────────────────────────────────
   if (recommended.length >= limit) {
-    return recommended.map(formatArticle);
+    return recommended.map(a => formatArticle(a, flashSales));
   }
 
   const remaining   = limit - recommended.length;
@@ -241,7 +259,7 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
     orderBy: { created_at: 'desc' },
   });
 
-  return [...recommended, ...filler].map(formatArticle);
+  return [...recommended, ...filler].map(a => formatArticle(a, flashSales));
 }
 
 // ── cities (public — for address form select) ─────────────────────────────────

@@ -8,13 +8,14 @@ const RED = '#E10600';
 interface PageHeaderProps {
   title:       string;
   onBack?:     () => void;           
-  rightIcon?:  string;                
+  rightIcon?:  string;   
+  rightText?: string;             
   onRightPress?: () => void;
   rightBadge?: number;                
 }
 
 export default function PageHeader({
-  title, onBack, rightIcon, onRightPress, rightBadge,
+  title, onBack, rightIcon, rightText, onRightPress, rightBadge,
 }: PageHeaderProps) {
   const router = useRouter();
 
@@ -33,18 +34,28 @@ export default function PageHeader({
       <Text style={styles.title} numberOfLines={1}>{title}</Text>
 
       {/* ── Right slot ── */}
-      {rightIcon ? (
-        <TouchableOpacity style={styles.rightBtn} onPress={onRightPress} activeOpacity={0.7}>
-          <Feather name={rightIcon as any} size={20} color="#1a1a1a" />
-          {rightBadge !== undefined && rightBadge > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{rightBadge > 9 ? '9+' : rightBadge}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      ) : (
-        <View style={{ width: 40 }} />
-      )}
+      {rightText ? (
+  <TouchableOpacity onPress={onRightPress} activeOpacity={0.7}>
+    <Text style={styles.markAllText}>{rightText}</Text>
+  </TouchableOpacity>
+) : rightIcon ? (
+  <TouchableOpacity
+    style={styles.rightBtn}
+    onPress={onRightPress}
+    activeOpacity={0.7}
+  >
+    <Feather name={rightIcon as any} size={20} color="#1a1a1a" />
+    {rightBadge !== undefined && rightBadge > 0 && (
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>
+          {rightBadge > 9 ? '9+' : rightBadge}
+        </Text>
+      </View>
+    )}
+  </TouchableOpacity>
+) : (
+  <View style={{ width: 60 }} />
+)}
     </View>
   );
 }
@@ -79,4 +90,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#fff',
   },
   badgeText: { fontSize: 10, color: '#fff', fontFamily: 'Poppins_700Bold' },
+
+  markAllText: { fontSize: 13, color: RED, fontWeight: '600', width: 60, textAlign: 'right' },
 });

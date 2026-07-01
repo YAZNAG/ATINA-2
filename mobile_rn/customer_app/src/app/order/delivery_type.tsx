@@ -24,6 +24,7 @@ type DeliveryMode = 'home' | 'pickup' | null;
 export default function CheckoutDeliveryModeScreen() {
   const router = useRouter();
   const { cart_items } = useLocalSearchParams<{ cart_items: string }>();
+  
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular, Poppins_500Medium,
@@ -40,7 +41,6 @@ export default function CheckoutDeliveryModeScreen() {
     if (!selected) return;
 
     if (selected === 'home') {
-      // Livraison à domicile → page d'adresse
       router.push({
         pathname: '/order/delivery_address' as any,
         params: { delivery_type_code: 'home', cart_items },

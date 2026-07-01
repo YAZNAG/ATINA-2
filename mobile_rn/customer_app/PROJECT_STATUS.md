@@ -1,5 +1,5 @@
 # PROJECT_STATUS.md — Dark Store Customer App
-> Rapport généré le 2026-06-12 · Branche : Hajar · Auteur de l'analyse : Claude Code
+> Analyse basée sur la lecture intégrale du code source · Branche : Hajar · Date : 2026-06-23
 
 ---
 
@@ -12,7 +12,7 @@
 5. [Inventaire des écrans](#5-inventaire-des-écrans)
 6. [Inventaire des APIs](#6-inventaire-des-apis)
 7. [Analyse des services](#7-analyse-des-services)
-8. [Analyse des hooks](#8-analyse-des-hooks)
+8. [Analyse des hooks & contextes](#8-analyse-des-hooks--contextes)
 9. [Navigation](#9-navigation)
 10. [Fonctionnalités métier](#10-fonctionnalités-métier)
 11. [Détection des problèmes](#11-détection-des-problèmes)
@@ -28,36 +28,37 @@
 |---|---|
 | **Nom du projet** | customer_app (Dark Store) |
 | **Type** | Application mobile e-commerce B2C |
-| **Stack principal** | React Native 0.85.3 + Expo v56 + TypeScript |
-| **Routing** | Expo Router (file-based) |
+| **Stack principal** | React Native 0.85.3 + Expo SDK 56 + TypeScript |
+| **Routing** | Expo Router v56.2.8 (file-based) |
 | **Langage UI** | Français |
-| **URL API** | `http://192.168.100.114:5000/api` |
-| **Progression globale** | **~55 %** |
-| **Écrans implémentés** | 17 / ~26 estimés |
-| **Services actifs** | 5 / 7 |
-| **Endpoints consommés** | 26 / 26 définis |
+| **URL API (dev)** | `http://192.168.100.114:5000/api` |
+| **Progression globale** | **~78 %** |
+| **Écrans implémentés** | 28 / 31 identifiés |
+| **Services actifs** | 5 / 5 (100 %) |
+| **Endpoints définis** | 50+ |
 
-**État général :** Le projet est en phase de développement active. Le flux d'authentification, le catalogue produit, le panier et la gestion du profil / adresses sont fonctionnels. Les modules **Commandes**, **Wallet**, **Fidélité** et **Favoris** sont soit vides soit absents. L'absence de gestion d'état centralisée (Zustand/Redux) est le principal risque de dette technique à court terme.
+**État général :** Le projet est significativement plus avancé que les rapports précédents l'indiquaient. Le tunnel de commande complet (7 écrans), les commandes avec tracking en temps réel, les favoris, les paramètres profil (photo, mot de passe, langue, téléphone) sont tous implémentés et fonctionnels. Les principaux manques restants sont : un écran Wallet dédié, le module Fidélité, les Push Notifications, et la configuration production (URL hardcodée).
 
 ---
 
 ## 2. Vue d'ensemble du projet
 
 ### Objectif métier
-Application mobile destinée aux **clients finaux** d'un Dark Store (entrepôt de livraison rapide). Elle permet de parcourir un catalogue produit, gérer un panier et passer des commandes livrées à domicile. La plateforme backend associée gère également les opérations internes (Picker, Admin).
+Application mobile destinée aux **clients finaux** d'un Dark Store (entrepôt de livraison rapide). Parcourir un catalogue, gérer un panier, passer commande (livraison à domicile ou retrait en magasin), suivre la livraison, gérer son profil, wallet et favoris.
 
 ### Architecture générale
-
 ```
 Expo Router (file-based routing)
   └── Screens (src/app/**)
-        ├── Services API (src/services/**)    ← Axios + intercepteurs JWT
-        ├── Components (src/components/**)
-        ├── Hooks (src/hooks/**)
-        └── Constants / Theme (src/constants/**)
+        ├── order.service.ts      ← fetch natif + SecureStore (checkout uniquement)
+        ├── services/*.service.ts ← Axios (catalog, cart, profile, auth)
+        ├── context/CartContext   ← State global panier (React Context)
+        ├── components/ui/**      ← Composants réutilisables
+        ├── hooks/**              ← Hooks theme + color scheme
+        └── constants/**          ← Config, thème, données statiques
 ```
 
-Pas de store global centralisé — chaque écran gère son état local via `useState`.
+**Particularité architecturale :** `order.service.ts` utilise le `fetch` natif avec `SecureStore` directement (sans Axios), alors que tous les autres services utilisent l'instance Axios centralisée de `src/api/client.ts`. Cette incohérence est un point de dette technique.
 
 ---
 
@@ -65,50 +66,57 @@ Pas de store global centralisé — chaque écran gère son état local via `use
 
 ```
 customer_app/
-├── app.json                   # Config Expo (bundle ID, splash, plugins)
-├── tsconfig.json              # TypeScript strict + alias @/*
+├── app.json                    # Config Expo (bundle ID, splash, React Compiler)
+├── tsconfig.json               # TypeScript strict + alias @/*
 ├── package.json
-├── expo-env.d.ts
+├── CLAUDE.md → AGENTS.md       # Note Expo v56 pour agents IA
 └── src/
-    ├── app/                   # Routes Expo Router (1 fichier = 1 route)
-    │   ├── _layout.tsx        # Root Stack Navigator
-    │   ├── index.tsx          # Splash + redirect
-    │   ├── auth/              # Flux authentification (8 écrans)
-    │   ├── main/              # App principale (7 écrans)
-    │   ├── onboarding/        # Onboarding (3 slides)
-    │   └── profile/           # Profil utilisateur (3 écrans)
+    ├── app/                    # Routes Expo Router (1 fichier = 1 route)
+    │   ├── _layout.tsx         # Root Stack Navigator
+    │   ├── index.tsx           # Splash + redirect auth
+    │   ├── explore.tsx         # (écran Expo template, non utilisé en prod)
+    │   ├── auth/               # 8 écrans d'authentification
+    │   ├── main/               # 8 écrans de l'application principale
+    │   ├── onboarding/         # 4 slides d'onboarding
+    │   ├── order/              # 7 écrans du tunnel de commande ← NOUVEAU
+    │   └── profile/            # 4 écrans de profil
     ├── api/
-    │   └── client.ts          # Instance Axios + intercepteurs
-    ├── services/              # Logique métier & appels API
-    │   ├── auth.service.ts    # Auth legacy
-    │   ├── customer_auth.service.ts  # Auth v2 (active)
-    │   ├── catalog.service.ts
-    │   ├── cart.service.ts
-    │   ├── order.service.ts   # ⚠️ Vide
-    │   └── profile.service.ts
+    │   └── client.ts           # Instance Axios + intercepteurs JWT
+    ├── context/
+    │   └── CartContext.tsx     # Global state : cartCount + refreshCartCount
+    ├── services/               # Logique métier & appels API
+    │   ├── customer_auth.service.ts   # Auth v2 (active, SecureStore)
+    │   ├── catalog.service.ts         # Catalogue + villes
+    │   ├── cart.service.ts            # Panier
+    │   ├── order.service.ts           # Checkout (fetch natif)
+    │   └── profile.service.ts         # Profil, adresses, favoris, wallet, notifs
     ├── components/
-    │   ├── ui/                # Composants custom (ProductCard, BottomNavBar…)
-    │   └── (base components)  # ThemedText, ThemedView…
+    │   ├── ui/                 # 10 composants custom
+    │   └── (base components)   # ThemedText, ThemedView, etc.
     ├── hooks/
     │   ├── use-color-scheme.ts
     │   └── use-theme.ts
+    ├── utils/
+    │   └── searchHistory.ts    # Historique des recherches (AsyncStorage)
     └── constants/
-        ├── config.ts          # API_URL, TIMEOUT
-        ├── theme.ts           # Palette, typo, spacing
-        └── countries.json     # Indicatifs pays
+        ├── config.ts           # API_URL, STORAGE_URL, TIMEOUT ⚠️ hardcodés
+        ├── theme.ts            # Palette, typo, spacing
+        └── countries.json      # Indicatifs pays
 ```
 
 ### Rôle de chaque dossier
 
 | Dossier | Rôle |
 |---|---|
-| `src/app/` | Écrans et routes (convention Expo Router) |
-| `src/api/` | Client HTTP unique, gestion du token JWT |
-| `src/services/` | Abstraction des appels API, logique métier |
+| `src/app/` | Écrans & routes (convention Expo Router — 1 fichier = 1 route) |
+| `src/api/` | Client HTTP unique Axios, injection automatique du token JWT |
+| `src/context/` | État global React Context (compteur panier) |
+| `src/services/` | Abstraction des appels API, logique métier, types TypeScript |
 | `src/components/ui/` | Composants réutilisables spécifiques au projet |
 | `src/components/` | Composants de base (theme, layout) |
-| `src/hooks/` | Hooks partagés (theme, color scheme) |
-| `src/constants/` | Configuration, thème, données statiques |
+| `src/hooks/` | Hooks partagés (thème, color scheme) |
+| `src/utils/` | Utilitaires (historique de recherche) |
+| `src/constants/` | Configuration, thème global, données statiques |
 
 ---
 
@@ -118,63 +126,99 @@ customer_app/
 
 | Technologie | Version | Usage |
 |---|---|---|
-| React Native | 0.85.3 | Moteur mobile |
-| Expo SDK | ~56.0.8 | Runtime et toolchain |
-| TypeScript | ~6.0.3 | Typage statique |
+| React Native | 0.85.3 | Moteur mobile cross-platform |
+| Expo SDK | ~56.0.8 | Runtime, toolchain, plugins |
+| TypeScript | ~6.0.3 | Typage statique strict |
 | Expo Router | ~56.2.8 | Navigation file-based |
-| Axios | ^1.17.0 | Client HTTP |
+| React | 19.2.3 | UI |
+| Axios | ^1.17.0 | Client HTTP (tous services sauf order) |
 | expo-secure-store | ~56.0.4 | Stockage sécurisé JWT |
+| expo-location | intégrée | Géolocalisation (delivery_address.tsx) |
+| expo-image-picker | intégrée | Upload avatar (settings.tsx) |
 | react-native-reanimated | 4.3.1 | Animations |
-| expo-linear-gradient | ~56.0.4 | Dégradés UI |
+| expo-linear-gradient | ~56.0.4 | Dégradés (card_payment.tsx) |
 | expo-image | ~56.0.9 | Chargement images optimisé |
-| jwt-decode | ^4.0.0 | Décodage tokens JWT |
-| @expo-google-fonts/poppins | ^0.4.1 | Police Poppins |
-| @expo-google-fonts/inter | ^0.4.2 | Police Inter |
+| jwt-decode | ^4.0.0 | Décodage/validation tokens JWT |
+| @expo-google-fonts/poppins | ^0.4.1 | Police display |
+| @expo-google-fonts/inter | ^0.4.2 | Police corps de texte |
+| react-native-safe-area-context | ~5.7.0 | Zones sûres iOS/Android |
+| react-native-gesture-handler | ~2.31.1 | Gestes tactiles |
 
 ### Absences notables
 
 | Technologie | Impact |
 |---|---|
-| ❌ Zustand / Redux | Pas de store global → prop drilling & re-fetching inutiles |
-| ❌ React Query / SWR | Pas de cache serveur → rechargement à chaque navigation |
-| ❌ Expo Notifications | Push notifications non implémentées |
-| ❌ React Hook Form / Zod | Validation de formulaires entièrement manuelle |
-| ❌ i18n (i18next) | Textes hardcodés en français |
+| ❌ Zustand / Redux | Pas de store global → seul CartContext existe, le reste est local |
+| ❌ React Query / SWR | Pas de cache serveur → re-fetch complet à chaque montée d'écran |
+| ❌ Expo Notifications | Push notifications impossibles en l'état |
+| ❌ React Hook Form / Zod | Validation manuelle dans tous les formulaires |
+| ❌ i18n (i18next) | Textes hardcodés en français (langue switchable dans settings mais non appliquée) |
+| ❌ Variables d'env | URL IP hardcodée dans config.ts → bloquant pour la production |
 
 ---
 
 ## 5. Inventaire des écrans
 
+### Auth & Onboarding
+
 | Écran | Fichier route | Fonction | Statut |
 |---|---|---|---|
-| **Splash** | `app/index.tsx` | Animation logo + redirection | ✅ Terminé |
-| **Onboarding 1** | `app/onboarding/index.tsx` | Slide 1 de présentation | ✅ Terminé |
+| **Splash** | `app/index.tsx` | Animation logo + redirection auto | ✅ Terminé |
+| **Onboarding 1** | `app/onboarding/index.tsx` | Slide 1 | ✅ Terminé |
 | **Onboarding 2** | `app/onboarding/slide2.tsx` | Slide 2 | ✅ Terminé |
-| **Onboarding 3** | `app/onboarding/slide3.tsx` | Slide 3 + accès app | ✅ Terminé |
+| **Onboarding 3** | `app/onboarding/slide3.tsx` | Slide 3 + CTA | ✅ Terminé |
 | **Login** | `app/auth/login.tsx` | Connexion phone/email + mdp | ✅ Terminé |
 | **Register** | `app/auth/register.tsx` | Inscription (nom, email, mdp) | ✅ Terminé |
 | **Verify Phone** | `app/auth/verify-phone.tsx` | Saisie numéro + sélecteur pays | ✅ Terminé |
 | **Verify OTP** | `app/auth/verify-otp.tsx` | Code OTP 4 chiffres | ✅ Terminé |
 | **Success** | `app/auth/success.tsx` | Confirmation inscription | ✅ Terminé |
-| **Forgot Password** | `app/auth/forgot-password.tsx` | Initiation réinitialisation mdp | ✅ Terminé |
+| **Forgot Password** | `app/auth/forgot-password.tsx` | Init reset mdp | ✅ Terminé |
 | **Forgot OTP** | `app/auth/forgot-otp.tsx` | OTP pour reset mdp | ✅ Terminé |
 | **Reset Password** | `app/auth/reset-password.tsx` | Nouveau mot de passe | ✅ Terminé |
+
+### Application principale
+
+| Écran | Fichier route | Fonction | Statut |
+|---|---|---|---|
 | **Home** | `app/main/home.tsx` | Accueil : catégories, produits, reco | ✅ Terminé |
 | **Categories** | `app/main/categories.tsx` | Grille de toutes les catégories | ✅ Terminé |
-| **Category Products** | `app/main/category-products.tsx` | Produits filtrés par catégorie | ✅ Terminé |
-| **Product Detail** | `app/main/product-detail.tsx` | Fiche produit complète | ✅ Terminé |
-| **Cart** | `app/main/cart.tsx` | Panier avec gestion quantités | ✅ Terminé |
-| **Profile** | `app/profile/profile.tsx` | Profil utilisateur + stats + menu | ✅ Terminé |
-| **Addresses** | `app/profile/addresses.tsx` | Liste + CRUD adresses (modal) | ✅ Terminé |
-| **Notifications** | `app/profile/notifications.tsx` | Centre de notifications | ✅ Terminé |
-| **Orders** | `app/main/orders` | Historique des commandes | ❌ Non implémenté |
-| **Order Detail** | `app/main/order-detail` | Détail d'une commande | ❌ Non implémenté |
-| **Favorites** | `app/main/favorites` | Liste de favoris | ❌ Non implémenté |
-| **Edit Profile** | `app/profile/edit-profile` | Modification infos utilisateur | ❌ Non implémenté |
-| **Checkout** | `app/main/checkout` | Tunnel de commande | ❌ Non implémenté |
-| **Settings** | `app/profile/settings` | Préférences / langue / notifications | ❌ Non implémenté |
+| **Category Products** | `app/main/category-products.tsx` | Produits filtrés + sous-catégories | ✅ Terminé |
+| **Product Detail** | `app/main/product-detail.tsx` | Fiche produit + ajout panier | ✅ Terminé |
+| **Cart** | `app/main/cart.tsx` | Panier + gestion quantités + accès checkout | ✅ Terminé |
+| **Favorites** | `app/main/favorites.tsx` | Wishlist + ajout au panier | ✅ Terminé |
+| **Orders** | `app/main/orders.tsx` | Historique commandes + statuts colorés | ✅ Terminé |
+| **Order Detail** | `app/main/order-detail.tsx` | Suivi commande + timeline + récapitulatif | ✅ Terminé |
 
-**Résumé : 20 écrans terminés / 26 identifiés (77 % des écrans)**
+### Tunnel de commande (Checkout)
+
+| Écran | Fichier route | Fonction | Statut |
+|---|---|---|---|
+| **Delivery Type** | `app/order/delivery_type.tsx` | Choix livraison / retrait | ✅ Terminé |
+| **Delivery Address** | `app/order/delivery_address.tsx` | Adresse + GPS + sélecteur ville | ✅ Terminé |
+| **Delivery Pickup** | `app/order/delivery_pickup.tsx` | Sélection magasin + itinéraire Maps | ✅ Terminé |
+| **Delivery DateTime** | `app/order/delivery_datetime.tsx` | Calendrier + créneaux API | ✅ Terminé |
+| **Payment** | `app/order/payment.tsx` | Méthodes paiement + wallet + récap | ✅ Terminé |
+| **Card Payment** | `app/order/card_payment.tsx` | Formulaire carte bancaire visuel | ✅ Terminé |
+| **Confirmed** | `app/order/confirmed.tsx` | Confirmation commande | ✅ Terminé |
+
+### Profil
+
+| Écran | Fichier route | Fonction | Statut |
+|---|---|---|---|
+| **Profile** | `app/profile/profile.tsx` | Stats + menu + wallet solde | ✅ Terminé |
+| **Addresses** | `app/profile/addresses.tsx` | CRUD adresses + adresse défaut | ✅ Terminé |
+| **Notifications** | `app/profile/notifications.tsx` | Centre notifs + marquer lu + supprimer | ✅ Terminé |
+| **Settings** | `app/profile/settings.tsx` | Photo, nom, email, tél+OTP, mdp, langue | ✅ Terminé |
+| **Wallet** | _(absent)_ | Écran wallet dédié + transactions | ❌ Non implémenté |
+| **Loyalty** | _(absent)_ | Programme fidélité + points | ❌ Non implémenté |
+
+### Non reliés / résidus
+
+| Écran | Fichier | Raison |
+|---|---|---|
+| **Explore** | `app/explore.tsx` | Template Expo, non lié à la navigation |
+
+**Résumé : 28 écrans terminés / 31 identifiés (90 % des écrans métier)**
 
 ---
 
@@ -184,60 +228,73 @@ customer_app/
 
 | Méthode | Endpoint | Service | Utilisé par | Statut |
 |---|---|---|---|---|
-| POST | `/auth/login` | auth.service.ts | login.tsx | ⚠️ Legacy |
-| POST | `/auth/check-email` | auth.service.ts | register.tsx | ⚠️ Legacy |
-| POST | `/auth/register` | auth.service.ts | register.tsx | ⚠️ Legacy |
-| POST | `/otp/send-sms` | auth.service.ts | verify-otp.tsx | ⚠️ Legacy |
-| POST | `/otp/send-whatsapp` | auth.service.ts | verify-otp.tsx | ⚠️ Legacy |
-| POST | `/otp/verify` | auth.service.ts | verify-otp.tsx | ⚠️ Legacy |
-| POST | `/otp/verify-register` | auth.service.ts | verify-otp.tsx | ⚠️ Legacy |
-| POST | `/otp/verify-forgot` | auth.service.ts | forgot-otp.tsx | ⚠️ Legacy |
-| POST | `/otp/forgot-password` | auth.service.ts | forgot-password.tsx | ⚠️ Legacy |
-| POST | `/auth/reset-password` | auth.service.ts | reset-password.tsx | ⚠️ Legacy |
-| POST | `/customer/auth/check-phone` | customer_auth.service.ts | — | ✅ Actif |
-| POST | `/customer/auth/request-otp` | customer_auth.service.ts | — | ✅ Actif |
-| POST | `/customer/auth/verify-otp` | customer_auth.service.ts | — | ✅ Actif |
-| POST | `/customer/auth/register` | customer_auth.service.ts | — | ✅ Actif |
-| POST | `/customer/auth/login` | customer_auth.service.ts | — | ✅ Actif |
+| POST | `/customer/auth/check-phone` | customer_auth | verify-phone.tsx | ✅ |
+| POST | `/customer/auth/request-otp` | customer_auth | verify-otp.tsx | ✅ |
+| POST | `/customer/auth/verify-otp` | customer_auth | verify-otp.tsx | ✅ |
+| POST | `/customer/auth/register` | customer_auth | register.tsx | ✅ |
+| POST | `/customer/auth/login` | customer_auth | login.tsx | ✅ |
 
 ### Catalogue
 
 | Méthode | Endpoint | Service | Utilisé par | Statut |
 |---|---|---|---|---|
-| GET | `/customer/catalog/categories` | catalog.service.ts | home.tsx, categories.tsx | ✅ Actif |
-| GET | `/customer/catalog/categories/:id/sub-categories` | catalog.service.ts | category-products.tsx | ✅ Actif |
-| GET | `/customer/catalog/articles` | catalog.service.ts | home.tsx, category-products.tsx | ✅ Actif |
-| GET | `/customer/catalog/articles/:id` | catalog.service.ts | product-detail.tsx | ✅ Actif |
-| GET | `/customer/catalog/categories/:id/articles` | catalog.service.ts | category-products.tsx | ✅ Actif |
-| GET | `/customer/catalog/recommendations` | catalog.service.ts | home.tsx | ✅ Actif |
+| GET | `/customer/catalog/categories` | catalog | home, categories | ✅ |
+| GET | `/customer/catalog/categories/:id/sub-categories` | catalog | category-products | ✅ |
+| GET | `/customer/catalog/articles` | catalog | home, category-products | ✅ |
+| GET | `/customer/catalog/articles/:id` | catalog | product-detail | ✅ |
+| GET | `/customer/catalog/categories/:id/articles` | catalog | category-products | ✅ |
+| GET | `/customer/catalog/recommendations` | catalog | home | ✅ |
+| GET | `/customer/catalog/cities` | catalog | delivery_address | ✅ |
 
 ### Panier
 
 | Méthode | Endpoint | Service | Utilisé par | Statut |
 |---|---|---|---|---|
-| GET | `/customer/cart` | cart.service.ts | cart.tsx | ✅ Actif |
-| POST | `/customer/cart` | cart.service.ts | product-detail.tsx | ✅ Actif |
-| PUT | `/customer/cart/:sku_id` | cart.service.ts | cart.tsx | ✅ Actif |
-| DELETE | `/customer/cart/:sku_id` | cart.service.ts | cart.tsx | ✅ Actif |
-| DELETE | `/customer/cart` | cart.service.ts | cart.tsx | ✅ Actif |
+| GET | `/customer/cart` | cart | cart.tsx, CartContext | ✅ |
+| POST | `/customer/cart` | cart | product-detail, favorites | ✅ |
+| PUT | `/customer/cart/:sku_id` | cart | cart.tsx | ✅ |
+| DELETE | `/customer/cart/:sku_id` | cart | cart.tsx | ✅ |
+| DELETE | `/customer/cart` | cart | cart.tsx, payment, card_payment | ✅ |
 
-### Profil & Adresses
+### Checkout (order.service.ts — fetch natif)
 
 | Méthode | Endpoint | Service | Utilisé par | Statut |
 |---|---|---|---|---|
-| GET | `/customer/me` | profile.service.ts | profile.tsx | ✅ Actif |
-| PUT | `/customer/me` | profile.service.ts | — (edit-profile absent) | ⚠️ Défini, non utilisé |
-| GET | `/customer/me/addresses` | profile.service.ts | addresses.tsx | ✅ Actif |
-| POST | `/customer/me/addresses` | profile.service.ts | addresses.tsx | ✅ Actif |
-| PUT | `/customer/me/addresses/:id` | profile.service.ts | addresses.tsx | ✅ Actif |
-| DELETE | `/customer/me/addresses/:id` | profile.service.ts | addresses.tsx | ✅ Actif |
-| PATCH | `/customer/me/addresses/:id/set-default` | profile.service.ts | addresses.tsx | ✅ Actif |
-| GET | `/customer/me/orders` | profile.service.ts | — (orders absent) | ⚠️ Défini, non utilisé |
-| GET | `/customer/me/orders/:id` | profile.service.ts | — (order-detail absent) | ⚠️ Défini, non utilisé |
-| GET | `/customer/me/wallet` | profile.service.ts | profile.tsx | ✅ Actif |
-| GET | `/customer/me/notifications` | profile.service.ts | notifications.tsx | ✅ Actif |
-| PATCH | `/customer/me/notifications/:id/read` | profile.service.ts | notifications.tsx | ✅ Actif |
-| PATCH | `/customer/me/notifications/read-all` | profile.service.ts | notifications.tsx | ✅ Actif |
+| GET | `/customer/checkout/meta?node_id=` | order | payment.tsx | ✅ |
+| POST | `/customer/checkout/calculate` | order | payment.tsx | ✅ |
+| POST | `/customer/checkout/eligible-nodes` | order | _(défini, non appelé en UI)_ | ⚠️ |
+| GET | `/customer/checkout/pickup-nodes` | order | delivery_pickup.tsx | ✅ |
+| GET | `/customer/checkout/delivery-slots` | order | delivery_datetime.tsx | ✅ |
+| POST | `/customer/checkout/create-order` | order | payment.tsx, card_payment.tsx | ✅ |
+
+### Profil & Compte
+
+| Méthode | Endpoint | Service | Utilisé par | Statut |
+|---|---|---|---|---|
+| GET | `/customer/me` | profile | profile.tsx, delivery_address | ✅ |
+| PUT | `/customer/me` | profile | settings.tsx (nom, ville, langue) | ✅ |
+| PUT | `/customer/me/email` | profile | settings.tsx | ✅ |
+| PUT | `/customer/me/password` | profile | settings.tsx | ✅ |
+| POST | `/customer/me/phone/request-otp` | profile | settings.tsx | ✅ |
+| POST | `/customer/me/phone/verify-otp` | profile | settings.tsx | ✅ |
+| POST | `/customer/me/avatar` | profile | settings.tsx | ✅ |
+| DELETE | `/customer/me/avatar` | profile | settings.tsx | ✅ |
+| GET | `/customer/me/addresses` | profile | addresses.tsx, delivery_address | ✅ |
+| POST | `/customer/me/addresses` | profile | addresses.tsx, delivery_address | ✅ |
+| PUT | `/customer/me/addresses/:id` | profile | addresses.tsx, delivery_address | ✅ |
+| DELETE | `/customer/me/addresses/:id` | profile | addresses.tsx | ✅ |
+| PATCH | `/customer/me/addresses/:id/set-default` | profile | addresses.tsx | ✅ |
+| GET | `/customer/me/orders` | profile | orders.tsx | ✅ |
+| GET | `/customer/me/orders/:id` | profile | order-detail.tsx | ✅ |
+| GET | `/customer/me/wallet` | profile | profile.tsx, payment.tsx | ✅ |
+| GET | `/customer/me/favorites` | profile | favorites.tsx | ✅ |
+| POST | `/customer/me/favorites` | profile | product-detail.tsx | ✅ |
+| DELETE | `/customer/me/favorites/:id` | profile | favorites.tsx | ✅ |
+| GET | `/customer/me/notifications` | profile | notifications.tsx | ✅ |
+| PATCH | `/customer/me/notifications/:id/read` | profile | notifications.tsx | ✅ |
+| PATCH | `/customer/me/notifications/read-all` | profile | notifications.tsx | ✅ |
+| DELETE | `/customer/me/notifications/:id` | profile | notifications.tsx | ✅ |
+| DELETE | `/customer/me/notifications/all` | profile | notifications.tsx | ✅ |
 
 ---
 
@@ -245,193 +302,202 @@ customer_app/
 
 ---
 
-### `auth.service.ts` ⚠️ Legacy
+### `customer_auth.service.ts` ✅ Complet
 
-**Fonction :** Service d'authentification basé sur les anciens endpoints `/auth/*` et `/otp/*`.
-
-**Méthodes :**
-- `login(email, password)` — POST `/auth/login`
-- `checkEmail(email)` — POST `/auth/check-email`
-- `register(...)` — POST `/auth/register`
-- `sendSmsOtp(phone)` — POST `/otp/send-sms`
-- `sendWhatsAppOtp(phone)` — POST `/otp/send-whatsapp`
-- `verifyOtp(phone, code)` — POST `/otp/verify`
-- `verifyRegisterOtp(...)` — POST `/otp/verify-register`
-- `forgotPassword(phone)` — POST `/otp/forgot-password`
-- `verifyForgotOtp(...)` — POST `/otp/verify-forgot`
-- `resetPassword(...)` — POST `/auth/reset-password`
-
-**État :** 🟡 Partiel — Service fonctionnel mais dupliqué par `customer_auth.service.ts`. Doit être supprimé ou intégré.
-
----
-
-### `customer_auth.service.ts` ✅ Actif
-
-**Fonction :** Service d'authentification moderne basé sur les endpoints `/customer/auth/*`. Gestion complète du token JWT via `expo-secure-store`.
+**Fonction :** Authentification via endpoints `/customer/auth/*`. Stockage JWT dans `expo-secure-store`.
 
 **Méthodes :**
-- `checkPhone(phone)` — Vérifie si le numéro existe
-- `requestOtp(phone, channel)` — Envoie OTP (SMS ou WhatsApp)
-- `verifyOtp(phone, code)` — Vérifie le code OTP
-- `register(userData)` — Crée le compte client
+- `checkPhone(phone)` — Vérifie existence du numéro
+- `requestOtp(phone, channel)` — Envoie OTP (SMS / WhatsApp)
+- `verifyOtp(phone, code)` — Vérifie code OTP
+- `register(userData)` — Création compte client
 - `login(credentials)` — Connexion + stockage token
-- `logout()` — Suppression du token local
-- `getToken()` — Lecture token depuis SecureStore
-- `isTokenValid()` — Vérification expiration JWT (jwt-decode)
-- `getCurrentUser()` — Retourne les infos du user connecté
+- `logout()` — Suppression token local
+- `getToken()` — Lecture token SecureStore
+- `isTokenValid()` — Validation expiration JWT (jwt-decode)
+- `getMe()` — Retourne le user connecté (décodé du token)
 
-**État :** ✅ Complet
+**Note :** Plus de `auth.service.ts` legacy — nettoyé.
 
 ---
 
-### `catalog.service.ts` ✅ Actif
+### `catalog.service.ts` ✅ Complet
 
-**Fonction :** Accès au catalogue produits (catégories, articles, recherche, recommandations).
+**Fonction :** Catalogue produits, villes.
 
 **Méthodes :**
-- `getCategories()` — Liste toutes les catégories
-- `getSubCategories(categoryId)` — Sous-catégories d'une catégorie
-- `getArticles(params?)` — Articles avec pagination et filtres
-- `getArticleById(id)` — Détail d'un article
-- `getArticlesByCategory(categoryId, params?)` — Articles filtrés par catégorie
+- `getCategories()` — Toutes les catégories
+- `getSubCategories(categoryId)` — Sous-catégories
+- `getArticles(params?)` — Articles + pagination + filtres
+- `getArticleById(id)` — Détail article
+- `getArticlesByCategory(categoryId, params?)` — Articles par catégorie
 - `searchArticles(query)` — Recherche full-text
-- `getRecommendations()` — Articles recommandés pour l'utilisateur
-
-**État :** ✅ Complet
+- `getRecommendations()` — Articles recommandés
+- `getCities()` — Liste des villes (utilisée dans delivery_address)
 
 ---
 
-### `cart.service.ts` ✅ Actif
+### `cart.service.ts` ✅ Complet
 
-**Fonction :** Gestion du panier d'achat côté API.
+**Fonction :** Gestion panier via API.
 
 **Méthodes :**
-- `getCart()` — Récupère le panier courant
-- `addItem(sku_id, quantity)` — Ajoute un article
-- `updateItem(sku_id, quantity)` — Met à jour la quantité
-- `removeItem(sku_id)` — Supprime un article
-- `clearCart()` — Vide entièrement le panier
-
-**État :** ✅ Complet
+- `getCart()` — Panier courant
+- `addItem(sku_id, quantity)` — Ajout article
+- `updateItem(sku_id, quantity)` — Mise à jour quantité
+- `removeItem(sku_id)` — Suppression article
+- `clearCart()` — Vider le panier (appelé après création commande)
 
 ---
 
-### `order.service.ts` ❌ Incomplet
+### `order.service.ts` ✅ Complet
 
-**Fonction :** Prévu pour la gestion des commandes.
+**Fonction :** Tunnel de commande complet. Utilise `fetch` natif (non Axios).
 
-**Méthodes :** _Aucune — fichier vide (placeholder)_
-
-**État :** ❌ Incomplet — À implémenter en priorité haute
-
----
-
-### `profile.service.ts` 🟡 Partiel
-
-**Fonction :** Profil utilisateur, adresses, commandes, wallet, notifications.
+**Interfaces exportées :** `CartItem`, `PaymentMethod`, `DeliveryType`, `DeliverySlot`, `Node`, `Meta`, `CreateOrderPayload`, `OrderCreated`, `OrderCalculation`, `DeliverySlotsResult`
 
 **Méthodes :**
-- `getProfile()` — Données utilisateur + stats
-- `updateProfile(data)` — Modification profil _(non connecté à un écran)_
-- `getAddresses()` — Liste des adresses
-- `createAddress(data)` — Nouvelle adresse
-- `updateAddress(id, data)` — Modification adresse
-- `deleteAddress(id)` — Suppression adresse
-- `setDefaultAddress(id)` — Adresse par défaut
-- `getOrders(params?)` — Historique commandes _(écran absent)_
-- `getOrderById(id)` — Détail commande _(écran absent)_
-- `getWallet()` — Solde wallet
-- `getNotifications()` — Liste notifications
-- `markNotificationRead(id)` — Marquer lu
-- `markAllNotificationsRead()` — Tout marquer lu
-
-**État :** 🟡 Partiel — Service complet, mais 3 méthodes sans écran associé (orders, updateProfile)
+- `getMeta(node_id?)` — Méthodes de paiement + types de livraison disponibles
+- `calculateOrder(params)` — Calcul total HT/TTC/livraison/wallet
+- `findEligibleNodes(address_id, cart_items, date?)` — Nœuds de livraison éligibles pour une adresse _(défini mais non utilisé dans l'UI — logique déléguée au backend via delivery-slots)_
+- `findPickupNodes(cart_items, date?)` — Magasins de retrait disponibles
+- `getDeliverySlots(params)` — Créneaux horaires disponibles (livraison ou retrait)
+- `createOrder(payload)` — Création de commande → retourne `{ id, reference, status }`
 
 ---
 
-## 8. Analyse des hooks
+### `profile.service.ts` ✅ Complet
+
+**Fonction :** Profil, adresses, commandes, wallet, favoris, notifications.
+
+**Interfaces exportées :** `Profile`, `Address`, `FavoriteArticle`, `OrderStatus`, `OrderSummary`, `OrderItem`, `OrderTimeline`, `Order`, `Wallet`, `Notification`
+
+**Méthodes :**
+- `getProfile()` — Profil complet
+- `updateProfile(data)` — Nom, ville, langue préférée
+- `updateEmail(email)` — PUT `/customer/me/email`
+- `requestPhoneChange(phone, country)` — Envoi OTP changement tél
+- `confirmPhoneChange(phone, otp, country)` — Confirmation OTP
+- `changePassword(old, new)` — Changement mot de passe
+- `uploadAvatar(uri)` — Upload photo (multipart/form-data)
+- `deleteAvatar()` — Suppression photo
+- `listAddresses()` / `createAddress()` / `updateAddress()` / `deleteAddress()` / `setDefaultAddress()` — CRUD adresses
+- `listOrders()` / `getOrderById(id)` — Commandes
+- `getWallet()` — Solde + transactions wallet
+- `listFavorites()` / `addFavorite(articleId)` / `removeFavorite(articleId)` — Wishlist
+- `listNotifications()` / `markNotificationRead()` / `markAllNotificationsRead()` / `deleteNotification()` / `deleteAllNotifications()` — Notifications
+
+---
+
+## 8. Analyse des hooks & contextes
+
+### Hooks
 
 | Hook | Fichier | Utilisation | État |
 |---|---|---|---|
-| `useColorScheme` | `hooks/use-color-scheme.ts` | Détection mode clair/sombre | ✅ Complet |
-| `useColorScheme` (web) | `hooks/use-color-scheme.web.ts` | Variante web | ✅ Complet |
-| `useTheme` | `hooks/use-theme.ts` | Fournit les couleurs du thème actif | ✅ Complet |
+| `useColorScheme` | `hooks/use-color-scheme.ts` | Détection mode clair/sombre | ✅ |
+| `useColorScheme` (web) | `hooks/use-color-scheme.web.ts` | Variante web | ✅ |
+| `useTheme` | `hooks/use-theme.ts` | Fournit les couleurs du thème actif | ✅ |
 
-**Hooks métier manquants (à créer) :**
+### Contextes React
+
+| Contexte | Fichier | Utilisation | État |
+|---|---|---|---|
+| `CartContext` | `context/CartContext.tsx` | `cartCount` + `refreshCartCount()` partagés globalement | ✅ |
+
+`CartContext` est le seul mécanisme de state global. Il est utilisé dans : `_layout.tsx` (Provider), `payment.tsx`, `card_payment.tsx`, `favorites.tsx`, `product-detail.tsx`, `BottomNavBar.tsx`.
+
+### Hooks métier absents (à créer)
 
 | Hook suggéré | Utilité |
 |---|---|
-| `useCart` | Centraliser la logique panier (état + actions) |
 | `useAuth` | Accès au user connecté depuis n'importe quel écran |
-| `useCatalog` | Cache + pagination catalogue |
-| `useNotifications` | Compteur de notifications non lues |
-| `useProfile` | Données profil partagées entre écrans |
+| `useProfile` | Données profil partagées entre écrans profil |
+| `useNotificationBadge` | Compteur de notifications non lues dans la navbar |
 
 ---
 
 ## 9. Navigation
 
-### Arbre de navigation (Expo Router)
+### Arbre de navigation complet (Expo Router)
 
 ```
-/ (Root Stack — _layout.tsx, headerShown: false)
+/ (Root Stack — _layout.tsx, CartProvider wrappé)
 │
-├── /index                          → Splash + redirect automatique
+├── /index                         → Splash + check token → redirect
 │
 ├── /onboarding/
-│   ├── _layout.tsx                 (Stack onboarding)
-│   ├── index                       → Slide 1
-│   ├── slide2                      → Slide 2
-│   └── slide3                      → Slide 3 → redirige vers /auth/login
+│   ├── _layout.tsx                (Stack)
+│   ├── index                      → Slide 1
+│   ├── slide2                     → Slide 2
+│   └── slide3                     → Slide 3 → /auth/login
 │
 ├── /auth/
-│   ├── login                       → Login (phone/email)
-│   ├── register                    → Inscription
-│   ├── verify-phone                → Saisie numéro + pays
-│   ├── verify-otp                  → Code OTP
-│   ├── success                     → Confirmation
-│   ├── forgot-password             → Init reset mdp
-│   ├── forgot-otp                  → OTP reset mdp
-│   └── reset-password              → Nouveau mdp
+│   ├── login                      → Connexion
+│   ├── register                   → Inscription
+│   ├── verify-phone               → Saisie téléphone
+│   ├── verify-otp                 → Code OTP
+│   ├── success                    → Succès inscription
+│   ├── forgot-password            → Init reset mdp
+│   ├── forgot-otp                 → OTP reset mdp
+│   └── reset-password             → Nouveau mdp
 │
 ├── /main/
-│   ├── _layout.tsx                 (Stack main app)
-│   ├── home                        → Accueil ⭐
-│   ├── categories                  → Grille catégories
-│   ├── category-products           → Produits par catégorie
-│   ├── product-detail              → Fiche produit
-│   ├── cart                        → Panier
-│   ├── [orders]                    → ❌ Non implémenté
-│   ├── [order-detail]              → ❌ Non implémenté
-│   ├── [favorites]                 → ❌ Non implémenté
-│   └── [checkout]                  → ❌ Non implémenté
+│   ├── _layout.tsx                (Stack)
+│   ├── home                       → Accueil ⭐
+│   ├── categories                 → Toutes catégories
+│   ├── category-products          → Produits filtrés
+│   ├── product-detail             → Fiche produit
+│   ├── cart                       → Panier → /order/delivery_type
+│   ├── favorites                  → Wishlist ✅
+│   ├── orders                     → Historique commandes ✅
+│   └── order-detail               → Suivi commande ✅
+│
+├── /order/                        ← TUNNEL CHECKOUT ✅
+│   ├── delivery_type              → Choix livraison / retrait (Étape 1)
+│   ├── delivery_address           → Adresse + GPS (→ si "home") (Étape 1 suite)
+│   ├── delivery_pickup            → Magasin (→ si "pickup") (Étape 1 suite)
+│   ├── delivery_datetime          → Calendrier + créneaux (Étape 2)
+│   ├── payment                    → Paiement + récapitulatif (Étape 3)
+│   ├── card_payment               → Formulaire carte (→ si méthode "card") (Étape 3)
+│   └── confirmed                  → Confirmation ✅ → /main/orders ou /main/home
 │
 └── /profile/
-    ├── profile                     → Profil utilisateur
-    ├── addresses                   → Gestion adresses
-    ├── notifications               → Centre notifications
-    ├── [edit-profile]              → ❌ Non implémenté
-    └── [settings]                  → ❌ Non implémenté
+    ├── profile                    → Profil + stats + menu
+    ├── addresses                  → CRUD adresses
+    ├── notifications              → Centre notifications
+    └── settings                  → Photo, infos perso, sécurité, langue ✅
 ```
 
 ### Bottom Navigation Bar (BottomNavBar.tsx)
 
 ```
 [ 🏠 Accueil ] [ 📦 Catégories ] [ 🛒 Panier ] [ ❤️ Favoris ] [ 👤 Profil ]
-     home          categories         cart        favorites*       profile
-                                   (floating)    ← non lié
+     home          categories         cart        favorites        profile
+                                   (floating)   ← badge count via CartContext
 ```
 
-_* La tab Favoris navigue vers une route inexistante → crash potentiel_
+Le badge de la tab Panier est alimenté par `CartContext.cartCount`.
 
 ### Flux Auth (logique de redirection)
 
 ```
-App Launch
-  └── index.tsx → vérifie token valide
-      ├── Token valide → /main/home
-      └── Pas de token → /onboarding/index
-                          └── Fin onboarding → /auth/login
+App Launch → index.tsx
+  └── isTokenValid() ?
+      ├── OUI → /main/home
+      └── NON → /onboarding/index → /auth/login → /main/home
+```
+
+### Flux Checkout
+
+```
+/main/cart → "Commander"
+  └── /order/delivery_type
+        ├── "Livraison" → /order/delivery_address → /order/delivery_datetime
+        └── "Retrait"  → /order/delivery_pickup  → /order/delivery_datetime
+                                └── /order/payment
+                                      ├── (COD/Wallet) → createOrder() → /order/confirmed
+                                      └── (Card)       → /order/card_payment → createOrder() → /order/confirmed
 ```
 
 ---
@@ -442,119 +508,148 @@ App Launch
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Login (email/mdp) | ✅ Terminé | `/auth/login` | login.tsx |
-| Login (téléphone/mdp) | ✅ Terminé | `/auth/login` | login.tsx |
-| Inscription | ✅ Terminé | `/auth/register` | register.tsx → verify-phone → verify-otp → success |
-| Vérification OTP | ✅ Terminé | `/otp/verify-register` | verify-otp.tsx |
-| Reset mot de passe | ✅ Terminé | `/otp/forgot-password` + `/auth/reset-password` | forgot-password → forgot-otp → reset-password |
-| Logout | ✅ Terminé | (local only) | profile.tsx |
-| Persistance session | ✅ Terminé | SecureStore | Automatique |
+| Login email/mdp | ✅ | `/customer/auth/login` | login.tsx |
+| Login téléphone/mdp | ✅ | `/customer/auth/login` | login.tsx |
+| Inscription OTP | ✅ | `check-phone`, `request-otp`, `verify-otp`, `register` | register → verify-phone → verify-otp → success |
+| Reset mot de passe | ✅ | `forgot-password`, `reset-password` | forgot-password → forgot-otp → reset-password |
+| Logout | ✅ | (local) | profile.tsx |
+| Persistance session JWT | ✅ | SecureStore | Automatique via _layout |
 
 ### Catalogue
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Liste catégories | ✅ Terminé | `/customer/catalog/categories` | home.tsx, categories.tsx |
-| Produits par catégorie | ✅ Terminé | `/customer/catalog/categories/:id/articles` | category-products.tsx |
-| Sous-catégories | ✅ Terminé | `/customer/catalog/categories/:id/sub-categories` | category-products.tsx |
-| Recherche produits | ✅ Terminé | `/customer/catalog/articles?search=` | category-products.tsx |
-| Fiche produit | ✅ Terminé | `/customer/catalog/articles/:id` | product-detail.tsx |
-| Recommandations | ✅ Terminé | `/customer/catalog/recommendations` | home.tsx |
-| Promotions / Bannières | 🟡 Partiel | — | BannerSlider présent, données non connectées |
-| Favoris / Wishlist | ❌ Non implémenté | — | — |
+| Catégories | ✅ | `/categories` | home, categories |
+| Sous-catégories | ✅ | `/categories/:id/sub-categories` | category-products |
+| Produits + pagination | ✅ | `/articles` | home, category-products |
+| Fiche produit | ✅ | `/articles/:id` | product-detail |
+| Recherche + historique | ✅ | `/articles?search=` + searchHistory.ts | category-products |
+| Recommandations | ✅ | `/recommendations` | home |
+| Favoris (toggle ♡) | ✅ | `POST/DELETE /me/favorites` | product-detail |
+| Bannières promotionnelles | 🟡 | _(BannerSlider présent, non alimenté)_ | home |
 
 ### Panier
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Afficher panier | ✅ Terminé | GET `/customer/cart` | cart.tsx |
-| Ajouter article | ✅ Terminé | POST `/customer/cart` | product-detail.tsx |
-| Modifier quantité | ✅ Terminé | PUT `/customer/cart/:sku_id` | cart.tsx |
-| Supprimer article | ✅ Terminé | DELETE `/customer/cart/:sku_id` | cart.tsx |
-| Vider panier | ✅ Terminé | DELETE `/customer/cart` | cart.tsx |
-| Total / sous-total | ✅ Terminé | (calculé côté client) | cart.tsx |
-| Passer commande | ❌ Non implémenté | — | — |
+| Afficher panier | ✅ | GET `/customer/cart` | cart.tsx |
+| Ajouter article | ✅ | POST `/customer/cart` | product-detail, favorites |
+| Modifier quantité | ✅ | PUT `/customer/cart/:sku_id` | cart.tsx |
+| Supprimer article | ✅ | DELETE `/customer/cart/:sku_id` | cart.tsx |
+| Vider panier | ✅ | DELETE `/customer/cart` | cart.tsx, après commande |
+| Badge panier | ✅ | CartContext | BottomNavBar |
+
+### Tunnel de commande (Checkout)
+
+| Fonctionnalité | État | APIs connectées | Écrans |
+|---|---|---|---|
+| Choix mode réception | ✅ | — | delivery_type |
+| Saisie adresse + GPS | ✅ | `getCities`, `listAddresses`, `getMe` | delivery_address |
+| Sélection magasin + Maps | ✅ | `pickup-nodes` | delivery_pickup |
+| Calendrier + créneaux | ✅ | `delivery-slots` | delivery_datetime |
+| Paiement COD/Wallet | ✅ | `getMeta`, `calculateOrder`, `createOrder` | payment |
+| Paiement carte | ✅ | `createOrder` + wallet déduit | card_payment |
+| Confirmation commande | ✅ | — | confirmed |
 
 ### Commandes
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Historique commandes | ❌ Non implémenté | GET `/customer/me/orders` | — |
-| Détail commande | ❌ Non implémenté | GET `/customer/me/orders/:id` | — |
-| Suivi livraison | ❌ Non implémenté | — | — |
-| Tunnel de commande (checkout) | ❌ Non implémenté | — | — |
+| Historique commandes | ✅ | GET `/me/orders` | orders.tsx |
+| Badge statut coloré | ✅ | (couleur dans OrderStatus) | orders.tsx |
+| Suivi commande + timeline | ✅ | GET `/me/orders/:id` | order-detail.tsx |
+| Tracking livraison/retrait | ✅ | (steps adaptatifs) | order-detail.tsx |
+| Barre de progression | ✅ | (calculé côté client) | order-detail.tsx |
+| Appel support | ✅ | `Linking.openURL('tel:...')` | order-detail.tsx |
 
-### Profil utilisateur
+### Profil & Paramètres
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Afficher profil | ✅ Terminé | GET `/customer/me` | profile.tsx |
-| Statistiques (nb commandes, total) | ✅ Terminé | GET `/customer/me` | profile.tsx |
-| Modifier profil | ❌ Non implémenté | PUT `/customer/me` | — |
-| Gestion adresses (CRUD) | ✅ Terminé | `/customer/me/addresses/*` | addresses.tsx |
-| Adresse par défaut | ✅ Terminé | PATCH `.../set-default` | addresses.tsx |
-| Photo de profil | ❌ Non implémenté | — | — |
+| Afficher profil + stats | ✅ | GET `/customer/me` | profile.tsx |
+| Photo de profil (upload) | ✅ | POST `/me/avatar` | settings.tsx |
+| Retirer photo | ✅ | DELETE `/me/avatar` | settings.tsx |
+| Modifier nom | ✅ | PUT `/me` | settings.tsx |
+| Modifier email | ✅ | PUT `/me/email` | settings.tsx |
+| Modifier téléphone + OTP | ✅ | `request-otp` + `verify-otp` | settings.tsx |
+| Changer mot de passe | ✅ | PUT `/me/password` | settings.tsx |
+| Préférence langue FR/AR | 🟡 | PUT `/me` | settings.tsx (stocké, non appliqué à l'UI) |
+| CRUD adresses | ✅ | `/me/addresses/*` | addresses.tsx |
+| Adresse par défaut | ✅ | `set-default` | addresses.tsx |
+
+### Favoris
+
+| Fonctionnalité | État | APIs connectées | Écrans |
+|---|---|---|---|
+| Liste favoris | ✅ | GET `/me/favorites` | favorites.tsx |
+| Supprimer favori | ✅ | DELETE `/me/favorites/:id` | favorites.tsx |
+| Ajouter au panier depuis favoris | ✅ | POST `/customer/cart` | favorites.tsx |
+| Ajouter favori depuis catalogue | ✅ | POST `/me/favorites` | product-detail.tsx |
 
 ### Wallet
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Afficher solde | 🟡 Partiel | GET `/customer/me/wallet` | profile.tsx (affichage seul) |
-| Recharger wallet | ❌ Non implémenté | — | — |
-| Historique transactions | ❌ Non implémenté | — | — |
-
-### Fidélité
-
-| Fonctionnalité | État | APIs connectées | Écrans |
-|---|---|---|---|
-| Points fidélité | ❌ Non implémenté | — | — |
-| Récompenses | ❌ Non implémenté | — | — |
+| Solde dans profil | ✅ | GET `/me/wallet` | profile.tsx |
+| Utiliser wallet au paiement | ✅ | (calculateOrder + payload) | payment.tsx |
+| Écran wallet dédié | ❌ | — | — |
+| Historique transactions | ❌ | (défini dans Wallet interface) | — |
+| Recharger wallet | ❌ | — | — |
 
 ### Notifications
 
 | Fonctionnalité | État | APIs connectées | Écrans |
 |---|---|---|---|
-| Centre de notifications | ✅ Terminé | GET `/customer/me/notifications` | notifications.tsx |
-| Marquer lu | ✅ Terminé | PATCH `.../read` | notifications.tsx |
-| Marquer tout lu | ✅ Terminé | PATCH `.../read-all` | notifications.tsx |
-| Push Notifications | ❌ Non implémenté | — | — |
-| Badge compteur | 🟡 Partiel | (icône BottomNavBar) | Compteur non branché |
+| Centre de notifications | ✅ | GET `/me/notifications` | notifications.tsx |
+| Marquer lu | ✅ | PATCH `.../read` | notifications.tsx |
+| Marquer tout lu | ✅ | PATCH `.../read-all` | notifications.tsx |
+| Supprimer notification | ✅ | DELETE `.../notifications/:id` | notifications.tsx |
+| Supprimer toutes | ✅ | DELETE `.../notifications/all` | notifications.tsx |
+| Push notifications | ❌ | — | — |
+| Badge non lus dans navbar | ❌ | (hook manquant) | BottomNavBar |
+
+### Fidélité
+
+| Fonctionnalité | État |
+|---|---|
+| Points fidélité | ❌ Non implémenté |
+| Récompenses | ❌ Non implémenté |
 
 ---
 
 ## 11. Détection des problèmes
 
-### 🔴 Problèmes critiques
+### 🔴 Problèmes critiques (bloquants production)
 
 | # | Problème | Localisation | Impact |
 |---|---|---|---|
-| C1 | **Double service auth** : `auth.service.ts` et `customer_auth.service.ts` coexistent avec logiques dupliquées | `src/services/` | Confusion, risque de régressions, maintenance difficile |
-| C2 | **Favoris tab sans route** : `BottomNavBar.tsx` pointe vers `/main/favorites` qui n'existe pas | `src/components/ui/BottomNavBar.tsx` | Crash navigation à l'usage |
-| C3 | **Checkout absent** : Le bouton "Commander" dans `cart.tsx` n'a pas de destination | `src/app/main/cart.tsx` | Fonctionnalité cœur non terminée |
-| C4 | **`order.service.ts` vide** : Aucune méthode implémentée | `src/services/order.service.ts` | Module Commandes bloqué |
-| C5 | **URL API hardcodée** (`192.168.100.114:5000`) | `src/constants/config.ts` | Ne fonctionnera pas en production |
+| C1 | **URL API & Storage hardcodées** (`192.168.100.114:5000`) | `src/constants/config.ts` | App non fonctionnelle en production / sur d'autres réseaux |
+| C2 | **Incohérence client HTTP** : `order.service.ts` utilise `fetch` natif au lieu de l'instance Axios centralisée | `src/services/order.service.ts` | Pas d'intercepteurs (pas de refresh token automatique), maintenance difficile |
+| C3 | **Numéro de téléphone support hardcodé** (`tel:+212500000000`) | `order-detail.tsx` | Faux contact en production |
+| C4 | **Paiement carte non intégré** à un vrai gateway (Stripe, CMI, etc.) — formulaire UI uniquement | `card_payment.tsx` | Les paiements carte échouent silencieusement en production |
 
-### 🟡 Problèmes moyens
+### 🟡 Problèmes moyens (dette technique)
 
 | # | Problème | Localisation | Impact |
 |---|---|---|---|
-| M1 | **Pas de state management global** | Tous les écrans | Prop drilling, re-fetch redondants, état incohérent entre écrans |
-| M2 | **Pas de cache API** (React Query/SWR absent) | Tous les services | Rechargement complet à chaque montée d'écran |
-| M3 | **Validation formulaires manuelle** | Écrans auth, adresses | Code fragile, erreurs UX silencieuses |
-| M4 | **`PUT /customer/me` non relié** | `profile.service.ts` | L'endpoint updateProfile existe mais aucun écran ne l'utilise |
-| M5 | **Badge notifications non branché** | `BottomNavBar.tsx` | Compteur non lus non affiché |
-| M6 | **Textes hardcodés en français** | Tous les écrans | Internationalisation impossible sans refactoring |
-| M7 | **Pas de gestion d'erreur globale** | `src/api/client.ts` | Erreurs réseau silencieuses sur certains écrans |
+| M1 | **Pas de state management global** — seul `CartContext` existe | Tous les écrans | Re-fetch redondants, état incohérent entre navigations |
+| M2 | **Pas de cache serveur** (React Query / SWR absent) | Tous les services | Rechargement complet à chaque montée d'écran |
+| M3 | **Badge notifications non branché** dans BottomNavBar | `BottomNavBar.tsx` | Compteur non lus non affiché |
+| M4 | **Langue préférentielle stockée mais non appliquée** — les textes restent en FR quoi qu'il arrive | `settings.tsx` | UX trompeuse pour les utilisateurs arabophones |
+| M5 | **`findEligibleNodes`** défini dans order.service mais jamais appelé depuis l'UI | `order.service.ts` | Code mort |
+| M6 | **Validation formulaires manuelle** — sans bibliothèque de validation | Auth, adresses, settings | Code fragile, erreurs UX silencieuses possibles |
+| M7 | **`explore.tsx`** — reste du template Expo, jamais utilisé | `app/explore.tsx` | Code mort |
 
 ### 🟢 Améliorations mineures
 
 | # | Problème | Localisation |
 |---|---|---|
-| m1 | Couleurs dupliquées dans plusieurs fichiers (non systématiquement tirées du theme) | Écrans main/* |
-| m2 | `BannerSlider.tsx` présent mais non alimenté par des données réelles | `src/components/ui/` |
-| m3 | Pas de skeleton loading — indicateurs d'activité basiques (`ActivityIndicator`) | Tous les écrans |
-| m4 | `countries.json` chargé entièrement même quand non nécessaire | `src/constants/` |
-| m5 | Pas de tests unitaires ou e2e | Tout le projet |
+| m1 | `BannerSlider.tsx` présent mais données non connectées à l'API | `src/components/ui/` |
+| m2 | Couleurs partiellement dupliquées (valeurs hardcodées `#E10600` dans certains fichiers plutôt que `theme.ts`) | Écrans order/* |
+| m3 | Skeleton loading absent — uniquement `ActivityIndicator` basique | Tous les écrans |
+| m4 | `countries.json` chargé entièrement même si non nécessaire | `src/constants/` |
+| m5 | `useFonts()` appelé dans chaque écran individuellement → chargements multiples | Tous les écrans |
+| m6 | Pas de tests unitaires ni e2e | Tout le projet |
 
 ---
 
@@ -562,114 +657,109 @@ App Launch
 
 | Module | Écrans | Services | Endpoints | Progression |
 |---|---|---|---|---|
-| **Authentification** | 8/8 ✅ | 2/2 (legacy à nettoyer) | 10/10 | **90 %** |
-| **Onboarding** | 3/3 ✅ | — | — | **100 %** |
-| **Catalogue** | 4/4 ✅ | 1/1 ✅ | 6/6 | **85 %** |
-| **Panier** | 1/1 ✅ | 1/1 ✅ | 5/5 | **70 %** (checkout manquant) |
-| **Profil** | 2/4 🟡 | 1/1 🟡 | 9/13 | **55 %** |
-| **Commandes** | 0/2 ❌ | 0/1 ❌ | 0/2 | **0 %** |
-| **Wallet** | 0/1 ❌ | 0/1 ❌ | 1/3 | **15 %** (affichage solde seul) |
-| **Notifications** | 1/1 ✅ | (dans profile) | 3/3 ✅ | **75 %** (push absent) |
-| **Fidélité** | 0/1 ❌ | 0/1 ❌ | 0/2 | **0 %** |
-| **Favoris** | 0/1 ❌ | 0/1 ❌ | 0/2 | **0 %** |
+| **Authentification** | 8/8 ✅ | 1/1 ✅ | 5/5 ✅ | **95 %** |
+| **Onboarding** | 4/4 ✅ | — | — | **100 %** |
+| **Catalogue** | 4/4 ✅ | 1/1 ✅ | 7/7 ✅ | **88 %** _(BannerSlider non connecté)_ |
+| **Panier** | 1/1 ✅ | 1/1 ✅ | 5/5 ✅ | **95 %** |
+| **Checkout** | 7/7 ✅ | 1/1 ✅ | 5/6 | **85 %** _(gateway carte manquant)_ |
+| **Commandes** | 2/2 ✅ | (dans profile) | 2/2 ✅ | **95 %** |
+| **Profil & Settings** | 4/5 🟡 | 1/1 ✅ | 10/10 ✅ | **85 %** _(Wallet screen absent)_ |
+| **Favoris** | 1/1 ✅ | (dans profile) | 3/3 ✅ | **90 %** |
+| **Wallet** | 0/1 ❌ | (dans profile) | 0/3 | **25 %** _(solde affiché seulement)_ |
+| **Notifications** | 1/1 ✅ | (dans profile) | 5/5 ✅ | **70 %** _(push + badge manquants)_ |
+| **Fidélité** | 0/1 ❌ | ❌ | 0/2 | **0 %** |
 
-### Progression globale estimée : **55 %**
+### Progression globale estimée : **78 %**
 
 ```
-Auth        ████████████████████  90 %
+Auth        ███████████████████░  95 %
 Onboarding  ████████████████████ 100 %
-Catalogue   █████████████████░░░  85 %
-Panier      ██████████████░░░░░░  70 %
-Profil      ███████████░░░░░░░░░  55 %
-Commandes   ░░░░░░░░░░░░░░░░░░░░   0 %
-Wallet      ███░░░░░░░░░░░░░░░░░  15 %
-Notifs      ███████████████░░░░░  75 %
+Catalogue   █████████████████░░░  88 %
+Panier      ███████████████████░  95 %
+Checkout    █████████████████░░░  85 %
+Commandes   ███████████████████░  95 %
+Profil      █████████████████░░░  85 %
+Favoris     ██████████████████░░  90 %
+Wallet      █████░░░░░░░░░░░░░░░  25 %
+Notifs      ██████████████░░░░░░  70 %
 Fidélité    ░░░░░░░░░░░░░░░░░░░░   0 %
-Favoris     ░░░░░░░░░░░░░░░░░░░░   0 %
 
-GLOBAL      ███████████░░░░░░░░░  55 %
+GLOBAL      ████████████████░░░░  78 %
 ```
 
 ---
 
 ## 13. Priorités de développement
 
-### Priorité Haute — Bloquants pour la livraison
+### Priorité Haute — Bloquants pour la mise en production
 
-1. **Implémenter le tunnel de commande (Checkout)** — Écran `checkout.tsx` + intégration API orders + sélection adresse de livraison
-2. **Créer `order.service.ts`** — Implémenter `createOrder()`, `getOrders()`, `getOrderById()`
-3. **Implémenter les écrans Commandes** — `orders.tsx` (historique) + `order-detail.tsx` (détail + statut)
-4. **Corriger la tab Favoris** — Soit implémenter l'écran, soit désactiver la navigation pour éviter le crash
-5. **Remplacer l'URL hardcodée** — Utiliser une variable d'environnement via `expo-constants` ou `.env`
-6. **Supprimer `auth.service.ts` legacy** — Consolider sur `customer_auth.service.ts` et nettoyer les imports
+1. **Externaliser la configuration API** — Remplacer les IP hardcodées par des variables d'environnement (`expo-constants` + `.env` + `eas.json`)
+2. **Intégrer un vrai gateway de paiement carte** — CMI, Stripe, ou solution locale Maroc (simulé uniquement pour l'instant)
+3. **Unifier le client HTTP** — Migrer `order.service.ts` vers l'instance Axios centralisée pour bénéficier des intercepteurs
+4. **Corriger le numéro de support** dans `order-detail.tsx`
+5. **Brancher le badge notifications** dans `BottomNavBar` (hook `useNotificationBadge`)
 
-### Priorité Moyenne — Qualité & expérience utilisateur
+### Priorité Moyenne — Complétion des fonctionnalités
 
-1. **Ajouter Zustand** pour l'état global (panier, user, notifications) et éliminer les re-fetch
-2. **Créer l'écran Edit Profile** — Brancher `PUT /customer/me`
-3. **Brancher le badge notifications** dans `BottomNavBar`
-4. **Implémenter le module Wallet** — Écran dédié + historique transactions
-5. **Ajouter React Hook Form + Zod** pour la validation des formulaires (auth, adresses)
-6. **Implémenter le filtrage par prix et tri** dans le catalogue
-7. **Connecter les bannières promotionnelles** à des données API
+1. **Créer l'écran Wallet dédié** — Solde + historique transactions (l'endpoint `getWallet()` est déjà implémenté avec les transactions)
+2. **Appliquer réellement la langue préférentielle** — Intégrer `i18next` ou solution équivalente
+3. **Connecter BannerSlider** à des données API backend
+4. **Ajouter Zustand** pour l'état global (user, profile, notifications count)
+5. **Implémenter les Push Notifications** — `expo-notifications` + token FCM/APNs
+6. **Supprimer `explore.tsx`** et `findEligibleNodes` inutilisé
 
 ### Priorité Faible — Évolutions futures
 
-1. **Implémenter les Favoris** (wishlist) — Écran + service + endpoints backend
-2. **Internationalisation (i18n)** — Extraction des textes + support arabe/anglais
-3. **Push Notifications** — Intégrer `expo-notifications` + token FCM
-4. **Fidélité** — Points, récompenses, historique
-5. **Écran Settings** — Langue, notifications, confidentialité
-6. **Photo de profil** — Upload via `expo-image-picker`
-7. **Tests unitaires** — Jest + React Native Testing Library
+1. **Module Fidélité** — Points, récompenses, écran dédié
+2. **Internationalisation complète** — Extraction de tous les textes en FR/AR
+3. **Skeleton loading** — Remplacer les ActivityIndicator par des squelettes d'écran
+4. **Optimiser `useFonts`** — Charger les polices une seule fois dans `_layout.tsx`
+5. **Tests unitaires & e2e** — Jest + RNTL pour les services, Maestro pour le golden path
+6. **CI/CD** — EAS Build + EAS Submit
 
 ---
 
 ## 14. Roadmap des prochaines étapes
 
-### Sprint 1 — Complétion MVP (2–3 semaines)
+### Sprint 1 — Production-readiness (1–2 semaines)
 
 ```
-[ ] Fix immédiat : corriger tab Favoris (désactiver ou stub screen)
-[ ] Fix immédiat : externaliser API_URL en variable d'environnement
-[ ] Implémenter order.service.ts (createOrder, getOrders, getOrderById)
-[ ] Créer écran orders.tsx (historique commandes)
-[ ] Créer écran order-detail.tsx (détail + tracking statut)
-[ ] Créer écran checkout.tsx (récap panier + sélection adresse + validation)
-[ ] Supprimer auth.service.ts legacy
-```
-
-### Sprint 2 — Qualité & state management (2 semaines)
-
-```
-[ ] Ajouter Zustand : stores authStore, cartStore, notifStore
-[ ] Migrer les données partagées vers les stores (supprimer prop drilling)
-[ ] Créer écran edit-profile.tsx
+[ ] Configurer les variables d'environnement (API_URL via eas.json / .env)
+[ ] Migrer order.service.ts vers l'instance Axios centralisée
+[ ] Intégrer gateway de paiement carte (CMI / Stripe)
+[ ] Corriger numéro de support hardcodé
 [ ] Brancher badge notifications dans BottomNavBar
-[ ] Ajouter gestion d'erreur globale dans api/client.ts
-[ ] Ajouter skeleton loading sur les écrans catalogue et profil
+[ ] Supprimer explore.tsx (template résiduel)
 ```
 
-### Sprint 3 — Fonctionnalités avancées (2–3 semaines)
+### Sprint 2 — Complétion fonctionnelle (2 semaines)
 
 ```
-[ ] Module Wallet : écran + historique transactions
-[ ] Module Favoris : service + écran + endpoints backend
-[ ] Connecter BannerSlider à des données API
-[ ] Ajouter filtres prix et tri dans le catalogue
-[ ] Implémenter React Hook Form + Zod (auth, adresses)
+[ ] Créer écran Wallet dédié (/profile/wallet) — lister transactions + afficher solde
+[ ] Implémenter i18n (react-i18next) — FR et AR
+[ ] Connecter BannerSlider à l'API
+[ ] Ajouter Zustand : authStore + profileStore
+[ ] Implémenter expo-notifications + token FCM
 ```
 
-### Sprint 4 — Production-readiness (2 semaines)
+### Sprint 3 — Qualité & tests (2 semaines)
 
 ```
-[ ] Push Notifications (expo-notifications + FCM)
-[ ] Internationalisation (i18n) — FR/AR/EN
-[ ] Module Fidélité
-[ ] Tests unitaires (composants clés + services)
-[ ] Tests e2e (Maestro ou Detox) sur le golden path (login → catalogue → panier → commande)
-[ ] Audit performance (FlatList optimisations, images)
-[ ] Configuration CI/CD (EAS Build + EAS Submit)
+[ ] Skeleton loading (react-native-skeleton-placeholder ou custom)
+[ ] React Hook Form + Zod sur les formulaires auth et adresses
+[ ] Tests unitaires services (catalog, cart, order)
+[ ] Tests e2e golden path : login → catalogue → panier → checkout → commande
+[ ] Optimiser useFonts (1 seul appel dans _layout.tsx)
+```
+
+### Sprint 4 — Évolutions avancées (2–3 semaines)
+
+```
+[ ] Module Fidélité : points, récompenses, historique
+[ ] Internationalisation arabe complète (RTL)
+[ ] Écran de carte interactive (livraison en temps réel ?)
+[ ] Avis & notes produits
+[ ] CI/CD : EAS Build + EAS Submit
 ```
 
 ---
@@ -678,17 +768,19 @@ GLOBAL      ███████████░░░░░░░░░  55 %
 
 | Métrique | Valeur |
 |---|---|
-| Fichiers source TypeScript | ~45 |
-| Lignes de code estimées | ~4 500 |
-| Écrans terminés | 20 / 26 (77 %) |
-| Endpoints définis dans les services | 38 |
-| Endpoints actuellement consommés par un écran | 32 (84 %) |
-| Services complets | 3 / 7 (43 %) |
-| Hooks personnalisés | 2 (3 manquants prioritaires) |
-| Composants UI réutilisables | ~12 |
-| Modules entièrement absents | 3 (Commandes, Fidélité, Favoris) |
-| Dette technique estimée | Moyenne |
+| Fichiers source TypeScript | 67 |
+| Lignes de code estimées | ~8 500 |
+| Écrans métier terminés | 28 / 31 (90 %) |
+| Services implémentés | 5 / 5 (100 %) |
+| Endpoints API définis dans les services | 50+ |
+| Endpoints consommés par au moins un écran | 47+ (94 %) |
+| Contextes React | 1 (CartContext) |
+| Hooks personnalisés | 2 |
+| Composants UI réutilisables | 10 |
+| Modules entièrement absents | 2 (Fidélité, Wallet screen) |
+| Dépendances de prod | 20 |
+| Dette technique estimée | Faible–Moyenne |
 
 ---
 
-*Rapport généré automatiquement par analyse statique du code source — Dark Store, branche `Hajar`, 2026-06-12.*
+*Rapport généré par analyse statique intégrale du code source — Dark Store Customer App, branche `Hajar`, 2026-06-23.*

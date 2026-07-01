@@ -53,6 +53,7 @@ export default function CheckoutDateTimeScreen() {
   const [slots, setSlots]               = useState<DeliverySlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError]     = useState('');
+  const [resolvedNodeId, setResolvedNodeId] = useState<string | null>(null);
 
   // ── Grille calendrier ──
   const calendarDays = useMemo(() => {
@@ -74,6 +75,7 @@ export default function CheckoutDateTimeScreen() {
         setLoadingSlots(true);
         setSlotsError('');
         setSelectedSlot(null);
+        setResolvedNodeId(null);
 
         const dateStr = formatDate(selectedDate);
         const result = await getDeliverySlots({
@@ -83,7 +85,8 @@ export default function CheckoutDateTimeScreen() {
           date:               dateStr,
         });
 
-        setSlots(Array.isArray(result) ? result : []);
+        setSlots(result.slots);
+        setResolvedNodeId(result.node_id);
       } catch (e: any) {
         setSlots([]);
         setSlotsError(e.message || 'Erreur chargement des créneaux');
@@ -125,10 +128,12 @@ export default function CheckoutDateTimeScreen() {
   const handleConfirm = () => {
     if (!selectedDate || !selectedSlot) return;
     const slot = slots.find((s) => s.id === selectedSlot);
+    const nodeId = params.node_id ?? resolvedNodeId ?? undefined;
     router.push({
       pathname: '/order/payment' as any,
       params: {
         ...params,
+        node_id:    nodeId,
         date:       formatDate(selectedDate),
         slot_id:    selectedSlot,
         slot_start: slot?.start_time,
@@ -211,8 +216,16 @@ export default function CheckoutDateTimeScreen() {
           ) : slots.length === 0 ? (
             <View style={styles.emptySlots}>
               <Feather name="clock" size={36} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucun créneau disponible ce jour</Text>
-              <Text style={styles.emptySubtext}>Choisissez une autre date</Text>
+              <Text style={styles.emptyText}>
+                {params.delivery_type_code === 'home' && resolvedNodeId === null
+                  ? 'Livraison indisponible dans cette zone'
+                  : 'Aucun créneau disponible ce jour'}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {params.delivery_type_code === 'home' && resolvedNodeId === null
+                  ? 'Votre adresse est hors zone de livraison'
+                  : 'Choisissez une autre date'}
+              </Text>
             </View>
           ) : (
             <View style={styles.slotsGrid}>

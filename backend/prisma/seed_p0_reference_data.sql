@@ -7,7 +7,6 @@ INSERT INTO stock_operations (code, name_fr) VALUES
   ('OUT', 'Sortie'),
   ('NEUTRAL', 'Neutre')
 ON CONFLICT (code) DO NOTHING;
-
 -- costing_methods (nécessaire pour reorder_rules)
 INSERT INTO costing_methods (id, code, name_fr, name_ar)
 SELECT gen_random_uuid(), v.code, v.name_fr, v.name_ar

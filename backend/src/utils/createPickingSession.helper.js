@@ -25,7 +25,7 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
     include: {
       status: true,
       items:  {
-        where: { status: { code: { not: 'cancelled' } } },
+        where: { status: { code: { notIn: ['cancelled', 'CANCELLED'] } } },
         include: { sku: { select: { id: true } } },
       },
     },
@@ -51,7 +51,7 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
   // 4. Résoudre les statuts dynamiquement
   const [openStatusId, pendingItemStatusId, pickingOrderStatusId] = await Promise.all([
     getPickingStatusId('open'),
-    getPickItemStatusId('pending'),
+    getPickItemStatusId('PENDING'),
     getOrderStatusId('picking'),
   ]);
 

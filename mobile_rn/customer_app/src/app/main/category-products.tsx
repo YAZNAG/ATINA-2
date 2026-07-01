@@ -16,8 +16,10 @@ import ProductCard  from '../../components/ui/ProductCard';
 import FilterModal  from '../../components/ui/FilterModal';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '@/components/ui/SearchBar';
+import SortBar, { SortOption, sortArticles } from '../../components/ui/SortBar';
 
 import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../services/catalog.service';
+import { ProfileService } from '../../services/profile.service';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
@@ -60,6 +62,8 @@ export default function CategoryProductsScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedCats, setSelectedCats]   = useState<number[]>([]);
   const [selectedSubs, setSelectedSubs]   = useState<number[]>([]);
+  const [sort, setSort]                   = useState<SortOption>('default');
+  const [favoriteIds, setFavoriteIds]     = useState<Set<number>>(new Set());
 
   const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
   const catName = Array.isArray(category_name) ? category_name[0] : (category_name || 'Catégorie');
@@ -103,6 +107,12 @@ export default function CategoryProductsScreen() {
   useEffect(() => { loadArticles(1, true); }, [catId]);
 
   useEffect(() => {
+    ProfileService.listFavorites()
+      .then(favs => setFavoriteIds(new Set(favs.map(f => f.id))))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const t = setTimeout(() => loadArticles(1, true), 400);
     return () => clearTimeout(t);
   }, [search]);
@@ -116,16 +126,19 @@ export default function CategoryProductsScreen() {
   const totalFilters = selectedCats.length + selectedSubs.length;
 
   // ─── Filter ────────────────────────────────────────────────────────────────
-  const filtered = articles.filter((a) => {
-    const matchSub  = selectedSubs.length > 0
-      ? selectedSubs.includes(a.sub_category?.id ?? 0)
-      : selectedSub ? a.sub_category?.id === selectedSub : true;
-    return matchSub ;
-  });
+  const filtered = sortArticles(
+    articles.filter((a) => {
+      const matchSub = selectedSubs.length > 0
+        ? selectedSubs.includes(a.sub_category?.id ?? 0)
+        : selectedSub ? a.sub_category?.id === selectedSub : true;
+      return matchSub;
+    }),
+    sort,
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <PageHeader title={catName} />
 
@@ -134,24 +147,8 @@ export default function CategoryProductsScreen() {
         value={search}
         onChangeText={setSearch}
         onFilter={() => setFilterVisible(true)}
+        articleNames={articles.map(a => a.name_fr)}
       />
-
-      {/* ── Sub-categories pills (désactivées si filtre modal actif) ── */}
-      {subCategories.length > 0 && selectedSubs.length === 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
-          <SubCatPill label="Tout" selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
-          {subCategories.map((sub) => (
-            <SubCatPill
-              key={sub.id}
-              label={sub.name_fr}
-              image_path={sub.image_path}
-              selected={selectedSub === sub.id}
-              onPress={() => setSelectedSub(selectedSub === sub.id ? null : sub.id)}
-            />
-          ))}
-        </ScrollView>
-      )}
-
       {/* ── Products grid ── */}
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -167,6 +164,25 @@ export default function CategoryProductsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.3}
+          ListHeaderComponent={
+            <>
+              <SortBar value={sort} onChange={(v) => setSort(v as SortOption)} paddingLeft={0} />
+              {subCategories.length > 0 && selectedSubs.length === 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
+                  <SubCatPill label="Tout" selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
+                  {subCategories.map((sub) => (
+                    <SubCatPill
+                      key={sub.id}
+                      label={sub.name_fr}
+                      image_path={sub.image_path}
+                      selected={selectedSub === sub.id}
+                      onPress={() => setSelectedSub(selectedSub === sub.id ? null : sub.id)}
+                    />
+                  ))}
+                </ScrollView>
+              )}
+            </>
+          }
           ListFooterComponent={loadingMore ? <ActivityIndicator color={RED} style={{ marginVertical: 16 }} /> : null}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -178,6 +194,12 @@ export default function CategoryProductsScreen() {
           renderItem={({ item }) => (
             <ProductCard
               article={item}
+              isFav={favoriteIds.has(item.id)}
+              onToggleFav={(next) => setFavoriteIds(prev => {
+                const s = new Set(prev);
+                if (next) s.add(item.id); else s.delete(item.id);
+                return s;
+              })}
               onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })}
             />
           )}
@@ -207,7 +229,7 @@ export default function CategoryProductsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  pillsContainer: { paddingHorizontal: 16, gap: 10, marginBottom: 16, alignItems: 'flex-start' },
+  pillsContainer: { paddingHorizontal: 0, gap: 10, marginBottom: 16, alignItems: 'flex-start' },
   pill:           { alignItems: 'center', gap: 6, width: 68 },
   pillImageBox: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
   pillImageBoxSelected: { borderColor: RED, backgroundColor: '#FFF0F0' },

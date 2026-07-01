@@ -36,6 +36,24 @@ const TEMPLATES = {
     title: 'Paiement wallet',
     body: (data) => `Paiement de ${data.amount} MAD effectué depuis votre wallet. Solde restant: ${data.balance} MAD.`,
   },
+  flash_sale_created: {
+    title: 'Promotion spéciale',
+    body: (data) => `Profitez de ${data.discount_label} sur ${data.scope_label}${data.until ? ` jusqu'au ${data.until}` : ''}.`,
+  },
+  pack_created: {
+    title: 'Nouveau pack disponible',
+    body: (data) => `Découvrez le pack "${data.name}" à ${data.price} MAD${data.discount_pct ? ` (-${data.discount_pct}%)` : ''}.`,
+  },
+  coupon_created: {
+    title: 'Nouveau code promo',
+    body: (data) => {
+      const label = data.type === 'PERCENTAGE'    ? `-${data.value}% sur votre commande`
+                  : data.type === 'FIXED'          ? `-${data.value} MAD sur votre commande`
+                  : data.type === 'FREE_SHIPPING'  ? 'Livraison gratuite'
+                  : 'Réduction spéciale';
+      return `${label} avec le code ${data.code}${data.min_order_amount > 0 ? ` dès ${data.min_order_amount} MAD d'achat` : ''}.`;
+    },
+  },
 };
 
 // ── Core notify function ───────────────────────────────────────────────────────
@@ -84,6 +102,49 @@ const notifyCancelled      = (customer_id, order_id, reason)    => notify({ cust
 const notifyWalletCredited = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_credited', data: { amount, balance } });
 const notifyWalletDebited  = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_debited', data: { amount, balance } });
 
+// ── Broadcast (all customers) ──────────────────────────────────────────────────
+async function notifyAllCustomers(event_code, data = {}) {
+  try {
+    const [customers, channel] = await Promise.all([
+      prisma.customer.findMany({ where: { is_active: true }, select: { id: true } }),
+      prisma.notificationChannel.findFirst({ where: { code: 'app' } }),
+    ]);
+    if (!customers.length) return;
+
+    const tpl   = TEMPLATES[event_code];
+    const title = tpl?.title ?? event_code;
+    const body  = tpl ? tpl.body(data) : JSON.stringify(data);
+
+    await prisma.notification.createMany({
+      data: customers.map(c => ({
+        customer_id: c.id,
+        channel_id:  channel?.id || null,
+        event_code,
+        title_fr:    title,
+        body_fr:     body,
+        metadata:    data,
+      })),
+    });
+  } catch (err) {
+    console.warn('[notify] broadcast error:', err.message);
+  }
+}
+
+const notifyFlashSaleCreated = (discount_label, scope_label, until) =>
+  notifyAllCustomers('flash_sale_created', { discount_label, scope_label, until });
+
+const notifyPackCreated = (name, price, discount_pct) =>
+  notifyAllCustomers('pack_created', { name, price, discount_pct });
+
+// Personal coupon (customer_id set) → notify just that customer.
+// Public coupon (customer_id null) → broadcast to every active customer.
+const notifyCouponCreated = (customer_id, { code, type, value, min_order_amount }) => {
+  const data = { code, type, value, min_order_amount };
+  return customer_id
+    ? notify({ customer_id, event_code: 'coupon_created', data })
+    : notifyAllCustomers('coupon_created', data);
+};
+
 // ── List notifications (customer-facing) ──────────────────────────────────────
 async function listNotifications(customer_id, { limit = 30, unread_only = false } = {}) {
   const where = { customer_id, ...(unread_only ? { is_read: false } : {}) };
@@ -106,9 +167,22 @@ async function markAllRead(customer_id) {
   return { ok: true };
 }
 
+async function deleteNotification(customer_id, notification_id) {
+  const n = await prisma.notification.findFirst({ where: { id: notification_id, customer_id } });
+  if (!n) throw { statusCode: 404, message: 'Notification introuvable' };
+  await prisma.notification.delete({ where: { id: notification_id } });
+  return { ok: true };
+}
+
+async function deleteAllNotifications(customer_id) {
+  await prisma.notification.deleteMany({ where: { customer_id } });
+  return { ok: true };
+}
+
 module.exports = {
   notify,
   notifyOrderConfirmed, notifyOrderReady, notifyInDelivery, notifyDelivered,
   notifyCancelled, notifyWalletCredited, notifyWalletDebited,
-  listNotifications, markRead, markAllRead,
+  notifyAllCustomers, notifyFlashSaleCreated, notifyPackCreated, notifyCouponCreated,
+  listNotifications, markRead, markAllRead, deleteNotification, deleteAllNotifications,
 };

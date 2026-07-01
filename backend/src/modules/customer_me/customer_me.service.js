@@ -1,5 +1,8 @@
 const prisma = require('../../config/database');
-const bcrypt = require('bcrypt');  
+const bcrypt = require('bcrypt');
+const fs     = require('fs');
+const path   = require('path');
+const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function getProfile(customerId) {
@@ -7,7 +10,7 @@ async function getProfile(customerId) {
     where:  { id: customerId, is_deleted: false },
     select: {
       id: true, name: true, phone_country: true, phone_number: true,
-      preferred_lang: true, city: true, lat: true, lng: true,
+      preferred_lang: true, city: true, avatar_url: true, lat: true, lng: true,
       wallet_balance: true, points_balance: true, points_lifetime: true,
       referral_code: true, is_active: true, created_at: true,
       user: { select: { phone_verified_at: true, email: true } },
@@ -24,6 +27,7 @@ async function getProfile(customerId) {
     email:          customer.user?.email,
     preferred_lang: customer.preferred_lang,
     city:           customer.city,
+    avatar_url:     customer.avatar_url ?? null,
     lat:            customer.lat != null ? String(customer.lat) : null,
     lng:            customer.lng != null ? String(customer.lng) : null,
     wallet_balance: Number(customer.wallet_balance ?? 0),
@@ -163,11 +167,9 @@ const ORDER_DETAIL_INCLUDE = {
   address:       true,
   confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, day_of_week: true } },
   items: {
-    where: { is_deleted: false },
     include: {
       sku: { select: { id: true, article: { select: { name_fr: true, sku_code: true, price: true } } } },
     },
-    orderBy: { created_at: 'asc' },
   },
   payments: {
     orderBy: { created_at: 'desc' },
@@ -176,9 +178,24 @@ const ORDER_DETAIL_INCLUDE = {
       payment_method: { select: { code: true, name_fr: true } },
     },
   },
-  order_history: {
+  history: {
     include: { status: { select: { code: true, name_fr: true, color: true } } },
     orderBy: { created_at: 'asc' },
+  },
+  tour: {
+    include: {
+      driver: {
+        select: {
+          id: true, name: true,
+          phone_country: true, phone_number: true,
+          vehicle_type: true, vehicle_plate: true,
+        },
+      },
+    },
+  },
+  tour_stops: {
+    take: 1,
+    include: { status: { select: { code: true, name_fr: true } } },
   },
 };
 
@@ -229,13 +246,22 @@ function formatOrderDetail(o) {
       vat_rate:   Number(item.vat_rate ?? 0),
       total_ttc:  Number(item.unit_price_sold ?? 0) * (item.qty ?? 1),
     })),
-    timeline: (o.order_history ?? []).map(h => ({
+    timeline: (o.history ?? []).map(h => ({
       status_code: h.status?.code,
       name_fr:     h.status?.name_fr,
       color:       h.status?.color,
       created_at:  h.created_at,
       note:        h.note,
     })),
+    driver: o.tour?.driver ? {
+      name:          o.tour.driver.name,
+      phone:         (o.tour.driver.phone_country ?? '') + (o.tour.driver.phone_number ?? ''),
+      vehicle_type:  o.tour.driver.vehicle_type ?? null,
+      vehicle_plate: o.tour.driver.vehicle_plate ?? null,
+    } : null,
+    slot_start: o.tour?.slot_start ?? o.slot_start ?? null,
+    slot_end:   o.tour?.slot_end   ?? o.slot_end   ?? null,
+    stop_status: o.tour_stops?.[0]?.status?.code ?? null,
   };
 }
 
@@ -365,4 +391,91 @@ async function changePassword(customerId, body) {
   await prisma.user.update({ where: { id: userId }, data: { password_hash: hash } });
   return { message: 'Mot de passe modifié' };
 }
-module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById , updateEmail, changePassword, requestPhoneChange, confirmPhoneChange };
+// ── Wishlist ──────────────────────────────────────────────────────────────────
+const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000';
+
+async function listFavorites(customerId) {
+  const [items, flashSales] = await Promise.all([
+    prisma.wishlist.findMany({
+      where: { customer_id: customerId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        article: {
+          select: {
+            id: true, sku_code: true, name_fr: true, name_ar: true,
+            price: true, vat_rate: true,
+            category_id: true, brand_id: true,
+            catalog_sku: { select: { id: true } },
+            images: { select: { image_path: true }, take: 1 },
+          },
+        },
+      },
+    }),
+    getActiveFlashSales(),
+  ]);
+  return items.map(w => {
+    const a = w.article;
+    const raw = a.images?.[0]?.image_path ?? null;
+    const image_url = raw
+      ? (raw.startsWith('http') ? raw : `${BASE_URL}${raw}`)
+      : null;
+    const ttc  = Math.round(Number(a.price) * (1 + Number(a.vat_rate) / 100) * 100) / 100;
+    const deal = resolveArticleDiscount({
+      articleSkuId: a.catalog_sku?.id ?? null,
+      categoryId:   a.category_id ?? null,
+      brandId:      a.brand_id ?? null,
+      priceTtc:     ttc,
+    }, flashSales);
+    return {
+      wishlist_id:   w.id,
+      id:            a.id,
+      sku_code:      a.sku_code,
+      name_fr:       a.name_fr,
+      name_ar:       a.name_ar,
+      price_ttc:     deal ? deal.price_ttc : ttc,
+      old_price_ttc: deal ? deal.old_price_ttc : null,
+      discount_pct:  deal ? deal.discount_pct : null,
+      sku_id:        a.catalog_sku?.id ?? null,
+      image_url,
+    };
+  });
+}
+
+async function addFavorite(customerId, articleId) {
+  const article = await prisma.article.findUnique({ where: { id: Number(articleId) } });
+  if (!article) throw { statusCode: 404, message: 'Article introuvable' };
+  await prisma.wishlist.upsert({
+    where:  { customer_id_article_id: { customer_id: customerId, article_id: Number(articleId) } },
+    update: {},
+    create: { customer_id: customerId, article_id: Number(articleId) },
+  });
+  return { article_id: Number(articleId) };
+}
+
+async function removeFavorite(customerId, articleId) {
+  await prisma.wishlist.deleteMany({
+    where: { customer_id: customerId, article_id: Number(articleId) },
+  });
+}
+
+// ── Avatar ────────────────────────────────────────────────────────────────────
+async function uploadAvatar(customerId, filePath) {
+  await prisma.customer.update({ where: { id: customerId }, data: { avatar_url: filePath } });
+  return getProfile(customerId);
+}
+
+async function removeAvatar(customerId) {
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false },
+    select: { avatar_url: true },
+  });
+  if (customer?.avatar_url) {
+    const abs = path.join(process.cwd(), customer.avatar_url.replace(/^\//, ''));
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  }
+  await prisma.customer.update({ where: { id: customerId }, data: { avatar_url: null } });
+  return getProfile(customerId);
+}
+
+module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById, updateEmail, changePassword, requestPhoneChange, confirmPhoneChange, uploadAvatar, removeAvatar, listFavorites, addFavorite, removeFavorite };

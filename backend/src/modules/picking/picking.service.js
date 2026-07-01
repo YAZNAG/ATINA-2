@@ -115,7 +115,7 @@ class PickingService {
 
     const [completedStatus, readyOrderStatus] = await Promise.all([
       repo.getPickingStatusByCode('completed'),
-      repo.getOrderStatusByCode('ready'),
+      repo.getOrderStatusByCode('ready'), 
     ]);
     if (!completedStatus) throw { statusCode: 500, message: 'Statut session "completed" introuvable' };
 

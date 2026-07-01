@@ -41,10 +41,13 @@ export interface Article {
   description_ar: string | null;
   price:          number;
   price_ttc:      number;
+  old_price_ttc?: number | null;
+  discount_pct?:  number | null;
   vat_rate:       number;
   unit_sale:      string;
   is_active:      boolean;
   image_url:      string | null;
+  images:         string[];
   brand:          { id: number; name_fr: string; name_ar: string } | null;
   category:       { id: number; name_fr: string; name_ar: string } | null;
   sub_category:   { id: number; name_fr: string; name_ar: string } | null;

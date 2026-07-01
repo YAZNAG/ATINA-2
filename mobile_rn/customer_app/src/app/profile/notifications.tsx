@@ -1,182 +1,337 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Dimensions,
+  TouchableOpacity, ActivityIndicator, ScrollView,
+  RefreshControl, Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ProfileService, Notification } from '../../services/profile.service';
+import { useNotification } from '../../context/NotificationContext';
+import PageHeader from '../../components/ui/PageHeader';
+import SortBar from '../../components/ui/SortBar';
 
 const RED = '#E62A27';
 
-// ─── Icône + couleur selon le type d'événement ───────────────────────────────
-const eventStyle = (code: string): { icon: string; color: string; bg: string } => {
-  const c = code.toLowerCase();
-  if (c.includes('order') || c.includes('commande'))
-    return { icon: 'shopping-bag', color: RED, bg: '#FFF0F0' };
-  if (c.includes('delivery') || c.includes('livr'))
-    return { icon: 'truck', color: '#2563EB', bg: '#EFF6FF' };
-  if (c.includes('payment') || c.includes('paiement'))
-    return { icon: 'credit-card', color: '#22C55E', bg: '#F0FDF4' };
-  if (c.includes('promo') || c.includes('offre'))
-    return { icon: 'tag', color: '#F59E0B', bg: '#FFFBEB' };
-  if (c.includes('wallet') || c.includes('points'))
-    return { icon: 'gift', color: '#8B5CF6', bg: '#F5F3FF' };
-  return { icon: 'bell', color: '#6B7280', bg: '#F5F5F5' };
-};
+// ── Filter tabs ───────────────────────────────────────────────────────────────
 
-// ─── Temps relatif ────────────────────────────────────────────────────────────
-const timeAgo = (date: string): string => {
-  const diff = Date.now() - new Date(date).getTime();
+type Tab = 'all' | 'orders' | 'promos' | 'important';
+
+const NOTIF_TABS = [
+  { value: 'all',       label: 'Tout' },
+  { value: 'orders',    label: 'Commandes' },
+  { value: 'promos',    label: 'Promotions' },
+  { value: 'important', label: 'Importantes' },
+];
+
+function applyFilter(notifs: Notification[], tab: Tab): Notification[] {
+  if (tab === 'all') return notifs;
+  return notifs.filter(n => {
+    const c = n.event_code.toLowerCase();
+    if (tab === 'orders')    return c.includes('order') || c.includes('commande') || c.includes('delivery') || c.includes('livr') || c.includes('picking') || c.includes('ready');
+    if (tab === 'promos')    return c.includes('promo') || c.includes('offre') || c.includes('discount') || c.includes('coupon');
+    if (tab === 'important') return c.includes('wallet') || c.includes('points') || c.includes('payment') || c.includes('security') || c.includes('account') || c.includes('confirm');
+    return true;
+  });
+}
+
+// ── Icon helpers ──────────────────────────────────────────────────────────────
+
+function getStyle(code: string): { icon: string; color: string; bg: string } {
+  const c = code.toLowerCase();
+  if (c.includes('confirm'))
+    return { icon: 'check-circle', color: '#22C55E', bg: '#F0FDF4' };
+  if (c.includes('order') || c.includes('commande') || c.includes('picking') || c.includes('ready'))
+    return { icon: 'package',      color: RED,        bg: '#FFF0F0' };
+  if (c.includes('delivery') || c.includes('livr'))
+    return { icon: 'truck',        color: '#2563EB',  bg: '#EFF6FF' };
+  if (c.includes('payment') || c.includes('paiement'))
+    return { icon: 'credit-card',  color: '#22C55E',  bg: '#F0FDF4' };
+  if (c.includes('promo') || c.includes('offre') || c.includes('discount'))
+    return { icon: 'tag',          color: '#F59E0B',  bg: '#FFFBEB' };
+  if (c.includes('wallet') || c.includes('points'))
+    return { icon: 'gift',         color: '#F97316',  bg: '#FFF7ED' };
+  if (c.includes('security') || c.includes('account'))
+    return { icon: 'shield',       color: '#6366F1',  bg: '#EEF2FF' };
+  return   { icon: 'bell',         color: '#6B7280',  bg: '#F5F5F5' };
+}
+
+// ── Date grouping ─────────────────────────────────────────────────────────────
+
+type Group = { title: string; count: number; items: Notification[] };
+
+function groupByDate(notifs: Notification[]): Group[] {
+  const now       = new Date();
+  const todayStr  = now.toDateString();
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const ydayStr   = yesterday.toDateString();
+  const weekAgo   = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const map: Record<string, Notification[]> = {};
+  for (const n of notifs) {
+    const d    = new Date(n.sent_at);
+    const dStr = d.toDateString();
+    const key  = dStr === todayStr   ? "Aujourd'hui"
+               : dStr === ydayStr    ? 'Hier'
+               : d >= weekAgo        ? 'Cette semaine'
+               :                       'Plus ancien';
+    (map[key] ??= []).push(n);
+  }
+  const ORDER = ["Aujourd'hui", 'Hier', 'Cette semaine', 'Plus ancien'];
+  return ORDER.filter(k => map[k]).map(k => ({ title: k, count: map[k].length, items: map[k] }));
+}
+
+// ── Time label ────────────────────────────────────────────────────────────────
+
+function timeLabel(date: string): string {
+  const diff  = Date.now() - new Date(date).getTime();
   const mins  = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days  = Math.floor(diff / 86400000);
-  if (mins < 1)   return "À l'instant";
-  if (mins < 60)  return `Il y a ${mins} min`;
-  if (hours < 24) return `Il y a ${hours} h`;
-  if (days < 7)   return `Il y a ${days} j`;
+  if (mins  < 1)   return "À l'instant";
+  if (mins  < 60)  return `Il y a ${mins} min`;
+  if (hours < 24)  return `Il y a ${hours} h`;
+  if (days  === 1) return 'Hier';
+  if (days  < 7)   return `Il y a ${days} j`;
   return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-};
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { refreshNotifCount } = useNotification();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [refreshing, setRefreshing]       = useState(false);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab,  setActiveTab]  = useState<Tab>('all');
 
-  const loadNotifications = async () => {
+  const load = useCallback(async () => {
     try {
       const data = await ProfileService.listNotifications();
       setNotifications(data);
-    } catch (err: any) {
+      refreshNotifCount();
+    } catch (err) {
       console.log('Error loading notifications:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [refreshNotifCount]);
 
-  useEffect(() => { loadNotifications(); }, []);
-  const onRefresh = useCallback(() => { setRefreshing(true); loadNotifications(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, []);
 
   const handleMarkRead = async (notif: Notification) => {
     if (notif.is_read) return;
-    setNotifications((prev) => prev.map((n) => n.id === notif.id ? { ...n, is_read: true } : n));
-    try { await ProfileService.markNotificationRead(notif.id); }
-    catch (err) { console.log(err); }
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+    try {
+      await ProfileService.markNotificationRead(notif.id);
+      await refreshNotifCount();
+    } catch {}
   };
 
   const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    try { await ProfileService.markAllNotificationsRead(); }
-    catch (err) { console.log(err); }
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    try {
+      await ProfileService.markAllNotificationsRead();
+      await refreshNotifCount();
+    } catch {}
   };
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const handleDeleteAll = () => {
+    Alert.alert('Tout supprimer', 'Supprimer toutes les notifications ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer', style: 'destructive',
+        onPress: async () => {
+          setNotifications([]);
+          try {
+            await ProfileService.deleteAllNotifications();
+            await refreshNotifCount();
+          } catch { load(); }
+        },
+      },
+    ]);
+  };
+
+  const filtered = applyFilter(notifications, activeTab);
+  const groups   = groupByDate(filtered);
+  const unread   = notifications.filter(n => !n.is_read).length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={20} color="#1a1a1a" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 ? (
-          <TouchableOpacity onPress={handleMarkAllRead}>
-            <Text style={styles.markAllText}>Tout lire</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 60 }} />
-        )}
-      </View>
+      <PageHeader
+        title="Notifications"
+        rightIcon={unread > 0 ? 'check-square' : notifications.length > 0 ? 'trash-2' : undefined}
+        onRightPress={unread > 0 ? handleMarkAllRead : handleDeleteAll}
+      />
 
-      {unreadCount > 0 && (
-        <Text style={styles.unreadInfo}>
-          {unreadCount} notification{unreadCount > 1 ? 's' : ''} non lue{unreadCount > 1 ? 's' : ''}
-        </Text>
-      )}
+      {/* Filter tabs */}
+      <SortBar
+        value={activeTab}
+        onChange={v => setActiveTab(v as Tab)}
+        options={NOTIF_TABS}
+      />
 
+      {/* Content */}
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={RED} />
         </View>
-      ) : notifications.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconBox}>
-            <Feather name="bell-off" size={40} color="#E0E0E0" />
+      ) : filtered.length === 0 ? (
+        /* Empty state */
+        <View style={styles.emptyPage}>
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyCardTop}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="bell-off" size={26} color={RED} />
+              </View>
+              <View style={styles.emptyCardText}>
+                <Text style={styles.emptyTitle}>Aucune notification{'\n'}pour le moment</Text>
+                <Text style={styles.emptyBody}>
+                  Vous recevrez ici les mises à jour de vos commandes et offres.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => router.replace('/main/home' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.emptyBtnText}>Explorer les offres</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyTitle}>Aucune notification</Text>
-          <Text style={styles.emptySubtitle}>
-            Vous serez notifié des mises à jour de vos commandes ici
-          </Text>
         </View>
       ) : (
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+        <ScrollView
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
-          renderItem={({ item }) => {
-            const st = eventStyle(item.event_code);
-            return (
-              <TouchableOpacity
-                style={[styles.notifCard, !item.is_read && styles.notifCardUnread]}
-                onPress={() => handleMarkRead(item)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.notifIcon, { backgroundColor: st.bg }]}>
-                  <Feather name={st.icon as any} size={20} color={st.color} />
-                </View>
-                <View style={styles.notifContent}>
-                  <Text style={[styles.notifTitle, !item.is_read && styles.notifTitleUnread]} numberOfLines={1}>
-                    {item.title_fr || 'Notification'}
-                  </Text>
-                  {item.body_fr && (
-                    <Text style={styles.notifBody} numberOfLines={2}>{item.body_fr}</Text>
-                  )}
-                  <Text style={styles.notifTime}>{timeAgo(item.sent_at)}</Text>
-                </View>
-                {!item.is_read && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
-            );
-          }}
-        />
+        >
+          {groups.map(group => (
+            <View key={group.title}>
+              {/* Section header */}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{group.title}</Text>
+                <Text style={styles.sectionCount}>
+                  {group.count} notification{group.count > 1 ? 's' : ''}
+                </Text>
+              </View>
+
+              {/* Cards */}
+              {group.items.map(item => {
+                const st = getStyle(item.event_code);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.card}
+                    onPress={() => handleMarkRead(item)}
+                    activeOpacity={0.75}
+                  >
+                    {/* Icon circle */}
+                    <View style={[styles.iconCircle, { backgroundColor: st.bg }]}>
+                      <Feather name={st.icon as any} size={20} color={st.color} />
+                    </View>
+
+                    {/* Content */}
+                    <View style={styles.cardContent}>
+                      <View style={styles.cardRow}>
+                        <Text style={[styles.cardTitle, !item.is_read && styles.cardTitleUnread]} numberOfLines={1}>
+                          {item.title_fr || 'Notification'}
+                        </Text>
+                        {!item.is_read && <View style={styles.unreadDot} />}
+                        <Text style={styles.cardTime}>{timeLabel(item.sent_at)}</Text>
+                      </View>
+                      {item.body_fr ? (
+                        <Text style={styles.cardBody} numberOfLines={2}>{item.body_fr}</Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F5F5' },
+  safe: { flex: 1, backgroundColor: '#fff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff' },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
-  markAllText: { fontSize: 13, color: RED, fontWeight: '600', width: 60, textAlign: 'right' },
+  // List
+  list: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 4 },
 
-  unreadInfo: { fontSize: 13, color: '#9CA3AF', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff' },
+  // Section header
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, marginTop: 4,
+  },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
+  sectionCount: { fontSize: 12, color: '#9CA3AF' },
 
-  list: { padding: 16, gap: 10 },
+  // Card
+  card: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#fff', borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  iconCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  cardContent: { flex: 1 },
+  cardRow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  cardTitle:   { flex: 1, fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  cardTitleUnread: { fontWeight: '800' },
+  cardTime:    { fontSize: 11, color: '#9CA3AF', flexShrink: 0 },
+  cardBody:    { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  unreadDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: RED, flexShrink: 0 },
 
-  notifCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 14, gap: 12, alignItems: 'flex-start', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  notifCardUnread: { backgroundColor: '#FFFDFD', borderWidth: 1, borderColor: '#FFE5E5' },
-  notifIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  notifContent: { flex: 1 },
-  notifTitle: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', marginBottom: 2 },
-  notifTitleUnread: { fontWeight: '800' },
-  notifBody: { fontSize: 13, color: '#6B7280', lineHeight: 18, marginBottom: 4 },
-  notifTime: { fontSize: 11, color: '#9CA3AF' },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: RED, marginTop: 6 },
-
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
-  emptyIconBox: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
+  // Empty state
+  emptyPage: {
+    flex: 1, backgroundColor: '#F5F5F5',
+    padding: 16, justifyContent: 'flex-start', paddingTop: 20,
+  },
+  emptyCard: {
+    backgroundColor: '#fff', borderRadius: 20,
+    padding: 18, gap: 18,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  emptyCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  emptyIconCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  emptyCardText: { flex: 1 },
+  emptyTitle: {
+    fontSize: 16, fontWeight: '700', color: '#1a1a1a',
+    lineHeight: 22, marginBottom: 6,
+  },
+  emptyBody: {
+    fontSize: 13, color: '#9CA3AF', lineHeight: 19,
+  },
+  emptyBtn: {
+    backgroundColor: RED, borderRadius: 24,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  emptyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

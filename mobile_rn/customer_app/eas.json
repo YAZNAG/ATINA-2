@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 13.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://192.168.100.114:5000/api",
+        "EXPO_PUBLIC_STORAGE_URL": "http://192.168.100.114:5000"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-staging.darkstore.ma/api",
+        "EXPO_PUBLIC_STORAGE_URL": "https://api-staging.darkstore.ma"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.darkstore.ma/api",
+        "EXPO_PUBLIC_STORAGE_URL": "https://api.darkstore.ma"
+      }
+    }
+  }
+}

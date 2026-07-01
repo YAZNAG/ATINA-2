@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, Platform, ScrollView,
+  StatusBar, Platform, ScrollView,
   ActivityIndicator, Alert, Modal, FlatList, KeyboardAvoidingView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -140,6 +141,7 @@ export default function CheckoutDeliveryAddressScreen() {
 
       const payload: Partial<Address> = {
         label:          defaultAddress?.label || 'Livraison',
+        street_number:  null,
         street_name:    streetName.trim(),
         city:           city.trim(),
         delivery_notes: apartment.trim() || null,
@@ -233,7 +235,7 @@ export default function CheckoutDeliveryAddressScreen() {
               </View>
 
               {/* ── Appartement / Étage ── */}
-              <Text style={styles.fieldLabel}>Appartement / Étage (optionnel)</Text>
+              <Text style={styles.fieldLabel}>Appartement / Étage / Notes (optionnel)</Text>
               <View style={styles.inputWrap}>
                 <Feather name="home" size={18} color="#9CA3AF" />
                 <TextInput

@@ -1,4 +1,5 @@
 const { Router } = require('express');
+
 const authRoutes = require('./auth.routes');
 const userRoutes = require('./user.routes');
 const roleRoutes = require('./role.routes');
@@ -29,9 +30,17 @@ const ordersMgmtRoutes  = require('../modules/orders_mgmt/order_mgmt.routes');
 const pickingRoutes       = require('../modules/picking/picking.routes');
 const staffRoutes         = require('../modules/staff/staff.routes');
 const pickerPortalRoutes  = require('../modules/picker_portal/pickerPortal.routes');
-
-
-const customerCartRoutes = require('../modules/customer_cart/customer_cart.routes');
+const promotionsRoutes = require('../modules/promotions/promotions.routes');
+const packRoutes = require('../modules/promotions/pack.routes');
+const couponsRoutes = require('../modules/coupons/coupons.routes');
+const faqRoutes = require('../modules/faq/faq.routes');
+const customerPromotionsRoutes = require('../modules/customer_promotions/customer_promotions.routes');
+const customerPacksRoutes = require('../modules/customer_promotions/customer_pack.routes');
+const customerCouponsRoutes = require('../modules/customer_coupons/customer_coupons.routes');
+const customerFaqRoutes = require('../modules/customer_faq/customer_faq.routes');
+const customerCartRoutes    = require('../modules/customer_cart/customer_cart.routes');
+const supportRoutes         = require('../modules/support/support.routes');
+const customerSupportRoutes = require('../modules/customer_support/customer_support.routes');
 
 const router = Router();
 
@@ -43,6 +52,11 @@ router.use('/customer/catalog',  customerCatalogRoutes);
 router.use('/customer/me',       customerMeRoutes);
 router.use('/customer/cart', customerCartRoutes);
 router.use('/customer/checkout', customerCheckoutRoutes);
+router.use('/customer/promotions', customerPromotionsRoutes);
+router.use('/customer/coupons', customerCouponsRoutes);
+router.use('/customer/pack', customerPacksRoutes);
+router.use('/customer/faq',     customerFaqRoutes);
+router.use('/customer/support', customerSupportRoutes);
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
 router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
 
@@ -71,8 +85,11 @@ router.use('/reporting',   reportingRoutes);
 router.use('/pickup',      pickupRoutes);
 router.use('/delivery',    deliveryMgmtRoutes);
 router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
-
-
+router.use('/promotions', promotionsRoutes);
+router.use('/pack', packRoutes);
+router.use('/coupons', couponsRoutes);
+router.use('/faq',     faqRoutes);
+router.use('/support', supportRoutes);
 
 
 module.exports = router;

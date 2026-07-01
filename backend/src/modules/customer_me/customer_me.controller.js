@@ -76,6 +76,20 @@ class CustomerMeController {
     }
     catch(e) { E(res, next, e); }
   }
+  async deleteNotification(req, res, next) {
+    try {
+      const notify = require('../../utils/notify');
+      resp.success(res, await notify.deleteNotification(req.customerId, req.params.id));
+    }
+    catch(e) { E(res, next, e); }
+  }
+  async deleteAllNotifications(req, res, next) {
+    try {
+      const notify = require('../../utils/notify');
+      resp.success(res, await notify.deleteAllNotifications(req.customerId));
+    }
+    catch(e) { E(res, next, e); }
+  }
 
    // Account settings
   async updateEmail(req, res, next) {
@@ -92,6 +106,35 @@ class CustomerMeController {
   }
   async changePassword(req, res, next) {
     try { resp.success(res, await svc.changePassword(req.customerId, req.body), 'Mot de passe modifié'); }
+    catch(e) { E(res, next, e); }
+  }
+
+  // Avatar
+  async uploadAvatar(req, res, next) {
+    try {
+      const file = req.files?.['avatar']?.[0];
+      if (!file) return resp.error(res, 'Aucun fichier envoyé', 400);
+      const filePath = '/uploads/avatars/' + file.filename;
+      resp.success(res, await svc.uploadAvatar(req.customerId, filePath), 'Photo mise à jour');
+    }
+    catch(e) { E(res, next, e); }
+  }
+  async removeAvatar(req, res, next) {
+    try { resp.success(res, await svc.removeAvatar(req.customerId), 'Photo supprimée'); }
+    catch(e) { E(res, next, e); }
+  }
+
+  // Favorites
+  async listFavorites(req, res, next) {
+    try { resp.success(res, await svc.listFavorites(req.customerId)); }
+    catch(e) { E(res, next, e); }
+  }
+  async addFavorite(req, res, next) {
+    try { resp.success(res, await svc.addFavorite(req.customerId, req.body.article_id), 'Ajouté aux favoris', 201); }
+    catch(e) { E(res, next, e); }
+  }
+  async removeFavorite(req, res, next) {
+    try { await svc.removeFavorite(req.customerId, req.params.articleId); resp.success(res, null, 'Retiré des favoris'); }
     catch(e) { E(res, next, e); }
   }
 }

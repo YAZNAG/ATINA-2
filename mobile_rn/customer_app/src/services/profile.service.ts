@@ -8,6 +8,7 @@ export interface Profile{
     email:          string;
     preferred_lang: string;
     city:           string| null;
+    avatar_url:     string| null;
     wallet_balance: number;
     points_balance: number;
     points_lifetime:number;
@@ -40,6 +41,19 @@ export interface Address {
 
 }
 
+export interface FavoriteArticle {
+  wishlist_id:    string;
+  id:             number;
+  sku_code:       string;
+  name_fr:        string;
+  name_ar:        string;
+  price_ttc:      number;
+  old_price_ttc:  number | null;
+  discount_pct:   number | null;
+  sku_id:         string | null;
+  image_url:      string | null;
+}
+
 export interface OrderStatus {
   id:      number;
   code:    string;
@@ -58,7 +72,7 @@ export interface OrderSummary {
   status:      OrderStatus;
   payment_status:  string;
   payment_method_name: string | null;
-  items_count: number;
+  item_count: number;
 }
 
 export interface OrderItem {
@@ -79,6 +93,13 @@ export interface OrderTimeline {
   note:        string | null;
 }
 
+export interface OrderDriver {
+  name:          string;
+  phone:         string;
+  vehicle_type:  string | null;
+  vehicle_plate: string | null;
+}
+
 export interface Order {
   id:                  string;
   reference:           string;
@@ -96,12 +117,18 @@ export interface Order {
   address_full:        string;
   slot_name:           string | null;
   slot_date:           null;
+  slot_start:          string | null;
+  slot_end:            string | null;
+  driver:              OrderDriver | null;
+  stop_status:         string | null;
   items:               OrderItem[];
   timeline:            OrderTimeline[];
 }
 
 export interface Wallet {
-  balance:      number;
+  balance:         number;
+  points_balance:  number;
+  points_lifetime: number;
   transactions: Array<{
     id:         string;
     amount:     number;
@@ -196,7 +223,7 @@ export const ProfileService = {
     async listOrders():Promise<OrderSummary[]>{
         try{
             const response=await api.get('/customer/me/orders')
-            return response.data.data
+            return response.data.data ?? []
         }
         catch(err:any){
             throw new Error(err.response?.data?.message || 'Erreur chargement commandes');
@@ -253,6 +280,24 @@ export const ProfileService = {
         }
     },
 
+    async deleteNotification(id: string): Promise<void> {
+        try {
+            await api.delete(`/customer/me/notifications/${id}`);
+        }
+        catch (err: any) {
+            throw new Error(err.response?.data?.message || 'Erreur');
+        }
+    },
+
+    async deleteAllNotifications(): Promise<void> {
+        try {
+            await api.delete('/customer/me/notifications/all');
+        }
+        catch (err: any) {
+            throw new Error(err.response?.data?.message || 'Erreur');
+        }
+    },
+
 async updateEmail(email: string): Promise<{ message: string }> {
   try {
     const response = await api.put('/customer/me/email', { email });
@@ -286,6 +331,47 @@ async changePassword(old_password: string, new_password: string): Promise<{ mess
     return response.data.data ?? response.data;
   } catch (err: any) {
     throw new Error(err.response?.data?.message || 'Erreur changement mot de passe');
+  }
+},
+
+// Avatar
+async uploadAvatar(uri: string): Promise<Profile> {
+  const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+  const formData = new FormData();
+  formData.append('avatar', { uri, name: `avatar.${ext}`, type: mimeMap[ext] ?? 'image/jpeg' } as any);
+  const response = await api.post('/customer/me/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data.data;
+},
+
+async deleteAvatar(): Promise<Profile> {
+  const response = await api.delete('/customer/me/avatar');
+  return response.data.data;
+},
+
+// Favorites
+async listFavorites(): Promise<FavoriteArticle[]> {
+  try {
+    const response = await api.get('/customer/me/favorites');
+    return response.data.data ?? [];
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur chargement favoris');
+  }
+},
+async addFavorite(articleId: number): Promise<void> {
+  try {
+    await api.post('/customer/me/favorites', { article_id: articleId });
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur ajout favori');
+  }
+},
+async removeFavorite(articleId: number): Promise<void> {
+  try {
+    await api.delete(`/customer/me/favorites/${articleId}`);
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur suppression favori');
   }
 },
 }

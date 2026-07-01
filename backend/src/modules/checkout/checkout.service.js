@@ -230,7 +230,7 @@ async function getAvailableDates(node_id, delivery_type_code, days_ahead = 14) {
 }
 
 // ── CALCULATE — server-side cart total ───────────────────────────────────────
-async function calculate({ node_id, delivery_type_code, cart_items, payment_method_code, wallet_used = 0, customer_id }) {
+async function calculate({ node_id, delivery_type_code, cart_items, payment_method_code, wallet_used = 0, customer_id, promo_code = null }) {
   if (!cart_items?.length) throw { statusCode: 400, message: 'Panier vide' };
   if (!node_id)            throw { statusCode: 400, message: 'node_id requis' };
 
@@ -289,6 +289,21 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
       : deliveryFeeConfig;
   }
 
+  // 5b. Coupon (code promo) — preview only, re-validated for real at createOrder()
+  let discount_amount = 0;
+  let coupon_error    = null;
+  if (promo_code) {
+    try {
+      const { validateCoupon, computeCouponDiscount } = require('../coupons/coupons.shared');
+      const promo = await validateCoupon(promo_code.toUpperCase().trim(), customer_id, subtotal_ttc);
+      const res = computeCouponDiscount(promo, subtotal_ttc, delivery_fee);
+      discount_amount = res.free_shipping ? parseFloat(delivery_fee.toFixed(2)) : res.discount;
+    } catch (e) {
+      coupon_error = e.message || 'Code promo invalide';
+    }
+  }
+  discount_amount = parseFloat(Math.min(discount_amount, subtotal_ttc).toFixed(2));
+
   // 6. Wallet
   let wallet_deduction = 0;
   if (wallet_used > 0 && customer_id) {
@@ -298,7 +313,7 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
   }
 
   // 7. Total
-  const total_ttc = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - wallet_deduction).toFixed(2));
+  const total_ttc = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_deduction).toFixed(2));
   const cod_amount = payment_method_code === 'cod' ? total_ttc : 0;
 
   return {
@@ -307,7 +322,8 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
     vat_amount,
     subtotal_ttc,
     delivery_fee:   parseFloat(delivery_fee.toFixed(2)),
-    discount_amount: 0,
+    discount_amount,
+    coupon_error,
     wallet_used:    wallet_deduction,
     total_ttc,
     cod_amount,
@@ -478,6 +494,7 @@ async function createOrder(payload) {
     payment_method_id, payment_method_code,
     cart_items, notes, date,
     wallet_used: walletRequested = 0,
+    promo_code = null, 
     // 'confirmed' for customer self-checkout; 'pending' for back-office (default)
     initial_status_code = 'pending',
   } = payload;
@@ -566,9 +583,10 @@ async function createOrder(payload) {
     const skuData  = item.sku_id ? skuMap[item.sku_id] : null;
     const article  = skuData?.article;
 
-    // Unit price: backend price takes precedence; fallback to frontend-provided
-    const unitPriceTTC = Number(article?.price ?? item.unit_price ?? 0);
-    const vatRate      = Number(article?.vat_rate ?? item.vat_rate ?? 20);
+    // Unit price: trust the cart's already-computed price (reflects active flash-sale /
+    // pack discounts), fallback to the raw catalog price only if the client omitted it.
+    const unitPriceTTC = Number(item.unit_price ?? article?.price ?? 0);
+    const vatRate      = Number(item.vat_rate ?? article?.vat_rate ?? 20);
 
     const lineHT = unitPriceTTC / (1 + vatRate / 100);
     subtotal_ht += lineHT * qty;
@@ -590,6 +608,19 @@ async function createOrder(payload) {
   vat_amount  = parseFloat(vat_amount.toFixed(2));
   const subtotal_ttc = parseFloat((subtotal_ht + vat_amount).toFixed(2));
 
+  // ── Coupon (code promo) — appliqué sur le sous-total déjà réduit ────────────
+  let discount_amount = 0;
+  let appliedPromo    = null;       // { id } si un coupon valide est appliqué
+  let couponFreeShipping = false;
+  if (promo_code) {
+    const { validateCoupon, computeCouponDiscount } = require('../coupons/coupons.shared');
+    // Re-validation complète (le panier a pu changer depuis le /validate)
+    appliedPromo = await validateCoupon(promo_code.toUpperCase().trim(), customer_id, subtotal_ttc);
+    const res = computeCouponDiscount(appliedPromo, subtotal_ttc, 0);  // deliveryFee calculé plus bas
+    discount_amount    = res.discount;
+    couponFreeShipping = res.free_shipping;
+  }
+
   // Delivery fee
   let delivery_fee = 0;
   if (deliveryType.code !== 'pickup') {
@@ -597,11 +628,18 @@ async function createOrder(payload) {
       ? 0 : deliveryFeeConf;
   }
 
+  // Coupon FREE_SHIPPING → la réduction = frais de livraison réels
+  if (couponFreeShipping) {
+    discount_amount = parseFloat(delivery_fee.toFixed(2));
+  }
+  // Sécurité : la réduction ne dépasse jamais le sous-total
+  discount_amount = parseFloat(Math.min(discount_amount, subtotal_ttc).toFixed(2));
+
   // Wallet
   const maxWallet = Math.min(Number(customer.wallet_balance ?? 0), Number(walletRequested));
   const wallet_used = parseFloat(Math.max(0, maxWallet).toFixed(2));
 
-  const total_ttc  = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - wallet_used).toFixed(2));
+  const total_ttc  = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_used).toFixed(2));
   const cod_amount = (deliveryType.code === 'pickup' || !paymentMethodId) ? total_ttc : total_ttc;
 
   // Transaction
@@ -614,9 +652,11 @@ async function createOrder(payload) {
         status_id:         orderStatus.id,
         delivery_type_id:  deliveryType.id,
         confirmed_slot_id: selected_slot_id || null,
+        promotion_id:      appliedPromo?.id || null,
         subtotal_ht,
         vat_amount,
         delivery_fee:      parseFloat(delivery_fee.toFixed(2)),
+        discount_amount,
         wallet_used,
         total_ttc,
         cod_amount,
@@ -753,6 +793,22 @@ async function createOrder(payload) {
           amount:            total_ttc,
           currency:          'MAD',
         },
+      });
+    }
+
+    // ── Coupon : enregistrer l'utilisation (traçabilité + limites) ────────────
+    if (appliedPromo) {
+      await tx.couponRedemption.create({
+        data: {
+          promotion_id:     appliedPromo.id,
+          customer_id,
+          order_id:         newOrder.id,
+          discount_applied: discount_amount,  // peut être 0 si livraison déjà gratuite
+        },
+      });
+      await tx.promotion.update({
+        where: { id: appliedPromo.id },
+        data:  { uses_count: { increment: 1 } },
       });
     }
 

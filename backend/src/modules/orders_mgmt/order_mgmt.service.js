@@ -119,6 +119,24 @@ class OrderMgmtService {
       }
     }
 
+    // Coupon : décrémenter uses_count seulement si le paiement n'est pas encore confirmé
+    if (order.promotion_id) {
+      const isPaid = (order.payments ?? []).some(p =>
+        ['collected', 'paid', 'captured'].includes(p.status?.code)
+      );
+      if (!isPaid) {
+        await Promise.all([
+          prisma.promotion.update({
+            where: { id: order.promotion_id },
+            data:  { uses_count: { decrement: 1 } },
+          }),
+          prisma.couponRedemption.deleteMany({
+            where: { promotion_id: order.promotion_id, order_id: id },
+          }),
+        ]);
+      }
+    }
+
     if (reason) {
       await prisma.order.update({ where: { id }, data: { cancelled_reason: reason } });
     }

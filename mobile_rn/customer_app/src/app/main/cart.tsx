@@ -18,21 +18,73 @@ import { CartService, CartItem, Cart } from '../../services/cart.service';
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
 
+// ── Grouping: explode pack-linked items back into one card per pack ────────────
+
+interface PackGroup {
+  type:       'pack';
+  packId:     string;
+  name_fr:    string;
+  image_url:  string | null;
+  bundleQty:  number;
+  items:      CartItem[];
+  subtotal:   number;
+}
+
+interface StandaloneEntry {
+  type: 'item';
+  item: CartItem;
+}
+
+type ListEntry = PackGroup | StandaloneEntry;
+
+function buildListEntries(items: CartItem[]): ListEntry[] {
+  const entries: ListEntry[] = [];
+  const packGroups = new Map<string, PackGroup>();
+
+  for (const item of items) {
+    if (item.pack) {
+      let group = packGroups.get(item.pack.id);
+      if (!group) {
+        group = {
+          type: 'pack', packId: item.pack.id, name_fr: item.pack.name_fr,
+          image_url: item.pack.image_url, bundleQty: item.pack.bundle_qty,
+          items: [], subtotal: 0,
+        };
+        packGroups.set(item.pack.id, group);
+        entries.push(group);
+      }
+      group.items.push(item);
+      group.subtotal = Math.round((group.subtotal + item.subtotal) * 100) / 100;
+    } else {
+      entries.push({ type: 'item', item });
+    }
+  }
+  return entries;
+}
+
+type DeleteTarget =
+  | { kind: 'item'; item: CartItem }
+  | { kind: 'pack'; packId: string; name_fr: string };
 
 const ConfirmDeleteModal = ({
-  visible, onConfirm, onCancel,
+  visible, target, onConfirm, onCancel,
 }: {
-  visible: boolean; onConfirm: () => void; onCancel: () => void;
+  visible: boolean; target: DeleteTarget | null;
+  onConfirm: () => void; onCancel: () => void;
 }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
     <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
       <View style={styles.modalCard}>
-        <Text style={styles.modalTitle}>Supprimer l'article ?</Text>
+        <Text style={styles.modalTitle}>
+          {target?.kind === 'pack' ? 'Supprimer le pack ?' : "Supprimer l'article ?"}
+        </Text>
         <Text style={styles.modalSubtitle}>
-          Êtes-vous sûr de vouloir supprimer cet article de votre panier ?
+          {target?.kind === 'pack'
+            ? `Êtes-vous sûr de vouloir supprimer le pack "${target.name_fr}" de votre panier ?`
+            : 'Êtes-vous sûr de vouloir supprimer cet article de votre panier ?'}
         </Text>
         <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
-          <Text style={styles.btnConfirmDeleteText}>Supprimer l'article</Text>
+          <Text style={styles.btnConfirmDeleteText}>Supprimer</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
           <Text style={styles.btnCancelText}>Annuler</Text>
@@ -41,7 +93,6 @@ const ConfirmDeleteModal = ({
     </TouchableOpacity>
   </Modal>
 );
-
 
 const CartItemRow = ({
   item, onIncrease, onDecrease, onRemove, updating,
@@ -65,7 +116,17 @@ const CartItemRow = ({
         {item.article.brand?.name_fr ? `${item.article.brand.name_fr} • ` : ''}
         {item.article.sku_code}
       </Text>
-      <Text style={styles.itemPrice}>{item.article.price_ttc.toFixed(2)} MAD</Text>
+      <View style={styles.priceRow}>
+        <Text style={styles.itemPrice}>{item.article.price_ttc.toFixed(2)} MAD</Text>
+        {item.article.discount_pct != null && (
+          <>
+            <Text style={styles.itemOldPrice}>{item.article.original_price_ttc!.toFixed(2)} MAD</Text>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>-{item.article.discount_pct}%</Text>
+            </View>
+          </>
+        )}
+      </View>
     </View>
     <View style={styles.itemActions}>
       <TouchableOpacity style={styles.deleteBtn} onPress={onRemove} activeOpacity={0.7}>
@@ -87,6 +148,53 @@ const CartItemRow = ({
   </View>
 );
 
+const PackCartRow = ({
+  group, onIncrease, onDecrease, onRemove, updating,
+}: {
+  group: PackGroup; onIncrease: () => void; onDecrease: () => void;
+  onRemove: () => void; updating: boolean;
+}) => (
+  <View style={[styles.itemCard, styles.packCard]}>
+    <View style={styles.itemImageBox}>
+      {group.image_url ? (
+        <Image source={{ uri: group.image_url }} style={styles.itemImage} resizeMode="contain" />
+      ) : (
+        <View style={styles.itemImagePlaceholder}>
+          <Feather name="package" size={24} color="#E0E0E0" />
+        </View>
+      )}
+    </View>
+    <View style={styles.itemInfo}>
+      <View style={styles.packBadge}>
+        <Feather name="package" size={10} color={RED} />
+        <Text style={styles.packBadgeText}>Pack</Text>
+      </View>
+      <Text style={styles.itemName} numberOfLines={2}>{group.name_fr}</Text>
+      <Text style={styles.itemSub} numberOfLines={1}>
+        {group.items.length} article{group.items.length > 1 ? 's' : ''}
+      </Text>
+      <Text style={styles.itemPrice}>{group.subtotal.toFixed(2)} MAD</Text>
+    </View>
+    <View style={styles.itemActions}>
+      <TouchableOpacity style={styles.deleteBtn} onPress={onRemove} activeOpacity={0.7}>
+        <Feather name="trash-2" size={16} color={RED} />
+      </TouchableOpacity>
+      <View style={styles.qtyRow}>
+        <TouchableOpacity style={styles.qtyBtn} onPress={onDecrease} disabled={updating} activeOpacity={0.7}>
+          <Feather name="minus" size={14} color="#1a1a1a" />
+        </TouchableOpacity>
+        {updating
+          ? <ActivityIndicator size="small" color={RED} style={{ width: 24 }} />
+          : <Text style={styles.qtyText}>{group.bundleQty}</Text>
+        }
+        <TouchableOpacity style={[styles.qtyBtn, styles.qtyBtnPlus]} onPress={onIncrease} disabled={updating} activeOpacity={0.7}>
+          <Feather name="plus" size={14} color="#1a1a1a" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
+
 export default function CartScreen() {
   const router = useRouter();
 
@@ -99,7 +207,7 @@ export default function CartScreen() {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [deleteItem, setDeleteItem] = useState<CartItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const loadCart = async () => {
     try { setCart(await CartService.getCart()); }
@@ -112,27 +220,52 @@ export default function CartScreen() {
 
   const handleIncrease = async (item: CartItem) => {
     setUpdatingId(item.id);
-    try { setCart(await CartService.updateItem(item.sku_id, item.quantity + 1)); }
+    try { setCart(await CartService.updateItem(item.id, item.quantity + 1)); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
   };
 
   const handleDecrease = async (item: CartItem) => {
-    if (item.quantity <= 1) { setDeleteItem(item); return; }
+    if (item.quantity <= 1) { setDeleteTarget({ kind: 'item', item }); return; }
     setUpdatingId(item.id);
-    try { setCart(await CartService.updateItem(item.sku_id, item.quantity - 1)); }
+    try { setCart(await CartService.updateItem(item.id, item.quantity - 1)); }
+    catch (err: any) { Alert.alert('Erreur', err.message); }
+    finally { setUpdatingId(null); }
+  };
+
+  const handlePackIncrease = async (group: PackGroup) => {
+    const id = `pack-${group.packId}`;
+    setUpdatingId(id);
+    try { setCart(await CartService.updatePackQuantity(group.packId, group.bundleQty + 1)); }
+    catch (err: any) { Alert.alert('Erreur', err.message); }
+    finally { setUpdatingId(null); }
+  };
+
+  const handlePackDecrease = async (group: PackGroup) => {
+    if (group.bundleQty <= 1) { setDeleteTarget({ kind: 'pack', packId: group.packId, name_fr: group.name_fr }); return; }
+    const id = `pack-${group.packId}`;
+    setUpdatingId(id);
+    try { setCart(await CartService.updatePackQuantity(group.packId, group.bundleQty - 1)); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
   };
 
   const handleRemoveConfirm = async () => {
-    if (!deleteItem) return;
-    const item = deleteItem;
-    setDeleteItem(null);
-    setUpdatingId(item.id);
-    try { setCart(await CartService.removeItem(item.sku_id)); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
-    finally { setUpdatingId(null); }
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    const id = target.kind === 'pack' ? `pack-${target.packId}` : target.item.id;
+    setUpdatingId(id);
+    try {
+      const updated = target.kind === 'pack'
+        ? await CartService.removePack(target.packId)
+        : await CartService.removeItem(target.item.id);
+      setCart(updated);
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message);
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const handleClearAll = () =>
@@ -147,6 +280,8 @@ export default function CartScreen() {
   if (!fontsLoaded) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={RED} /></View>;
   }
+
+  const listEntries = buildListEntries(cart.items);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -179,18 +314,26 @@ export default function CartScreen() {
       ) : (
         <View style={styles.flex}>
           <FlatList
-            data={cart.items}
-            keyExtractor={(item) => item.id}
+            data={listEntries}
+            keyExtractor={(entry) => entry.type === 'pack' ? `pack-${entry.packId}` : entry.item.id}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
-            renderItem={({ item }) => (
+            renderItem={({ item: entry }) => entry.type === 'pack' ? (
+              <PackCartRow
+                group={entry}
+                updating={updatingId === `pack-${entry.packId}`}
+                onIncrease={() => handlePackIncrease(entry)}
+                onDecrease={() => handlePackDecrease(entry)}
+                onRemove={() => setDeleteTarget({ kind: 'pack', packId: entry.packId, name_fr: entry.name_fr })}
+              />
+            ) : (
               <CartItemRow
-                item={item}
-                updating={updatingId === item.id}
-                onIncrease={() => handleIncrease(item)}
-                onDecrease={() => handleDecrease(item)}
-                onRemove={() => setDeleteItem(item)}
+                item={entry.item}
+                updating={updatingId === entry.item.id}
+                onIncrease={() => handleIncrease(entry.item)}
+                onDecrease={() => handleDecrease(entry.item)}
+                onRemove={() => setDeleteTarget({ kind: 'item', item: entry.item })}
               />
             )}
           />
@@ -202,14 +345,30 @@ export default function CartScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>LIVRAISON</Text>
-              <Text style={[styles.summaryValue, { color: '#22C55E' }]}>Gratuit</Text>
+              <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 12 }]}>Calculée au checkout</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{cart.total.toFixed(2)} DH</Text>
             </View>
-            <TouchableOpacity style={styles.btnCheckout} activeOpacity={0.85} onPress={() => router.push('/../order/delivery_type' as any)}>
+            <TouchableOpacity
+              style={styles.btnCheckout}
+              activeOpacity={0.85}
+              onPress={() => {
+                const cart_items = cart.items.map((item) => ({
+                  sku_code:   item.sku_id ?? item.article?.sku_code,
+                  qty:        item.quantity,
+                  unit_price: item.article.price_ttc,
+                  vat_rate:   item.article.vat_rate,
+                  pack_id:    item.pack?.id ?? null,
+                }));
+                router.push({
+                  pathname: '/order/delivery_type' as any,
+                  params: { cart_items: JSON.stringify(cart_items) },
+                });
+              }}
+            >
               <Text style={styles.btnCheckoutText}>Passer la commande</Text>
               <View style={styles.btnCheckoutArrow}>
                 <Feather name="chevron-right" size={18} color={RED} />
@@ -222,9 +381,10 @@ export default function CartScreen() {
       <BottomNavBar />
 
       <ConfirmDeleteModal
-        visible={!!deleteItem}
+        visible={!!deleteTarget}
+        target={deleteTarget}
         onConfirm={handleRemoveConfirm}
-        onCancel={() => setDeleteItem(null)}
+        onCancel={() => setDeleteTarget(null)}
       />
     </SafeAreaView>
   );
@@ -242,13 +402,20 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
+  packCard:             { borderWidth: 1, borderColor: '#FFD9D9' },
   itemImageBox:         { width: 72, height: 72, borderRadius: 12, backgroundColor: '#F5F5F5', overflow: 'hidden' },
   itemImage:            { width: '100%', height: '100%' },
   itemImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   itemInfo:             { flex: 1 },
   itemName:             { fontSize: 14, color: '#1a1a1a', marginBottom: 2, lineHeight: 18, fontFamily: 'Inter_700Bold' },
   itemSub:              { fontSize: 11, color: '#9CA3AF', marginBottom: 6, fontFamily: 'Inter_400Regular' },
+  packBadge:            { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: '#FFF0F0', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4 },
+  packBadgeText:        { fontSize: 10, color: RED, fontFamily: 'Inter_600SemiBold' },
+  priceRow:             { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   itemPrice:            { fontSize: 15, color: RED, fontFamily: 'Inter_800ExtraBold' },
+  itemOldPrice:         { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_500Medium', textDecorationLine: 'line-through' },
+  discountBadge:        { backgroundColor: '#FFF0F0', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  discountBadgeText:    { fontSize: 10, color: RED, fontFamily: 'Inter_700Bold' },
   itemActions:          { alignItems: 'flex-end', gap: 8 },
   deleteBtn:            { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center' },
   qtyRow:               { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F5F5F5', borderRadius: 20, paddingHorizontal: 4, paddingVertical: 4 },

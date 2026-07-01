@@ -44,9 +44,6 @@ useEffect(() => {
       const items = cart_items ? JSON.parse(cart_items) : [];
       const result = await findPickupNodes(items);
 
-      console.log('[DEBUG] result:', JSON.stringify(result));
-      console.log('[DEBUG] isArray:', Array.isArray(result));
-
       const list = Array.isArray(result) ? result : [];
       setNodes(list);
       if (list.length > 0) setSelected(list[0]);
@@ -83,7 +80,7 @@ useEffect(() => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.container}>
 
@@ -235,8 +232,8 @@ useEffect(() => {
 }
 
 const styles = StyleSheet.create({
-  safeArea:  { flex: 1, backgroundColor: '#fff' },
-  container: { flex: 1, backgroundColor: '#F9FAFB', paddingHorizontal: 16, paddingTop: 12 },
+  safeArea:  { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: '#ffffff', paddingHorizontal: 16, paddingTop: 12 },
 
   // Bannière magasin sélectionné
   selectedBanner: {

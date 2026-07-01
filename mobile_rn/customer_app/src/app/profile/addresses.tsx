@@ -17,9 +17,6 @@ const { height } = Dimensions.get('window');
 
 type City = { id: string; name_fr: string; name_ar: string; postal_code?: string | null };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  City Picker Modal
-// ─────────────────────────────────────────────────────────────────────────────
 const CityPickerModal = ({
   visible, cities, selectedCity, onSelect, onClose,
 }: {
@@ -89,9 +86,6 @@ const CityPickerModal = ({
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Address Form Modal
-// ─────────────────────────────────────────────────────────────────────────────
 const AddressFormModal = ({
   visible, address, cities, onSave, onClose, saving,
 }: {
@@ -118,8 +112,14 @@ const AddressFormModal = ({
   useEffect(() => {
     if (visible) {
       setLabel(address?.label || '');
-      setStreetNumber(address?.street_number || '');
-      setStreetName(address?.street_name || '');
+      let num  = address?.street_number || '';
+      let name = address?.street_name   || '';
+      if (!num && name) {
+        const m = name.match(/^(\d+)\s+(.+)$/);
+        if (m) { num = m[1]; name = m[2]; }
+      }
+      setStreetNumber(num);
+      setStreetName(name);
       setQuartier(address?.quartier || '');
       setCity(address?.city || '');
       setPostalCode(address?.postal_code || '');
@@ -152,7 +152,6 @@ const AddressFormModal = ({
           if (place.street && !streetName)      setStreetName(place.street);
           if (place.district && !quartier)      setQuartier(place.district);
           if (place.postalCode && !postalCode)  setPostalCode(place.postalCode);
-          // pour la ville : essaie de matcher avec une ville de la DB
           if (place.city) {
             const match = cities.find((c) =>
               c.name_fr.toLowerCase() === place.city!.toLowerCase()
@@ -267,8 +266,8 @@ const AddressFormModal = ({
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>Notes de livraison</Text>
-            <TextInput style={[styles.input, styles.textArea]} value={deliveryNotes} onChangeText={setDeliveryNotes} placeholder="Étage, code porte..." placeholderTextColor="#C4C4C4" multiline />
+            <Text style={styles.fieldLabel}>Appartement / Étage / Notes</Text>
+            <TextInput style={[styles.input, styles.textArea]} value={deliveryNotes} onChangeText={setDeliveryNotes} placeholder="Apt 3B, 2ème étage, code porte..." placeholderTextColor="#C4C4C4" multiline />
 
             <TouchableOpacity style={styles.defaultRow} onPress={() => setIsDefault(!isDefault)} activeOpacity={0.7}>
               <View style={[styles.checkbox, isDefault && styles.checkboxChecked]}>
@@ -297,9 +296,6 @@ const AddressFormModal = ({
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Main Screen
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AddressesScreen() {
   const router = useRouter();
 
@@ -384,7 +380,7 @@ export default function AddressesScreen() {
       ) : addresses.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconBox}>
-            <Feather name="map-pin" size={40} color="#E0E0E0" />
+            <Feather name="map-pin" size={40} color="#ffffff" />
           </View>
           <Text style={styles.emptyTitle}>Aucune adresse</Text>
           <Text style={styles.emptySubtitle}>Ajoutez une adresse de livraison pour vos commandes</Text>
@@ -450,7 +446,7 @@ export default function AddressesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F5F5' },
+  safeArea: { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   list: { padding: 16, gap: 12, paddingBottom: 100 },

@@ -46,6 +46,11 @@ class CustomerCheckoutController {
     } catch (e) { next(e); }
   }
 
+async calculate(req, res, next) {
+  try { resp.success(res, await svc.calculate(req.customerId, req.body)); }
+  catch(e) { next(e); }
+}
+
   async createOrder(req, res, next) {
     try {
       const customerId = req.customerId;
@@ -54,5 +59,6 @@ class CustomerCheckoutController {
     } catch (e) { next(e); }
   }
 }
+
 
 module.exports = new CustomerCheckoutController();

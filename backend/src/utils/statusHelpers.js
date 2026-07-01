@@ -7,9 +7,11 @@ const prisma = require('../config/database');
 const _cache = {};
 
 async function _lookup(model, code, prefix) {
-  const key = `${prefix}:${code}`;
+  const key = `${prefix}:${code.toUpperCase()}`;
   if (!_cache[key]) {
-    _cache[key] = await prisma[model].findFirst({ where: { code } }) ?? null;
+    _cache[key] = await prisma[model].findFirst({
+      where: { code: { equals: code, mode: 'insensitive' } },
+    }) ?? null;
   }
   return _cache[key];
 }

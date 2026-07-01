@@ -98,10 +98,12 @@ async function start() {
   }
 
   const http = require('http');
-  const { setupPickerSocket } = require('./socket/picker.socket');
+  const { setupPickerSocket }  = require('./socket/picker.socket');
+  const { setupSupportSocket } = require('./socket/support.socket');
   const httpServer = http.createServer(app);
 
   setupPickerSocket(httpServer);
+  setupSupportSocket(httpServer);
 
   const LAN = getLanIP();
   httpServer.listen(PORT, '0.0.0.0', () => {
@@ -109,7 +111,8 @@ async function start() {
     console.log(`  Local:   http://localhost:${PORT}/api`);
     console.log(`  Network: http://${LAN}:${PORT}/api  ← téléphone Android`);
     console.log(`  Health:  http://${LAN}:${PORT}/api/health`);
-    console.log(`  Socket:  ws://${LAN}:${PORT}/socket/picker  ← temps réel picker`);
+    console.log(`  Socket:  ws://${LAN}:${PORT}/socket/picker   ← temps réel picker`);
+    console.log(`  Socket:  ws://${LAN}:${PORT}/socket/support  ← temps réel support`);
     console.log(`  APK URL: --dart-define=API_URL=http://${LAN}:${PORT}/api`);
   });
 }

@@ -74,5 +74,4 @@ router.use('/loyalty',     require('../modules/loyalty/loyalty.routes'));
 
 
 
-
 module.exports = router;

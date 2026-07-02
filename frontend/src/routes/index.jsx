@@ -216,6 +216,7 @@ export default function AppRoutes() {
           <Route path="/orders/slot-statuses"       element={<OrderSlotStatusesPage />} />
           <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
           <Route path="/orders/node-config"         element={<NodeConfigPage />} />
+          
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

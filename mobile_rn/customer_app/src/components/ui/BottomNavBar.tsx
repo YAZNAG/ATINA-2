@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     width: 44, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  iconWrapActive: { backgroundColor: '#FFECEC' },
+  iconWrapActive: { backgroundColor: '#E106001A' },
 
   label:       { fontSize: 10, color: '#9CA3AF', fontWeight: '500' },
   labelActive: { color: RED, fontWeight: '700' },

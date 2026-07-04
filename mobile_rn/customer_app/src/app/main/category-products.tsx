@@ -125,7 +125,6 @@ export default function CategoryProductsScreen() {
 
   const totalFilters = selectedCats.length + selectedSubs.length;
 
-  // ─── Filter ────────────────────────────────────────────────────────────────
   const filtered = sortArticles(
     articles.filter((a) => {
       const matchSub = selectedSubs.length > 0

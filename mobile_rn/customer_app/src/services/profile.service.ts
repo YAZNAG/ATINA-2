@@ -73,6 +73,7 @@ export interface OrderSummary {
   payment_status:  string;
   payment_method_name: string | null;
   item_count: number;
+  items?: { image_url?: string }[];
 }
 
 export interface OrderItem {

@@ -88,7 +88,7 @@ async function getCategories() {
     name_ar:       c.name_ar,
     code:          c.code,
     image_path:    toPublicUrl(c.image_path),
-    icon_path:     c.icon_path,
+    icon_path:     toPublicUrl(c.icon_path),
     sort_order:    c.sort_order,
     article_count: c._count.articles,
   }));

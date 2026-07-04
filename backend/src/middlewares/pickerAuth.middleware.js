@@ -22,6 +22,10 @@ const requirePickerAuth = async (req, res, next) => {
     if (payload.profile_type !== 'picker')
       return res.status(403).json({ success: false, message: 'Accès réservé aux pickers' });
 
+    // Validate that the token has an id
+    if (!payload.id)
+      return res.status(401).json({ success: false, message: 'Token invalide: id manquant' });
+
     const picker = await prisma.picker.findFirst({
       where: { id: payload.id, is_active: true, is_deleted: false },
       select: { id: true, name: true, node_id: true, phone_number: true, phone_country: true },

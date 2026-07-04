@@ -22,6 +22,11 @@ class CustomerSupportController {
     try { resp.success(res, await svc.sendMessage(req.customerId, req.params.id, req.body), 'Message envoyé', 201); }
     catch (e) { E(res, next, e); }
   }
+
+  async destroy(req, res, next) {
+    try { resp.success(res, await svc.deleteConversation(req.customerId, req.params.id), 'Conversation supprimée'); }
+    catch (e) { E(res, next, e); }
+  }
 }
 
 module.exports = new CustomerSupportController();

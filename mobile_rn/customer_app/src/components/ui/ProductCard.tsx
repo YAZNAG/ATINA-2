@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   Image, Dimensions, Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather} from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { ProfileService } from '../../services/profile.service';
@@ -34,12 +34,9 @@ export default function ProductCard({
 
   useEffect(() => { setIsFavorite(isFav); }, [isFav]);
 
-  // Fall back to the article's own promo info when no explicit override is passed,
-  // so any product currently on promotion shows its badge wherever this card is used.
   const effectiveDiscount = discount ?? article.discount_pct ?? undefined;
   const effectiveOldPrice = oldPrice ?? article.old_price_ttc ?? undefined;
 
-  // ─── Add to cart ───────────────────────────────────────────────────────────
   const handleAddToCart = async () => {
     if (onAddToCart) {
       onAddToCart();
@@ -60,14 +57,13 @@ export default function ProductCard({
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
 
       {/* ── Image ── */}
       <View style={styles.imageContainer}>
         {article.image_url ? (
-          <Image source={{ uri: article.image_url }} style={styles.image} resizeMode="contain" />
+          <Image source={{uri: `${article.image_url}?v=${article.updated_at}`, }} style={styles.image} resizeMode="contain" />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Feather name="image" size={32} color="#D0D0D0" />
@@ -150,7 +146,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  // ── Image ──────────────────────────────────────────────────────────────────
   imageContainer: {
     width: '100%', height: 130,
     backgroundColor: '#fff',
@@ -163,7 +158,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
   },
 
-  // ── Badges ─────────────────────────────────────────────────────────────────
   discountBadge: {
     position: 'absolute', top: 10, left: 10,
     backgroundColor: RED, borderRadius: 8,
@@ -179,7 +173,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1, shadowRadius: 5, elevation: 3,
   },
 
-  // ── Info ───────────────────────────────────────────────────────────────────
   info:   { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
   name:   { fontSize: 14, color: '#1a1a1a', fontFamily: 'Inter_700Bold', marginBottom: 3, lineHeight: 18 },
   brand:  { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 10 },

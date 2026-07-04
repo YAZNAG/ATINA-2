@@ -12,7 +12,7 @@ export interface Step {
 
 interface CheckoutStepperProps {
   steps?:       Step[];
-  currentStep:  number;  // 1, 2 ou 3 (l'étape active)
+  currentStep:  number;
 }
 
 const DEFAULT_STEPS: Step[] = [

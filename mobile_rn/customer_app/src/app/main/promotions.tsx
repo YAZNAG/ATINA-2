@@ -68,7 +68,6 @@ function FlashCard({ item, onPress }: { item: FlashSaleSummary; onPress: () => v
   );
 }
 
-// ── Pack card ─────────────────────────────────────────────────────────────────
 function PackCard({ item, onPress }: { item: PackSummary; onPress: () => void }) {
   const hasImg = !!item.image_url;
   return (
@@ -207,7 +206,6 @@ const styles = StyleSheet.create({
   sectionTitle:   { fontSize: 16, fontFamily: 'Poppins_700Bold', color: RED },
   packsSection:   { marginTop: 24 },
 
-  // ── Card (shared) ────────────────────────────────────────────────────────────
   card: {
     height: 200,
     borderRadius: 20,

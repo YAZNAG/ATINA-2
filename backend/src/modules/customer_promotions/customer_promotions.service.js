@@ -1,8 +1,6 @@
 const prisma = require('../../config/database');
 const { toPublicUrl } = require('../../utils/fileStorage');
 
-// ── Helpers 
-
 function getScopeType(fs) {
   if (fs.sku_id)      return 'sku';
   if (fs.pack_id)     return 'pack';

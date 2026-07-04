@@ -3,7 +3,8 @@ const bcrypt = require('bcrypt');
 const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
-
+//const BASE_URL = process.env.PUBLIC_URL || 'http://localhost:5000';
+const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000';
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
@@ -158,6 +159,24 @@ const ORDER_LIST_INCLUDE = {
       payment_method: { select: { code: true, name_fr: true } },
     },
   },
+items: {
+  take: 4,
+  select: {
+    sku: {
+      select: {
+        article: {
+          select: {
+            images: {
+              where:   { is_main: true, deleted_at: null },
+              select:  { image_path: true },
+              take:    1,
+            },
+          },
+        },
+      },
+    },
+  },
+},
 };
 
 const ORDER_DETAIL_INCLUDE = {
@@ -212,6 +231,14 @@ function formatOrderList(o) {
     payment_status: payment?.status?.code ?? 'pending',
     payment_method_name: payment?.payment_method?.name_fr,
     item_count:    o._count?.items ?? 0,
+    items: (o.items ?? []).map(item => {
+  const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
+  return {
+    image_url: imagePath
+      ? `${BASE_URL}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`
+      : null,
+  };
+}),
   };
 }
 
@@ -392,7 +419,6 @@ async function changePassword(customerId, body) {
   return { message: 'Mot de passe modifié' };
 }
 // ── Wishlist ──────────────────────────────────────────────────────────────────
-const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000';
 
 async function listFavorites(customerId) {
   const [items, flashSales] = await Promise.all([

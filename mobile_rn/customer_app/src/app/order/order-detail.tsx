@@ -20,7 +20,6 @@ import type { OrderDriver } from '../../services/profile.service';
 
 const RED = '#E10600';
 
-// Étapes pour livraison à domicile
 const DELIVERY_STEPS = [
   { codes: ['pending', 'confirmed'],            label: 'Commande placée', sub: 'Votre commande a été reçue' },
   { codes: ['picking'],                         label: 'En préparation',  sub: 'Nous préparons vos articles' },
@@ -29,9 +28,6 @@ const DELIVERY_STEPS = [
   { codes: ['delivered', 'completed'],          label: 'Livrée',          sub: 'Commande livrée' },
 ];
 
-// Étapes pour retrait en magasin —
-// "En livraison" n'existe pas pour le retrait : on ajoute 'delivered'/'completed'
-// aux deux dernières étapes pour qu'elles se cochent simultanément.
 const PICKUP_STEPS = [
   { codes: ['pending', 'confirmed'],                               label: 'Commande placée',   sub: 'Votre commande a été reçue' },
   { codes: ['picking'],                                            label: 'En préparation',    sub: 'Nous préparons vos articles' },
@@ -106,7 +102,6 @@ const NEGATIVE_TERMINAL: Record<string, { label: string; sub: string }> = {
   failed:    { label: 'Échouée',   sub: 'La livraison a échoué' },
 };
 
-// Retourne l'index de l'étape "active" (la plus avancée matchée)
 function getActiveStepIdx(steps: Step[], currentCode: string, doneSet: Set<string>): number {
   const current = currentCode?.toLowerCase() ?? '';
   let max = -1;

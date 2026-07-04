@@ -357,14 +357,12 @@ const styles = StyleSheet.create({
 
   section: { marginTop: 8 },
 
-  // ── Recommandations horizontales ───────────────────────────────────────────
   horizontalList: {
     paddingHorizontal: 16,
     paddingBottom: 8,
     gap: 12,
   },
 
-  // ── Grille produits ────────────────────────────────────────────────────────
   grid: {
     flexDirection: 'row', flexWrap: 'wrap',
     paddingHorizontal: 16, gap: 16, paddingBottom: 8,
@@ -376,7 +374,6 @@ const styles = StyleSheet.create({
     fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: 'Poppins_400Regular',
   },
 
-  // ── Promotion slider ────────────────────────────────────────────────────────
   promoSlide: {
     width: width * 0.82,
     height: 200,
@@ -408,7 +405,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5, textTransform: 'uppercase', textAlign: 'center',
   },
 
-  // ── Starburst discount badge ───────────────────────────────────────────────
   starBadgeWrap: {
     position: 'absolute',
     top: -10, right: -8,

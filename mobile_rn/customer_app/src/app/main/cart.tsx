@@ -18,7 +18,6 @@ import { CartService, CartItem, Cart } from '../../services/cart.service';
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
 
-// ── Grouping: explode pack-linked items back into one card per pack ────────────
 
 interface PackGroup {
   type:       'pack';

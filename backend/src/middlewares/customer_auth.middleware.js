@@ -16,6 +16,11 @@ const customerAuthMiddleware = async (req, res, next) => {
   try { decoded = jwt.verify(token, secret); }
   catch { return resp.error(res, 'Token invalide ou expiré', 401); }
 
+  // Validate that the token has an id
+  if (!decoded.id) {
+    return resp.error(res, 'Token invalide: userId manquant', 401);
+  }
+
   const customer = await prisma.customer.findFirst({
     where:  { user_id: decoded.id, is_deleted: false },
     select: { id: true, user_id: true },

@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#FFEAEA',
     alignItems: 'center', justifyContent: 'center',
   },
   title: {

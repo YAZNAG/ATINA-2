@@ -404,6 +404,7 @@ model Article {
   sub_category         SubCategory?      @relation(fields: [sub_category_id], references: [id])
   tax                  Tax?              @relation(fields: [tax_id], references: [id])
   wishlist_items       Wishlist[]
+  reviews ArticleReview[]
 
   @@map("articles")
 }
@@ -996,6 +997,7 @@ model Customer {
   support_conversations SupportConversation[]
   wallet_transactions   WalletTransaction[]
   wishlist_items        Wishlist[]
+  reviews ArticleReview[]
 
   @@map("customers")
 }
@@ -1780,4 +1782,23 @@ model SupportMessage {
 
   @@index([conversation_id])
   @@map("support_messages")
+}
+
+model ArticleReview {
+  id          String    @id @default(uuid()) @db.Uuid
+  article_id  Int
+  customer_id String    @db.Uuid
+  rating      Int                              // 1 à 5
+  comment     String?   @db.Text
+  is_deleted  Boolean   @default(false)
+  deleted_at  DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+
+  article  Article  @relation(fields: [article_id],  references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@unique([article_id, customer_id])   // un seul avis par client par article
+  @@index([article_id])
+  @@map("article_reviews")
 }

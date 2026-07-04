@@ -352,7 +352,6 @@ const styles = StyleSheet.create({
   scroll:   { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
   errorText:{ fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: GRAY },
 
-  // ── Banner ──────────────────────────────────────────────────────────────────
   banner: {
     backgroundColor: '#fff',
     borderRadius: 18,
@@ -381,10 +380,8 @@ const styles = StyleSheet.create({
   statusDot:      { width: 6, height: 6, borderRadius: 3 },
   statusText:     { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
 
-  // ── Section ─────────────────────────────────────────────────────────────────
   sectionTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 14 },
 
-  // ── Flash sale grid ─────────────────────────────────────────────────────────
   row:  { flexDirection: 'row', gap: 16, marginBottom: 16 },
   card: {
     width: CARD_W, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
@@ -406,7 +403,6 @@ const styles = StyleSheet.create({
   addBtn:     { margin: 10, marginTop: 6, backgroundColor: RED, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   addBtnText: { fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#fff' },
 
-  // ── Pack price card ─────────────────────────────────────────────────────────
   priceCard:    { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   priceRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   priceLabel:   { fontSize: 14, fontFamily: 'Poppins_400Regular', color: GRAY },
@@ -417,7 +413,6 @@ const styles = StyleSheet.create({
   savingRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 10 },
   savingText:   { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: GREEN },
 
-  // ── Pack items list ─────────────────────────────────────────────────────────
   itemsCard:    { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   itemRow:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   itemImageBox: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },
@@ -429,11 +424,9 @@ const styles = StyleSheet.create({
   itemQty:      { fontSize: 13, fontFamily: 'Poppins_700Bold', color: RED },
   itemDivider:  { height: 1, backgroundColor: '#F5F5F5', marginHorizontal: 14 },
 
-  // ── Empty ────────────────────────────────────────────────────────────────────
   empty:     { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: GRAY },
 
-  // ── Bottom bar ───────────────────────────────────────────────────────────────
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0F0F0',

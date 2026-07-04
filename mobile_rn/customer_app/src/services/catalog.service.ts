@@ -47,6 +47,7 @@ export interface Article {
   unit_sale:      string;
   is_active:      boolean;
   image_url:      string | null;
+  updated_at:     string;
   images:         string[];
   brand:          { id: number; name_fr: string; name_ar: string } | null;
   category:       { id: number; name_fr: string; name_ar: string } | null;

@@ -2,7 +2,7 @@ const service  = require('./faq.service');
 const response = require('../../utils/response');
 
 class FaqController {
-  // ── Catégories ──
+  // Catgories 
   async indexCategories(req, res, next) {
     try { return response.success(res, await service.getAllCategories(req.query)); }
     catch (err) { next(err); }
@@ -20,7 +20,7 @@ class FaqController {
     catch (err) { next(err); }
   }
 
-  // ── Questions ──
+  // Questions
   async indexItems(req, res, next) {
     try { return response.success(res, await service.getAllItems(req.query)); }
     catch (err) { next(err); }

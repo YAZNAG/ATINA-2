@@ -191,7 +191,7 @@ export default function ProfileScreen() {
           <View style={styles.menuDivider} />
           <MenuItem icon="settings"      label="Paramètres"                onPress={() => router.push('/profile/settings' as any)} />
           <View style={styles.menuDivider} />
-          <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => router.push('/profile/s' as any)} />
+          <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => router.push('/support/conversations' as any)} />
         </View>
 
         {/* ── Edit button ── */}
@@ -220,7 +220,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
@@ -231,10 +230,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
 
-  // ── Scroll ──────────────────────────────────────────────────────────────────
   scroll: { paddingHorizontal: 20, paddingTop: 8 },
 
-  // ── Avatar ──────────────────────────────────────────────────────────────────
   avatarSection:   { alignItems: 'center', marginBottom: 24 },
   avatarWrapper:   { position: 'relative', marginBottom: 12 },
   avatar:          { width: 90, height: 90, borderRadius: 45 },
@@ -251,7 +248,6 @@ const styles = StyleSheet.create({
   profileName:  { fontSize: 20, fontWeight: '800', color: '#1a1a1a', marginBottom: 4 },
   profileEmail: { fontSize: 13, color: '#9CA3AF' },
 
-  // ── Stats ───────────────────────────────────────────────────────────────────
   statsRow: {
     flexDirection: 'row', gap: 12, marginBottom: 24,
   },
@@ -267,7 +263,6 @@ const styles = StyleSheet.create({
   statValueDark:  { fontSize: 22, fontWeight: '800', color: '#1a1a1a' },
   statLabelGray:  { fontSize: 12, color: '#9CA3AF', fontWeight: '500', marginTop: 2 },
 
-  // ── Fidélité ────────────────────────────────────────────────────────────────
   loyaltyCard: {
     borderRadius: 20, borderWidth: 1.5,
     padding: 18, marginBottom: 24,
@@ -291,7 +286,6 @@ const styles = StyleSheet.create({
   loyaltyLifetime: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
   loyaltyNext:     { fontSize: 12, color: '#6B7280', fontWeight: '500' },
 
-  // ── Menu ────────────────────────────────────────────────────────────────────
   menuCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -316,7 +310,6 @@ const styles = StyleSheet.create({
   },
   menuBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
-  // ── Edit button ─────────────────────────────────────────────────────────────
   editBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: RED, borderRadius: 50,
@@ -326,7 +319,6 @@ const styles = StyleSheet.create({
   },
   editBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  // ── Logout ──────────────────────────────────────────────────────────────────
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 12,

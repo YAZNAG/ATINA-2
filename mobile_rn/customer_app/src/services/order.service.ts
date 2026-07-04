@@ -84,13 +84,9 @@ export interface DeliverySlotsResult {
   node_id: string | null;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function unwrap<T>(data: any): T {
   return (data?.data ?? data) as T;
 }
-
-// ── API functions ─────────────────────────────────────────────────────────────
 
 export async function getMeta(node_id?: string): Promise<Meta> {
   const res = await api.get('/customer/checkout/meta', {

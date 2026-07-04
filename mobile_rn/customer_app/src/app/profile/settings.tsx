@@ -244,9 +244,6 @@ export default function SettingsScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Row
-// ─────────────────────────────────────────────────────────────────────────────
 const Row = ({ icon, label, value, verified, onPress }: {
   icon: string; label: string; value: string; verified?: boolean; onPress: () => void;
 }) => (
@@ -265,9 +262,7 @@ const Row = ({ icon, label, value, verified, onPress }: {
 
 const Divider = () => <View style={styles.divider} />;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Modal — Nom
-// ─────────────────────────────────────────────────────────────────────────────
+
 const EditNameModal = ({ visible, currentName, onClose, onSaved }: {
   visible: boolean; currentName: string; onClose: () => void; onSaved: () => void;
 }) => {
@@ -294,9 +289,7 @@ const EditNameModal = ({ visible, currentName, onClose, onSaved }: {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Modal — Email
-// ─────────────────────────────────────────────────────────────────────────────
+
 const EditEmailModal = ({ visible, currentEmail, onClose, onSaved }: {
   visible: boolean; currentEmail: string; onClose: () => void; onSaved: () => void;
 }) => {
@@ -325,9 +318,6 @@ const EditEmailModal = ({ visible, currentEmail, onClose, onSaved }: {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Modal — Téléphone + OTP
-// ─────────────────────────────────────────────────────────────────────────────
 const EditPhoneModal = ({ visible, currentCountry, onClose, onSaved }: {
   visible: boolean; currentCountry: string; onClose: () => void; onSaved: () => void;
 }) => {
@@ -386,9 +376,7 @@ const EditPhoneModal = ({ visible, currentCountry, onClose, onSaved }: {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Modal — Mot de passe
-// ─────────────────────────────────────────────────────────────────────────────
+
 const ChangePasswordModal = ({ visible, onClose, onSaved }: {
   visible: boolean; onClose: () => void; onSaved: () => void;
 }) => {
@@ -433,9 +421,6 @@ const ChangePasswordModal = ({ visible, onClose, onSaved }: {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Base Modal + Save Button
-// ─────────────────────────────────────────────────────────────────────────────
 const BaseModal = ({ visible, title, onClose, children }: {
   visible: boolean; title: string; onClose: () => void; children: React.ReactNode;
 }) => (

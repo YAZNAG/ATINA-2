@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, FlatList,
-  ActivityIndicator, RefreshControl,
+  StatusBar, FlatList, ActivityIndicator,
+  RefreshControl, ScrollView, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -19,56 +19,164 @@ import { ProfileService, OrderSummary } from '../../services/profile.service';
 
 const RED = '#E10600';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type TabKey = 'all' | 'delivered' | 'pickup' | 'pending';
+const TABS: { key: TabKey; label: string; statusCodes: string[] }[] = [
+  { key: 'all',       label: 'Toutes',   statusCodes: [] },
+  { key: 'delivered', label: 'Livrées',  statusCodes: ['delivered', 'completed'] },
+  { key: 'pickup',    label: 'Retirées', statusCodes: ['picked_up', 'collected'] },
+  { key: 'pending',   label: 'En cours', statusCodes: ['pending', 'confirmed', 'processing', 'awaiting_stock'] },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+    + ' ● '
+    + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function StatusBadge({ status }: { status: OrderSummary['status'] }) {
-  const color = status?.color ?? '#6B7280';
+function getStatusColor(code?: string): string {
+  switch (code?.toLowerCase()) {
+    case 'delivered':
+    case 'completed':   return '#16A34A';
+    case 'picked_up':
+    case 'collected':   return '#2563EB';
+    case 'cancelled':   return '#DC2626';
+    case 'pending':
+    case 'confirmed':
+    case 'processing':  return RED;
+    default:            return '#6B7280';
+  }
+}
+
+// ── Stats card ────────────────────────────────────────────────────────────────
+
+function StatsRow({ orders }: { orders: OrderSummary[] }) {
+  const total   = orders.length;
+  const spent   = orders.reduce((sum, o) => sum + Number(o.total_ttc ?? 0), 0);
   return (
-    <View style={[styles.badge, { backgroundColor: color + '20', borderColor: color + '50' }]}>
-      <View style={[styles.badgeDot, { backgroundColor: color }]} />
-      <Text style={[styles.badgeText, { color }]}>{status?.name_fr ?? '—'}</Text>
+    <View style={styles.statsRow}>
+      <View style={styles.statCard}>
+        <View style={styles.statIconBox}>
+          <Feather name="shopping-bag" size={16} color="#6B7280" />
+        </View>
+        <Text style={styles.statLabel}>Total{'\n'}commandes</Text>
+        <Text style={styles.statValue}>{total}</Text>
+      </View>
+      <View style={[styles.statCard, styles.statCardRed]}>
+        <View style={[styles.statIconBox, { backgroundColor: '#FEE2E2' }]}>
+          <Feather name="credit-card" size={16} color={RED} />
+        </View>
+        <Text style={[styles.statLabel, { color: RED }]}>Total dépensé</Text>
+        <Text style={[styles.statValueBig, { color: RED }]}>
+          {spent.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}
+          <Text style={styles.statCurrency}> MAD</Text>
+        </Text>
+      </View>
     </View>
   );
 }
 
-function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => void }) {
+// ── Article thumbnails ────────────────────────────────────────────────────────
+
+function ArticleThumbs({ items, count }: { items: { image_url?: string }[]; count: number }) {
+  const visible = items.slice(0, 3);
+  const extra   = count - visible.length;
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.cardHeader}>
-        <View>
-          <Text style={styles.cardRef}>#{order.reference}</Text>
-          <Text style={styles.cardDate}>{formatDate(order.created_at)}</Text>
+    <View style={styles.thumbsRow}>
+      {visible.map((it, i) => (
+        <View key={i} style={styles.thumbWrap}>
+          {it.image_url
+            ? <Image source={{ uri: it.image_url }} style={styles.thumb} resizeMode="cover" />
+            : <View style={styles.thumbPlaceholder}>
+                <Feather name="package" size={14} color="#D1D5DB" />
+              </View>
+          }
         </View>
-        <StatusBadge status={order.status} />
-      </View>
-
-      <View style={styles.cardDivider} />
-
-      <View style={styles.cardFooter}>
-        <View style={styles.cardMeta}>
-          <Feather name="package" size={13} color="#9CA3AF" />
-          <Text style={styles.cardMetaText}>{order.item_count} article{order.item_count > 1 ? 's' : ''}</Text>
-          <View style={styles.metaSep} />
-          <Feather name="truck" size={13} color="#9CA3AF" />
-          <Text style={styles.cardMetaText}>{order.delivery_type ?? '—'}</Text>
+      ))}
+      {extra > 0 && (
+        <View style={styles.thumbExtra}>
+          <Text style={styles.thumbExtraText}>+{extra}</Text>
+          <Text style={styles.thumbExtraLabel}>AUTRES</Text>
         </View>
-        <View style={styles.cardRight}>
-          <Text style={styles.cardTotal}>{Number(order.total_ttc).toFixed(2)} DH</Text>
-          <Feather name="chevron-right" size={18} color="#D1D5DB" />
-        </View>
-      </View>
-    </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
+// ── Order card ────────────────────────────────────────────────────────────────
+
+function OrderCard({ order, onPress, onReorder }: {
+  order: OrderSummary;
+  onPress: () => void;
+  onReorder: () => void;
+}) {
+  const statusCode  = order.status?.code ?? '';
+  const statusColor = order.status?.color ?? getStatusColor(statusCode);
+  const statusName  = order.status?.name_fr ?? '—';
+
+  return (
+    <View style={styles.card}>
+      {/* ── Header ── */}
+      <View style={styles.cardHeader}>
+        <View style={styles.cardHeaderLeft}>
+          <View style={styles.cardIconBox}>
+            <Feather name="file-text" size={18} color={RED} />
+          </View>
+          <View>
+            <Text style={styles.cardRef}>Commande #CMD-{order.reference ?? order.id.slice(0, 4).toUpperCase()}</Text>
+            <Text style={styles.cardDate}>{formatDate(order.created_at)}</Text>
+          </View>
+        </View>
+        <View style={[styles.badge, { backgroundColor: statusColor + '18', borderColor: statusColor + '40' }]}>
+          {statusCode === 'delivered' || statusCode === 'completed'
+            ? <Feather name="check" size={11} color={statusColor} style={{ marginRight: 3 }} />
+            : <View style={[styles.badgeDot, { backgroundColor: statusColor }]} />
+          }
+          <Text style={[styles.badgeText, { color: statusColor }]}>{statusName}</Text>
+        </View>
+      </View>
+
+      {/* ── Articles + prix ── */}
+      <View style={styles.cardBody}>
+        <ArticleThumbs
+          items={order.items ?? []}
+          count={order.item_count ?? 0}
+        />
+        <View style={styles.priceBlock}>
+          <Text style={styles.priceValue}>
+            {Number(order.total_ttc).toFixed(0)}
+          </Text>
+          <Text style={styles.priceCurrency}>MAD</Text>
+        </View>
+      </View>
+
+      {/* ── Boutons ── */}
+      <View style={styles.cardActions}>
+        <TouchableOpacity style={styles.btnOutline} onPress={onPress} activeOpacity={0.8}>
+          <Feather name="eye" size={14} color={RED} />
+          <Text style={styles.btnOutlineText}>Voir détails</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnRed} onPress={onReorder} activeOpacity={0.85}>
+          <Feather name="refresh-cw" size={14} color="#fff" />
+          <Text style={styles.btnRedText}>Re-cmder</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ── Page principale ───────────────────────────────────────────────────────────
+
 export default function OrdersScreen() {
   const router = useRouter();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders,     setOrders]     = useState<OrderSummary[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab,  setActiveTab]  = useState<TabKey>('all');
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -92,79 +200,184 @@ export default function OrdersScreen() {
 
   if (!fontsLoaded) return null;
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <PageHeader title="Mes commandes" />
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={styles.container}>
+  // Filtre selon tab
+  const filtered = activeTab === 'all'
+    ? orders
+    : orders.filter(o => {
+        const tab = TABS.find(t => t.key === activeTab);
+        return tab?.statusCodes.includes(o.status?.code ?? '');
+      });
 
-        {loading ? (
-          <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
-        ) : orders.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="shopping-bag" size={52} color="#E5E7EB" />
-            <Text style={styles.emptyTitle}>Aucune commande</Text>
-            <Text style={styles.emptySubtitle}>Vos commandes apparaîtront ici</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/home' as any)}>
-              <Text style={styles.emptyBtnText}>Commencer mes achats</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <FlatList
-            data={orders}
-            keyExtractor={o => o.id}
-            renderItem={({ item }) => (
-              <OrderCard
-                order={item}
-                onPress={() => router.push({ pathname: '/order/order-detail' as any, params: { id: item.id } })}
-              />
-            )}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[RED]} tintColor={RED} />
-            }
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          />
-        )}
+  const handleReorder = (order: OrderSummary) => {
+    // TODO : pré-remplir le panier avec les articles de la commande
+    router.push('/main/home' as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <PageHeader title="Historique des commandes" />
+
+      {/* ── Tabs ── */}
+      <View style={styles.tabsWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            const count  = tab.key === 'all' ? orders.length
+              : orders.filter(o => tab.statusCodes.includes(o.status?.code ?? '')).length;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tab, active && styles.tabActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                  {tab.label}
+                </Text>
+                {count > 0 && !active && (
+                  <View style={styles.tabCount}>
+                    <Text style={styles.tabCountText}>{count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
+
+      {loading ? (
+        <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
+      ) : orders.length === 0 ? (
+        <View style={styles.empty}>
+          <Feather name="shopping-bag" size={52} color="#E5E7EB" />
+          <Text style={styles.emptyTitle}>Aucune commande</Text>
+          <Text style={styles.emptySub}>Vos commandes apparaîtront ici</Text>
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/home' as any)}>
+            <Text style={styles.emptyBtnText}>Commencer mes achats</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={o => o.id}
+          ListHeaderComponent={<StatsRow orders={orders} />}
+          renderItem={({ item }) => (
+            <OrderCard
+              order={item}
+              onPress={() => router.push({ pathname: '/order/order-detail' as any, params: { id: item.id } })}
+              onReorder={() => handleReorder(item)}
+            />
+          )}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[RED]} tintColor={RED} />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea:  { flex: 1, backgroundColor: '#ffffff' },
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  list:      { paddingBottom: 32, paddingTop: 8 },
+  safe:    { flex: 1, backgroundColor: '#ffffff' },
+  list:    { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
 
-  card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  cardHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  cardRef:       { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#1a1a1a' },
-  cardDate:      { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
-  cardDivider:   { height: 1, backgroundColor: '#F5F5F5', marginBottom: 12 },
-  cardFooter:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardMeta:      { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  cardMetaText:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
-  metaSep:       { width: 1, height: 12, backgroundColor: '#E5E7EB', marginHorizontal: 4 },
-  cardRight:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTotal:     { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#1a1a1a' },
-
-  badge: {
+  // Tabs
+  tabsWrap:    { backgroundColor: '#fff' },
+  tabsContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  tab: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1,
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderRadius: 50, backgroundColor: '#F3F4F6',
   },
-  badgeDot:  { width: 6, height: 6, borderRadius: 3 },
+  tabActive:      { backgroundColor: RED },
+  tabLabel:       { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  tabLabelActive: { color: '#fff' },
+  tabCount: {
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
+  },
+  tabCountText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+
+  // Stats
+  statsRow:      { flexDirection: 'row', gap: 12, marginBottom: 16, marginTop: 12 },
+  statCard: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  statCardRed:   { borderWidth: 1, borderColor: '#FEE2E2' },
+  statIconBox:   {
+    width: 32, height: 32, borderRadius: 10, backgroundColor: '#F3F4F6',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  statLabel:     { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6B7280', marginBottom: 4 },
+  statValue:     { fontSize: 28, fontFamily: 'Poppins_700Bold', color: '#1A1A1A' },
+  statValueBig:  { fontSize: 22, fontFamily: 'Poppins_700Bold' },
+  statCurrency:  { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+
+  // Card
+  card: {
+    backgroundColor: '#fff', borderRadius: 18, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
+  },
+  cardHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardIconBox: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
+  },
+  cardRef:  { fontSize: 13.5, fontFamily: 'Poppins_600SemiBold', color: '#1A1A1A' },
+  cardDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 1 },
+
+  // Badge
+  badge:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 50, borderWidth: 1 },
+  badgeDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
   badgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
 
-  empty:         { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle:    { fontSize: 17, fontFamily: 'Poppins_600SemiBold', color: '#1a1a1a', marginTop: 8 },
-  emptySubtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
-  emptyBtn: {
-    marginTop: 16, backgroundColor: RED, borderRadius: 12,
-    paddingHorizontal: 24, paddingVertical: 12,
+  // Articles
+  cardBody:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  thumbsRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  thumbWrap:   { width: 52, height: 52, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F5F5F5' },
+  thumb:       { width: '100%', height: '100%' },
+  thumbPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  thumbExtra:  {
+    width: 52, height: 52, borderRadius: 12,
+    backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
   },
-  emptyBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  thumbExtraText:  { fontSize: 13, fontFamily: 'Poppins_700Bold', color: RED },
+  thumbExtraLabel: { fontSize: 9, fontFamily: 'Inter_600SemiBold', color: RED },
+
+  // Prix
+  priceBlock:   { alignItems: 'flex-end' },
+  priceValue:   { fontSize: 28, fontFamily: 'Poppins_700Bold', color: '#1A1A1A', lineHeight: 32 },
+  priceCurrency:{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+
+  // Boutons
+  cardActions:  { flexDirection: 'row', gap: 10 },
+  btnOutline: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1.5, borderColor: RED, backgroundColor: '#fff',
+  },
+  btnOutlineText: { fontSize: 13.5, fontFamily: 'Inter_600SemiBold', color: RED },
+  btnRed: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: 12, backgroundColor: RED,
+    shadowColor: RED, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  },
+  btnRedText: { fontSize: 13.5, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+
+  // Empty
+  empty:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  emptyTitle:  { fontSize: 17, fontFamily: 'Poppins_600SemiBold', color: '#1A1A1A', marginTop: 8 },
+  emptySub:    { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
+  emptyBtn:    { marginTop: 16, backgroundColor: RED, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  emptyBtnText:{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
 });

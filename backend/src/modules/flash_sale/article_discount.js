@@ -19,8 +19,6 @@ function applyDiscount(priceTtc, discount_type, discount_value) {
   return priceTtc;
 }
 
-// Best (lowest) active discount for an article among sku/category/brand flash sales.
-// `articleSkuId` is the Sku.id linked to the article (catalog_sku?.id), used to match sku-scoped sales.
 function resolveArticleDiscount({ articleSkuId, categoryId, brandId, priceTtc }, flashSales) {
   let best = null;
   for (const fs of flashSales) {

@@ -262,7 +262,7 @@ export default function NotificationsScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// Styles 
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },

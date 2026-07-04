@@ -15,6 +15,11 @@ const authMiddleware = async (req, res, next) => {
     const token = String(authHeader).split(' ')[1];
     const decoded = jwt.verify(token, jwtConfig.secret);
 
+    // Validate that the token has a userId
+    if (!decoded.userId) {
+      return response.error(res, 'Invalid token: missing userId', 401);
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: {

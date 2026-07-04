@@ -9,5 +9,6 @@ router.get('/',                  ctrl.index.bind(ctrl));
 router.post('/',                 ctrl.store.bind(ctrl));
 router.get('/:id',               ctrl.show.bind(ctrl));
 router.post('/:id/messages',     ctrl.storeMessage.bind(ctrl));
+router.delete('/:id',            ctrl.destroy.bind(ctrl));
 
 module.exports = router;

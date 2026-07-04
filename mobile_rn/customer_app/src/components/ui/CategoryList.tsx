@@ -9,6 +9,7 @@ import {
   Inter_400Regular, Inter_500Medium,
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import { Feather } from '@expo/vector-icons';
 
 const RED = '#E10600';
 
@@ -35,8 +36,8 @@ export default function CategoryList({ categories, selectedId, onSelect }: Categ
         activeOpacity={0.8}
       >
         <View style={[styles.iconBox, selectedId === null && styles.iconBoxSelected]}>
-          <Text style={styles.emoji}></Text>
-        </View>
+          <Feather name="grid" size={24} color={selectedId === null ? RED : '#6B7280'} />
+          </View>
         <Text style={[styles.label, selectedId === null && styles.labelSelected]}>
           Tout
         </Text>

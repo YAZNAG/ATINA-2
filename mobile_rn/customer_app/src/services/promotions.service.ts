@@ -93,6 +93,7 @@ export function bestDealToArticle(d: BestDeal) {
     unit_sale:      '',
     is_active:      true,
     image_url:      d.image_url,
+    updated_at:     new Date().toISOString(),
     images:         [],
     brand:          d.brand,
     category:       d.category,

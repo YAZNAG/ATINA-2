@@ -4,7 +4,7 @@ const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
 //const BASE_URL = process.env.PUBLIC_URL || 'http://localhost:5000';
-const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000';
+const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000/';
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
@@ -187,7 +187,23 @@ const ORDER_DETAIL_INCLUDE = {
   confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, day_of_week: true } },
   items: {
     include: {
-      sku: { select: { id: true, article: { select: { name_fr: true, sku_code: true, price: true } } } },
+      sku: {
+        select: {
+          id: true,
+          article: {
+            select: {
+              name_fr: true,
+              sku_code: true,
+              price: true,
+              images: {
+                where:  { is_main: true, deleted_at: null },
+                select: { image_path: true },
+                take:   1,
+              },
+            },
+          },
+        },
+      },
     },
   },
   payments: {
@@ -229,6 +245,7 @@ function formatOrderList(o) {
     total_ttc:     Number(o.total_ttc ?? 0),
     status:        o.status,
     payment_status: payment?.status?.code ?? 'pending',
+    payment_status_label: payment?.status?.name_fr ?? 'En attente',
     payment_method_name: payment?.payment_method?.name_fr,
     item_count:    o._count?.items ?? 0,
     items: (o.items ?? []).map(item => {
@@ -258,21 +275,28 @@ function formatOrderDetail(o) {
     notes:         o.notes,
     status:        o.status,
     payment_status: payment?.status?.code ?? 'pending',
+    payment_status_label: payment?.status?.name_fr ?? 'En attente',
     payment_method_name: payment?.payment_method?.name_fr,
     address_label: address?.label,
     address_full:  [address?.street_number, address?.street_name, address?.quartier, address?.city]
       .filter(Boolean).join(', '),
     slot_name:     slot?.name_fr,
     slot_date:     null,
-    items: (o.items ?? []).map(item => ({
-      id:         item.id,
-      sku_code:   item.sku?.article?.sku_code,
-      name_fr:    item.sku?.article?.name_fr ?? 'Article',
-      qty:        item.qty,
-      unit_price: Number(item.unit_price_sold ?? 0),
-      vat_rate:   Number(item.vat_rate ?? 0),
-      total_ttc:  Number(item.unit_price_sold ?? 0) * (item.qty ?? 1),
-    })),
+    items: (o.items ?? []).map(item => {
+  const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
+  const image_url = imagePath
+    ? `${BASE_URL}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`
+    : null;
+  return {
+    id:         item.id,
+    sku_code:   item.sku?.article?.sku_code,
+    name_fr:    item.sku?.article?.name_fr ?? 'Article',
+    qty:        item.qty,
+    unit_price: Number(item.unit_price_sold ?? 0),
+    vat_rate:   Number(item.vat_rate ?? 0),
+    total_ttc:  Number(item.unit_price_sold ?? 0) * (item.qty ?? 1),
+    image_url,
+  };}),
     timeline: (o.history ?? []).map(h => ({
       status_code: h.status?.code,
       name_fr:     h.status?.name_fr,

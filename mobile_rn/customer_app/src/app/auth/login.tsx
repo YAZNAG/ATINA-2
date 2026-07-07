@@ -194,7 +194,14 @@ export default function LoginScreen() {
                   <Feather name={showPwd ? 'eye-off' : 'eye'} size={18} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
-
+              {/* ── Mot de passe oublié ── */}
+<TouchableOpacity
+  style={styles.forgotRow}
+  onPress={() => router.push('/auth/forgot-password' as any)}
+  activeOpacity={0.7}
+>
+  <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+</TouchableOpacity>
               {/* ── Erreur ── */}
               {!!error && (
                 <View style={styles.errorBox}>
@@ -379,6 +386,9 @@ const styles = StyleSheet.create({
   signupRow:   { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
   signupLabel: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   signupLink:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: RED },
+
+  forgotRow: { alignSelf: 'flex-end', marginBottom: 16, marginTop: -8 },
+  forgotText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED },
 
   // Country picker
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

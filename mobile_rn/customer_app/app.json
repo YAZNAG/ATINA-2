@@ -37,6 +37,12 @@
           }
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "L'application a besoin d'accéder à la caméra pour scanner les codes-barres des produits."
+        }
+      ],
       "expo-font",
       "expo-secure-store"
     ],

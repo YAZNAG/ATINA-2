@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, FlatList, ActivityIndicator,
-  RefreshControl, ScrollView, Image,
+  RefreshControl, ScrollView, Image, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,10 +16,9 @@ import {
 } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService, OrderSummary } from '../../services/profile.service';
+import { CartService } from '../../services/cart.service';
 
 const RED = '#E10600';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 type TabKey = 'all' | 'delivered' | 'pickup' | 'pending';
 const TABS: { key: TabKey; label: string; statusCodes: string[] }[] = [
@@ -28,8 +27,6 @@ const TABS: { key: TabKey; label: string; statusCodes: string[] }[] = [
   { key: 'pickup',    label: 'Retirées', statusCodes: ['picked_up', 'collected'] },
   { key: 'pending',   label: 'En cours', statusCodes: ['pending', 'confirmed', 'processing', 'awaiting_stock'] },
 ];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -52,8 +49,6 @@ function getStatusColor(code?: string): string {
   }
 }
 
-// ── Stats card ────────────────────────────────────────────────────────────────
-
 function StatsRow({ orders }: { orders: OrderSummary[] }) {
   const total   = orders.length;
   const spent   = orders.reduce((sum, o) => sum + Number(o.total_ttc ?? 0), 0);
@@ -72,15 +67,13 @@ function StatsRow({ orders }: { orders: OrderSummary[] }) {
         </View>
         <Text style={[styles.statLabel, { color: RED }]}>Total dépensé</Text>
         <Text style={[styles.statValueBig, { color: RED }]}>
-          {spent.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}
+          {spent.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           <Text style={styles.statCurrency}> MAD</Text>
         </Text>
       </View>
     </View>
   );
 }
-
-// ── Article thumbnails ────────────────────────────────────────────────────────
 
 function ArticleThumbs({ items, count }: { items: { image_url?: string }[]; count: number }) {
   const visible = items.slice(0, 3);
@@ -107,12 +100,11 @@ function ArticleThumbs({ items, count }: { items: { image_url?: string }[]; coun
   );
 }
 
-// ── Order card ────────────────────────────────────────────────────────────────
-
-function OrderCard({ order, onPress, onReorder }: {
+function OrderCard({ order, onPress, onReorder, reordering }: {
   order: OrderSummary;
   onPress: () => void;
   onReorder: () => void;
+  reordering?: boolean;
 }) {
   const statusCode  = order.status?.code ?? '';
   const statusColor = order.status?.color ?? getStatusColor(statusCode);
@@ -127,7 +119,7 @@ function OrderCard({ order, onPress, onReorder }: {
             <Feather name="file-text" size={18} color={RED} />
           </View>
           <View>
-            <Text style={styles.cardRef}>Commande #CMD-{order.reference ?? order.id.slice(0, 4).toUpperCase()}</Text>
+            <Text style={styles.cardRef}>Commande #{order.reference ?? order.id.slice(0, 4).toUpperCase()}</Text>
             <Text style={styles.cardDate}>{formatDate(order.created_at)}</Text>
           </View>
         </View>
@@ -148,7 +140,7 @@ function OrderCard({ order, onPress, onReorder }: {
         />
         <View style={styles.priceBlock}>
           <Text style={styles.priceValue}>
-            {Number(order.total_ttc).toFixed(0)}
+            {Number(order.total_ttc).toFixed(2)}
           </Text>
           <Text style={styles.priceCurrency}>MAD</Text>
         </View>
@@ -160,16 +152,25 @@ function OrderCard({ order, onPress, onReorder }: {
           <Feather name="eye" size={14} color={RED} />
           <Text style={styles.btnOutlineText}>Voir détails</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.btnRed} onPress={onReorder} activeOpacity={0.85}>
-          <Feather name="refresh-cw" size={14} color="#fff" />
-          <Text style={styles.btnRedText}>Re-cmder</Text>
+        <TouchableOpacity
+          style={[styles.btnRed, reordering && { opacity: 0.6 }]}
+          onPress={onReorder}
+          disabled={reordering}
+          activeOpacity={0.85}
+        >
+          {reordering ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Feather name="refresh-cw" size={14} color="#fff" />
+              <Text style={styles.btnRedText}>Re-cmder</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-// ── Page principale ───────────────────────────────────────────────────────────
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -177,6 +178,7 @@ export default function OrdersScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab,  setActiveTab]  = useState<TabKey>('all');
+  const [reordering, setReordering] = useState<string | null>(null);
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -198,20 +200,47 @@ export default function OrdersScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const performReorder = async (order: OrderSummary, mode: 'merge' | 'replace') => {
+    setReordering(order.id);
+    try {
+      await CartService.reorder(order.id, mode);
+      router.push('/main/cart' as any); 
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message ?? "Impossible d'ajouter les articles au panier");
+    } finally {
+      setReordering(null);
+    }
+  };
+
+  const handleReorder = async (order: OrderSummary) => {
+    try {
+      const currentCart = await CartService.getCart();
+      if (currentCart.count > 0) {
+        Alert.alert(
+          'Panier non vide',
+          'Votre panier contient déjà des articles. Que voulez-vous faire ?',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Fusionner', onPress: () => performReorder(order, 'merge') },
+            { text: 'Remplacer', style: 'destructive', onPress: () => performReorder(order, 'replace') },
+          ]
+        );
+      } else {
+        performReorder(order, 'merge');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message ?? 'Impossible de vérifier le panier');
+    }
+  };
+
   if (!fontsLoaded) return null;
 
-  // Filtre selon tab
   const filtered = activeTab === 'all'
     ? orders
     : orders.filter(o => {
         const tab = TABS.find(t => t.key === activeTab);
         return tab?.statusCodes.includes(o.status?.code ?? '');
       });
-
-  const handleReorder = (order: OrderSummary) => {
-    // TODO : pré-remplir le panier avec les articles de la commande
-    router.push('/main/home' as any);
-  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -267,6 +296,7 @@ export default function OrdersScreen() {
               order={item}
               onPress={() => router.push({ pathname: '/order/order-detail' as any, params: { id: item.id } })}
               onReorder={() => handleReorder(item)}
+              reordering={reordering === item.id}
             />
           )}
           contentContainerStyle={styles.list}
@@ -281,13 +311,10 @@ export default function OrdersScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: '#ffffff' },
   list:    { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
 
-  // Tabs
   tabsWrap:    { backgroundColor: '#fff' },
   tabsContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   tab: {
@@ -304,7 +331,6 @@ const styles = StyleSheet.create({
   },
   tabCountText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
 
-  // Stats
   statsRow:      { flexDirection: 'row', gap: 12, marginBottom: 16, marginTop: 12 },
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14,
@@ -321,7 +347,6 @@ const styles = StyleSheet.create({
   statValueBig:  { fontSize: 22, fontFamily: 'Poppins_700Bold' },
   statCurrency:  { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 
-  // Card
   card: {
     backgroundColor: '#fff', borderRadius: 18, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -336,12 +361,10 @@ const styles = StyleSheet.create({
   cardRef:  { fontSize: 13.5, fontFamily: 'Poppins_600SemiBold', color: '#1A1A1A' },
   cardDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 1 },
 
-  // Badge
   badge:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 50, borderWidth: 1 },
   badgeDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
   badgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
 
-  // Articles
   cardBody:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   thumbsRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   thumbWrap:   { width: 52, height: 52, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F5F5F5' },
@@ -354,12 +377,10 @@ const styles = StyleSheet.create({
   thumbExtraText:  { fontSize: 13, fontFamily: 'Poppins_700Bold', color: RED },
   thumbExtraLabel: { fontSize: 9, fontFamily: 'Inter_600SemiBold', color: RED },
 
-  // Prix
   priceBlock:   { alignItems: 'flex-end' },
-  priceValue:   { fontSize: 28, fontFamily: 'Poppins_700Bold', color: '#1A1A1A', lineHeight: 32 },
+  priceValue:   { fontSize: 22, fontFamily: 'Poppins_700Bold', color: RED, lineHeight: 32 },
   priceCurrency:{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
 
-  // Boutons
   cardActions:  { flexDirection: 'row', gap: 10 },
   btnOutline: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -374,7 +395,6 @@ const styles = StyleSheet.create({
   },
   btnRedText: { fontSize: 13.5, fontFamily: 'Inter_600SemiBold', color: '#fff' },
 
-  // Empty
   empty:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   emptyTitle:  { fontSize: 17, fontFamily: 'Poppins_600SemiBold', color: '#1A1A1A', marginTop: 8 },
   emptySub:    { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },

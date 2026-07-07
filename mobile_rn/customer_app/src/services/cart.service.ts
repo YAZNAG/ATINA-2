@@ -31,11 +31,17 @@ export interface Cart {
   count: number;
 }
 
+export type ReorderMode = 'merge' | 'replace';
+
 export const CartService = {
 
   async getCart(): Promise<Cart> {
     try {
       const response = await api.get('/customer/cart');
+      console.log(
+      "CART API:",
+      JSON.stringify(response.data.data.items, null, 2)
+    );
       return response.data.data || { items: [], total: 0, count: 0 };
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Erreur chargement panier');
@@ -105,6 +111,15 @@ export const CartService = {
       return response.data.data;
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Erreur vidage panier');
+    }
+  },
+
+  async reorder(orderId: string, mode: ReorderMode = 'merge'): Promise<Cart> {
+    try {
+      const response = await api.post('/customer/cart/reorder', { order_id: orderId, mode });
+      return response.data.data;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Erreur lors de la recommande');
     }
   },
 };

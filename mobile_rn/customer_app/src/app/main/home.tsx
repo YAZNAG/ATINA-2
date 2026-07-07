@@ -5,7 +5,6 @@ import {
   RefreshControl, Dimensions, FlatList, Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
   useFonts,
@@ -84,6 +83,7 @@ export default function HomeScreen() {
       setArticles(arts);
       setRecommended(recs);
       setAvatarUrl(profile?.avatar_url ?? null);
+      setUser(profile);  
       setPromotions(promos);
       setPacks(pks);
       setBestDeals(deals);
@@ -94,16 +94,11 @@ export default function HomeScreen() {
       console.log('Error loading data:', err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      setRefreshing(false);           
     }
   };
 
-  const loadUser = async () => {
-    const userStr = await SecureStore.getItemAsync('user');
-    if (userStr) setUser(JSON.parse(userStr));
-  };
-
-  useEffect(() => { loadUser(); loadData(); }, []);
+  useEffect(() => { loadData(); }, []);
 
   useFocusEffect(useCallback(() => { refreshNotifCount(); }, [refreshNotifCount]));
 

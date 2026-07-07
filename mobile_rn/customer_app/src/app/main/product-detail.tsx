@@ -171,9 +171,16 @@ function ReviewsSection({
         )}
       </View>
 
-      {/* Liste avis (3 max) */}
-      {reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} />)}
-  
+      {/* Liste avis (3 max) OU état vide */}
+      {stats.review_count === 0 ? (
+        <View style={styles.noReviewsBox}>
+          <Feather name="message-circle" size={28} color="#D1D5DB" />
+          <Text style={styles.noReviewsTitle}>Aucun avis pour le moment</Text>
+          <Text style={styles.noReviewsSubtitle}>Soyez le premier à donner votre avis sur ce produit</Text>
+        </View>
+      ) : (
+        reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} />)
+      )}
     </View>
   );
 }
@@ -392,7 +399,7 @@ export default function ProductDetailScreen() {
 
           <View style={styles.priceQtyRow}>
             <View>
-              <Text style={styles.price}>{article.price_ttc.toFixed(0)} DH</Text>
+              <Text style={styles.price}>{article.price_ttc.toFixed(2)} DH</Text>
               {article.unit_sale && article.unit_sale !== 'unit' && (
                 <Text style={styles.unit}>/ {article.unit_sale}</Text>
               )}
@@ -561,6 +568,18 @@ const styles = StyleSheet.create({
   reviewName:     { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
   reviewDate:     { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
   reviewComment:  { fontSize: 13.5, fontFamily: 'Inter_400Regular', color: '#374151', lineHeight: 20, marginBottom: 10 },
+  noReviewsBox: {
+  alignItems: 'center', justifyContent: 'center',
+  paddingVertical: 32, gap: 8,
+  backgroundColor: '#FAFAFA', borderRadius: 14,
+},
+noReviewsTitle: {
+  fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#6B7280', marginTop: 4,
+},
+noReviewsSubtitle: {
+  fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF',
+  textAlign: 'center', paddingHorizontal: 24,
+},
   verifiedBadge:  { backgroundColor: '#F0FDF4', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   verifiedText:   { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#16A34A' },
   helpfulBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },

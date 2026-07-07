@@ -24,9 +24,11 @@ export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
     ? (avatarUrl.startsWith('http') ? avatarUrl : `${CONFIG.STORAGE_URL}${avatarUrl}`)
     : null;
 
-  const initial = user?.full_name?.charAt(0)?.toUpperCase()
-    || user?.name?.charAt(0)?.toUpperCase()
-    || 'U';
+  const initial = (
+  user?.name?.charAt(0) ||
+  user?.full_name?.charAt(0) ||
+  '?'
+)?.toUpperCase();
 
   return (
     <View style={styles.header}>
@@ -67,6 +69,7 @@ export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
             <Image source={{ uri: resolvedAvatar }} style={styles.avatarImage} />
           ) : (
             <Text style={styles.avatarText}>{initial}</Text>
+            
           )}
         </TouchableOpacity>
       </View>

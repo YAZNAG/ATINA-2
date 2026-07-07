@@ -17,6 +17,7 @@ import { CartService } from '../../services/cart.service';
 import BottomNavBar from '@/components/ui/BottomNavBar';
 import { useCart } from '../../context/CartContext';
 
+
 const RED = '#E10600';
 
 function FavCard({
@@ -46,7 +47,6 @@ function FavCard({
       setAdding(false);
     }
   };
-
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       {/* Image */}
@@ -62,7 +62,7 @@ function FavCard({
           <View style={styles.discountBadge}>
             <Text style={styles.discountBadgeText}>-{item.discount_pct}%</Text>
           </View>
-        )}
+        )} 
       </View>
 
       {/* Info */}

@@ -191,7 +191,9 @@ export default function ProfileScreen() {
           <View style={styles.menuDivider} />
           <MenuItem icon="settings"      label="Paramètres"                onPress={() => router.push('/profile/settings' as any)} />
           <View style={styles.menuDivider} />
-          <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => router.push('/support/conversations' as any)} />
+          <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => router.push('/support/faq' as any)} />
+          <View style={styles.menuDivider} />
+          <MenuItem icon="alert-triangle" label="Mes réclamations"         onPress={() => router.push('/claims/claims' as any)} />
         </View>
 
         {/* ── Edit button ── */}

@@ -998,6 +998,7 @@ model Customer {
   wallet_transactions   WalletTransaction[]
   wishlist_items        Wishlist[]
   reviews ArticleReview[]
+  claims Claim[]
 
   @@map("customers")
 }
@@ -1131,6 +1132,7 @@ model Order {
   support_conversations SupportConversation[]
   tour_stops            TourStop[]
   wallet_transactions   WalletTransaction[]
+  claims Claim[]
 
   @@map("orders")
 }
@@ -1801,4 +1803,28 @@ model ArticleReview {
   @@unique([article_id, customer_id])   // un seul avis par client par article
   @@index([article_id])
   @@map("article_reviews")
+}
+
+
+model Claim {
+  id          String    @id @default(uuid()) @db.Uuid
+  customer_id String    @db.Uuid
+  order_id    String    @db.Uuid
+  type        String    @db.VarChar(50)   // MISSING_PRODUCT | DAMAGED_PRODUCT | WRONG_PRODUCT | REFUND_REQUEST | OTHER
+  status      String    @default("OPEN") @db.VarChar(20)  // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  description String    @db.Text
+  admin_note  String?   @db.Text          // réponse de l'agent
+  resolved_at DateTime? @db.Timestamptz(6)
+  is_deleted  Boolean   @default(false)
+  deleted_at  DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [order_id],    references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@index([order_id])
+  @@index([status])
+  @@map("claims")
 }

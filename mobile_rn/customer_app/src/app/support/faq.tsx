@@ -3,7 +3,7 @@ import {
   Animated, View, Text, StyleSheet, SafeAreaView, StatusBar,
   ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
   useFonts,
@@ -91,6 +91,7 @@ export default function FaqScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  const router = useRouter();
 
   if (!fontsLoaded) return null;
 
@@ -161,7 +162,11 @@ export default function FaqScreen() {
             ))}
 
             {/* Card contact */}
-            <View style={styles.contactCard}>
+              <TouchableOpacity
+              style={styles.contactCard}
+              onPress={() => router.push('/support/conversations' as any)}
+              activeOpacity={0.8}
+              >
               <View style={styles.contactIcon}>
                 <Feather name="message-circle" size={22} color={RED} />
               </View>
@@ -170,7 +175,7 @@ export default function FaqScreen() {
                 <Text style={styles.contactDesc}>Notre équipe est disponible pour vous aider.</Text>
               </View>
               <Feather name="chevron-right" size={18} color={GRAY} />
-            </View>
+            </TouchableOpacity>
 
             <View style={{ height: 40 }} />
           </ScrollView>

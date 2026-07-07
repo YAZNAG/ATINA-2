@@ -86,6 +86,13 @@ class CustomerCartController {
       resp.success(res, result, 'Panier vidé');
     } catch (err) { next(err); }
   }
+
+  async reorder(req, res, next) {
+  try {
+    const { order_id, mode } = req.body;
+    resp.success(res, await cartService.reorderFromOrder(req.customerId, order_id, mode), 'Panier mis à jour');
+  } catch (err) { next(err); }
+}
 }
 
 module.exports = new CustomerCartController();

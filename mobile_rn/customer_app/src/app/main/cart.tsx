@@ -93,12 +93,14 @@ const ConfirmDeleteModal = ({
   </Modal>
 );
 
-const CartItemRow = ({
+const CartItemRow = (
+  {
   item, onIncrease, onDecrease, onRemove, updating,
 }: {
   item: CartItem; onIncrease: () => void; onDecrease: () => void;
   onRemove: () => void; updating: boolean;
-}) => (
+}) => 
+  (
   <View style={styles.itemCard}>
     <View style={styles.itemImageBox}>
       {item.article.image_url ? (
@@ -313,29 +315,72 @@ export default function CartScreen() {
       ) : (
         <View style={styles.flex}>
           <FlatList
-            data={listEntries}
-            keyExtractor={(entry) => entry.type === 'pack' ? `pack-${entry.packId}` : entry.item.id}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
-            renderItem={({ item: entry }) => entry.type === 'pack' ? (
-              <PackCartRow
-                group={entry}
-                updating={updatingId === `pack-${entry.packId}`}
-                onIncrease={() => handlePackIncrease(entry)}
-                onDecrease={() => handlePackDecrease(entry)}
-                onRemove={() => setDeleteTarget({ kind: 'pack', packId: entry.packId, name_fr: entry.name_fr })}
-              />
-            ) : (
-              <CartItemRow
-                item={entry.item}
-                updating={updatingId === entry.item.id}
-                onIncrease={() => handleIncrease(entry.item)}
-                onDecrease={() => handleDecrease(entry.item)}
-                onRemove={() => setDeleteTarget({ kind: 'item', item: entry.item })}
-              />
-            )}
-          />
+  data={listEntries}
+  keyExtractor={(entry) =>
+    entry.type === 'pack'
+      ? `pack-${entry.packId}`
+      : entry.item.id
+  }
+  contentContainerStyle={styles.list}
+  showsVerticalScrollIndicator={false}
+  refreshControl={
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={RED}
+    />
+  }
+  renderItem={({ item: entry }) => {
+    // Debug image article
+    if (entry.type === 'item') {
+      console.log(
+        'ARTICLE:',
+        entry.item.article.name_fr,
+        'IMAGE:',
+        entry.item.article.image_url
+      );
+    }
+
+    // Debug image pack
+    if (entry.type === 'pack') {
+      console.log(
+        'PACK:',
+        entry.name_fr,
+        'IMAGE:',
+        entry.image_url
+      );
+    }
+
+    return entry.type === 'pack' ? (
+      <PackCartRow
+        group={entry}
+        updating={updatingId === `pack-${entry.packId}`}
+        onIncrease={() => handlePackIncrease(entry)}
+        onDecrease={() => handlePackDecrease(entry)}
+        onRemove={() =>
+          setDeleteTarget({
+            kind: 'pack',
+            packId: entry.packId,
+            name_fr: entry.name_fr,
+          })
+        }
+      />
+    ) : (
+      <CartItemRow
+        item={entry.item}
+        updating={updatingId === entry.item.id}
+        onIncrease={() => handleIncrease(entry.item)}
+        onDecrease={() => handleDecrease(entry.item)}
+        onRemove={() =>
+          setDeleteTarget({
+            kind: 'item',
+            item: entry.item,
+          })
+        }
+      />
+    );
+  }}
+/>
 
           <View style={styles.summary}>
             <View style={styles.summaryRow}>
@@ -402,7 +447,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   packCard:             { borderWidth: 1, borderColor: '#FFD9D9' },
-  itemImageBox:         { width: 72, height: 72, borderRadius: 12, backgroundColor: '#F5F5F5', overflow: 'hidden' },
+  itemImageBox:         { width: 72, height: 72, borderRadius: 12, backgroundColor: '#ffffff', overflow: 'hidden' },
   itemImage:            { width: '100%', height: '100%' },
   itemImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   itemInfo:             { flex: 1 },

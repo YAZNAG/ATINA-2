@@ -13,5 +13,6 @@ router.delete('/pack/:pack_id',ctrl.removePack.bind(ctrl));
 router.put('/:item_id',        ctrl.updateItem.bind(ctrl));
 router.delete('/',             ctrl.clearCart.bind(ctrl));
 router.delete('/:item_id',     ctrl.removeItem.bind(ctrl));
+router.post('/reorder', ctrl.reorder.bind(ctrl));
 
 module.exports = router;

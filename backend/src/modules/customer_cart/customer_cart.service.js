@@ -4,6 +4,7 @@ const { toPublicUrl } = require('../../utils/fileStorage');
 
 const SKU_SELECT = {
   id: true,
+
   article: {
     select: {
       id:       true,
@@ -12,14 +13,34 @@ const SKU_SELECT = {
       name_ar:  true,
       price:    true,
       vat_rate: true,
-      brand:    { select: { id: true, name_fr: true, name_ar: true } },
-      category: { select: { id: true, name_fr: true, name_ar: true } },
+
+      images: {
+        orderBy: [
+          { sort_order: 'asc' },
+          { id: 'asc' }
+        ],
+        take: 1,
+        select: {
+          image_path: true
+        }
+      },
+
+      brand: {
+        select: {
+          id: true,
+          name_fr: true,
+          name_ar: true
+        }
+      },
+
+      category: {
+        select: {
+          id: true,
+          name_fr: true,
+          name_ar: true
+        }
+      },
     },
-  },
-  images: {
-    orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    take:    1,
-    select:  { url: true },
   },
 };
 
@@ -104,11 +125,17 @@ async function getActivePackRatios() {
 }
 
 function formatItem(item, flashSales, packRatios) {
+  console.log(
+  "ARTICLE IMAGES:",
+  item.sku?.article?.images
+);
   const article  = item.sku?.article;
   const price    = parseFloat(article?.price    ?? 0);
   const vatRate  = parseFloat(article?.vat_rate ?? 20);
   const priceTtc = Math.round(price * (1 + vatRate / 100) * 100) / 100;
-  const imageUrl = item.sku?.images?.[0]?.url ?? null;
+  const imageUrl = item.sku?.article?.images?.[0]?.image_path
+  ? toPublicUrl(item.sku.article.images[0].image_path)
+  : null;
 
   let finalPriceTtc = priceTtc;
   let originalPriceTtc = null;
@@ -320,6 +347,52 @@ class CustomerCartService {
     }
     return this.getCart(customerId);
   }
+
+  //Recommander 
+  async reorderFromOrder(customerId, orderId, mode = 'merge') {
+  if (!['merge', 'replace'].includes(mode)) {
+    throw { statusCode: 400, message: 'Mode invalide (merge ou replace)' };
+  }
+
+  // Vérifie que la commande appartient bien au client, avec ses articles
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customer_id: customerId, is_deleted: false },
+    include: {
+      items: { select: { sku_id: true, qty: true } },
+    },
+  });
+  if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+
+  const availableItems = (order.items ?? []).filter((i) => i.sku_id);
+  if (availableItems.length === 0) {
+    throw { statusCode: 400, message: 'Aucun article de cette commande n\'est disponible' };
+  }
+
+  const cart = await this._getOrCreate(customerId);
+
+  if (mode === 'replace') {
+    await prisma.cartItem.deleteMany({ where: { cart_id: cart.id } });
+  }
+
+  for (const item of availableItems) {
+    const existing = await prisma.cartItem.findFirst({
+      where: { cart_id: cart.id, sku_id: item.sku_id, pack_id: null },
+    });
+
+    if (existing) {
+      await prisma.cartItem.update({
+        where: { id: existing.id },
+        data:  { quantity: existing.quantity + Number(item.qty) },
+      });
+    } else {
+      await prisma.cartItem.create({
+        data: { cart_id: cart.id, sku_id: item.sku_id, pack_id: null, quantity: Number(item.qty) },
+      });
+    }
+  }
+
+  return this.getCart(customerId);
+}
 }
 
 module.exports = new CustomerCartService();

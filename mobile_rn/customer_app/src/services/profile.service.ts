@@ -71,6 +71,7 @@ export interface OrderSummary {
   created_at:  string;
   status:      OrderStatus;
   payment_status:  string;
+  payment_status_label: string;
   payment_method_name: string | null;
   item_count: number;
   items?: { image_url?: string }[];
@@ -84,6 +85,7 @@ export interface OrderItem {
   unit_price: number;
   vat_rate:   number;
   total_ttc:  number;
+  image_url:  string | null;
 }
  
 export interface OrderTimeline {
@@ -113,6 +115,7 @@ export interface Order {
   notes:               string | null;
   status:              OrderStatus;
   payment_status:      string;
+  payment_status_label: string;
   payment_method_name: string | null;
   address_label:       string | null;
   address_full:        string;

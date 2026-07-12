@@ -19,7 +19,7 @@ import { CatalogService, Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { ProfileService } from '../../services/profile.service';
 import { ReviewsService, Review, ReviewStats } from '../../services/reviews.service';
-import { useCart } from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 import ProductCard from '../../components/ui/ProductCard';
 
 const { width, height } = Dimensions.get('window');
@@ -283,7 +283,7 @@ export default function ProductDetailScreen() {
   const [reviewStats,   setReviewStats]   = useState<ReviewStats | null>(null);
   const [reviewModal,   setReviewModal]   = useState(false);
   const [favoriteIds,   setFavoriteIds]   = useState<Set<number>>(new Set());
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -341,8 +341,8 @@ export default function ProductDetailScreen() {
     if (!article.sku_id) return Alert.alert('Indisponible', "Ce produit n'est pas disponible.");
     try {
       setAdding(true);
-      await CartService.addItem(article.sku_id, quantity);
-      await refreshCartCount();
+      const cart = await CartService.addItem(article.sku_id, quantity);
+      applyCart(cart);
     } catch (e: any) {
       Alert.alert('Erreur', e.message || "Erreur lors de l'ajout au panier");
     } finally { setAdding(false); }

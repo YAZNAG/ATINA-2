@@ -15,12 +15,13 @@ interface SearchBarProps {
   onChangeText:   (text: string) => void;
   onSubmit?:      (text: string) => void;
   onFilter?:      () => void;
+  onPress?:       () => void;   // NEW: si fourni, tap = navigation au lieu d'édition
   placeholder?:   string;
   articleNames?:  string[];
 }
 
 export default function SearchBar({
-  value, onChangeText, onSubmit, onFilter,
+  value, onChangeText, onSubmit, onFilter, onPress,
   placeholder = 'Rechercher des produits...',
   articleNames = [],
 }: SearchBarProps) {
@@ -39,7 +40,7 @@ export default function SearchBar({
 
   const showHistory     = focused && value.length === 0 && history.length > 0;
   const showSuggestions = focused && suggestions.length > 0;
-  const showDropdown    = showHistory || showSuggestions;
+  const showDropdown    = !onPress && (showHistory || showSuggestions);
 
   const handleSelect = async (term: string) => {
     await addToHistory(term);
@@ -66,11 +67,16 @@ export default function SearchBar({
     setHistory([]);
   };
 
+  const BoxWrapper = onPress ? TouchableOpacity : View;
+
   return (
     <View style={styles.wrapper}>
       {/* ── Input row ── */}
       <View style={styles.container}>
-        <View style={[styles.searchBox, focused && styles.searchBoxFocused]}>
+        <BoxWrapper
+          style={[styles.searchBox, focused && styles.searchBoxFocused]}
+          {...(onPress ? { onPress, activeOpacity: 0.8 } : {})}
+        >
           <Feather name="search" size={20} color={focused ? RED : '#9CA3AF'} style={styles.icon} />
           <TextInput
             style={styles.input}
@@ -82,8 +88,10 @@ export default function SearchBar({
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             returnKeyType="search"
             onSubmitEditing={handleSubmit}
+            editable={!onPress}
+            pointerEvents={onPress ? 'none' : 'auto'}
           />
-          {value.length > 0 && (
+          {!onPress && value.length > 0 && (
             <TouchableOpacity onPress={() => onChangeText('')} style={styles.clearBtn}>
               <Feather name="x" size={18} color="#9CA3AF" />
             </TouchableOpacity>
@@ -91,7 +99,7 @@ export default function SearchBar({
           <TouchableOpacity style={styles.filterBtn} onPress={onFilter} activeOpacity={0.85}>
             <Feather name="sliders" size={18} color="#fff" />
           </TouchableOpacity>
-        </View>
+        </BoxWrapper>
       </View>
 
       {/* ── Dropdown ── */}
@@ -158,7 +166,6 @@ const styles = StyleSheet.create({
     backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
   },
 
-  // Dropdown
   dropdown: {
     backgroundColor: '#fff', borderRadius: 16,
     borderWidth: 1, borderColor: '#F0F0F0',

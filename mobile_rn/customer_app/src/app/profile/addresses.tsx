@@ -97,8 +97,9 @@ const AddressFormModal = ({
   saving:   boolean;
 }) => {
   const [label, setLabel]                 = useState('');
-  const [streetNumber, setStreetNumber]   = useState('');
-  const [streetName, setStreetName]       = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [phone, setPhone]                 = useState('');
+  const [fullAddress, setFullAddress]     = useState(''); // combine street_number + street_name à la sauvegarde
   const [quartier, setQuartier]           = useState('');
   const [city, setCity]                   = useState('');
   const [postalCode, setPostalCode]       = useState('');
@@ -112,14 +113,10 @@ const AddressFormModal = ({
   useEffect(() => {
     if (visible) {
       setLabel(address?.label || '');
-      let num  = address?.street_number || '';
-      let name = address?.street_name   || '';
-      if (!num && name) {
-        const m = name.match(/^(\d+)\s+(.+)$/);
-        if (m) { num = m[1]; name = m[2]; }
-      }
-      setStreetNumber(num);
-      setStreetName(name);
+      setRecipientName(address?.recipient_name || '');
+      setPhone(address?.phone || '');
+      const combined = [address?.street_number, address?.street_name].filter(Boolean).join(', ');
+      setFullAddress(combined);
       setQuartier(address?.quartier || '');
       setCity(address?.city || '');
       setPostalCode(address?.postal_code || '');
@@ -130,7 +127,6 @@ const AddressFormModal = ({
     }
   }, [visible, address]);
 
-  // ── Géolocalisation ──
   const handleGetLocation = async () => {
     try {
       setLocating(true);
@@ -149,9 +145,9 @@ const AddressFormModal = ({
           longitude: loc.coords.longitude,
         });
         if (place) {
-          if (place.street && !streetName)      setStreetName(place.street);
-          if (place.district && !quartier)      setQuartier(place.district);
-          if (place.postalCode && !postalCode)  setPostalCode(place.postalCode);
+          if (place.street && !fullAddress) setFullAddress(place.street);
+          if (place.district && !quartier)  setQuartier(place.district);
+          if (place.postalCode && !postalCode) setPostalCode(place.postalCode);
           if (place.city) {
             const match = cities.find((c) =>
               c.name_fr.toLowerCase() === place.city!.toLowerCase()
@@ -176,12 +172,21 @@ const AddressFormModal = ({
   };
 
   const handleSubmit = () => {
-    if (!streetName.trim()) { Alert.alert('Erreur', 'Le nom de rue est requis'); return; }
-    if (!city.trim())       { Alert.alert('Erreur', 'La ville est requise'); return; }
+    if (!fullAddress.trim()) { Alert.alert('Erreur', "L'adresse complète est requise"); return; }
+    if (!city.trim())        { Alert.alert('Erreur', 'La ville est requise'); return; }
+
+    // Découpe fullAddress en street_number/street_name pour rester compatible avec le modèle actuel
+    const trimmed = fullAddress.trim();
+    const m = trimmed.match(/^(\d+)\s*,?\s*(.+)$/);
+    const street_number = m ? m[1] : null;
+    const street_name   = m ? m[2] : trimmed;
+
     onSave({
       label:          label.trim() || null,
-      street_number:  streetNumber.trim() || null,
-      street_name:    streetName.trim(),
+      recipient_name: recipientName.trim() || null,
+      phone:          phone.trim() || null,
+      street_number,
+      street_name,
       quartier:       quartier.trim() || null,
       city:           city.trim(),
       postal_code:    postalCode.trim() || null,
@@ -198,15 +203,101 @@ const AddressFormModal = ({
         <View style={styles.modalCard}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{address ? 'Modifier l\'adresse' : 'Nouvelle adresse'}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Feather name="x" size={22} color="#1a1a1a" />
+            <Text style={styles.modalTitle}>{address ? "Modifier l'adresse" : 'Nouvelle adresse'}</Text>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <Feather name="x" size={20} color="#1a1a1a" />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-            {/* ── Bouton géolocalisation ── */}
+            <Text style={styles.fieldLabel}>Nom de l'adresse</Text>
+            <TextInput
+              style={styles.input}
+              value={label}
+              onChangeText={setLabel}
+              placeholder="Ex : Maison, Travail"
+              placeholderTextColor="#C4C4C4"
+            />
+
+            <Text style={styles.fieldLabel}>Nom du destinataire</Text>
+            <TextInput
+              style={styles.input}
+              value={recipientName}
+              onChangeText={setRecipientName}
+              placeholder="Ahmed Benali"
+              placeholderTextColor="#C4C4C4"
+            />
+
+            <Text style={styles.fieldLabel}>Téléphone</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+212 6 XX XX XX XX"
+              placeholderTextColor="#C4C4C4"
+              keyboardType="phone-pad"
+            />
+
+            <View style={styles.row}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.fieldLabel}>Ville *</Text>
+                <TouchableOpacity
+                  style={styles.citySelector}
+                  onPress={() => setCityPickerVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.citySelectorText, !city && styles.citySelectorPlaceholder]} numberOfLines={1}>
+                    {city || 'Agadir'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Quartier</Text>
+                <TextInput
+                  style={styles.input}
+                  value={quartier}
+                  onChangeText={setQuartier}
+                  placeholder="Hay Salam"
+                  placeholderTextColor="#C4C4C4"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>Adresse complète</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={fullAddress}
+              onChangeText={setFullAddress}
+              placeholder="Rue 25, N°18..."
+              placeholderTextColor="#C4C4C4"
+              multiline
+            />
+
+            <Text style={styles.fieldLabel}>Code postal</Text>
+            <TextInput
+              style={styles.input}
+              value={postalCode}
+              onChangeText={setPostalCode}
+              placeholder="80000"
+              placeholderTextColor="#C4C4C4"
+              keyboardType="number-pad"
+              maxLength={5}
+            />
+
+            <View style={styles.notesHeader}>
+              <Text style={styles.fieldLabel}>Instructions de livraison</Text>
+              <Text style={styles.optionalTag}>(Optionnel)</Text>
+            </View>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={deliveryNotes}
+              onChangeText={setDeliveryNotes}
+              placeholder="Code interphone, bâtiment..."
+              placeholderTextColor="#C4C4C4"
+              multiline
+            />
+
             <TouchableOpacity
               style={[styles.locationBtn, lat != null && styles.locationBtnDone]}
               onPress={handleGetLocation}
@@ -221,53 +312,9 @@ const AddressFormModal = ({
                   <Text style={styles.locationBtnText}>
                     {lat != null ? 'Position enregistrée' : 'Utiliser ma position actuelle'}
                   </Text>
-                  {lat != null && (
-                    <Text style={styles.locationCoords}>{lat.toFixed(4)}, {lng?.toFixed(4)}</Text>
-                  )}
                 </>
               )}
             </TouchableOpacity>
-
-            <Text style={styles.fieldLabel}>Libellé (ex: Maison, Bureau)</Text>
-            <TextInput style={styles.input} value={label} onChangeText={setLabel} placeholder="Maison" placeholderTextColor="#C4C4C4" />
-
-            <View style={styles.row}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.fieldLabel}>N°</Text>
-                <TextInput style={styles.input} value={streetNumber} onChangeText={setStreetNumber} placeholder="12" placeholderTextColor="#C4C4C4" />
-              </View>
-              <View style={{ flex: 3 }}>
-                <Text style={styles.fieldLabel}>Nom de rue *</Text>
-                <TextInput style={styles.input} value={streetName} onChangeText={setStreetName} placeholder="Avenue Hassan II" placeholderTextColor="#C4C4C4" />
-              </View>
-            </View>
-
-            <Text style={styles.fieldLabel}>Quartier</Text>
-            <TextInput style={styles.input} value={quartier} onChangeText={setQuartier} placeholder="Centre-ville" placeholderTextColor="#C4C4C4" />
-
-            <View style={styles.row}>
-              <View style={{ flex: 2, marginRight: 8 }}>
-                <Text style={styles.fieldLabel}>Ville *</Text>
-                {/* ── Sélecteur de ville ── */}
-                <TouchableOpacity
-                  style={styles.citySelector}
-                  onPress={() => setCityPickerVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.citySelectorText, !city && styles.citySelectorPlaceholder]}>
-                    {city || 'Choisir une ville'}
-                  </Text>
-                  <Feather name="chevron-down" size={18} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Code postal</Text>
-                <TextInput style={styles.input} value={postalCode} onChangeText={setPostalCode} placeholder="80000" placeholderTextColor="#C4C4C4" keyboardType="number-pad" maxLength={5} />
-              </View>
-            </View>
-
-            <Text style={styles.fieldLabel}>Appartement / Étage / Notes</Text>
-            <TextInput style={[styles.input, styles.textArea]} value={deliveryNotes} onChangeText={setDeliveryNotes} placeholder="Apt 3B, 2ème étage, code porte..." placeholderTextColor="#C4C4C4" multiline />
 
             <TouchableOpacity style={styles.defaultRow} onPress={() => setIsDefault(!isDefault)} activeOpacity={0.7}>
               <View style={[styles.checkbox, isDefault && styles.checkboxChecked]}>
@@ -277,14 +324,13 @@ const AddressFormModal = ({
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.btnSave, saving && { opacity: 0.7 }]} onPress={handleSubmit} disabled={saving} activeOpacity={0.85}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>{address ? 'Enregistrer' : 'Ajouter l\'adresse'}</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>{address ? 'Enregistrer' : "Ajouter l'adresse"}</Text>}
             </TouchableOpacity>
             <View style={{ height: 20 }} />
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
 
-      {/* ── City Picker ── */}
       <CityPickerModal
         visible={cityPickerVisible}
         cities={cities}
@@ -350,18 +396,13 @@ export default function AddressesScreen() {
   };
 
   const handleDelete = (addr: Address) => {
-    Alert.alert('Supprimer l\'adresse', 'Voulez-vous supprimer cette adresse ?', [
+    Alert.alert("Supprimer l'adresse", 'Voulez-vous supprimer cette adresse ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: async () => {
         try { await ProfileService.deleteAddress(addr.id); await loadAddresses(); }
         catch (err: any) { Alert.alert('Erreur', err.message); }
       }},
     ]);
-  };
-
-  const handleSetDefault = async (addr: Address) => {
-    try { await ProfileService.setDefaultAddress(addr.id); await loadAddresses(); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
   };
 
   const openAdd  = () => { setEditAddress(null); setModalVisible(true); };
@@ -377,14 +418,6 @@ export default function AddressesScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={RED} />
         </View>
-      ) : addresses.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconBox}>
-            <Feather name="map-pin" size={40} color="#ffffff" />
-          </View>
-          <Text style={styles.emptyTitle}>Aucune adresse</Text>
-          <Text style={styles.emptySubtitle}>Ajoutez une adresse de livraison pour vos commandes</Text>
-        </View>
       ) : (
         <FlatList
           data={addresses}
@@ -392,46 +425,73 @@ export default function AddressesScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconBox}>
+                <Feather name="map-pin" size={40} color={RED} />
+              </View>
+              <Text style={styles.emptyTitle}>Aucune adresse</Text>
+              <Text style={styles.emptySubtitle}>Ajoutez une adresse de livraison pour vos commandes</Text>
+            </View>
+          }
+          ListFooterComponent={
+            <TouchableOpacity style={styles.addBtn} onPress={openAdd} activeOpacity={0.85}>
+              <Feather name="plus" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>Ajouter une adresse</Text>
+            </TouchableOpacity>
+          }
           renderItem={({ item }) => (
             <View style={styles.addressCard}>
-              <View style={styles.addressIcon}>
-                <Feather name={item.label?.toLowerCase().includes('bureau') ? 'briefcase' : 'home'} size={20} color={RED} />
-              </View>
-              <View style={styles.addressInfo}>
-                <View style={styles.addressTop}>
+              <View style={styles.cardTop}>
+                <View style={styles.addressIcon}>
+                  <Feather name={item.label?.toLowerCase().includes('travail') || item.label?.toLowerCase().includes('bureau') ? 'briefcase' : 'home'} size={20} color={RED} />
+                </View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.addressLabel}>{item.label || 'Adresse'}</Text>
                   {item.is_default && (
                     <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>Par défaut</Text>
+                      <Text style={styles.defaultBadgeText}>ADRESSE PAR DÉFAUT</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.addressText} numberOfLines={2}>
-                  {[item.street_number, item.street_name, item.quartier, item.city].filter(Boolean).join(', ')}
-                </Text>
-                {!item.is_default && (
-                  <TouchableOpacity onPress={() => handleSetDefault(item)}>
-                    <Text style={styles.setDefaultLink}>Définir par défaut</Text>
-                  </TouchableOpacity>
-                )}
               </View>
+
+              {item.recipient_name && (
+                <>
+                  <Text style={styles.sectionLabel}>NOM</Text>
+                  <Text style={styles.sectionValue}>{item.recipient_name}</Text>
+                </>
+              )}
+
+              <Text style={styles.sectionLabel}>ADRESSE</Text>
+              <Text style={styles.sectionValue}>
+                {[item.quartier, item.street_number, item.street_name, item.city, item.postal_code]
+                  .filter(Boolean).join(', ')}
+              </Text>
+
+              {item.phone && (
+                <>
+                  <Text style={styles.sectionLabel}>TÉLÉPHONE</Text>
+                  <Text style={styles.sectionValue}>{item.phone}</Text>
+                </>
+              )}
+
+              <View style={styles.cardDivider} />
+
               <View style={styles.addressActions}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
-                  <Feather name="edit-2" size={16} color="#6B7280" />
+                <TouchableOpacity style={styles.actionBtnOutline} onPress={() => openEdit(item)} activeOpacity={0.8}>
+                  <Feather name="edit-2" size={15} color="#6B7280" />
+                  <Text style={styles.actionBtnOutlineText}>Modifier</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item)}>
-                  <Feather name="trash-2" size={16} color={RED} />
+                <TouchableOpacity style={styles.actionBtnDanger} onPress={() => handleDelete(item)} activeOpacity={0.8}>
+                  <Feather name="trash-2" size={15} color={RED} />
+                  <Text style={styles.actionBtnDangerText}>Supprimer</Text>
                 </TouchableOpacity>
               </View>
             </View>
           )}
         />
       )}
-
-      <TouchableOpacity style={styles.fab} onPress={openAdd} activeOpacity={0.85}>
-        <Feather name="plus" size={22} color="#fff" />
-        <Text style={styles.fabText}>Ajouter une adresse</Text>
-      </TouchableOpacity>
 
       <AddressFormModal
         visible={modalVisible}
@@ -449,59 +509,77 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  list: { padding: 16, gap: 12, paddingBottom: 100 },
+  list: { padding: 16, gap: 16, paddingBottom: 40 },
 
-  addressCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  addressCard: {
+    backgroundColor: '#fff', borderRadius: 18, padding: 18,
+    borderWidth: 1, borderColor: '#F0F0F0',
+  },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   addressIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center' },
-  addressInfo: { flex: 1 },
-  addressTop:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  addressLabel: { fontSize: 15, fontWeight: '700', color: '#1a1a1a' },
-  defaultBadge: { backgroundColor: '#E8F5E9', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  defaultBadgeText: { fontSize: 10, color: '#22C55E', fontWeight: '700' },
-  addressText: { fontSize: 13, color: '#6B7280', lineHeight: 18, marginBottom: 4 },
-  setDefaultLink: { fontSize: 12, color: RED, fontWeight: '600' },
-  addressActions: { gap: 8 },
-  actionBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  addressLabel: { fontSize: 18, fontWeight: '800', color: '#1a1a1a', marginBottom: 6 },
+  defaultBadge: { alignSelf: 'flex-start', backgroundColor: '#FFE5E5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  defaultBadgeText: { fontSize: 10, color: RED, fontWeight: '800', letterSpacing: 0.4 },
 
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
-  emptyIconBox: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 0.5, marginTop: 10, marginBottom: 4 },
+  sectionValue: { fontSize: 15, fontWeight: '600', color: '#1a1a1a', lineHeight: 20 },
+
+  cardDivider: { height: 1, backgroundColor: '#F0F0F0', marginTop: 16, marginBottom: 14 },
+
+  addressActions: { flexDirection: 'row', gap: 10 },
+  actionBtnOutline: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#F5F5F5', borderRadius: 12, paddingVertical: 12,
+  },
+  actionBtnOutlineText: { fontSize: 14, fontWeight: '700', color: '#6B7280' },
+  actionBtnDanger: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#FFEAEA', borderRadius: 12, paddingVertical: 12,
+  },
+  actionBtnDangerText: { fontSize: 14, fontWeight: '700', color: RED },
+
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+  emptyIconBox: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
 
-  fab: { position: 'absolute', bottom: 24, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: RED, borderRadius: 50, paddingVertical: 16, shadowColor: RED, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
-  fabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: RED, borderRadius: 50, paddingVertical: 18, marginTop: 8,
+    shadowColor: RED, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+  },
+  addBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, maxHeight: height * 0.85 },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 16 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1a1a1a' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, maxHeight: height * 0.9 },
+  modalHandle: { display: 'none' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1a1a1a' },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F2F5', alignItems: 'center', justifyContent: 'center' },
 
-  // Géoloc
-  locationBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: RED, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, marginTop: 4, backgroundColor: '#FFF8F8' },
-  locationBtnDone: { backgroundColor: '#F0FDF4', borderColor: '#22C55E' },
-  locationBtnText: { fontSize: 14, fontWeight: '600', color: RED },
-  locationCoords:  { fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' },
-
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 6, marginTop: 12 },
-  input: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 14 : 11, fontSize: 15, color: '#1a1a1a', backgroundColor: '#FAFAFA' },
-  textArea: { height: 70, textAlignVertical: 'top' },
+  fieldLabel: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 18 },
+  notesHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
+  optionalTag: { fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' },
+  input: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 15 : 12, fontSize: 15, color: '#1a1a1a', backgroundColor: '#F9FAFB' },
+  textArea: { minHeight: 70, textAlignVertical: 'top' },
   row: { flexDirection: 'row' },
 
-  // City selector
-  citySelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 14 : 12, backgroundColor: '#FAFAFA' },
+  citySelector: { justifyContent: 'center', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 15 : 13, backgroundColor: '#F9FAFB' },
   citySelectorText: { fontSize: 15, color: '#1a1a1a' },
   citySelectorPlaceholder: { color: '#C4C4C4' },
+
+  locationBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: RED, borderRadius: 14, paddingVertical: 14, marginTop: 18, backgroundColor: '#FFF8F8' },
+  locationBtnDone: { backgroundColor: '#F0FDF4', borderColor: '#22C55E' },
+  locationBtnText: { fontSize: 14, fontWeight: '600', color: RED },
 
   defaultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: RED, borderColor: RED },
-  defaultLabel: { fontSize: 14, color: '#1a1a1a', fontWeight: '500' },
+  defaultLabel: { fontSize: 14, color: '#1a1a1a', fontWeight: '600' },
 
   btnSave: { backgroundColor: RED, borderRadius: 50, paddingVertical: 16, alignItems: 'center', marginTop: 24, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   btnSaveText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  // City picker modal
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, maxHeight: height * 0.7 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },

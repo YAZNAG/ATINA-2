@@ -25,7 +25,7 @@ import {
 import { ProfileService } from '../../services/profile.service';
 import { CartService } from '../../services/cart.service';
 import { CouponsService } from '../../services/coupons.service';
-import { useCart } from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 
 const RED = '#E10600';
 
@@ -77,7 +77,7 @@ export default function PaymentScreen() {
   const [appliedCode,  setAppliedCode]  = useState<string | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMsg,    setCouponMsg]    = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   const cartItems: CartItem[] = params.cart_items ? JSON.parse(params.cart_items) : [];
   const total      = calculation?.total_ttc ?? 0;
@@ -190,8 +190,8 @@ export default function PaymentScreen() {
         payment_method_code: selected.code,
         promo_code:          appliedCode ?? undefined,
       });
-      await CartService.clearCart();
-      await refreshCartCount();
+      const cart = await CartService.clearCart();
+      applyCart(cart);
       router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
       Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');

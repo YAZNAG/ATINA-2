@@ -20,7 +20,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '../../components/ui/CheckoutStepper';
 import { createOrder, CartItem } from '../../services/order.service';
 import { CartService } from '../../services/cart.service';
-import { useCart } from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 
 const RED = '#E10600';
 
@@ -84,7 +84,7 @@ export default function CardPaymentScreen() {
   const [cvv,         setCvv]         = useState('');
   const [cvvHidden,   setCvvHidden]   = useState(true);
   const [confirming,  setConfirming]  = useState(false);
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   const digitsOnly    = cardNumber.replace(/\s/g, '');
   const isFormValid   = digitsOnly.length === 16 && holder.trim().length >= 2 && expiry.length === 5 && cvv.length >= 3;
@@ -105,9 +105,12 @@ export default function CardPaymentScreen() {
         wallet_amount:       walletAmount > 0 ? walletAmount : undefined,
         promo_code:          params.promo_code || undefined,
       });
-      await CartService.clearCart();
-      await refreshCartCount();
-      router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
+      const cart = await CartService.clearCart();
+      applyCart(cart);
+      if (router.canDismiss()) {
+      router.dismissAll();
+    }
+    router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
       Alert.alert('Erreur', e.message ?? 'Erreur lors du paiement');
     } finally {

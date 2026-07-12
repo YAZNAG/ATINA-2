@@ -125,10 +125,6 @@ async function getActivePackRatios() {
 }
 
 function formatItem(item, flashSales, packRatios) {
-  console.log(
-  "ARTICLE IMAGES:",
-  item.sku?.article?.images
-);
   const article  = item.sku?.article;
   const price    = parseFloat(article?.price    ?? 0);
   const vatRate  = parseFloat(article?.vat_rate ?? 20);

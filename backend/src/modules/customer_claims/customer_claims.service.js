@@ -1,11 +1,14 @@
 const prisma = require('../../config/database');
+const fs     = require('fs');
+const path   = require('path');
 
 const VALID_TYPES = [
-  'MISSING_PRODUCT',  
-  'DAMAGED_PRODUCT',   
-  'WRONG_PRODUCT',     
-  'REFUND_REQUEST',   
-  'OTHER',            
+  'MISSING_PRODUCT',
+  'DAMAGED_PRODUCT',
+  'WRONG_PRODUCT',
+  'REFUND_REQUEST',
+  'DELIVERY_ISSUE',
+  'OTHER',
 ];
 
 const TYPE_LABELS = {
@@ -13,6 +16,7 @@ const TYPE_LABELS = {
   DAMAGED_PRODUCT: 'Produit abîmé',
   WRONG_PRODUCT:   'Mauvais produit reçu',
   REFUND_REQUEST:  'Demande de remboursement',
+  DELIVERY_ISSUE:  'Problème de livraison',
   OTHER:           'Autre',
 };
 
@@ -22,6 +26,8 @@ const STATUS_LABELS = {
   RESOLVED:    'Résolue',
   CLOSED:      'Fermée',
 };
+
+const VALID_PRIORITIES = ['NORMAL', 'URGENT'];
 
 const CLAIM_INCLUDE = {
   order: {
@@ -36,16 +42,19 @@ const CLAIM_INCLUDE = {
 
 function formatClaim(c) {
   return {
-    id:           c.id,
-    type:         c.type,
-    type_label:   TYPE_LABELS[c.type] ?? c.type,
-    status:       c.status,
-    status_label: STATUS_LABELS[c.status] ?? c.status,
-    description:  c.description,
-    admin_note:   c.admin_note ?? null,
-    resolved_at:  c.resolved_at ?? null,
-    created_at:   c.created_at,
-    updated_at:   c.updated_at,
+    id:             c.id,
+    type:           c.type,
+    type_label:     TYPE_LABELS[c.type] ?? c.type,
+    status:         c.status,
+    status_label:   STATUS_LABELS[c.status] ?? c.status,
+    priority:       c.priority,
+    description:    c.description,
+    admin_note:     c.admin_note ?? null,
+    attachment_url: c.attachment_url ?? null,
+    contact_phone:  c.contact_phone ?? null,
+    resolved_at:    c.resolved_at ?? null,
+    created_at:     c.created_at,
+    updated_at:     c.updated_at,
     order: c.order ? {
       id:        c.order.id,
       reference: c.order.id.slice(0, 8).toUpperCase(),
@@ -79,7 +88,7 @@ async function listMyClaims(customerId, query = {}) {
   };
 }
 
-// detail d'une reclamation 
+// detail d'une reclamation
 async function getMyClaimById(customerId, claimId) {
   const claim = await prisma.claim.findFirst({
     where:   { id: claimId, customer_id: customerId, is_deleted: false },
@@ -91,7 +100,7 @@ async function getMyClaimById(customerId, claimId) {
 
 // creer une reclamation ─────────────────────────────────────────────────────
 async function createClaim(customerId, body) {
-  const { order_id, type, description } = body;
+  const { order_id, type, description, priority, contact_phone } = body;
 
   if (!order_id)    throw { statusCode: 400, message: 'order_id requis' };
   if (!type)        throw { statusCode: 400, message: 'Type de réclamation requis' };
@@ -99,6 +108,10 @@ async function createClaim(customerId, body) {
     throw { statusCode: 400, message: `Type invalide. Valeurs : ${VALID_TYPES.join(', ')}` };
   if (!description?.trim())
     throw { statusCode: 400, message: 'Description requise' };
+
+  const claimPriority = priority && VALID_PRIORITIES.includes(String(priority).toUpperCase())
+    ? String(priority).toUpperCase()
+    : 'NORMAL';
 
   const order = await prisma.order.findFirst({
     where: { id: order_id, customer_id: customerId, is_deleted: false },
@@ -119,11 +132,13 @@ async function createClaim(customerId, body) {
 
   const created = await prisma.claim.create({
     data: {
-      customer_id: customerId,
+      customer_id:   customerId,
       order_id,
       type,
-      description: description.trim(),
-      status: 'OPEN',
+      description:   description.trim(),
+      status:        'OPEN',
+      priority:      claimPriority,
+      contact_phone: contact_phone ? String(contact_phone).trim().slice(0, 30) : null,
     },
     include: CLAIM_INCLUDE,
   });
@@ -131,7 +146,28 @@ async function createClaim(customerId, body) {
   return formatClaim(created);
 }
 
-//annuler une reclamation (si encore OPEN) 
+// ajouter/remplacer la photo jointe à une réclamation ────────────────────────
+async function attachPhoto(customerId, claimId, filePath) {
+  const claim = await prisma.claim.findFirst({
+    where: { id: claimId, customer_id: customerId, is_deleted: false },
+  });
+  if (!claim) throw { statusCode: 404, message: 'Réclamation introuvable' };
+
+  // supprime l'ancienne photo si elle existe
+  if (claim.attachment_url) {
+    const abs = path.join(process.cwd(), claim.attachment_url.replace(/^\//, ''));
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  }
+
+  const updated = await prisma.claim.update({
+    where: { id: claimId },
+    data:  { attachment_url: filePath },
+    include: CLAIM_INCLUDE,
+  });
+  return formatClaim(updated);
+}
+
+//annuler une reclamation (si encore OPEN)
 async function cancelClaim(customerId, claimId) {
   const claim = await prisma.claim.findFirst({
     where: { id: claimId, customer_id: customerId, is_deleted: false },
@@ -147,4 +183,4 @@ async function cancelClaim(customerId, claimId) {
   return { id: claimId };
 }
 
-module.exports = { listMyClaims, getMyClaimById, createClaim, cancelClaim, VALID_TYPES, TYPE_LABELS };
+module.exports = { listMyClaims, getMyClaimById, createClaim, attachPhoto, cancelClaim, VALID_TYPES, TYPE_LABELS };

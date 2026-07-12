@@ -29,6 +29,8 @@ export interface Profile{
 export interface Address {
   id:             string;
   label:          string| null;
+  recipient_name: string| null;   
+  phone:          string| null;   
   street_number:  string| null;
   street_name:    string;
   quartier:       string| null;
@@ -37,8 +39,7 @@ export interface Address {
   lat:            number| null;
   lng:            number| null;
   delivery_notes: string| null;
-  is_default:     boolean;   
-
+  is_default:     boolean;
 }
 
 export interface FavoriteArticle {

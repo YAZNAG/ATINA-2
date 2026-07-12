@@ -1004,24 +1004,26 @@ model Customer {
 }
 
 model Address {
-  id             String    @id @default(uuid()) @db.Uuid
-  customer_id    String    @db.Uuid
-  label          String?   @db.VarChar(100)
-  street_number  String?   @db.VarChar(20)
-  street_name    String    @db.VarChar(255)
-  quartier       String?   @db.VarChar(100)
-  city           String    @default("Rabat") @db.VarChar(100)
-  postal_code    String?   @db.VarChar(5)
-  lat            Decimal?  @db.Decimal(9, 6)
-  lng            Decimal?  @db.Decimal(9, 6)
-  delivery_notes String?
-  is_default     Boolean   @default(false)
-  is_deleted     Boolean   @default(false)
-  deleted_at     DateTime? @db.Timestamptz(6)
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
-  customer       Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  orders         Order[]
+  id              String    @id @default(uuid()) @db.Uuid
+  customer_id     String    @db.Uuid
+  label           String?   @db.VarChar(100)
+  recipient_name  String?   @db.VarChar(150)
+  phone           String?   @db.VarChar(30)
+  street_number   String?   @db.VarChar(20)
+  street_name     String    @db.VarChar(255)
+  quartier        String?   @db.VarChar(100)
+  city            String    @default("Rabat") @db.VarChar(100)
+  postal_code     String?   @db.VarChar(5)
+  lat             Decimal?  @db.Decimal(9, 6)
+  lng             Decimal?  @db.Decimal(9, 6)
+  delivery_notes  String?
+  is_default      Boolean   @default(false)
+  is_deleted      Boolean   @default(false)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+  customer        Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  orders          Order[]
 
   @@map("addresses")
 }
@@ -1806,19 +1808,43 @@ model ArticleReview {
 }
 
 
+enum ClaimType {
+  MISSING_PRODUCT
+  DAMAGED_PRODUCT
+  WRONG_PRODUCT
+  REFUND_REQUEST
+  DELIVERY_ISSUE
+  OTHER
+}
+
+enum ClaimStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ClaimPriority {
+  NORMAL
+  URGENT
+}
+
 model Claim {
-  id          String    @id @default(uuid()) @db.Uuid
-  customer_id String    @db.Uuid
-  order_id    String    @db.Uuid
-  type        String    @db.VarChar(50)   // MISSING_PRODUCT | DAMAGED_PRODUCT | WRONG_PRODUCT | REFUND_REQUEST | OTHER
-  status      String    @default("OPEN") @db.VarChar(20)  // OPEN | IN_PROGRESS | RESOLVED | CLOSED
-  description String    @db.Text
-  admin_note  String?   @db.Text          // réponse de l'agent
-  resolved_at DateTime? @db.Timestamptz(6)
-  is_deleted  Boolean   @default(false)
-  deleted_at  DateTime? @db.Timestamptz(6)
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+  id              String        @id @default(uuid()) @db.Uuid
+  customer_id     String        @db.Uuid
+  order_id        String        @db.Uuid
+  type            ClaimType
+  status          ClaimStatus   @default(OPEN)
+  priority        ClaimPriority @default(NORMAL)
+  description     String        @db.Text
+  admin_note      String?       @db.Text
+  attachment_url  String?       @db.VarChar(500)
+  contact_phone   String?       @db.VarChar(30)
+  resolved_at     DateTime?     @db.Timestamptz(6)
+  is_deleted      Boolean       @default(false)
+  deleted_at      DateTime?     @db.Timestamptz(6)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @updatedAt @db.Timestamptz(6)
 
   customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
   order    Order    @relation(fields: [order_id],    references: [id], onDelete: Cascade)

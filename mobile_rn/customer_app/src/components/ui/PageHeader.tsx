@@ -24,9 +24,14 @@ export default function PageHeader({
       {/* ── Back button ── */}
       <TouchableOpacity
         style={styles.backBtn}
-        onPress={onBack || (() => router.back())}
-        activeOpacity={0.7}
-      >
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/main/home');
+           }
+          }}
+        activeOpacity={0.7}>
         <Feather name="chevron-left" size={20} color={RED} />
       </TouchableOpacity>
 

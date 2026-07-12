@@ -12,7 +12,7 @@ import {
   PacksService, PackDetail, PackItem,
 } from '../../services/promotions.service';
 import { CartService } from '../../services/cart.service';
-import { useCart } from '../../context/CartContext';
+import { useCartCount, useCartActions } from '../../context/CartContext';
 
 const RED    = '#E10600';
 const GREEN  = '#16A34A';
@@ -36,7 +36,7 @@ function weightLabel(g: number | null): string | null {
 
 function PromoProductCard({ item }: { item: PromotionProduct }) {
   const [adding, setAdding] = useState(false);
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   const handleAdd = async () => {
     if (!item.sku_id) {
@@ -45,8 +45,8 @@ function PromoProductCard({ item }: { item: PromotionProduct }) {
     }
     try {
       setAdding(true);
-      await CartService.addItem(item.sku_id, 1);
-      await refreshCartCount();
+      const cart = await CartService.addItem(item.sku_id, 1);
+      applyCart(cart);
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Erreur lors de l\'ajout au panier');
     } finally {
@@ -118,7 +118,8 @@ export default function PromotionDetailScreen() {
   const router = useRouter();
   const { id, type } = useLocalSearchParams<{ id: string; type?: string }>();
   const isPack = type === 'pack';
-  const { cartCount, refreshCartCount } = useCart();
+  const cartCount = useCartCount();
+  const { applyCart } = useCartActions();
 
   const [promo,      setPromo]      = useState<FlashSaleDetail | null>(null);
   const [pack,       setPack]       = useState<PackDetail | null>(null);
@@ -156,7 +157,7 @@ export default function PromotionDetailScreen() {
     try {
       setAddingPack(true);
       const cart = await CartService.addPack(pack.id, 1);
-      await refreshCartCount();
+      applyCart(cart);
       setCartTotal(cart.total);
     } catch (err: any) {
       Alert.alert('Erreur', err.message || "Erreur lors de l'ajout du pack");

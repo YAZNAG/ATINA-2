@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, StyleSheet, SafeAreaView,
   StatusBar, ActivityIndicator, TouchableOpacity,
   RefreshControl, Dimensions, FlatList, Image,
 } from 'react-native';
@@ -17,7 +17,6 @@ import {
 } from '@expo-google-fonts/inter';
 
 import SearchBar     from '../../components/ui/SearchBar';
-import SortBar, { SortOption, sortArticles } from '../../components/ui/SortBar';
 import CategoryList  from '../../components/ui/CategoryList';
 import SectionHeader from '../../components/ui/SectionHeader';
 import ProductCard   from '../../components/ui/ProductCard';
@@ -26,7 +25,7 @@ import FilterModal   from '../../components/ui/FilterModal';
 import HomeHeader from '../../components/ui/HomeHeader';
 
 import { CatalogService, Category, Article } from '../../services/catalog.service';
-import { ProfileService, Address }           from '../../services/profile.service';
+import { ProfileService, Address, Profile }  from '../../services/profile.service';
 import {
   PromotionsService, FlashSaleSummary,
   PacksService, PackSummary,
@@ -37,6 +36,7 @@ import { useNotification } from '../../context/NotificationContext';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
+const GRID_COLUMNS = 2;
 
 export default function HomeScreen() {
 
@@ -48,8 +48,7 @@ export default function HomeScreen() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
 
-  const [user, setUser]               = useState<any>(null);
-  const [search, setSearch]           = useState('');
+  const [user, setUser]               = useState<Profile | null>(null);
   const [categories, setCategories]   = useState<Category[]>([]);
   const [articles, setArticles]       = useState<Article[]>([]);
   const [recommended, setRecommended] = useState<Article[]>([]);
@@ -59,19 +58,46 @@ export default function HomeScreen() {
   const [filterVisible, setFilterVisible]   = useState(false);
   const [selectedCats, setSelectedCats]     = useState<number[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
-  const [sort, setSort]                     = useState<SortOption>('default');
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
   const [promotions, setPromotions]         = useState<FlashSaleSummary[]>([]);
   const [packs,      setPacks]              = useState<PackSummary[]>([]);
   const [bestDeals,  setBestDeals]          = useState<BestDeal[]>([]);
   const [favoriteIds, setFavoriteIds]       = useState<Set<number>>(new Set());
 
-  const loadData = async () => {
+  // ── Chargement des articles, avec filtre catégorie appliqué côté backend ──
+  // CatalogService.getArticles n'accepte qu'un seul `category_id` (pas de tableau).
+  // Pour le multi-select (`selectedCats`), on parallélise une requête par
+  // catégorie puis on fusionne + déduplique les résultats côté client.
+  const loadArticles = useCallback(async () => {
+    try {
+      if (selectedCats.length > 0) {
+        const results = await Promise.all(
+          selectedCats.map((catId) =>
+            CatalogService.getArticles({ limit: 50, category_id: catId }).catch(() => [])
+          )
+        );
+        const merged = new Map<number, Article>();
+        results.flat().forEach((a) => merged.set(a.id, a));
+        setArticles(Array.from(merged.values()));
+      } else {
+        const arts = await CatalogService.getArticles({
+          limit: 50,
+          ...(selectedCat ? { category_id: selectedCat } : {}),
+        });
+        setArticles(arts);
+      }
+    } catch (err) {
+      console.log('Error loading articles:', err);
+      setArticles([]);
+    }
+  }, [selectedCat, selectedCats]);
+
+  const loadData = useCallback(async () => {
     try {
       const [cats, arts, addresses, recs, profile, promos, pks, deals, favs] = await Promise.all([
-        CatalogService.getCategories(),
-        CatalogService.getArticles({ limit: 20 }),
-        ProfileService.listAddresses(),
+        CatalogService.getCategories().catch(() => []),
+        CatalogService.getArticles({ limit: 50 }).catch(() => []),
+        ProfileService.listAddresses().catch(() => []),
         CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []),
         ProfileService.getProfile().catch(() => null),
         PromotionsService.listActive().catch(() => []),
@@ -83,7 +109,7 @@ export default function HomeScreen() {
       setArticles(arts);
       setRecommended(recs);
       setAvatarUrl(profile?.avatar_url ?? null);
-      setUser(profile);  
+      setUser(profile);
       setPromotions(promos);
       setPacks(pks);
       setBestDeals(deals);
@@ -94,26 +120,221 @@ export default function HomeScreen() {
       console.log('Error loading data:', err);
     } finally {
       setLoading(false);
-      setRefreshing(false);           
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const isFirstRun = useRef(true);
+  useEffect(() => {
+    if (isFirstRun.current) { isFirstRun.current = false; return; }
+    loadArticles();
+  }, [selectedCat, selectedCats, loadArticles]);
 
   useFocusEffect(useCallback(() => { refreshNotifCount(); }, [refreshNotifCount]));
 
-  const onRefresh = useCallback(() => { setRefreshing(true); loadData(); }, []);
+  const onRefresh = useCallback(() => { setRefreshing(true); loadData(); }, [loadData]);
 
-  const filtered = sortArticles(
-    articles.filter((a) => {
-      const matchSearch = search ? a.name_fr.toLowerCase().includes(search.toLowerCase()) : true;
-      const matchCat    = selectedCats.length > 0
+  const filtered = useMemo(() => {
+    return articles.filter((a) => {
+      const matchCat = selectedCats.length > 0
         ? selectedCats.includes(a.category?.id ?? 0)
         : selectedCat ? a.category?.id === selectedCat : true;
-      return matchSearch && matchCat;
-    }),
-    sort,
+      return matchCat;
+    });
+  }, [articles, selectedCat, selectedCats]);
+
+  const handleToggleFav = useCallback((articleId: number, next: boolean) => {
+    setFavoriteIds(prev => {
+      const s = new Set(prev);
+      if (next) s.add(articleId); else s.delete(articleId);
+      return s;
+    });
+  }, []);
+
+  const handlePressProduct = useCallback((articleId: number) => {
+    router.push({ pathname: '/main/product-detail' as any, params: { article_id: articleId } });
+  }, [router]);
+
+  const handleSeeAllCategories = useCallback(() => {
+    router.push({ pathname: '/main/categories' });
+  }, [router]);
+
+  const handleSeeAllPromotions = useCallback(() => {
+    router.push('/main/promotions' as any);
+  }, [router]);
+
+  const handleSelectCategory = useCallback((cat: Category) => {
+    setSelectedCat(cat.id === 0 ? null : cat.id);
+    setSelectedCats([]);
+  }, []);
+
+  const handleApplyFilter = useCallback((ids: number[]) => {
+    setSelectedCats(ids);
+    setSelectedCat(null);
+    setFilterVisible(false);
+  }, []);
+
+  const slides: SlideItem[] = useMemo(
+    () => buildSlides(promotions, packs),
+    [promotions, packs]
   );
+
+  const favoriteIdsRef = useRef(favoriteIds);
+  favoriteIdsRef.current = favoriteIds;
+
+  const handlersRef = useRef({ handleToggleFav, handlePressProduct });
+  handlersRef.current = { handleToggleFav, handlePressProduct };
+
+  const renderProductCard = useCallback(({ item }: { item: Article }) => (
+    <ProductCard
+      article={item}
+      isFav={favoriteIdsRef.current.has(item.id)}
+      onToggleFav={(next) => handlersRef.current.handleToggleFav(item.id, next)}
+      onPress={() => handlersRef.current.handlePressProduct(item.id)}
+    />
+  ), []);
+  const renderBestDealCard = useCallback(({ item }: { item: BestDeal }) => (
+    <ProductCard
+      article={bestDealToArticle(item)}
+      discount={item.discount_pct}
+      oldPrice={item.old_price_ttc}
+      isFav={favoriteIdsRef.current.has(item.id)}
+      onToggleFav={(next) => handlersRef.current.handleToggleFav(item.id, next)}
+      onPress={() => handlersRef.current.handlePressProduct(item.id)}
+    />
+  ), []);
+
+  const renderPromoSlide = useCallback(({ item }: { item: SlideItem }) => {
+    const isPack = item.type === 'pack';
+    const hasImg = !!item.image_url;
+    return (
+      <TouchableOpacity
+        style={styles.promoSlide}
+        activeOpacity={0.88}
+        onPress={() =>
+          router.push({
+            pathname: '/main/promotion_detail' as any,
+            params: { id: item.id, type: item.type },
+          })
+        }
+      >
+        <View style={[styles.promoClip, !hasImg && { backgroundColor: RED }]}>
+          {hasImg ? (
+            <Image
+              source={{ uri: item.image_url! }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.promoOverlay}>
+              <Text style={styles.promoSpecial}>
+                ✦  {isPack ? 'PACK ÉCONOMIQUE' : 'OFFRE SPÉCIALE'}  ✦
+              </Text>
+              <Text style={styles.promoSlideName} numberOfLines={2}>
+                {item.title}
+              </Text>
+              <Text style={styles.promoSlideScope} numberOfLines={1}>
+                {item.subtitle}
+              </Text>
+            </View>
+          )}
+        </View>
+        {!hasImg && item.discount_pct != null && (
+          <View style={styles.starBadgeWrap}>
+            <View style={styles.starShape} />
+            <View style={[styles.starShape, { transform: [{ rotate: '22.5deg' }] }]} />
+            <View style={styles.starBadgeContent}>
+              <Text style={[styles.starBadgePct, { color: RED }]}>{item.discount_pct}%</Text>
+              <Text style={[styles.starBadgeOff, { color: RED }]}>OFF</Text>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }, [router]);
+
+  const handleOpenSearch = useCallback(() => router.push('/main/search'), [router]);
+  const handleOpenFilter = useCallback(() => setFilterVisible(true), []);
+
+  const ListHeader = useMemo(() => (
+    <>
+      <SearchBar
+        value=""
+        onChangeText={() => {}}
+        onFilter={handleOpenFilter}
+        onPress={handleOpenSearch}
+      />
+
+      {slides.length > 0 && (
+        <View style={styles.section}>
+          <SectionHeader title="Promotions" onSeeAll={handleSeeAllPromotions} />
+          <FlatList
+            data={slides}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={width * 0.82 + 12}
+            decelerationRate="fast"
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+            keyExtractor={item => `${item.type}-${item.id}`}
+            renderItem={renderPromoSlide}
+          />
+        </View>
+      )}
+
+      <View style={[styles.section, { marginTop: 28 }]}>
+        <SectionHeader title="Catégories" onSeeAll={handleSeeAllCategories} />
+        <CategoryList
+          categories={categories}
+          selectedId={selectedCat}
+          onSelect={handleSelectCategory}
+        />
+      </View>
+
+      {bestDeals.length > 0 && (
+        <View style={styles.section}>
+          <SectionHeader title="Best Deals" onSeeAll={handleSeeAllPromotions} />
+          <FlatList
+            data={bestDeals}
+            keyExtractor={(item) => `deal-${item.id}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={renderBestDealCard}
+            extraData={favoriteIds}
+          />
+        </View>
+      )}
+
+      {recommended.length > 0 && (
+        <View style={styles.section}>
+          <SectionHeader title="Recommendé pour vous" onSeeAll={() => {}} />
+          <FlatList
+            data={recommended}
+            keyExtractor={(item) => `rec-${item.id}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={renderProductCard}
+            extraData={favoriteIds}
+          />
+        </View>
+      )}
+
+      <View style={styles.section}>
+        <SectionHeader
+          title={selectedCat || selectedCats.length > 0 ? 'Produits' : 'Tous les produits'}
+          onSeeAll={() => {}}
+        />
+      </View>
+    </>
+  ), [
+    slides, bestDeals, recommended, categories, selectedCat, selectedCats, favoriteIds,
+    handleSeeAllPromotions, handleSeeAllCategories, handleSelectCategory,
+    handleOpenSearch, handleOpenFilter,
+    renderPromoSlide, renderBestDealCard, renderProductCard,
+  ]);
 
   if (!fontsLoaded || loading) {
     return (
@@ -129,217 +350,45 @@ export default function HomeScreen() {
 
       {/* ── Header ── */}
       <HomeHeader
-  defaultAddress={defaultAddress}
-  user={user}
-  avatarUrl={avatarUrl}
-/>
-
-      {/* ── Search bar ── */}
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        onFilter={() => setFilterVisible(true)}
-        articleNames={articles.map(a => a.name_fr)}
+        defaultAddress={defaultAddress}
+        user={user}
+        avatarUrl={avatarUrl}
       />
+
       <FilterModal
         visible={filterVisible}
         categories={categories}
         subCategories={[]}
         selected={selectedCats}
         selectedSubs={[]}
-        onApply={(ids) => {
-          setSelectedCats(ids);
-          setSelectedCat(null);
-          setFilterVisible(false);
-        }}
+        onApply={handleApplyFilter}
         onClose={() => setFilterVisible(false)}
       />
 
-      <ScrollView
+      {/* ── Grille principale : une seule FlatList verticale virtualisée ── */}
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => `article-${item.id}`}
+        numColumns={GRID_COLUMNS}
+        columnWrapperStyle={styles.gridRow}
+        contentContainerStyle={styles.gridContent}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
-      >
-        <SortBar value={sort} onChange={(v) => setSort(v as SortOption)} />
-
-        {/* ── Promotions + Packs slider ── */}
-        {(promotions.length > 0 || packs.length > 0) && (() => {
-          const slides: SlideItem[] = buildSlides(promotions, packs);
-          if (slides.length === 0) return null;
-          const ACCENT = (_isPack: boolean) => RED;
-          return (
-            <View style={styles.section}>
-              <SectionHeader
-                title="Promotions"
-                onSeeAll={() => router.push('/main/promotions' as any)}
-              />
-              <FlatList
-                data={slides}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={width * 0.82 + 12}
-                decelerationRate="fast"
-                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-                keyExtractor={item => `${item.type}-${item.id}`}
-                renderItem={({ item }) => {
-                  const isPack  = item.type === 'pack';
-                  const accent  = ACCENT(isPack);
-                  const hasImg  = !!item.image_url;
-                  return (
-                    <TouchableOpacity
-                      style={styles.promoSlide}
-                      activeOpacity={0.88}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/main/promotion_detail' as any,
-                          params: { id: item.id, type: item.type },
-                        })
-                      }
-                    >
-                      <View style={[styles.promoClip, !hasImg && { backgroundColor: accent }]}>
-                        {hasImg ? (
-                          <Image
-                            source={{ uri: item.image_url! }}
-                            style={StyleSheet.absoluteFill}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View style={styles.promoOverlay}>
-                            <Text style={styles.promoSpecial}>
-                              ✦  {isPack ? 'PACK ÉCONOMIQUE' : 'OFFRE SPÉCIALE'}  ✦
-                            </Text>
-                            <Text style={styles.promoSlideName} numberOfLines={2}>
-                              {item.title}
-                            </Text>
-                            <Text style={styles.promoSlideScope} numberOfLines={1}>
-                              {item.subtitle}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      {!hasImg && item.discount_pct != null && (
-                        <View style={styles.starBadgeWrap}>
-                          <View style={styles.starShape} />
-                          <View style={[styles.starShape, { transform: [{ rotate: '22.5deg' }] }]} />
-                          <View style={styles.starBadgeContent}>
-                            <Text style={[styles.starBadgePct, { color: accent }]}>{item.discount_pct}%</Text>
-                            <Text style={[styles.starBadgeOff, { color: accent }]}>OFF</Text>
-                          </View>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            </View>
-          );
-        })()}
-
-        {/* ── Catégories ── */}
-        <View style={[styles.section, { marginTop: 28 }]}>
-          <SectionHeader title="Catégories" onSeeAll={() => {router.push({ pathname: '/main/categories'})}} />
-          <CategoryList
-            categories={categories}
-            selectedId={selectedCat}
-            onSelect={(cat) => {
-              setSelectedCat(cat.id === 0 ? null : cat.id);
-              setSelectedCats([]);
-            }}
-          />
-        </View>
-
-        {/* ── Best Deals ── */}
-        {bestDeals.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader title="Best Deals" onSeeAll={() => router.push('/main/promotions' as any)} />
-            <FlatList
-              data={bestDeals}
-              keyExtractor={(item) => `deal-${item.id}`}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-              renderItem={({ item }) => (
-                <ProductCard
-                  article={bestDealToArticle(item)}
-                  discount={item.discount_pct}
-                  oldPrice={item.old_price_ttc}
-                  isFav={favoriteIds.has(item.id)}
-                  onToggleFav={(next) => setFavoriteIds(prev => {
-                    const s = new Set(prev);
-                    if (next) s.add(item.id); else s.delete(item.id);
-                    return s;
-                  })}
-                  onPress={() =>
-                    router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })
-                  }
-                />
-              )}
-            />
+        ListHeaderComponent={ListHeader}
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Feather name="inbox" size={48} color="#E0E0E0" />
+            <Text style={styles.emptyText}>Aucun produit trouvé</Text>
           </View>
-        )}
-
-        {/* ── Recommandations ── */}
-        {recommended.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader title="Recommendé pour vous" onSeeAll={() => {}} />
-            <FlatList
-              data={recommended}
-              keyExtractor={(item) => `rec-${item.id}`}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-              renderItem={({ item }) => (
-                <ProductCard
-                  article={item}
-                  isFav={favoriteIds.has(item.id)}
-                  onToggleFav={(next) => setFavoriteIds(prev => {
-                    const s = new Set(prev);
-                    if (next) s.add(item.id); else s.delete(item.id);
-                    return s;
-                  })}
-                  onPress={() =>
-                    router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })
-                  }
-                />
-              )}
-            />
-          </View>
-        )}
-
-        {/* ── Tous les produits ── */}
-        <View style={styles.section}>
-          <SectionHeader
-            title={selectedCat ? 'Produits' : 'Tous les produits'}
-            onSeeAll={() => {}}
-          />
-
-          {filtered.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Feather name="inbox" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucun produit trouvé</Text>
-            </View>
-          ) : (
-            <View style={styles.grid}>
-              {filtered.map((article) => (
-                <ProductCard
-                  key={article.id}
-                  article={article}
-                  isFav={favoriteIds.has(article.id)}
-                  onToggleFav={(next) => setFavoriteIds(prev => {
-                    const s = new Set(prev);
-                    if (next) s.add(article.id); else s.delete(article.id);
-                    return s;
-                  })}
-                  onPress={() =>
-                    router.push({ pathname: '/main/product-detail' as any, params: { article_id: article.id } })
-                  }
-                />
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        }
+        renderItem={renderProductCard}
+        extraData={favoriteIds}
+        removeClippedSubviews
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+      />
 
       <BottomNavBar />
     </SafeAreaView>
@@ -358,9 +407,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    paddingHorizontal: 16, gap: 16, paddingBottom: 8,
+  gridContent: {
+    paddingBottom: 8,
+  },
+  gridRow: {
+    paddingHorizontal: 16,
+    gap: 16,
+    marginBottom: 16,
   },
   emptyContainer: {
     alignItems: 'center', justifyContent: 'center', paddingVertical: 60,

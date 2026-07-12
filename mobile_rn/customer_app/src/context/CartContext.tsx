@@ -1,33 +1,58 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { CartService } from '../services/cart.service';
+import React, {
+  createContext, useContext, useState, useCallback, useEffect, useMemo,
+} from 'react';
+import { CartService, Cart } from '../services/cart.service';
 
-interface CartContextType {
-  cartCount:        number;
+function cartCountFrom(cart: Cart): number {
+  return cart.items?.length ?? 0;
+}
+
+interface CartActionsType {
+  applyCart:        (cart: Cart) => void;
   refreshCartCount: () => Promise<void>;
 }
 
-const CartContext = createContext<CartContextType>({
-  cartCount:        0,
+const CartCountContext  = createContext(0);
+const CartActionsContext = createContext<CartActionsType>({
+  applyCart:        () => {},
   refreshCartCount: async () => {},
 });
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartCount, setCartCount] = useState(0);
 
+  const applyCart = useCallback((cart: Cart) => {
+    setCartCount(cartCountFrom(cart));
+  }, []);
+
   const refreshCartCount = useCallback(async () => {
     try {
       const cart = await CartService.getCart();
-      setCartCount(cart.items?.length ?? 0);
+      applyCart(cart);
     } catch {}
-  }, []);
+  }, [applyCart]);
 
-  useEffect(() => { refreshCartCount(); }, []);
+  const actions = useMemo(
+    () => ({ applyCart, refreshCartCount }),
+    [applyCart, refreshCartCount],
+  );
+
+  useEffect(() => { refreshCartCount(); }, [refreshCartCount]);
 
   return (
-    <CartContext.Provider value={{ cartCount, refreshCartCount }}>
-      {children}
-    </CartContext.Provider>
+    <CartActionsContext.Provider value={actions}>
+      <CartCountContext.Provider value={cartCount}>
+        {children}
+      </CartCountContext.Provider>
+    </CartActionsContext.Provider>
   );
 }
 
-export const useCart = () => useContext(CartContext);
+export const useCartCount = () => useContext(CartCountContext);
+
+export const useCartActions = () => useContext(CartActionsContext);
+
+export const useCart = () => ({
+  cartCount:        useCartCount(),
+  ...useCartActions(),
+});

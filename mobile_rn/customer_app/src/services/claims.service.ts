@@ -5,9 +5,11 @@ export type ClaimType =
   | 'DAMAGED_PRODUCT'
   | 'WRONG_PRODUCT'
   | 'REFUND_REQUEST'
+  | 'DELIVERY_ISSUE'
   | 'OTHER';
 
 export type ClaimStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type ClaimPriority = 'NORMAL' | 'URGENT';
 
 export interface ClaimOrder {
   id: string;
@@ -22,8 +24,11 @@ export interface Claim {
   type_label: string;
   status: ClaimStatus;
   status_label: string;
+  priority: ClaimPriority;
   description: string;
   admin_note: string | null;
+  attachment_url: string | null;
+  contact_phone: string | null;
   resolved_at: string | null;
   created_at: string;
   updated_at: string;
@@ -57,6 +62,8 @@ export interface CreateClaimPayload {
   order_id: string;
   type: ClaimType;
   description: string;
+  priority?: ClaimPriority;
+  contact_phone?: string;
 }
 
 // ---------- Service ----------
@@ -109,6 +116,24 @@ async function createClaim(payload: CreateClaimPayload): Promise<Claim> {
   }
 }
 
+async function attachPhoto(claimId: string, uri: string): Promise<Claim> {
+  const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+  const formData = new FormData();
+  formData.append('photo', { uri, name: `claim.${ext}`, type: mimeMap[ext] ?? 'image/jpeg' } as any);
+  try {
+    const { data } = await api.post(`/customer/claims/${claimId}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.data;
+  } catch (error: any) {
+    throw {
+      statusCode: error.response?.status ?? 500,
+      message: error.response?.data?.message ?? "Erreur lors de l'envoi de la photo",
+    };
+  }
+}
+
 async function cancelClaim(claimId: string): Promise<{ id: string }> {
   try {
     const { data } = await api.delete(`/customer/claims/${claimId}`);
@@ -126,6 +151,7 @@ export const ClaimsService = {
   listMyClaims,
   getClaimById,
   createClaim,
+  attachPhoto,
   cancelClaim,
 };
 

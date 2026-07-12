@@ -4,7 +4,7 @@ const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
 //const BASE_URL = process.env.PUBLIC_URL || 'http://localhost:5000';
-const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000/';
+const BASE_URL = process.env.BASE_URL || 'http://192.168.1.17:5000/';
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
@@ -86,6 +86,8 @@ async function createAddress(customerId, body) {
     data: {
       customer_id:    customerId,
       label:          trunc(body.label,          100),
+      recipient_name: trunc(body.recipient_name, 150),
+      phone:          trunc(body.phone,           30),
       street_number:  trunc(body.street_number,   20),
       street_name:    trunc(street_name,          255),
       quartier:       trunc(body.quartier,        100),
@@ -105,7 +107,9 @@ async function updateAddress(customerId, addressId, body) {
 
   const trunc = (s, max) => s ? String(s).trim().slice(0, max) : null;
   const data  = {};
-  if (body.label          !== undefined) data.label         = trunc(body.label, 100);
+  if (body.label          !== undefined) data.label          = trunc(body.label, 100);
+  if (body.recipient_name !== undefined) data.recipient_name = trunc(body.recipient_name, 150);
+  if (body.phone          !== undefined) data.phone          = trunc(body.phone, 30);
   if (body.street_number  !== undefined) data.street_number = trunc(body.street_number, 20);
   if (body.street_name    !== undefined) {
     const s = String(body.street_name || '').trim();

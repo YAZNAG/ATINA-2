@@ -109,6 +109,7 @@ export interface PackItem {
   name_ar:    string;
   qty:        number;
   unit_price: number;
+  unit_label?: string;
   image_url:  string | null;
 }
 

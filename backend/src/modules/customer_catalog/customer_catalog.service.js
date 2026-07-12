@@ -13,6 +13,7 @@ const ARTICLE_SELECT = {
   description_fr: true, description_ar: true,
   price: true, vat_rate: true, unit_sale: true,
   is_active: true,
+  updated_at: true,
   brand:        { select: { id: true, name_fr: true, name_ar: true } },
   category:     { select: { id: true, name_fr: true, name_ar: true } },
   sub_category: { select: { id: true, name_fr: true, name_ar: true } },
@@ -66,6 +67,7 @@ function formatArticle(a, flashSales = []) {
     brand:          a.brand,
     category:       a.category,
     sub_category:   a.sub_category,
+    updated_at:     a.updated_at,
     image_url:      allImages[0] ?? null,
     images:         allImages,
   };
@@ -170,12 +172,9 @@ async function searchArticles({ page = 1, limit = 20, search, category_id } = {}
   };
 }
 
-// recommended articles
-// ── Produits recommandés pour un client ──────────────────────────────────────
+
 async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   await ensureArticlesPrismaColumns(prisma);
-  console.log('[DEBUG] req.customerId:', customerId, typeof customerId);
-  // ── 1. Vérifie que le client existe ──────────────────────────────────────
   const [customerExists, flashSales] = await Promise.all([
     prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } }),
     getActiveFlashSales(),
@@ -227,7 +226,6 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
     return fallback.map(a => formatArticle(a, flashSales));
   }
 
-  // ── 5. Articles des mêmes catégories (hors déjà commandés) ──────────────
   const recommended = await prisma.article.findMany({
     where: {
       ...BASE_ARTICLE,
@@ -262,7 +260,6 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   return [...recommended, ...filler].map(a => formatArticle(a, flashSales));
 }
 
-// ── cities (public — for address form select) ─────────────────────────────────
 async function getCities() {
   const cities = await prisma.city.findMany({
     where:   { is_deleted: false, is_active: true },

@@ -38,10 +38,6 @@ export const CartService = {
   async getCart(): Promise<Cart> {
     try {
       const response = await api.get('/customer/cart');
-      console.log(
-      "CART API:",
-      JSON.stringify(response.data.data.items, null, 2)
-    );
       return response.data.data || { items: [], total: 0, count: 0 };
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Erreur chargement panier');

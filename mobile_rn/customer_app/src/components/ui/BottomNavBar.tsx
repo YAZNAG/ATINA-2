@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, usePathname } from 'expo-router';
-import { useCart } from '../../context/CartContext';
+import { useRouter, usePathname, useFocusEffect } from 'expo-router';
+import { useCartCount } from '../../context/CartContext';
 
 const RED = '#E10600';
 
@@ -14,13 +14,26 @@ const TABS = [
   { name: 'Profil',     icon: 'user',           route: '/profile/profile', match: ['/profile/profile'] },
 ];
 
+function normalize(p: string) {
+  return p.replace(/\/+$/, '') || '/';
+}
+
 export default function BottomNavBar() {
   const router        = useRouter();
   const pathname      = usePathname();
-  const { cartCount } = useCart();
+  const cartCount = useCartCount();
+  const [stablePath, setStablePath] = useState(pathname);
 
-  const isActive = (tab: typeof TABS[0]) =>
-    tab.match.some(m => pathname === m || pathname.startsWith(m));
+  useFocusEffect(
+    useCallback(() => {
+      setStablePath(pathname);
+    }, [pathname])
+  );
+
+  const isActive = (tab: typeof TABS[0]) => {
+    const p = normalize(stablePath);
+    return tab.match.some(m => p === normalize(m) || p.startsWith(normalize(m)));
+  };
 
   return (
     <View style={styles.container}>
@@ -32,13 +45,19 @@ export default function BottomNavBar() {
           <TouchableOpacity
             key={tab.route}
             style={styles.tab}
-            onPress={() => router.push({ pathname: tab.route as any })}
+            onPress={() => {
+              if (active) return;
+              router.navigate({ pathname: tab.route as any });
+            }}
             activeOpacity={0.7}
           >
             {isCart ? (
-              /* ── Cart button ── */
-              <View style={styles.cartBtn}>
-                <Feather name="shopping-cart" size={24} color="#fff" />
+              // Wrapper SANS overflow:hidden -> le badge peut déborder du cercle
+              <View style={styles.cartWrapper}>
+                <View style={styles.cartGlow} />
+                <View style={styles.cartBtn}>
+                  <Feather name="shopping-cart" size={22} color="#fff" />
+                </View>
                 {cartCount > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>
@@ -48,9 +67,11 @@ export default function BottomNavBar() {
                 )}
               </View>
             ) : (
-              /* ── Regular tab ── */
               <>
-                <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
+                <View
+                  key={active ? 'active' : 'inactive'}
+                  style={[styles.iconWrap, active && styles.iconWrapActive]}
+                >
                   <Feather
                     name={tab.icon as any}
                     size={22}
@@ -85,22 +106,41 @@ const styles = StyleSheet.create({
 
   tab: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
 
-  /* Active background pill behind icon */
   iconWrap: {
     width: 44, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
-  iconWrapActive: { backgroundColor: '#E106001A' },
+  iconWrapActive: {
+    backgroundColor: 'rgba(225, 6, 0, 0.1)',
+  },
 
   label:       { fontSize: 10, color: '#9CA3AF', fontWeight: '500' },
   labelActive: { color: RED, fontWeight: '700' },
 
-  /* Cart elevated circle */
+  // Conteneur du bouton panier : PAS de overflow hidden ici,
+  // c'est ce qui permet au badge et au glow de déborder proprement.
+  cartWrapper: {
+    width: 64,
+    height: 64,
+    marginTop: -30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Halo/glow doux autour du bouton, comme sur la maquette
+  cartGlow: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 38,
+    backgroundColor: 'rgba(225, 6, 0, 0.3)',
+  },
+
   cartBtn: {
     width: 58, height: 58, borderRadius: 29,
     backgroundColor: RED,
     alignItems: 'center', justifyContent: 'center',
-    marginTop: -28,
     shadowColor: RED,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
@@ -108,14 +148,20 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  /* Dark badge on cart */
   cartBadge: {
-    position: 'absolute', top: -4, right: -4,
-    minWidth: 20, height: 20, borderRadius: 10,
+    position: 'absolute',
+    top: -2,
+    right: 2,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#1a1a1a',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 4,
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#fff',
+    zIndex: 10,
   },
-  cartBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', lineHeight: 13 },
+  cartBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', lineHeight: 14 },
 });

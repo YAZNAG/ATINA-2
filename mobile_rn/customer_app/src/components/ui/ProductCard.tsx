@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Image, Dimensions, Alert,
+  Dimensions, Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Feather} from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { ProfileService } from '../../services/profile.service';
-import { useCart } from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -23,21 +24,20 @@ interface ProductCardProps {
   onToggleFav?: (newState: boolean) => void;
 }
 
-export default function ProductCard({
+function ProductCard({
   article, onPress, onAddToCart, discount, oldPrice, isFav = false, onToggleFav,
 }: ProductCardProps) {
-
   const [isFavorite, setIsFavorite]     = useState(isFav);
   const [addingToCart, setAddingToCart] = useState(false);
   const [toggling, setToggling]         = useState(false);
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   useEffect(() => { setIsFavorite(isFav); }, [isFav]);
 
   const effectiveDiscount = discount ?? article.discount_pct ?? undefined;
   const effectiveOldPrice = oldPrice ?? article.old_price_ttc ?? undefined;
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = useCallback(async () => {
     if (onAddToCart) {
       onAddToCart();
       return;
@@ -48,14 +48,30 @@ export default function ProductCard({
     }
     try {
       setAddingToCart(true);
-      await CartService.addItem(article.sku_id, 1);
-      await refreshCartCount();
+      const cart = await CartService.addItem(article.sku_id, 1);
+      applyCart(cart);
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Erreur lors de l\'ajout au panier');
     } finally {
       setAddingToCart(false);
     }
-  };
+  }, [onAddToCart, article.sku_id, applyCart]);
+
+  const handleToggleFavorite = useCallback(async () => {
+    if (toggling || article.id == null) return;
+    setToggling(true);
+    const next = !isFavorite;
+    setIsFavorite(next);
+    try {
+      if (next) await ProfileService.addFavorite(article.id);
+      else      await ProfileService.removeFavorite(article.id);
+      onToggleFav?.(next);
+    } catch {
+      setIsFavorite(!next);
+    } finally {
+      setToggling(false);
+    }
+  }, [toggling, isFavorite, article.id, onToggleFav]);
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
@@ -63,7 +79,14 @@ export default function ProductCard({
       {/* ── Image ── */}
       <View style={styles.imageContainer}>
         {article.image_url ? (
-          <Image source={{uri: `${article.image_url}?v=${article.updated_at}`, }} style={styles.image} resizeMode="contain" />
+          <Image
+            source={{ uri: article.image_url }}
+            style={styles.image}
+            contentFit="contain"
+            transition={150}
+            cachePolicy="memory-disk"
+            recyclingKey={String(article.id)}
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Feather name="image" size={32} color="#D0D0D0" />
@@ -78,22 +101,9 @@ export default function ProductCard({
 
         {/* Favorite button */}
         <TouchableOpacity
-          style={styles.favoriteBtn}
-          onPress={async () => {
-            if (toggling || !article.id) return;
-            setToggling(true);
-            const next = !isFavorite;
-            setIsFavorite(next);
-            try {
-              if (next) await ProfileService.addFavorite(article.id);
-              else      await ProfileService.removeFavorite(article.id);
-              onToggleFav?.(next);
-            } catch {
-              setIsFavorite(!next);
-            } finally {
-              setToggling(false);
-            }
-          }}
+          style={[styles.favoriteBtn, toggling && { opacity: 0.6 }]}
+          onPress={handleToggleFavorite}
+          disabled={toggling}
           activeOpacity={0.8}
         >
           <Feather name="heart" size={16} color={isFavorite ? RED : '#9CA3AF'} />
@@ -132,6 +142,8 @@ export default function ProductCard({
     </TouchableOpacity>
   );
 }
+
+export default React.memo(ProductCard);
 
 const styles = StyleSheet.create({
   card: {

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = process.env.BASE_URL || 'http://192.168.100.114:5000';
+const BASE_URL = process.env.BASE_URL || 'http://192.168.1.17:5000';
 
 const deleteFile = (filePath) => {
   if (!filePath) return;

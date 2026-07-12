@@ -15,7 +15,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService, FavoriteArticle } from '../../services/profile.service';
 import { CartService } from '../../services/cart.service';
 import BottomNavBar from '@/components/ui/BottomNavBar';
-import { useCart } from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 
 
 const RED = '#E10600';
@@ -30,7 +30,7 @@ function FavCard({
   onPress: () => void;
 }) {
   const [adding, setAdding] = useState(false);
-  const { refreshCartCount } = useCart();
+  const { applyCart } = useCartActions();
 
   const handleAddToCart = async () => {
     if (!item.sku_id) {
@@ -39,8 +39,8 @@ function FavCard({
     }
     try {
       setAdding(true);
-      await CartService.addItem(item.sku_id, 1);
-      await refreshCartCount();
+      const cart = await CartService.addItem(item.sku_id, 1);
+      applyCart(cart);
     } catch (e: any) {
       Alert.alert('Erreur', e.message || 'Erreur lors de l\'ajout au panier');
     } finally {

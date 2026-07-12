@@ -18,6 +18,14 @@ class CustomerClaimsController {
     catch(e) { E(res, next, e); }
   }
 
+  async photo(req, res, next) {
+    try {
+      if (!req.file) throw { statusCode: 400, message: 'Fichier requis' };
+      const filePath = `../uploads/claims/${req.file.filename}`; 
+      resp.success(res, await svc.attachPhoto(req.customerId, req.params.id, filePath), 'Photo ajoutée');
+    } catch(e) { E(res, next, e); }
+  }
+
   async cancel(req, res, next) {
     try { await svc.cancelClaim(req.customerId, req.params.id); resp.success(res, null, 'Réclamation annulée'); }
     catch(e) { E(res, next, e); }

@@ -67,7 +67,7 @@ useEffect(() => {
 
   const handleConfirm = () => {
     if (!selected) return;
-    router.push({
+    router.replace({
       pathname: '/order/delivery_datetime' as any,
       params: {
         delivery_type_code: 'pickup',

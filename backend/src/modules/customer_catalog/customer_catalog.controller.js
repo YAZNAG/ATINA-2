@@ -26,11 +26,19 @@ class CustomerCatalogController {
   }
 
   async searchArticles(req, res, next) {
-    try {
-      const result = await svc.searchArticles(req.query);
-      res.json({ success: true, ...result });
-    } catch(e) { E(res, next, e); }
-  }
+  try {
+    const { category_ids, ...rest } = req.query;
+    const parsedIds = category_ids
+      ? String(category_ids).split(',').map(Number).filter((n) => !Number.isNaN(n))
+      : undefined;
+
+    const result = await svc.searchArticles({
+      ...rest,
+      category_ids: parsedIds,
+    });
+    res.json({ success: true, ...result });
+  } catch(e) { E(res, next, e); }
+}
 
   async cities(req, res, next) {
     try { resp.success(res, await svc.getCities()); }
@@ -57,5 +65,31 @@ async subCategories(req, res, next){
       resp.success(res, await svc.getRecommendedArticles(customerId, { limit }));
     } catch (e) { E(res, next, e);  }
   }
+
+async popular(req, res, next) {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const page  = req.query.page  ? Number(req.query.page)  : 1;
+    const days  = req.query.days  ? Number(req.query.days)  : 30;
+    resp.success(res, await svc.getPopularArticles({ limit, page, days }));
+  } catch (e) { E(res, next, e); }
+}
+
+async topRated(req, res, next) {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const page  = req.query.page  ? Number(req.query.page)  : 1;
+    resp.success(res, await svc.getTopRatedArticles({ limit, page }));
+  } catch (e) { E(res, next, e); }
+}
+
+async cartComplements(req, res, next) {
+  try {
+    const skuIds = (req.query.sku_ids || '').split(',').filter(Boolean);
+    const limit  = req.query.limit ? Number(req.query.limit) : 10;
+    const page   = req.query.page  ? Number(req.query.page)  : 1;
+    resp.success(res, await svc.getCartComplements({ skuIds, limit, page }));
+  } catch (e) { E(res, next, e); }
+}
 }
 module.exports = new CustomerCatalogController();

@@ -1,4 +1,3 @@
-// app/claims/create.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -19,13 +18,12 @@ import { ProfileService, OrderSummary } from '../../services/profile.service';
 
 const RED = '#E10600';
 
-// Icônes par type — fallback "help-circle" si un code backend n'a pas de mapping ici
 const TYPE_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   MISSING_PRODUCT: 'box',
   DAMAGED_PRODUCT: 'alert-circle',
   WRONG_PRODUCT:   'refresh-cw',
   REFUND_REQUEST:  'credit-card',
-  DELIVERY_ISSUE:  'truck',   // ⚠️ TODO backend — ce type n'existe pas encore côté serveur
+  DELIVERY_ISSUE:  'truck',   
   OTHER:           'help-circle',
 };
 
@@ -43,7 +41,6 @@ export default function CreateClaimScreen() {
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // ⚠️ TODO backend — ces 3 champs sont gérés localement, pas encore envoyés à l'API
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent'>('normal');
@@ -116,7 +113,7 @@ export default function CreateClaimScreen() {
       try {
         await ClaimsService.attachPhoto(claim.id, photoUri);
       } catch {
-        // La réclamation est créée même si la photo échoue — on informe sans bloquer
+
       }
     }
 
@@ -202,21 +199,7 @@ export default function CreateClaimScreen() {
               maxLength={500}
             />
 
-            {/* ── Submit ── */}
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
-              onPress={handleSubmit}
-              disabled={submitting}
-              activeOpacity={0.85}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>Envoyer la réclamation</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* ── Photo (⚠️ TODO backend) ── */}
+            {/* ── Photo */}
             <Text style={styles.label}>Ajouter une photo</Text>
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
@@ -239,7 +222,7 @@ export default function CreateClaimScreen() {
               </View>
             )}
 
-            {/* ── Téléphone (⚠️ TODO backend) ── */}
+            {/* ── Téléphone  */}
             <Text style={styles.label}>Téléphone</Text>
             <TextInput
               style={styles.input}
@@ -250,7 +233,7 @@ export default function CreateClaimScreen() {
               keyboardType="phone-pad"
             />
 
-            {/* ── Priorité (⚠️ TODO backend) ── */}
+            {/* ── Priorité  */}
             <Text style={styles.label}>Niveau de priorité</Text>
             <View style={styles.priorityRow}>
               <TouchableOpacity
@@ -273,6 +256,20 @@ export default function CreateClaimScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* ── Submit ── */}
+            <TouchableOpacity
+              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>Envoyer la réclamation</Text>
+              )}
+            </TouchableOpacity>
+
             {/* ── Info box ── */}
             <View style={styles.infoBox}>
               <Feather name="info" size={16} color="#3B82F6" />
@@ -280,6 +277,7 @@ export default function CreateClaimScreen() {
                 Notre équipe répond généralement sous <Text style={styles.infoBoxBold}>24 heures</Text>.
               </Text>
             </View>
+            
           </ScrollView>
         )}
       </View>

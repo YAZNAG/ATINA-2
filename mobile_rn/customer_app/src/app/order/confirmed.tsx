@@ -47,7 +47,9 @@ export default function OrderConfirmedScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.btnTrack}
-            onPress={() => router.replace('/order/orders' as any)}
+            onPress={() => {
+              if (router.canDismiss?.()) router.dismissAll();
+              router.replace('/order/orders' as any);}}
             activeOpacity={0.85}
           >
             <Text style={styles.btnTrackText}>Suivre ma commande</Text>

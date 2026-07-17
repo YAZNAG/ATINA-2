@@ -128,6 +128,8 @@ export interface Order {
   stop_status:         string | null;
   items:               OrderItem[];
   timeline:            OrderTimeline[];
+  discount_amount:  number;
+coupon_code:      string | null;  
 }
 
 export interface Wallet {

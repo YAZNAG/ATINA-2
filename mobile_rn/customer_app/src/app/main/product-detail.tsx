@@ -5,8 +5,10 @@ import {
   Dimensions, Platform, Alert, FlatList, NativeSyntheticEvent,
   NativeScrollEvent, Modal, TextInput,
 } from 'react-native';
+import { CONFIG } from '../../constants/config'
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
   Poppins_600SemiBold, Poppins_700Bold,
@@ -65,20 +67,28 @@ function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1,2,3,4,5].map(i => (
-        <Feather
-          key={i} name="star" size={size}
-          color={i <= rating ? '#F59E0B' : '#E5E7EB'}
-        />
+        <Ionicons key={i} name="star" size={size} color={i <= rating ? '#F59E0B' : '#E5E7EB'} />
       ))}
     </View>
   );
 }
 
-//Avatar initiales
-function Avatar({ name, size = 40 }: { name: string; size?: number }) {
+//Avatar 
+function Avatar({ name, avatarUrl, size = 40 }: { name: string; avatarUrl?: string | null; size?: number }) {
   const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const colors   = ['#EF4444','#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899'];
   const color    = colors[name.charCodeAt(0) % colors.length];
+
+  if (avatarUrl) {
+    const uri = avatarUrl.startsWith('http') ? avatarUrl : CONFIG.STORAGE_URL + avatarUrl;
+    return (
+      <Image
+        source={{ uri }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+      />
+    );
+  }
+
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size/2, backgroundColor: color }]}>
       <Text style={[styles.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
@@ -87,15 +97,28 @@ function Avatar({ name, size = 40 }: { name: string; size?: number }) {
 }
 
 // Carte avis 
-function ReviewCard({ review }: { review: Review }) {
-  const [helpful, setHelpful] = useState(false);
+function ReviewCard({ review, onVoted }: { review: Review; onVoted: (updated: Review) => void }) {
+  const [voting, setVoting] = useState(false);
   const name = review.customer?.name ?? 'Client';
   const date = new Date(review.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const handleToggle = async () => {
+    if (voting) return;
+    setVoting(true);
+    try {
+      const updated = await ReviewsService.toggleHelpful(review.id);
+      onVoted(updated);
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message ?? 'Impossible de voter');
+    } finally {
+      setVoting(false);
+    }
+  };
 
   return (
     <View style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
-        <Avatar name={name} size={40} />
+        <Avatar name={name} avatarUrl={review.customer?.avatar_url} size={40} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.reviewName}>{name}</Text>
@@ -113,13 +136,14 @@ function ReviewCard({ review }: { review: Review }) {
         <Text style={styles.reviewComment}>{review.comment}</Text>
       )}
       <TouchableOpacity
-        style={[styles.helpfulBtn, helpful && styles.helpfulBtnActive]}
-        onPress={() => setHelpful(h => !h)}
+        style={[styles.helpfulBtn, review.voted_by_me && styles.helpfulBtnActive]}
+        onPress={handleToggle}
+        disabled={voting}
         activeOpacity={0.7}
       >
-        <Feather name="thumbs-up" size={13} color={helpful ? RED : '#9CA3AF'} />
-        <Text style={[styles.helpfulText, helpful && { color: RED }]}>
-          Utile · {helpful ? 1 : 0}
+        <Feather name="thumbs-up" size={13} color={review.voted_by_me ? RED : '#9CA3AF'} />
+        <Text style={[styles.helpfulText, review.voted_by_me && { color: RED }]}>
+          Utile · {review.helpful_count}
         </Text>
       </TouchableOpacity>
     </View>
@@ -128,31 +152,38 @@ function ReviewCard({ review }: { review: Review }) {
 
 // Section avis 
 function ReviewsSection({
-  articleId, stats, reviews, onWriteReview,
+  articleId, stats, reviews, onWriteReview, onReviewVoted,
 }: {
   articleId: number;
   stats: ReviewStats | null;
   reviews: Review[];
   onWriteReview: () => void;
+  onReviewVoted: (updated: Review) => void;
 }) {
   const router = useRouter();
   if (!stats) return null;
 
   return (
     <View style={styles.reviewsSection}>
-      {/* Barre note globale */}
+      {/* Barre note globale + distribution 5→1 */}
       {stats.review_count > 0 && (
         <View style={styles.ratingBar}>
           <Text style={styles.ratingBig}>{stats.average_rating?.toFixed(1)}</Text>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={styles.ratingBarRow}>
-              <Text style={styles.ratingBarLabel}>5</Text>
-              <Feather name="star" size={11} color="#F59E0B" />
-              <View style={styles.ratingBarTrack}>
-                <View style={[styles.ratingBarFill, { width: `${(stats.average_rating ?? 0) / 5 * 100}%` }]} />
-              </View>
-              <Text style={styles.ratingBarCount}>{stats.review_count}</Text>
-            </View>
+          <View style={{ flex: 1, marginLeft: 12, gap: 4 }}>
+            {([5, 4, 3, 2, 1] as const).map((star) => {
+              const count = stats.distribution?.[star] ?? 0;
+              const pct = stats.review_count > 0 ? (count / stats.review_count) * 100 : 0;
+              return (
+                <View key={star} style={styles.ratingBarRow}>
+                  <Text style={styles.ratingBarLabel}>{star}</Text>
+                  <Ionicons name="star" size={11} color='#F59E0B' />
+                  <View style={styles.ratingBarTrack}>
+                    <View style={[styles.ratingBarFill, { width: `${pct}%` }]} />
+                  </View>
+                  <Text style={styles.ratingBarCount}>{count}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
       )}
@@ -171,7 +202,7 @@ function ReviewsSection({
         )}
       </View>
 
-      {/* Liste avis (3 max) OU état vide */}
+      {/* Liste avis ( 3max) OU état vide */}
       {stats.review_count === 0 ? (
         <View style={styles.noReviewsBox}>
           <Feather name="message-circle" size={28} color="#D1D5DB" />
@@ -179,7 +210,7 @@ function ReviewsSection({
           <Text style={styles.noReviewsSubtitle}>Soyez le premier à donner votre avis sur ce produit</Text>
         </View>
       ) : (
-        reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} />)
+        reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} onVoted={onReviewVoted} />)
       )}
     </View>
   );
@@ -230,11 +261,9 @@ function WriteReviewModal({
           <View style={styles.starsRow}>
             {[1,2,3,4,5].map(i => (
               <TouchableOpacity key={i} onPress={() => setRating(i)} activeOpacity={0.7}>
-                <Feather
-                  name="star" size={36}
-                  color={i <= rating ? '#F59E0B' : '#E5E7EB'}
-                />
+                <Ionicons name="star" size={36} color={i <= rating ? '#FFD700' : '#E5E7EB'} />
               </TouchableOpacity>
+              
             ))}
           </View>
 
@@ -270,6 +299,7 @@ function WriteReviewModal({
 // Main screen 
 export default function ProductDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { article_id } = useLocalSearchParams<{ article_id: string }>();
 
   const [article,       setArticle]       = useState<Article | null>(null);
@@ -296,6 +326,10 @@ export default function ProductDetailScreen() {
       setReviews(res.data);
       setReviewStats(res.stats);
     } catch {}
+  };
+
+  const handleReviewVoted = (updated: Review) => {
+    setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
   };
 
   useEffect(() => {
@@ -364,20 +398,17 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 90 }}>
         {/* ── Carousel ── */}
         <View>
           <ImageCarousel images={images} />
-          <View style={styles.heroButtons}>
+          <View style={[styles.heroButtons, { top: insets.top + 10 }]}>
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-              <Feather name="chevron-left" size={22} color="#1a1a1a" />
+              <Feather name="chevron-left" size={22} color={RED} />
             </TouchableOpacity>
             <View style={styles.heroRight}>
-              <TouchableOpacity style={styles.iconBtn}>
-                <Feather name="share-2" size={18} color="#1a1a1a" />
-              </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={handleToggleWish}>
-                <Feather name="heart" size={18} color={wished ? RED : '#1a1a1a'} />
+                <MaterialCommunityIcons name={wished ? "heart" : "heart-outline"} size={18} color={RED}/>
               </TouchableOpacity>
             </View>
           </View>
@@ -389,7 +420,7 @@ export default function ProductDetailScreen() {
             <Text style={styles.category}>{article.category?.name_fr?.toUpperCase() ?? ''}</Text>
             {reviewStats && reviewStats.review_count > 0 && (
               <View style={styles.ratingBadge}>
-                <Feather name="star" size={12} color="#F59E0B" />
+                <Ionicons name="star" size={14} color="#FFD700" />
                 <Text style={styles.ratingText}>{reviewStats.average_rating?.toFixed(1)}</Text>
               </View>
             )}
@@ -407,8 +438,7 @@ export default function ProductDetailScreen() {
             <View style={styles.qtyRow}>
               <TouchableOpacity
                 style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
-                onPress={() => setQuantity(q => Math.max(1, q - 1))}
-              >
+                onPress={() => setQuantity(q => Math.max(1, q - 1))}>
                 <Feather name="minus" size={16} color={quantity <= 1 ? '#D1D5DB' : '#1a1a1a'} />
               </TouchableOpacity>
               <Text style={styles.qtyValue}>{quantity}</Text>
@@ -427,21 +457,21 @@ export default function ProductDetailScreen() {
 
           {/* Badges */}
           <View style={styles.badgesRow}>
-            <View style={[styles.infoBadge, { borderColor: '#D1FAE5' }]}>
-              <View style={[styles.badgeIcon, { backgroundColor: '#D1FAE5' }]}>
+            <View style={[styles.infoBadge, { borderColor: '#25CF77', backgroundColor: '#E4F3EC'  }]}>
+              <View style={[styles.badgeIcon, { backgroundColor: '#ffffff' }]}>
                 <Feather name="check-circle" size={14} color="#059669" />
               </View>
               <View>
-                <Text style={[styles.badgeTitle, { color: '#059669' }]}>Qualité</Text>
+                <Text style={styles.badgeTitle}>Qualité</Text>
                 <Text style={styles.badgeSub}>Certifiée</Text>
               </View>
             </View>
-            <View style={[styles.infoBadge, { borderColor: '#E5E7EB' }]}>
-              <View style={[styles.badgeIcon, { backgroundColor: '#F3F4F6' }]}>
-                <Feather name="info" size={14} color="#6B7280" />
+            <View style={[styles.infoBadge, { borderColor: '#E5EAE6', backgroundColor: '#F7F7F7'  }]}>
+              <View style={[styles.badgeIcon, { backgroundColor: '#ffffff' }]}>
+                <Feather name="info" size={14} color={RED} />
               </View>
               <View>
-                <Text style={[styles.badgeTitle, { color: '#6B7280' }]}>Stock</Text>
+                <Text style={styles.badgeTitle}>Stock</Text>
                 <Text style={styles.badgeSub}>Disponible</Text>
               </View>
             </View>
@@ -453,16 +483,17 @@ export default function ProductDetailScreen() {
             stats={reviewStats}
             reviews={reviews}
             onWriteReview={() => setReviewModal(true)}
+            onReviewVoted={handleReviewVoted}
           />
 
           {/* ── Produits similaires ── */}
           {similar.length > 0 && (
             <>
-              <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Produits similaires</Text>
+              <Text style={styles.sectionLabel}>Produits similaires</Text>
               <ScrollView
                 horizontal showsHorizontalScrollIndicator={false}
-                style={{ marginHorizontal: -20 }}
-                contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+                style={styles.similarScroll}
+                contentContainerStyle={styles.similarScrollContent}
               >
                 {similar.map(sim => (
                   <ProductCard
@@ -483,25 +514,29 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* ── Footer ── */}
-      <View style={styles.footer}>
-        <View style={styles.totalBlock}>
-          <Text style={styles.totalLabel}>TOTAL</Text>
-          <Text style={styles.totalValue}>{total} DH</Text>
-        </View>
-        <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
-          <Feather name="star" size={15} color={RED} />
-          <Text style={styles.reviewFooterBtnText}>un avis</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.cartBtn, adding && { opacity: 0.7 }]}
-          onPress={handleAddToCart} disabled={adding} activeOpacity={0.85}
-        >
-          {adding
-            ? <ActivityIndicator color="#fff" />
-            : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>Ajouter au panier</Text></>
-          }
-        </TouchableOpacity>
-      </View>
+{/* ── Footer ── */}
+<View style={styles.footer}>
+  <View style={styles.footerLeft}>
+    <View style={styles.totalBlock}>
+      <Text style={styles.totalLabel}>TOTAL</Text>
+      <Text style={styles.totalValue}>{total} DH</Text>
+    </View>
+    <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
+      <Ionicons name="star" size={14} color={RED} />
+      <Text style={styles.reviewFooterBtnText}>un avis</Text>
+    </TouchableOpacity>
+  </View>
+
+  <TouchableOpacity
+    style={[styles.cartBtn, adding && { opacity: 0.7 }]}
+    onPress={handleAddToCart} disabled={adding} activeOpacity={0.85}
+  >
+    {adding
+      ? <ActivityIndicator color="#fff" />
+      : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>Ajouter au panier</Text></>
+    }
+  </TouchableOpacity>
+</View>
 
       {/* ── Modal avis ── */}
       <WriteReviewModal
@@ -525,35 +560,39 @@ const styles = StyleSheet.create({
   dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.2)' },
   dotActive: { width: 18, backgroundColor: RED },
   heroButtons: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 40,
+    position: 'absolute',
     left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   heroRight: { flexDirection: 'row', gap: 10 },
-  iconBtn:   { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 4 },
-  sheet:     { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -28, paddingHorizontal: 20, paddingTop: 24 },
+  iconBtn:   { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FCE6E5', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 4 },
+  sheet:     { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -28, paddingHorizontal: 20, paddingTop: 24, 
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 4
+   },
   topRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  category:  { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF', letterSpacing: 1 },
-  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF7ED', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  ratingText:  { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#F59E0B' },
+  category:  { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#8E8E93', letterSpacing: 1 , backgroundColor: '#F7F7F7', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12 },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4 },
+  ratingText:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1A1A1A' },
   name:      { fontSize: 24, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', marginBottom: 14, lineHeight: 30 },
   priceQtyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   price:     { fontSize: 28, fontFamily: 'Poppins_700Bold', color: RED },
   unit:      { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
-  qtyRow:    { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  qtyBtn:    { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  qtyRow:    { flexDirection: 'row', alignItems: 'center', gap: 16 , borderRadius: 15, borderWidth: 1.5, borderColor: '#E5E7EB', paddingHorizontal: 8, paddingVertical: 4 , backgroundColor: '#F7F7F7' },
+  qtyBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   qtyBtnDisabled: { borderColor: '#F3F4F6' },
   qtyValue:  { fontSize: 18, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', minWidth: 24, textAlign: 'center' },
   sectionLabel: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#1a1a1a', marginBottom: 8, marginTop: 4 },
+  similarScroll: { marginHorizontal: -20, marginTop: 8, marginBottom: 60 },
+  similarScrollContent: {paddingHorizontal: 20, paddingBottom: 8, gap: 12,},
   description:  { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 20, marginBottom: 20 },
   badgesRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   infoBadge: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderRadius: 14, padding: 12 },
   badgeIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  badgeTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  badgeSub:   { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
+  badgeTitle: { fontSize: 13, color: '#0A0A0A', fontFamily: 'Inter_700Bold' },
+  badgeSub:   { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
 
   // Reviews
-  reviewsSection: { marginBottom: 24 },
-  ratingBar:      { flexDirection: 'row', alignItems: 'center', marginBottom: 16, backgroundColor: '#FAFAFA', borderRadius: 14, padding: 14 },
+  reviewsSection: { marginBottom: 12 },
+  ratingBar:      { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16, backgroundColor: '#ffffff', borderRadius: 14, padding: 14 },
   ratingBig:      { fontSize: 44, fontFamily: 'Poppins_700Bold', color: '#1a1a1a' },
   ratingBarRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingBarLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#6B7280', width: 10 },
@@ -563,7 +602,7 @@ const styles = StyleSheet.create({
   reviewsHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   seeAllBtn:      { flexDirection: 'row', alignItems: 'center', gap: 2 },
   seeAllText:     { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED },
-  reviewCard:     { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#F0F0F0' },
+  reviewCard:     { backgroundColor: '#fff', padding: 14, marginBottom: 10,  },
   reviewHeader:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   reviewName:     { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
   reviewDate:     { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
@@ -591,27 +630,38 @@ noReviewsSubtitle: {
   // Footer
   footer: {
   position: 'absolute', bottom: 0, left: 0, right: 0,
-  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+  flexDirection: 'row', alignItems: 'flex-end', gap: 12,   
   backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 14,
   paddingBottom: Platform.OS === 'ios' ? 32 : 18,
-  borderTopWidth: 1, borderTopColor: '#F0F0F0',
-  shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10,
+  borderTopWidth: 1, borderTopColor: '#E5E5EA',
 },
-  reviewFooterBtn: {
-  flexDirection: 'row', alignItems: 'center', gap: 6,
-  borderWidth: 1.5, borderColor: RED, borderRadius: 14,
-  paddingHorizontal: 14, paddingVertical: 12,
+
+footerLeft: {
+  justifyContent: 'space-between',
+  gap: 8,
 },
-  reviewFooterBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: RED },
-  cartBtn: {
-  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-  backgroundColor: RED, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18,
+
+totalBlock: {},
+totalLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#8E8E93', letterSpacing: 0.5 },
+totalValue: { fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', marginTop: 2 },
+
+reviewFooterBtn: {
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  borderWidth: 1.5, borderColor: RED, borderRadius: 16,
+  paddingHorizontal: 16, paddingVertical: 14,
+  backgroundColor: '#fff',
+},
+reviewFooterBtnText: { fontSize: 14, fontFamily: 'Inter_700Bold', color: RED },
+
+cartBtn: {
+  flex: 1,
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  backgroundColor: RED, borderRadius: 16,
+  paddingVertical: 17,     
+  paddingHorizontal: 12,
   shadowColor: RED, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
 },
-  cartBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  totalBlock:  { marginRight: 4 },
-totalLabel:  { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF', letterSpacing: 0.5 },
-totalValue:  { fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', marginTop: 2 },
+cartBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },  
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -620,7 +670,7 @@ totalValue:  { fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', ma
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   modalTitle:   { fontSize: 18, fontFamily: 'Poppins_700Bold', color: '#1a1a1a' },
   modalLabel:   { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280', marginBottom: 10 },
-  starsRow:     { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  starsRow:     { flexDirection: 'row', gap: 10, marginBottom: 20, alignSelf: 'center' },
   modalInput:   { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 14, padding: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#1a1a1a', textAlignVertical: 'top', minHeight: 100, marginBottom: 20 },
   submitBtn:    { backgroundColor: RED, borderRadius: 16, paddingVertical: 15, alignItems: 'center', shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   submitBtnText:{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },

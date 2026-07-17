@@ -58,7 +58,7 @@ export default function CheckoutDateTimeScreen() {
   // ── Grille calendrier ──
   const calendarDays = useMemo(() => {
     const firstDay = new Date(viewYear, viewMonth, 1);
-    let startOffset = firstDay.getDay() - 1;     // Lun = 0
+    let startOffset = firstDay.getDay() - 1;     
     if (startOffset < 0) startOffset = 6;
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const cells: (number | null)[] = [];
@@ -67,7 +67,6 @@ export default function CheckoutDateTimeScreen() {
     return cells;
   }, [viewMonth, viewYear]);
 
-  // ── Charge les créneaux du backend quand une date est choisie ──
   useEffect(() => {
     if (!selectedDate) return;
     (async () => {
@@ -129,7 +128,7 @@ export default function CheckoutDateTimeScreen() {
     if (!selectedDate || !selectedSlot) return;
     const slot = slots.find((s) => s.id === selectedSlot);
     const nodeId = params.node_id ?? resolvedNodeId ?? undefined;
-    router.push({
+    router.replace({
       pathname: '/order/payment' as any,
       params: {
         ...params,

@@ -5,9 +5,10 @@ const E = (res, next, e) => { if (e.statusCode) return resp.error(res, e.message
 class CustomerReviewsController {
 
   async listByArticle(req, res, next) {
-    try { resp.success(res, await svc.listByArticle(req.params.article_id, req.query)); }
-    catch(e) { E(res, next, e); }
-  }
+  try {
+    resp.success(res, await svc.listByArticle(req.params.article_id, req.query, req.customerId ?? null));
+  } catch(e) { E(res, next, e); }
+}
 
   async getMyReview(req, res, next) {
     try { resp.success(res, await svc.getMyReview(req.customerId, req.params.article_id)); }
@@ -28,6 +29,13 @@ class CustomerReviewsController {
     try { await svc.deleteReview(req.customerId, req.params.id); resp.success(res, null, 'Avis supprimé'); }
     catch(e) { E(res, next, e); }
   }
+
+  async toggleHelpful(req, res, next) {
+  try { resp.success(res, await svc.toggleHelpful(req.customerId, req.params.id), 'Vote mis à jour'); }
+  catch(e) { E(res, next, e); }
+}
+
+
 }
 
 module.exports = new CustomerReviewsController();

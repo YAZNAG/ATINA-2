@@ -1,7 +1,3 @@
-/**
- * Notification utility — logs events to the notifications table.
- * Extend this with real push/SMS/email providers as needed.
- */
 const prisma = require('../config/database');
 
 // Template library (extend as needed)
@@ -44,6 +40,10 @@ const TEMPLATES = {
     title: 'Nouveau pack disponible',
     body: (data) => `Découvrez le pack "${data.name}" à ${data.price} MAD${data.discount_pct ? ` (-${data.discount_pct}%)` : ''}.`,
   },
+  order_picked_up: {
+  title: 'Commande retirée',
+  body: (_) => `Votre commande a été retirée au magasin. Merci pour votre confiance !`,
+},
   coupon_created: {
     title: 'Nouveau code promo',
     body: (data) => {
@@ -89,7 +89,7 @@ async function notify({ customer_id, order_id, event_code, data = {}, channel_co
 
   } catch (err) {
     // Notifications must never break the main flow
-    console.warn('[notify] error:', err.message);
+    console.error('[notify] FULL ERROR:', err);
   }
 }
 
@@ -101,6 +101,8 @@ const notifyDelivered      = (customer_id, order_id, points=0)  => notify({ cust
 const notifyCancelled      = (customer_id, order_id, reason)    => notify({ customer_id, order_id, event_code: 'order_cancelled', data: { reason } });
 const notifyWalletCredited = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_credited', data: { amount, balance } });
 const notifyWalletDebited  = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_debited', data: { amount, balance } });
+const notifyPickedUp = (customer_id, order_id) =>
+  notify({ customer_id, order_id, event_code: 'order_picked_up' });
 
 // ── Broadcast (all customers) ──────────────────────────────────────────────────
 async function notifyAllCustomers(event_code, data = {}) {

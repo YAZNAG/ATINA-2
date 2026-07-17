@@ -6,6 +6,7 @@ const router = Router();
 router.use(customerAuth);
 
 router.get('/',    ctrl.list.bind(ctrl));
+router.get('/:id/similar', ctrl.similar.bind(ctrl)); 
 router.get('/:id', ctrl.show.bind(ctrl));
 
 module.exports = router;

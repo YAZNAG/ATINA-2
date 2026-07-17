@@ -108,6 +108,7 @@ async function sendMessage(customerId, conversationId, { content, attachments = 
   return message;
 }
 
+//supprimer une conversation
 async function deleteConversation(customerId, conversationId) {
   const conv = await prisma.supportConversation.findFirst({
     where: { id: conversationId, customer_id: customerId },

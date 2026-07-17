@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, TouchableOpacity, TextInput, Image,
+  FlatList, TouchableOpacity, TextInput,
   Dimensions, ActivityIndicator, RefreshControl, ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import {
   useFonts,
   Inter_400Regular, Inter_500Medium,
@@ -16,7 +17,6 @@ import ProductCard  from '../../components/ui/ProductCard';
 import FilterModal  from '../../components/ui/FilterModal';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '@/components/ui/SearchBar';
-import SortBar, { SortOption, sortArticles } from '../../components/ui/SortBar';
 
 import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../services/catalog.service';
 import { ProfileService } from '../../services/profile.service';
@@ -32,7 +32,13 @@ const SubCatPill = ({
   <TouchableOpacity style={styles.pill} onPress={onPress} activeOpacity={0.8}>
     <View style={[styles.pillImageBox, selected && styles.pillImageBoxSelected]}>
       {image_path ? (
-        <Image source={{ uri: image_path }} style={styles.pillImage} resizeMode="cover" />
+        <Image
+          source={{ uri: image_path }}
+          style={styles.pillImage}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
       ) : (
         <Feather name="grid" size={20} color={selected ? RED : '#9CA3AF'} />
       )}
@@ -62,7 +68,6 @@ export default function CategoryProductsScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedCats, setSelectedCats]   = useState<number[]>([]);
   const [selectedSubs, setSelectedSubs]   = useState<number[]>([]);
-  const [sort, setSort]                   = useState<SortOption>('default');
   const [favoriteIds, setFavoriteIds]     = useState<Set<number>>(new Set());
 
   const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
@@ -92,7 +97,11 @@ export default function CategoryProductsScreen() {
         { page: pageNum, limit: 20, search: search || undefined }
       );
 
-      setArticles(reset ? result.data : (prev) => [...prev, ...result.data]);
+      if (reset) {
+        setArticles(result.data);
+      } else {
+        setArticles((prev) => [...prev, ...result.data]);
+      }
       setTotalPages(result.pagination.pages);
       setPage(pageNum);
     } catch (err) {
@@ -125,15 +134,14 @@ export default function CategoryProductsScreen() {
 
   const totalFilters = selectedCats.length + selectedSubs.length;
 
-  const filtered = sortArticles(
-    articles.filter((a) => {
-      const matchSub = selectedSubs.length > 0
-        ? selectedSubs.includes(a.sub_category?.id ?? 0)
-        : selectedSub ? a.sub_category?.id === selectedSub : true;
-      return matchSub;
-    }),
-    sort,
-  );
+  const filtered = useMemo(() => {
+  return articles.filter((a) => {
+    const matchSub = selectedSubs.length > 0
+      ? selectedSubs.includes(a.sub_category?.id ?? 0)
+      : selectedSub ? a.sub_category?.id === selectedSub : true;
+    return matchSub;
+  });
+}, [articles, selectedSub, selectedSubs]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -164,24 +172,23 @@ export default function CategoryProductsScreen() {
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.3}
           ListHeaderComponent={
-            <>
-              <SortBar value={sort} onChange={(v) => setSort(v as SortOption)} paddingLeft={0} />
-              {subCategories.length > 0 && selectedSubs.length === 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
-                  <SubCatPill label="Tout" selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
-                  {subCategories.map((sub) => (
-                    <SubCatPill
-                      key={sub.id}
-                      label={sub.name_fr}
-                      image_path={sub.image_path}
-                      selected={selectedSub === sub.id}
-                      onPress={() => setSelectedSub(selectedSub === sub.id ? null : sub.id)}
-                    />
-                  ))}
-                </ScrollView>
-              )}
-            </>
-          }
+  <>
+    {subCategories.length > 0 && selectedSubs.length === 0 ? (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
+        <SubCatPill label="Tout" selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
+        {subCategories.map((sub) => (
+          <SubCatPill
+            key={sub.id}
+            label={sub.name_fr}
+            image_path={sub.image_path}
+            selected={selectedSub === sub.id}
+            onPress={() => setSelectedSub(selectedSub === sub.id ? null : sub.id)}
+          />
+        ))}
+      </ScrollView>
+    ) : null}
+  </>
+}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={RED} style={{ marginVertical: 16 }} /> : null}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -236,7 +243,7 @@ const styles = StyleSheet.create({
   pillLabel:            { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_500Medium', textAlign: 'center' },
   pillLabelSelected:    { color: RED, fontFamily:'Inter_700Bold' },
   grid: { paddingHorizontal: 16, paddingBottom: 100 },
-  row:  { justifyContent: 'space-between', marginBottom: 16 },
+  row:  { justifyContent: 'space-between', marginBottom: 16, marginTop: 10 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyContainer:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyText:        { fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: 'Inter_400Regular' },

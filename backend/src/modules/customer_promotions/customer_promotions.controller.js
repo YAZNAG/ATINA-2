@@ -14,11 +14,28 @@ class CustomerPromotionsController {
   }
 
   async bestDeals(req, res, next) {
-    try {
-      const limit = parseInt(req.query.limit, 10) || 10;
-      resp.success(res, await svc.listBestDeals(limit));
-    } catch(e) { E(res, next, e); }
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const page  = req.query.page  ? Number(req.query.page)  : 1;
+    resp.success(res, await svc.listBestDeals(limit, [], page));
+  } catch (e) { E(res, next, e); }
+}
+
+  async endingSoon(req, res, next) {
+  try {
+    const hours = req.query.hours ? Number(req.query.hours) : 24;
+    resp.success(res, await svc.listEndingSoon(hours));
+  } catch (e) { E(res, next, e); }
   }
+
+  async homePromotions(req, res, next) {
+  try {
+    resp.success(res, await svc.listHomePromotions({
+      endingSoonHours: req.query.hours ? Number(req.query.hours) : 24,
+      bestDealsLimit:  req.query.limit ? Number(req.query.limit) : 10,
+    }));
+  } catch (e) { E(res, next, e); }
+}
 }
 
 module.exports = new CustomerPromotionsController();

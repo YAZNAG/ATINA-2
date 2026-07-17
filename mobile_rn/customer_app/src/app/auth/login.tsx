@@ -47,7 +47,7 @@ export default function LoginScreen() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
-  // ── Sélecteur de pays ──
+  // Sélecteur de pays 
   const countryList = countries as Country[];
   const [country, setCountry] = useState<Country>(
     countryList.find((c) => c.code === '+212') || countryList[0]

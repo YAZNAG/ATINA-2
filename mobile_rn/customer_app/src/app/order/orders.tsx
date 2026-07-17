@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, FlatList, ActivityIndicator,
-  RefreshControl, ScrollView, Image, Alert,
+  RefreshControl, ScrollView, Image, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -20,12 +20,13 @@ import { CartService } from '../../services/cart.service';
 
 const RED = '#E10600';
 
-type TabKey = 'all' | 'delivered' | 'pickup' | 'pending';
+type TabKey = 'all' | 'active' | 'delivered' | 'cancelled'|'pickup' ;
 const TABS: { key: TabKey; label: string; statusCodes: string[] }[] = [
   { key: 'all',       label: 'Toutes',   statusCodes: [] },
-  { key: 'delivered', label: 'Livrées',  statusCodes: ['delivered', 'completed'] },
-  { key: 'pickup',    label: 'Retirées', statusCodes: ['picked_up', 'collected'] },
-  { key: 'pending',   label: 'En cours', statusCodes: ['pending', 'confirmed', 'processing', 'awaiting_stock'] },
+  { key: 'active',    label: 'En cours', statusCodes: ['pending', 'awaiting_stock', 'confirmed', 'picking', 'ready', 'in_delivery'] },
+  { key: 'delivered', label: 'Livrées',  statusCodes: ['delivered'] },
+  { key: 'pickup',    label: 'Retirées', statusCodes: ['picked_up'] }, 
+  { key: 'cancelled', label: 'Annulées', statusCodes: ['cancelled', 'returned'] },
 ];
 
 function formatDate(iso: string): string {
@@ -37,15 +38,17 @@ function formatDate(iso: string): string {
 
 function getStatusColor(code?: string): string {
   switch (code?.toLowerCase()) {
-    case 'delivered':
-    case 'completed':   return '#16A34A';
-    case 'picked_up':
-    case 'collected':   return '#2563EB';
-    case 'cancelled':   return '#DC2626';
+    case 'delivered':      return '#16A34A'; // vert
+    case 'cancelled':      return '#DC2626'; // rouge
+    case 'returned':       return '#F97316'; // orange
+    case 'in_delivery':    return '#2563EB'; // bleu
+    case 'ready':          return '#7C3AED'; // violet
+    case 'picking':        return '#D97706'; // ambre
+    case 'awaiting_stock': return '#9CA3AF'; // gris
+    case 'picked_up': return '#2563EB';
     case 'pending':
-    case 'confirmed':
-    case 'processing':  return RED;
-    default:            return '#6B7280';
+    case 'confirmed':      return RED;
+    default:               return '#6B7280';
   }
 }
 
@@ -124,7 +127,7 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
           </View>
         </View>
         <View style={[styles.badge, { backgroundColor: statusColor + '18', borderColor: statusColor + '40' }]}>
-          {statusCode === 'delivered' || statusCode === 'completed'
+          {statusCode === 'delivered'
             ? <Feather name="check" size={11} color={statusColor} style={{ marginRight: 3 }} />
             : <View style={[styles.badgeDot, { backgroundColor: statusColor }]} />
           }
@@ -172,6 +175,45 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
   );
 }
 
+function ReorderModal({
+  visible, onMerge, onReplace, onCancel,
+}: {
+  visible:   boolean;
+  onMerge:   () => void;
+  onReplace: () => void;
+  onCancel:  () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalIconBox}>
+            <Feather name="shopping-cart" size={22} color={RED} />
+          </View>
+          <Text style={styles.modalTitle}>Panier non vide</Text>
+          <Text style={styles.modalSubtitle}>
+            Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?
+          </Text>
+
+          <TouchableOpacity style={styles.btnMerge} onPress={onMerge} activeOpacity={0.85}>
+            <Feather name="git-merge" size={16} color="#fff" />
+            <Text style={styles.btnMergeText}>Fusionner avec le panier</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnReplace} onPress={onReplace} activeOpacity={0.85}>
+            <Feather name="refresh-cw" size={16} color={RED} />
+            <Text style={styles.btnReplaceText}>Remplacer le panier</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
+            <Text style={styles.btnCancelText}>Annuler</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function OrdersScreen() {
   const router = useRouter();
   const [orders,     setOrders]     = useState<OrderSummary[]>([]);
@@ -179,6 +221,7 @@ export default function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab,  setActiveTab]  = useState<TabKey>('all');
   const [reordering, setReordering] = useState<string | null>(null);
+  const [reorderTarget, setReorderTarget] = useState<OrderSummary | null>(null);
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -201,10 +244,11 @@ export default function OrdersScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const performReorder = async (order: OrderSummary, mode: 'merge' | 'replace') => {
+    setReorderTarget(null);
     setReordering(order.id);
     try {
       await CartService.reorder(order.id, mode);
-      router.push('/main/cart' as any); 
+      router.push('/main/cart' as any);
     } catch (e: any) {
       Alert.alert('Erreur', e.message ?? "Impossible d'ajouter les articles au panier");
     } finally {
@@ -216,15 +260,7 @@ export default function OrdersScreen() {
     try {
       const currentCart = await CartService.getCart();
       if (currentCart.count > 0) {
-        Alert.alert(
-          'Panier non vide',
-          'Votre panier contient déjà des articles. Que voulez-vous faire ?',
-          [
-            { text: 'Annuler', style: 'cancel' },
-            { text: 'Fusionner', onPress: () => performReorder(order, 'merge') },
-            { text: 'Remplacer', style: 'destructive', onPress: () => performReorder(order, 'replace') },
-          ]
-        );
+        setReorderTarget(order);
       } else {
         performReorder(order, 'merge');
       }
@@ -307,6 +343,13 @@ export default function OrdersScreen() {
           }
         />
       )}
+
+      <ReorderModal
+        visible={!!reorderTarget}
+        onMerge={() => reorderTarget && performReorder(reorderTarget, 'merge')}
+        onReplace={() => reorderTarget && performReorder(reorderTarget, 'replace')}
+        onCancel={() => setReorderTarget(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -400,4 +443,34 @@ const styles = StyleSheet.create({
   emptySub:    { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
   emptyBtn:    { marginTop: 16, backgroundColor: RED, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   emptyBtnText:{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+
+  // ── Modal reorder ──
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 28, paddingBottom: 40, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
+  modalIconBox: {
+    width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFF0F0',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  modalTitle:    { fontSize: 19, fontFamily: 'Poppins_700Bold', color: '#1A1A1A', marginBottom: 8, textAlign: 'center' },
+  modalSubtitle: { fontSize: 13.5, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+
+  btnMerge: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: RED, borderRadius: 14, paddingVertical: 15, marginBottom: 10,
+    shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+  },
+  btnMergeText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+
+  btnReplace: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: RED, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 15, marginBottom: 10,
+  },
+  btnReplaceText: { color: RED, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+
+  btnCancel: { paddingVertical: 10 },
+  btnCancelText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#9CA3AF' },
 });

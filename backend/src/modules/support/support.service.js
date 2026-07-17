@@ -27,7 +27,7 @@ function formatConv(c) {
   };
 }
 
-// ── Liste ─────────────────────────────────────────────────────────────────────
+// Liste de conversations
 
 async function listConversations(query = {}) {
   const where = {};
@@ -46,7 +46,7 @@ async function listConversations(query = {}) {
   return conversations.map(formatConv);
 }
 
-// ── Détail ────────────────────────────────────────────────────────────────────
+// Conversation
 
 async function getConversation(id) {
   const conv = await prisma.supportConversation.findUnique({
@@ -60,8 +60,7 @@ async function getConversation(id) {
   return { ...formatConv(conv), messages: conv.messages };
 }
 
-// ── Assigner un agent ─────────────────────────────────────────────────────────
-
+// Assigner un agent 
 async function assignAgent(id, agent_id) {
   const conv = await prisma.supportConversation.findUnique({ where: { id } });
   if (!conv) throw { statusCode: 404, message: 'Conversation introuvable' };
@@ -81,8 +80,7 @@ async function assignAgent(id, agent_id) {
   return { assigned_agent: agent };
 }
 
-// ── Changer le statut ─────────────────────────────────────────────────────────
-
+// Changer le statut 
 async function changeStatus(id, status) {
   if (!VALID_STATUSES.includes(status))
     throw { statusCode: 400, message: `Statut invalide. Valeurs: ${VALID_STATUSES.join(', ')}` };
@@ -96,8 +94,7 @@ async function changeStatus(id, status) {
   return { status };
 }
 
-// ── Envoyer un message (AGENT ou BOT) ─────────────────────────────────────────
-
+// Envoyer un message (AGENT ou BOT) 
 async function sendMessage(conversation_id, { sender_type, sender_id, content, attachments = [] }) {
   if (!['AGENT', 'BOT'].includes(sender_type))
     throw { statusCode: 400, message: 'sender_type doit être AGENT ou BOT' };

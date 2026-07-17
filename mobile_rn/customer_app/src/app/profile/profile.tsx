@@ -189,9 +189,11 @@ export default function ProfileScreen() {
           <View style={styles.menuDivider} />
           <MenuItem icon="bell"          label="Notifications"             onPress={() => router.push('/profile/notifications' as any)} badge={notifCount} />
           <View style={styles.menuDivider} />
-          <MenuItem icon="settings"      label="Paramètres"                onPress={() => router.push('/profile/settings' as any)} />
+          <MenuItem icon="message-circle"      label="Chat avec Le support"      onPress={() => router.push('/support/conversations' as any)} />
           <View style={styles.menuDivider} />
-          <MenuItem icon="headphones"    label="Support / Contact"         onPress={() => router.push('/support/faq' as any)} />
+          <MenuItem icon="headphones"    label="Centre d'aide"             onPress={() => router.push('/support/faq' as any)} />
+          <View style={styles.menuDivider} />
+          <MenuItem icon="phone" label="Contact"         onPress={() => router.push('/claims/claims' as any)} />
           <View style={styles.menuDivider} />
           <MenuItem icon="alert-triangle" label="Mes réclamations"         onPress={() => router.push('/claims/claims' as any)} />
         </View>
@@ -199,7 +201,7 @@ export default function ProfileScreen() {
         {/* ── Edit button ── */}
         <TouchableOpacity
           style={styles.editBtn}
-          onPress={() => router.push('/main/edit-profile' as any)}
+          onPress={() => router.push('/profile/edit_profile' as any)}
           activeOpacity={0.85}
         >
           <Feather name="edit-2" size={16} color="#fff" />

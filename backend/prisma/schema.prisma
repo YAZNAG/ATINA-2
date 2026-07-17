@@ -1792,12 +1792,13 @@ model ArticleReview {
   id          String    @id @default(uuid()) @db.Uuid
   article_id  Int
   customer_id String    @db.Uuid
-  rating      Int                              // 1 à 5
+  rating      Int                              
   comment     String?   @db.Text
   is_deleted  Boolean   @default(false)
   deleted_at  DateTime? @db.Timestamptz(6)
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+  helpful_voter_ids String[] @default([]) @db.Uuid
 
   article  Article  @relation(fields: [article_id],  references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)

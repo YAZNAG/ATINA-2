@@ -65,8 +65,6 @@ function AccordionItem({ item }: { item: FaqItem }) {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 export default function FaqScreen() {
   const [categories, setCategories] = useState<FaqCategory[]>([]);
   const [loading,    setLoading]    = useState(true);

@@ -98,7 +98,7 @@ async function getMyClaimById(customerId, claimId) {
   return formatClaim(claim);
 }
 
-// creer une reclamation ─────────────────────────────────────────────────────
+// creer une reclamation 
 async function createClaim(customerId, body) {
   const { order_id, type, description, priority, contact_phone } = body;
 
@@ -146,7 +146,7 @@ async function createClaim(customerId, body) {
   return formatClaim(created);
 }
 
-// ajouter/remplacer la photo jointe à une réclamation ────────────────────────
+// ajouter/remplacer la photo jointe à une réclamation 
 async function attachPhoto(customerId, claimId, filePath) {
   const claim = await prisma.claim.findFirst({
     where: { id: claimId, customer_id: customerId, is_deleted: false },

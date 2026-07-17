@@ -127,7 +127,7 @@ export default function ChatScreen() {
     }
   }, [initialText, inputText, initialTextConsumed]);
 
-  // Socket.IO : réception des messages en temps réel (agent) 
+  // reception des messages en temps reel (agent) 
   const handleIncomingMessage = useCallback((message: SupportMessage) => {
     setConversation((prev) => {
       if (!prev) return prev;

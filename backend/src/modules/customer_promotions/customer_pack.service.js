@@ -33,4 +33,22 @@ async function getPackById(id) {
   return formatPack(pack);
 }
 
-module.exports = { listActivePacks, getPackById };
+//suggestions
+async function listSimilarPacks(packId, limit = 6) {
+  const now = new Date();
+  const packs = await prisma.pack.findMany({
+    where: {
+      id: { not: packId },
+      is_active: true,
+      is_deleted: false,
+      OR: [{ valid_from: null }, { valid_from: { lte: now } }],
+      AND: [{ OR: [{ valid_to: null }, { valid_to: { gte: now } }] }],
+    },
+    include: PACK_INCLUDE,
+    orderBy: { created_at: 'desc' },
+    take: limit,
+  });
+  return packs.map(formatPack);
+}
+
+module.exports = { listActivePacks, getPackById, listSimilarPacks };

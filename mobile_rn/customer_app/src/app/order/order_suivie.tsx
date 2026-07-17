@@ -20,7 +20,7 @@ import type { OrderDriver } from '../../services/profile.service';
 
 const RED = '#E10600';
 
-
+// ── Étapes livraison à domicile ───────────────────────────────────────────────
 const DELIVERY_STEPS = [
   { codes: ['pending', 'confirmed'],            label: 'Commande placée', sub: 'Votre commande a été reçue' },
   { codes: ['picking'],                         label: 'En préparation',  sub: 'Nous préparons vos articles' },
@@ -29,12 +29,12 @@ const DELIVERY_STEPS = [
   { codes: ['delivered', 'completed'],          label: 'Livrée',          sub: 'Commande livrée' },
 ];
 
+
 const PICKUP_STEPS = [
-  { codes: ['pending', 'confirmed'],                               label: 'Commande placée',   sub: 'Votre commande a été reçue' },
-  { codes: ['picking'],                                            label: 'En préparation',    sub: 'Nous préparons vos articles' },
-  { codes: ['ready'],                                              label: 'Prête',             sub: 'Votre commande est prête à retirer' },
-  { codes: ['in_delivery', 'out_for_delivery', 'delivered', 'completed'], label: 'Disponible', sub: 'Prêt à être retiré en magasin' },
-  { codes: ['delivered', 'completed'],                             label: 'Retiré',            sub: 'Commande récupérée en magasin' },
+  { codes: ['pending', 'confirmed'], label: 'Commande placée',    sub: 'Votre commande a été reçue' },
+  { codes: ['picking'],              label: 'En préparation',     sub: 'Nous préparons vos articles' },
+  { codes: ['ready'],                label: 'Prête à retirer',    sub: 'Votre commande est disponible en magasin' },
+  { codes: ['picked_up'],            label: 'Retirée en magasin', sub: 'Commande récupérée — merci !' },
 ];
 
 type Step = { codes: string[]; label: string; sub: string; isNegative?: boolean };
@@ -54,12 +54,9 @@ function DriverCard({ driver, slotStart, slotEnd }: {
     <View style={styles.driverCard}>
       <Text style={styles.sectionTitle}>Livreur assigné</Text>
       <View style={styles.driverRow}>
-        {/* Avatar */}
         <View style={styles.driverAvatar}>
           <Text style={styles.driverAvatarText}>{initial}</Text>
         </View>
-
-        {/* Info */}
         <View style={styles.driverInfo}>
           <Text style={styles.driverName}>{driver.name}</Text>
           {(driver.vehicle_type || driver.vehicle_plate) && (
@@ -71,8 +68,6 @@ function DriverCard({ driver, slotStart, slotEnd }: {
             </View>
           )}
         </View>
-
-        {/* Call button */}
         <TouchableOpacity
           style={styles.callBtn}
           onPress={() => Linking.openURL(`tel:${driver.phone}`)}
@@ -82,7 +77,6 @@ function DriverCard({ driver, slotStart, slotEnd }: {
         </TouchableOpacity>
       </View>
 
-      {/* ETA */}
       {etaLabel && (
         <View style={styles.etaRow}>
           <Feather name="clock" size={13} color={RED} />
@@ -90,12 +84,12 @@ function DriverCard({ driver, slotStart, slotEnd }: {
           <Text style={styles.etaValue}>{etaLabel}</Text>
         </View>
       )}
-
     </View>
   );
 }
 
-const TERMINAL_CODES = new Set(['delivered', 'completed', 'cancelled', 'returned', 'failed']);
+// picked_up est un terminal positif (comme delivered)
+const TERMINAL_CODES = new Set(['delivered', 'completed', 'picked_up', 'cancelled', 'returned', 'failed']);
 
 const NEGATIVE_TERMINAL: Record<string, { label: string; sub: string }> = {
   cancelled: { label: 'Annulée',   sub: 'Votre commande a été annulée' },
@@ -122,8 +116,6 @@ function stepState(
 ): 'done' | 'current' | 'pending' {
   if (idx === activeIdx) return isTerminal ? 'done' : 'current';
   if (idx > activeIdx)  return 'pending';
-  // idx < activeIdx — pour un état terminal négatif, seuls les steps
-  // réellement passés (présents dans la timeline) sont cochés
   if (hasNegativeTerminal) return stepCodes.some(c => doneSet.has(c)) ? 'done' : 'pending';
   return 'done';
 }
@@ -171,7 +163,7 @@ export default function OrderDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-      <PageHeader title="Suivi de commande" />
+        <PageHeader title="Suivi de commande" />
         <View style={styles.container}>
           <ActivityIndicator color={RED} style={{ marginTop: 60 }} />
         </View>
@@ -200,7 +192,7 @@ export default function OrderDetailScreen() {
   const isTerminal  = TERMINAL_CODES.has(currentCode.toLowerCase());
   const doneSet     = new Set(timeline.map(t => t.status_code?.toLowerCase() ?? ''));
 
-  const negStep            = NEGATIVE_TERMINAL[currentCode.toLowerCase()];
+  const negStep             = NEGATIVE_TERMINAL[currentCode.toLowerCase()];
   const hasNegativeTerminal = !!negStep;
   const displaySteps: Step[] = hasNegativeTerminal
     ? [...steps, { codes: [currentCode.toLowerCase()], ...negStep, isNegative: true }]
@@ -213,14 +205,14 @@ export default function OrderDetailScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.headerRow}>
-          <PageHeader title="Suivi de commande" />
-          <TouchableOpacity
-            style={styles.phoneBtn}
-            onPress={() => Linking.openURL('tel:+212500000000')}
-          >
-            <Feather name="phone" size={20} color={RED} />
-          </TouchableOpacity>
-        </View>
+        <PageHeader title="Suivi de commande" />
+        <TouchableOpacity
+          style={styles.phoneBtn}
+          onPress={() => Linking.openURL('tel:+212500000000')}
+        >
+          <Feather name="phone" size={20} color={RED} />
+        </TouchableOpacity>
+      </View>
       <View style={styles.container}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
@@ -251,7 +243,6 @@ export default function OrderDetailScreen() {
 
               return (
                 <View key={idx} style={styles.stepRow}>
-                  {/* Icône + trait vertical */}
                   <View style={styles.stepLeft}>
                     <View style={[
                       styles.stepCircle,
@@ -272,7 +263,6 @@ export default function OrderDetailScreen() {
                     )}
                   </View>
 
-                  {/* Texte */}
                   <View style={styles.stepContent}>
                     <Text style={[
                       styles.stepLabel,
@@ -293,7 +283,7 @@ export default function OrderDetailScreen() {
             })}
           </View>
 
-          {/* ── Livreur assigné ── */}
+          {/* ── Livreur assigné (domicile seulement) ── */}
           {order.driver && !isPickup && (
             <DriverCard
               driver={order.driver}
@@ -365,7 +355,6 @@ const styles = StyleSheet.create({
   progressTrack:  { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden' },
   progressFill:   { height: '100%', backgroundColor: RED, borderRadius: 3 },
 
-  // Steps
   stepRow:     { flexDirection: 'row', gap: 14, marginBottom: 0 },
   stepLeft:    { alignItems: 'center', width: 32 },
   stepCircle: {
@@ -388,13 +377,10 @@ const styles = StyleSheet.create({
   stepTimeLine:     { width: 3, height: 14, backgroundColor: RED, borderRadius: 2 },
   stepTime:         { fontSize: 11, fontFamily: 'Inter_500Medium', color: RED },
 
-  // Address
   addressHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
   addressText:   { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#1a1a1a', lineHeight: 22 },
   addressLabel:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 4 },
 
-
-  // Help
   helpSection: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
     alignItems: 'center',
@@ -412,7 +398,6 @@ const styles = StyleSheet.create({
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   errorText: { fontSize: 15, fontFamily: 'Inter_500Medium', color: '#9CA3AF' },
 
-  // Driver card
   driverCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,

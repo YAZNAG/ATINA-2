@@ -1,10 +1,3 @@
-/**
- * Customer-facing checkout service.
- * Reuses core logic from the admin checkout.service.js but:
- *  - accepts sku_code (from catalog) instead of sku UUID
- *  - resolves sku_code → sku.id internally
- *  - uses req.customerId instead of req.body.customer_id
- */
 const prisma    = require('../../config/database');
 const checkoutSvc = require('../checkout/checkout.service');
 const repo      = require('../checkout/checkout.repository');
@@ -21,15 +14,11 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Resolve sku_code → sku UUID ───────────────────────────────────────────────
-// Cart items from the mobile app carry sku_code (article.sku_code),
-// but the stock and order systems use sku.id (UUID).
 async function resolveCartItems(cart_items) {
   if (!cart_items?.length) return [];
 
   const codes = cart_items.map(i => i.sku_code || i.sku_id).filter(Boolean);
 
-  // Fetch skus by article.sku_code (supports both UUID sku_id and code)
   const [byCode, byId] = await Promise.all([
     prisma.sku.findMany({
       where: { article: { sku_code: { in: codes } } },
@@ -38,7 +27,6 @@ async function resolveCartItems(cart_items) {
         article: { select: { sku_code: true, price: true, vat_rate: true, name_fr: true } },
       },
     }),
-    // Also try direct sku.id lookup for UUID identifiers
     prisma.sku.findMany({
       where: { id: { in: codes } },
       select: {
@@ -74,37 +62,30 @@ async function calculate(customerId, payload) {
   });
 }
 
-// ── Meta ──────────────────────────────────────────────────────────────────────
+// Meta 
 async function getMeta(node_id = null) {
   return checkoutSvc.getMeta(node_id);
 }
 
-// ── Eligible nodes (home delivery) ────────────────────────────────────────────
+//Eligible nodes (home delivery) 
 async function findEligibleNodes(address_id, cart_items, date) {
   const resolved = await resolveCartItems(cart_items);
   return checkoutSvc.findEligibleNodes(address_id, resolved, date);
 }
 
 
-// ── Trie une liste de nodes par distance vs adresse par défaut du client ──────
-// Garde ta logique existante, ajoute juste distance + tri.
+//Trie une liste de nodes par distance vs adresse par défaut du client
 async function sortNodesByDistance(customerId, nodes) {
   if (!nodes?.length) return nodes;
- 
-  // coordonnées de référence : adresse par défaut du client
+
   const defaultAddress = await prisma.address.findFirst({
     where:  { customer_id: customerId, is_default: true, is_deleted: false },
     select: { lat: true, lng: true },
   });
 
-  console.log('[DEBUG] defaultAddress:', defaultAddress);  // ← ajoute
- 
   let refLat = defaultAddress?.lat ? Number(defaultAddress.lat) : null;
   let refLng = defaultAddress?.lng ? Number(defaultAddress.lng) : null;
-
-  console.log('[DEBUG] refLat/refLng:', refLat, refLng);
  
-  // fallback : coordonnées du customer
   if (refLat == null || refLng == null) {
     const customer = await prisma.customer.findUnique({
       where:  { id: customerId },
@@ -138,27 +119,26 @@ async function sortNodesByDistance(customerId, nodes) {
   return withDistance;
 }
 
-// ── Pickup nodes ──────────────────────────────────────────────────────────────
+// Pickup nodes
 async function findPickupNodes(customerId, cart_items, date) {
   const resolved = await resolveCartItems(cart_items);
   const result   = await checkoutSvc.findPickupNodes(resolved, date);
 
-  console.log('[DEBUG] findPickupNodes appelé, customerId:', customerId);  // ← ajoute
-
+  console.log('[DEBUG] findPickupNodes appelé, customerId:', customerId); 
   if (result?.eligible?.length) {
     result.eligible = await sortNodesByDistance(customerId, result.eligible);
   }
   return result;
 }
 
-// ── Delivery slots ────────────────────────────────────────────────────────────
+// Delivery slots
 async function getDeliverySlots(params) {
   const { cart_items, ...rest } = params;
   const resolved = await resolveCartItems(cart_items || []);
   return checkoutSvc.getDeliverySlots({ ...rest, cart_items: resolved });
 }
 
-// ── Create order ──────────────────────────────────────────────────────────────
+// Create order 
 async function createOrder(customerId, payload) {
   const { cart_items, slot_id, ...rest } = payload;
   const resolved = await resolveCartItems(cart_items || []);
@@ -167,13 +147,12 @@ async function createOrder(customerId, payload) {
     ...rest,
     customer_id:      customerId,
     cart_items:       resolved,
-    selected_slot_id: slot_id || null,   // checkout.service.js uses selected_slot_id
+    selected_slot_id: slot_id || null,   
     initial_status_code: 'confirmed',
   });
 
-  // Fire-and-forget notification
   const { notifyOrderConfirmed } = require('../../utils/notify');
-  notifyOrderConfirmed(customerId, order.id, order.id.slice(0, 8).toUpperCase()).catch(() => {});
+  notifyOrderConfirmed(customerId, order.id, order.id.slice(0, 8).toUpperCase()).catch(e => console.error('[order] notify failed:', e));
 
   return order;
 }

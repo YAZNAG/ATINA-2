@@ -15,7 +15,7 @@ interface SearchBarProps {
   onChangeText:   (text: string) => void;
   onSubmit?:      (text: string) => void;
   onFilter?:      () => void;
-  onPress?:       () => void;   // NEW: si fourni, tap = navigation au lieu d'édition
+  onPress?:       () => void;  
   placeholder?:   string;
   articleNames?:  string[];
 }
@@ -147,7 +147,7 @@ export default function SearchBar({
 }
 
 const styles = StyleSheet.create({
-  wrapper:    { paddingHorizontal: 16, marginBottom: 4, zIndex: 999 },
+  wrapper: { paddingHorizontal: 16, marginBottom: 4, zIndex: 999, position: 'relative' },
   container:  { marginBottom: 4 },
 
   searchBox: {
@@ -166,13 +166,18 @@ const styles = StyleSheet.create({
     backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
   },
 
-  dropdown: {
-    backgroundColor: '#fff', borderRadius: 16,
-    borderWidth: 1, borderColor: '#F0F0F0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08, shadowRadius: 12, elevation: 8,
-    overflow: 'hidden', marginTop: 2,
-  },
+dropdown: {
+  position: 'absolute',   
+  top: 60,                
+  left: 10,
+  right: 10,
+  zIndex: 1000,
+  backgroundColor: '#fff', borderRadius: 16,
+  borderWidth: 1, borderColor: '#F0F0F0',
+  shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08, shadowRadius: 12, elevation: 8,
+  overflow: 'hidden',
+},
   dropdownHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10,

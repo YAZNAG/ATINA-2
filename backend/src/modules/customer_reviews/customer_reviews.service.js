@@ -4,49 +4,59 @@ const REVIEW_INCLUDE = {
   customer: { select: { id: true, name: true, avatar_url: true } },
 };
 
-function formatReview(r) {
+function formatReview(r, currentCustomerId = null) {
+  const voterIds = r.helpful_voter_ids ?? [];
   return {
-    id:          r.id,
-    article_id:  r.article_id,
-    customer_id: r.customer_id,
-    customer:    r.customer ?? null,
-    rating:      r.rating,
-    comment:     r.comment ?? null,
-    created_at:  r.created_at,
-    updated_at:  r.updated_at,
+    id:            r.id,
+    article_id:    r.article_id,
+    customer_id:   r.customer_id,
+    customer:      r.customer ?? null,
+    rating:        r.rating,
+    comment:       r.comment ?? null,
+    created_at:    r.created_at,
+    updated_at:    r.updated_at,
+    helpful_count: voterIds.length,
+    voted_by_me:   currentCustomerId ? voterIds.includes(currentCustomerId) : false,
   };
 }
 
 //lister les avis d'un article (lecture publique)
-async function listByArticle(article_id, query = {}) {
+async function listByArticle(article_id, query = {}, currentCustomerId = null) {
   const page  = Math.max(1, parseInt(query.page  ?? '1', 10));
   const limit = Math.max(1, parseInt(query.limit ?? '10', 10));
   const skip  = (page - 1) * limit;
 
   const where = { article_id: Number(article_id), is_deleted: false };
 
-  const [items, total] = await Promise.all([
+  const [items, total, agg, distribution] = await Promise.all([
     prisma.articleReview.findMany({
       where, include: REVIEW_INCLUDE,
       orderBy: { created_at: 'desc' },
       skip, take: limit,
     }),
     prisma.articleReview.count({ where }),
+    prisma.articleReview.aggregate({
+      where,
+      _avg:   { rating: true },
+      _count: { rating: true },
+    }),
+    prisma.articleReview.groupBy({
+      by: ['rating'],
+      where,
+      _count: { rating: true },
+    }),
   ]);
 
-  // Calcul de la note moyenne
-  const agg = await prisma.articleReview.aggregate({
-    where,
-    _avg:   { rating: true },
-    _count: { rating: true },
-  });
+  const distributionMap = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  distribution.forEach(d => { distributionMap[d.rating] = d._count.rating; });
 
   return {
-    data: items.map(formatReview),
+    data: items.map((r) => formatReview(r, currentCustomerId)),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
     stats: {
       average_rating: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
       review_count:   agg._count.rating,
+      distribution:   distributionMap,
     },
   };
 }
@@ -142,4 +152,21 @@ async function getMyReview(customerId, article_id) {
   return formatReview(review);
 }
 
-module.exports = { listByArticle, createReview, updateReview, deleteReview, getMyReview };
+//review utile
+async function toggleHelpful(customerId, reviewId) {
+  const review = await prisma.articleReview.findFirst({ where: { id: reviewId, is_deleted: false } });
+  if (!review) throw { statusCode: 404, message: 'Avis introuvable' };
+
+  const voterIds = review.helpful_voter_ids ?? [];
+  const hasVoted = voterIds.includes(customerId);
+  const newVoterIds = hasVoted ? voterIds.filter(id => id !== customerId) : [...voterIds, customerId];
+
+  const updated = await prisma.articleReview.update({
+    where: { id: reviewId },
+    data: { helpful_voter_ids: newVoterIds },
+    include: REVIEW_INCLUDE,
+  });
+  return formatReview(updated, customerId);
+}
+
+module.exports = { listByArticle, createReview, updateReview, deleteReview, getMyReview, toggleHelpful };

@@ -52,7 +52,6 @@ export default function BottomNavBar() {
             activeOpacity={0.7}
           >
             {isCart ? (
-              // Wrapper SANS overflow:hidden -> le badge peut déborder du cercle
               <View style={styles.cartWrapper}>
                 <View style={styles.cartGlow} />
                 <View style={styles.cartBtn}>
@@ -118,8 +117,6 @@ const styles = StyleSheet.create({
   label:       { fontSize: 10, color: '#9CA3AF', fontWeight: '500' },
   labelActive: { color: RED, fontWeight: '700' },
 
-  // Conteneur du bouton panier : PAS de overflow hidden ici,
-  // c'est ce qui permet au badge et au glow de déborder proprement.
   cartWrapper: {
     width: 64,
     height: 64,
@@ -128,7 +125,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Halo/glow doux autour du bouton, comme sur la maquette
   cartGlow: {
     position: 'absolute',
     width: 50,

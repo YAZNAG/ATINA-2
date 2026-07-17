@@ -28,6 +28,13 @@ function priceTtc(price, vat_rate) {
   return Math.round(parseFloat(price ?? 0) * (1 + parseFloat(vat_rate ?? 20) / 100) * 100) / 100;
 }
 
+function computeIsActive(fs) {
+  const now = new Date();
+  const started  = !fs.starts_at || new Date(fs.starts_at) <= now;
+  const notEnded = !fs.ends_at   || new Date(fs.ends_at)   >= now;
+  return fs.is_active && started && notEnded;
+}
+
 function articleImageUrl(a) {
   const skuImg = a.catalog_sku?.images?.[0]?.url ?? null;
   const artImg = a.images?.[0]?.image_path ? toPublicUrl(a.images[0].image_path) : null;
@@ -49,6 +56,7 @@ function formatArticleProduct(a, fs) {
     discount_pct: pct,
     saved_amount: Math.round((ttc - newPrice) * 100) / 100,
     weight_g:     a.weight_g ?? null,
+    brand:        a.brand ?? null,
   };
 }
 
@@ -86,8 +94,10 @@ const FLASH_DETAIL_INCLUDE = {
       images: { select: { url: true }, orderBy: { sort_order: 'asc' }, take: 1 },
       article: {
         select: {
+          id: true,
           name_fr: true, name_ar: true, price: true, vat_rate: true,
           weight_g: true,
+          brand: { select: { id: true, name_fr: true, name_ar: true } },
           images: { select: { image_path: true }, take: 1 },
         },
       },
@@ -136,7 +146,7 @@ function formatSummary(fs) {
     discount_pct:   discountPct,
     product_count:  productCount,
     ends_at:        fs.ends_at,
-    is_active:      fs.is_active,
+    is_active:      computeIsActive(fs),
   };
 }
 
@@ -152,7 +162,7 @@ function formatDetail(fs) {
     const skuImg = fs.sku.images?.[0]?.url ?? null;
     const artImg = a?.images?.[0]?.image_path ? toPublicUrl(a.images[0].image_path) : null;
     eligible = [{
-      id:           0,
+      id:           a?.id ?? 0,
       sku_id:       fs.sku.id,
       name_fr:      fs.name_fr ?? a?.name_fr ?? null,
       name_ar:      fs.name_ar ?? a?.name_ar ?? null,
@@ -161,6 +171,7 @@ function formatDetail(fs) {
       new_price:    newPrice,
       discount_pct: pct,
       saved_amount: Math.round((ttc - newPrice) * 100) / 100,
+      brand:        a?.brand ?? null,
       weight_g:     a?.weight_g ?? null,
     }];
   } else if (scopeType === 'category' && fs.category) {
@@ -185,7 +196,7 @@ function formatDetail(fs) {
     discount_value:    fs.discount_value != null ? parseFloat(fs.discount_value) : null,
     discount_pct:      bannerPct,
     ends_at:           fs.ends_at,
-    is_active:         fs.is_active,
+    is_active:         computeIsActive(fs), 
     eligible_products: eligible,
     eligible_count:    eligible.length,
   };
@@ -203,14 +214,15 @@ const BEST_DEALS_INCLUDE = {
   brand:    { select: { articles: { where: ARTICLE_WHERE, select: ARTICLE_SELECT } } },
 };
 
-async function listBestDeals(limit = 10) {
+async function listBestDeals(limit = 10, excludeIds = [], page = 1) {
   const now = new Date();
   const sales = await prisma.flashSale.findMany({
     where: { is_active: true, is_deleted: false, starts_at: { lte: now }, ends_at: { gte: now } },
     include: BEST_DEALS_INCLUDE,
   });
 
-  const best = new Map(); // article_id -> deal
+  const excludeSet = new Set(excludeIds);
+  const best = new Map();
 
   for (const fs of sales) {
     const scopeType = getScopeType(fs);
@@ -224,6 +236,8 @@ async function listBestDeals(limit = 10) {
     }
 
     for (const a of articles) {
+      if (excludeSet.has(a.id)) continue;
+
       const ttc = priceTtc(a.price, a.vat_rate);
       const newPrice = (scopeType === 'sku' && fs.flash_price != null)
         ? parseFloat(fs.flash_price)
@@ -234,27 +248,30 @@ async function listBestDeals(limit = 10) {
       const existing = best.get(a.id);
       if (!existing || pct > existing.discount_pct) {
         best.set(a.id, {
-          id:           a.id,
-          sku_id:       a.catalog_sku?.id ?? a.sku_uuid ?? null,
-          sku_code:     a.sku_code ?? null,
-          name_fr:      a.name_fr,
-          name_ar:      a.name_ar,
-          price:        parseFloat(a.price ?? 0),
-          price_ttc:    newPrice,
+          id: a.id,
+          sku_id: a.catalog_sku?.id ?? a.sku_uuid ?? null,
+          sku_code: a.sku_code ?? null,
+          name_fr: a.name_fr,
+          name_ar: a.name_ar,
+          price: parseFloat(a.price ?? 0),
+          price_ttc: newPrice,
           old_price_ttc: ttc,
           discount_pct: pct,
-          vat_rate:     parseFloat(a.vat_rate ?? 20),
-          image_url:    articleImageUrl(a) ?? a._skuImg ?? null,
-          brand:        a.brand ?? null,
-          category:     a.category ?? null,
+          vat_rate: parseFloat(a.vat_rate ?? 20),
+          image_url: articleImageUrl(a) ?? a._skuImg ?? null,
+          brand: a.brand ?? null,
+          category: a.category ?? null,
         });
       }
     }
   }
 
-  return Array.from(best.values())
-    .sort((x, y) => y.discount_pct - x.discount_pct)
-    .slice(0, limit);
+  const sorted = Array.from(best.values()).sort((x, y) => y.discount_pct - x.discount_pct);
+  const skip = (Number(page) - 1) * Number(limit);
+  const pageSlice = sorted.slice(skip, skip + Number(limit));
+  const hasMore = sorted.length > skip + Number(limit);
+
+  return { data: pageSlice, hasMore };
 }
 
 async function listActivePromotions() {
@@ -273,7 +290,60 @@ async function getFlashSaleById(id) {
     include: FLASH_DETAIL_INCLUDE,
   });
   if (!fs) throw { statusCode: 404, message: 'Promotion introuvable' };
-  return formatDetail(fs);
+
+  const detail = formatDetail(fs);
+  if (!detail.is_active) {
+    detail.eligible_products = [];
+    detail.eligible_count = 0;
+  }
+  return detail;
 }
 
-module.exports = { listActivePromotions, getFlashSaleById, listBestDeals };
+//Ventes Flash
+async function listEndingSoon(hours = 24) {
+  const now = new Date();
+  const soon = new Date(now.getTime() + hours * 60 * 60 * 1000);
+
+  const sales = await prisma.flashSale.findMany({
+    where: {
+      is_active: true, is_deleted: false,
+      starts_at: { lte: now },
+      ends_at:   { gte: now, lte: soon },
+    },
+    include: FLASH_DETAIL_INCLUDE,
+    orderBy: { ends_at: 'asc' },
+  });
+
+  if (sales.length === 0) {
+    return { ends_at: null, products: [] };
+  }
+
+  const seen = new Set();
+  const products = [];
+
+  for (const fs of sales) {
+    const detail = formatDetail(fs);
+    for (const p of detail.eligible_products) {
+      const key = p.sku_id ?? `${fs.id}-${p.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      products.push(p);
+    }
+  }
+
+  return {
+    ends_at: sales[0].ends_at, 
+    products,
+  };
+}
+
+//promotions homePage
+async function listHomePromotions({ endingSoonHours = 24, bestDealsLimit = 10 } = {}) {
+  const endingSoon = await listEndingSoon(endingSoonHours);
+  const excludeIds = endingSoon.products.map(p => p.id).filter(id => id > 0);
+  const bestDeals = await listBestDeals(bestDealsLimit, excludeIds, 1);
+  return { endingSoon, bestDeals: bestDeals.data }; 
+}
+
+module.exports = { listActivePromotions, getFlashSaleById, listBestDeals, listEndingSoon, listHomePromotions };
+

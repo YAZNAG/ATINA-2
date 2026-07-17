@@ -99,7 +99,7 @@ const AddressFormModal = ({
   const [label, setLabel]                 = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [phone, setPhone]                 = useState('');
-  const [fullAddress, setFullAddress]     = useState(''); // combine street_number + street_name à la sauvegarde
+  const [fullAddress, setFullAddress]     = useState(''); 
   const [quartier, setQuartier]           = useState('');
   const [city, setCity]                   = useState('');
   const [postalCode, setPostalCode]       = useState('');
@@ -175,7 +175,7 @@ const AddressFormModal = ({
     if (!fullAddress.trim()) { Alert.alert('Erreur', "L'adresse complète est requise"); return; }
     if (!city.trim())        { Alert.alert('Erreur', 'La ville est requise'); return; }
 
-    // Découpe fullAddress en street_number/street_name pour rester compatible avec le modèle actuel
+    // Decoupe fullAddress en street_number/street_name l
     const trimmed = fullAddress.trim();
     const m = trimmed.match(/^(\d+)\s*,?\s*(.+)$/);
     const street_number = m ? m[1] : null;

@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
-const BASE_URL = process.env.BASE_URL || 'http://192.168.1.17:5000/';
+const BASE_URL = process.env.BASE_URL ;
 
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({

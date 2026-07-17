@@ -66,7 +66,7 @@ async function listMyCoupons(customerId) {
     } else if (!p.is_active || !isDateValid) {
       expired.push(formatCoupon(p));
     }
-    // coupon globalement épuisé mais jamais utilisé par ce client → non affiché
+    // coupon globalement épuisé mais jamais utilisé par ce client (non affiché)
   }
 
   return { available, used, expired };

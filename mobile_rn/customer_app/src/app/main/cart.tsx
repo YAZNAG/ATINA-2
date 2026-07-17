@@ -12,7 +12,6 @@ import {
   Inter_400Regular, Inter_500Medium,
   Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
-import BottomNavBar from '../../components/ui/BottomNavBar';
 import PageHeader   from '../../components/ui/PageHeader';
 import { CartService, CartItem, Cart } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
@@ -20,6 +19,7 @@ import { useCartActions } from '../../context/CartContext';
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
 
+const CARD_HEIGHT = 320;
 
 const ITEM_HEIGHT      = 96;
 const PACK_ITEM_HEIGHT = 118;
@@ -75,7 +75,8 @@ function buildListEntries(items: CartItem[]): ListEntry[] {
 
 type DeleteTarget =
   | { kind: 'item'; item: CartItem }
-  | { kind: 'pack'; packId: string; name_fr: string };
+  | { kind: 'pack'; packId: string; name_fr: string }
+  | { kind: 'clearAll' };
 
 
 const stableCart = (c: Cart): Cart => ({
@@ -93,12 +94,18 @@ const ConfirmDeleteModal = ({
     <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
       <View style={styles.modalCard}>
         <Text style={styles.modalTitle}>
-          {target?.kind === 'pack' ? 'Supprimer le pack ?' : "Supprimer l'article ?"}
+          {target?.kind === 'pack'
+            ? 'Supprimer le pack ?'
+            : target?.kind === 'clearAll'
+              ? 'Vider le panier ?'
+              : "Supprimer l'article ?"}
         </Text>
         <Text style={styles.modalSubtitle}>
           {target?.kind === 'pack'
             ? `Êtes-vous sûr de vouloir supprimer le pack "${target.name_fr}" de votre panier ?`
-            : 'Êtes-vous sûr de vouloir supprimer cet article de votre panier ?'}
+            : target?.kind === 'clearAll'
+              ? 'Êtes-vous sûr de vouloir supprimer tous les articles de votre panier ?'
+              : 'Êtes-vous sûr de vouloir supprimer cet article de votre panier ?'}
         </Text>
         <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
           <Text style={styles.btnConfirmDeleteText}>Supprimer</Text>
@@ -267,7 +274,7 @@ export default function CartScreen() {
     try { setCartAndSync(stableCart(await CartService.updateItem(item.id, item.quantity + 1))); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
-  }, []);
+  }, [setCartAndSync]);
 
   const handleDecrease = useCallback(async (item: CartItem) => {
     if (item.quantity <= 1) { setDeleteTarget({ kind: 'item', item }); return; }
@@ -275,7 +282,7 @@ export default function CartScreen() {
     try { setCartAndSync(stableCart(await CartService.updateItem(item.id, item.quantity - 1))); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
-  }, []);
+  }, [setCartAndSync]);
 
   const handlePackIncrease = useCallback(async (group: PackGroup) => {
     const id = `pack-${group.packId}`;
@@ -283,7 +290,7 @@ export default function CartScreen() {
     try { setCartAndSync(stableCart(await CartService.updatePackQuantity(group.packId, group.bundleQty + 1))); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
-  }, []);
+  }, [setCartAndSync]);
 
   const handlePackDecrease = useCallback(async (group: PackGroup) => {
     if (group.bundleQty <= 1) { setDeleteTarget({ kind: 'pack', packId: group.packId, name_fr: group.name_fr }); return; }
@@ -292,7 +299,7 @@ export default function CartScreen() {
     try { setCartAndSync(stableCart(await CartService.updatePackQuantity(group.packId, group.bundleQty - 1))); }
     catch (err: any) { Alert.alert('Erreur', err.message); }
     finally { setUpdatingId(null); }
-  }, []);
+  }, [setCartAndSync]);
 
   const handleRemoveItemPress = useCallback((item: CartItem) => {
     setDeleteTarget({ kind: 'item', item });
@@ -306,6 +313,19 @@ export default function CartScreen() {
     if (!deleteTarget) return;
     const target = deleteTarget;
     setDeleteTarget(null);
+
+    if (target.kind === 'clearAll') {
+      setLoading(true);
+      try {
+        setCartAndSync(stableCart(await CartService.clearCart()));
+      } catch (err: any) {
+        Alert.alert('Erreur', err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const id = target.kind === 'pack' ? `pack-${target.packId}` : target.item.id;
     setUpdatingId(id);
     try {
@@ -318,16 +338,11 @@ export default function CartScreen() {
     } finally {
       setUpdatingId(null);
     }
-  }, [deleteTarget]);
+  }, [deleteTarget, setCartAndSync]);
 
-  const handleClearAll = () =>
-    Alert.alert('Vider le panier', 'Voulez-vous supprimer tous les articles ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Vider', style: 'destructive', onPress: async () => {
-        try { setCartAndSync(stableCart(await CartService.clearCart())); }
-        catch (err: any) { Alert.alert('Erreur', err.message); }
-      }},
-    ]);
+  const handleClearAll = () => {
+    setDeleteTarget({ kind: 'clearAll' });
+  };
 
     const listEntries = useMemo(() => buildListEntries(cart.items), [cart.items]);
 
@@ -424,7 +439,7 @@ export default function CartScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>LIVRAISON</Text>
-              <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 12 }]}>Calculée au checkout</Text>
+              <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 14 }]}>Calculée au checkout</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
@@ -450,14 +465,12 @@ export default function CartScreen() {
             >
               <Text style={styles.btnCheckoutText}>Passer la commande</Text>
               <View style={styles.btnCheckoutArrow}>
-                <Feather name="chevron-right" size={18} color={RED} />
+                <Feather name="chevron-right" size={18} color='#ffff' />
               </View>
             </TouchableOpacity>
           </View>
         </View>
       )}
-
-      <BottomNavBar />
 
       <ConfirmDeleteModal
         visible={!!deleteTarget}
@@ -514,21 +527,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06, shadowRadius: 12, elevation: 10,
+    minHeight: CARD_HEIGHT,
+    justifyContent: 'flex-start',
+    paddingTop: 28, paddingBottom: 24,
   },
-  summaryRow:   { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  summaryLabel: { fontSize: 12, color: '#9CA3AF', letterSpacing: 0.5, fontFamily: 'Inter_600SemiBold' },
-  summaryValue: { fontSize: 14, color: '#1a1a1a', fontFamily: 'Inter_600SemiBold' },
-  divider:      { height: 1, backgroundColor: '#F0F0F0', marginBottom: 12 },
-  totalLabel:   { fontSize: 16, color: '#1a1a1a', fontFamily: 'Inter_700Bold' },
-  totalValue:   { fontSize: 20, color: RED, fontFamily: 'Inter_800ExtraBold' },
+  summaryRow:   { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  summaryLabel: { fontSize: 14, color: '#8E8E93', letterSpacing: 0.5, fontFamily: 'Inter_600SemiBold' },
+  summaryValue: { fontSize: 16, color: '#1A1A1A', fontFamily: 'Inter_700Bold' },
+  divider:      { height: 1, backgroundColor: '#F0F0F0', marginBottom: 16 },
+  totalLabel:   { fontSize: 18, color: '#1a1a1a', fontFamily: 'Inter_700Bold' },
+  totalValue:   { fontSize: 22, color: RED, fontFamily: 'Inter_800ExtraBold' },
   btnCheckout: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: RED, borderRadius: 50, paddingVertical: 18, marginTop: 16,
+    backgroundColor: RED, borderRadius: 24, paddingVertical: 18, marginTop: 16,
     shadowColor: RED, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
   btnCheckoutText:  { color: '#fff', fontSize: 16, flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold' },
-  btnCheckoutArrow: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center', position: 'absolute', right: 16 },
+  btnCheckoutArrow: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF33', alignItems: 'center', justifyContent: 'center', position: 'absolute', right: 16 },
 
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
 
@@ -542,10 +558,16 @@ const styles = StyleSheet.create({
   btnExploreText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
 
   modalOverlay: { flex: 1,  justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', },
+  modalCard: {
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 28, paddingBottom: 40, alignItems: 'center',
+    minHeight: CARD_HEIGHT,
+    justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
   modalTitle:           { fontSize: 22, color: '#1a1a1a', marginBottom: 10, textAlign: 'center', fontFamily: 'Inter_800ExtraBold' },
   modalSubtitle:        { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20, marginBottom: 28, fontFamily: 'Inter_400Regular' },
-  btnConfirmDelete:     { width: '100%', paddingVertical: 16, borderRadius: 50, backgroundColor: RED, alignItems: 'center', marginBottom: 12, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnConfirmDelete:     { width: '100%', paddingVertical: 16, borderRadius: 24, backgroundColor: RED, alignItems: 'center', marginBottom: 12, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
   btnConfirmDeleteText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
   btnCancel:            { paddingVertical: 12 },
   btnCancelText:        { fontSize: 15, color: '#1a1a1a', fontFamily: 'Inter_600SemiBold' },

@@ -4,7 +4,7 @@ import {
   Dimensions, Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Feather} from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons} from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { ProfileService } from '../../services/profile.service';
@@ -22,10 +22,11 @@ interface ProductCardProps {
   oldPrice?:    number;
   isFav?:       boolean;
   onToggleFav?: (newState: boolean) => void;
+  isFlashSale?: boolean;   
 }
 
 function ProductCard({
-  article, onPress, onAddToCart, discount, oldPrice, isFav = false, onToggleFav,
+  article, onPress, onAddToCart, discount, oldPrice, isFav = false, onToggleFav, isFlashSale = false,
 }: ProductCardProps) {
   const [isFavorite, setIsFavorite]     = useState(isFav);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -94,7 +95,10 @@ function ProductCard({
         )}
 
         {effectiveDiscount && (
-          <View style={styles.discountBadge}>
+          <View style={[styles.discountBadge, isFlashSale && styles.discountBadgeFlash]}>
+            {isFlashSale && (
+              <MaterialCommunityIcons name="fire" size={11} color="#fff" style={styles.flameIcon} />
+            )}
             <Text style={styles.discountText}>-{effectiveDiscount}%</Text>
           </View>
         )}
@@ -106,7 +110,10 @@ function ProductCard({
           disabled={toggling}
           activeOpacity={0.8}
         >
-          <Feather name="heart" size={16} color={isFavorite ? RED : '#9CA3AF'} />
+          <MaterialCommunityIcons
+          name={isFavorite ? "heart" : "heart-outline"}
+          size={18}
+          color={isFavorite ? RED : '#4B5563'}/>
         </TouchableOpacity>
       </View>
 
@@ -172,9 +179,14 @@ const styles = StyleSheet.create({
 
   discountBadge: {
     position: 'absolute', top: 10, left: 10,
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: RED, borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,
   },
+  discountBadgeFlash: {
+    paddingLeft: 6,   
+  },
+  flameIcon: { marginRight: 2 },
   discountText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
 
   favoriteBtn: {

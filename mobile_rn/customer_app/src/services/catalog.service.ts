@@ -70,6 +70,11 @@ export interface Pagination{
   pages: number;
 }
 
+export interface PaginatedArticles {
+  data: Article[];
+  hasMore: boolean;
+}
+
 export const CatalogService = {
   
   //categories,subCategories
@@ -133,21 +138,28 @@ export const CatalogService = {
   },
 
   async searchArticles(params?: {
-    page?:        number,
-    limit?:       number,
-    search?:      string,
-    category_id?: number,
-  }): Promise<ArticlesResponse>{
-    try {
-      const response = await api.get('/customer/catalog/articles', { params });
-      return {
-        data:       response.data.data || [],
-        pagination: response.data.pagination || { total: 0, page: 1, limit: 20, pages: 0 },
-      };
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || 'Erreur chargement articles');
-    }
-  },
+  page?:         number,
+  limit?:        number,
+  search?:       string,
+  category_id?:  number,
+  category_ids?: number[], 
+}): Promise<ArticlesResponse>{
+  try {
+    const { category_ids, ...rest } = params ?? {};
+    const response = await api.get('/customer/catalog/articles', {
+      params: {
+        ...rest,
+        category_ids: category_ids?.length ? category_ids.join(',') : undefined,
+      },
+    });
+    return {
+      data:       response.data.data || [],
+      pagination: response.data.pagination || { total: 0, page: 1, limit: 20, pages: 0 },
+    };
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur chargement articles');
+  }
+},
 
   async getArticleDetail(id: number): Promise<Article> {
     try {
@@ -157,6 +169,36 @@ export const CatalogService = {
       throw new Error(err.response?.data?.message || 'Article introuvable');
     }
   },
+
+  async getPopularArticles(params?: { limit?: number; page?: number; days?: number }): Promise<PaginatedArticles> {
+  try {
+    const response = await api.get('/customer/catalog/popular', { params });
+    return response.data.data || { data: [], hasMore: false };
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur chargement produits populaires');
+  }
+},
+
+async getCartComplements(skuIds: string[], limit = 10, page = 1): Promise<PaginatedArticles> {
+  if (skuIds.length === 0) return { data: [], hasMore: false };
+  try {
+    const response = await api.get('/customer/catalog/cart-complements', {
+      params: { sku_ids: skuIds.join(','), limit, page },
+    });
+    return response.data.data || { data: [], hasMore: false };
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur chargement compléments');
+  }
+},
+
+async getTopRatedArticles(params?: { limit?: number; page?: number }): Promise<PaginatedArticles> {
+  try {
+    const response = await api.get('/customer/catalog/top-rated', { params });
+    return response.data.data || { data: [], hasMore: false };
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || 'Erreur chargement produits notés 5 étoiles');
+  }
+},
 
   //cities
     async getCities(): Promise<City[]> {

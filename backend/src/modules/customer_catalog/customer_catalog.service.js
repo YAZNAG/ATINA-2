@@ -73,7 +73,7 @@ function formatArticle(a, flashSales = []) {
   };
 }
 
-// ── categories ────────────────────────────────────────────────────────────────
+// categories 
 async function getCategories() {
   const cats = await prisma.category.findMany({
     where:   BASE_CAT,
@@ -128,7 +128,7 @@ async function getArticlesByCategory(categoryId, { page = 1, limit = 20, search 
   };
 }
 
-// ── article detail ────────────────────────────────────────────────────────────
+// article detail
 async function getArticleDetail(id) {
   await ensureArticlesPrismaColumns(prisma);
   const [a, flashSales] = await Promise.all([
@@ -142,13 +142,21 @@ async function getArticleDetail(id) {
   return formatArticle(a, flashSales);
 }
 
-async function searchArticles({ page = 1, limit = 20, search, category_id } = {}) {
+async function searchArticles({ page = 1, limit = 20, search, category_id, category_ids } = {}) {
   await ensureArticlesPrismaColumns(prisma);
   const pageNum  = Number(page);
   const limitNum = Number(limit);
+  let categoryWhere = {};
+  if (Array.isArray(category_ids) && category_ids.length > 0) {
+    const ids = category_ids.map(Number).filter((n) => !Number.isNaN(n));
+    if (ids.length > 0) categoryWhere = { category_id: { in: ids } };
+  } else if (category_id) {
+    categoryWhere = { category_id: Number(category_id) };
+  }
+
   const where = {
     ...BASE_ARTICLE,
-    ...(category_id && { category_id: Number(category_id) }),
+    ...categoryWhere,
     ...(search && {
       OR: [
         { name_fr: { contains: search, mode: 'insensitive' } },
@@ -172,7 +180,7 @@ async function searchArticles({ page = 1, limit = 20, search, category_id } = {}
   };
 }
 
-
+//Recommende pour vous
 async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   await ensureArticlesPrismaColumns(prisma);
   const [customerExists, flashSales] = await Promise.all([
@@ -184,37 +192,31 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   }
 
   const pastOrders = await prisma.order.findMany({
-  where: { customer_id: customerId, is_deleted: false },
-  select: {
-    items: {
-      select: {
-        sku: {
-          select: {
-            article: {   // relation inverse Sku → Article
-              select: { category_id: true, id: true },
-            },
-          },
+    where: { customer_id: customerId, is_deleted: false },
+    select: {
+      items: {
+        select: {
+          sku: { select: { article: { select: { category_id: true, id: true } } } },
         },
       },
     },
-  },
-  take: 50,
-  orderBy: { created_at: 'desc' },
-});
-
-
-  const orderedCategoryIds = new Set();
-  const orderedArticleIds  = new Set();
-
-  pastOrders
-  .flatMap(o => o.items)
-  .forEach(item => {
-    const art = item.sku?.article;  // peut être null → optional chaining OK
-    if (art?.category_id) orderedCategoryIds.add(art.category_id);
-    if (art?.id)          orderedArticleIds.add(art.id);
+    take: 50,
+    orderBy: { created_at: 'desc' },
   });
 
-  const hasPastOrders = orderedCategoryIds.size > 0;
+  //compte le nombre d'achats par categorie 
+  const categoryCounts = new Map(); 
+  const orderedArticleIds = new Set();
+
+  pastOrders.flatMap(o => o.items).forEach(item => {
+    const art = item.sku?.article;
+    if (art?.category_id) {
+      categoryCounts.set(art.category_id, (categoryCounts.get(art.category_id) ?? 0) + 1);
+    }
+    if (art?.id) orderedArticleIds.add(art.id);
+  });
+
+  const hasPastOrders = categoryCounts.size > 0;
 
   if (!hasPastOrders) {
     const fallback = await prisma.article.findMany({
@@ -226,26 +228,38 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
     return fallback.map(a => formatArticle(a, flashSales));
   }
 
-  const recommended = await prisma.article.findMany({
+  // Categories triees par frequence d'achat decroissante
+  const rankedCategoryIds = [...categoryCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([catId]) => catId);
+
+  // Recupere les articles 
+  const candidates = await prisma.article.findMany({
     where: {
       ...BASE_ARTICLE,
-      category_id: { in: [...orderedCategoryIds] },
+      category_id: { in: rankedCategoryIds },
       id:          { notIn: [...orderedArticleIds] },
     },
     select:  ARTICLE_SELECT,
-    take:    limit,
+    take:    limit * 3, 
     orderBy: { created_at: 'desc' },
   });
+
+  const categoryRank = new Map(rankedCategoryIds.map((id, i) => [id, i]));
+  const sorted = candidates.sort((a, b) => {
+    const rankA = categoryRank.get(a.category_id) ?? 999;
+    const rankB = categoryRank.get(b.category_id) ?? 999;
+    return rankA - rankB;
+  });
+
+  const recommended = sorted.slice(0, limit);
 
   if (recommended.length >= limit) {
     return recommended.map(a => formatArticle(a, flashSales));
   }
 
   const remaining   = limit - recommended.length;
-  const excludedIds = new Set([
-    ...orderedArticleIds,
-    ...recommended.map(a => a.id),
-  ]);
+  const excludedIds = new Set([...orderedArticleIds, ...recommended.map(a => a.id)]);
 
   const filler = await prisma.article.findMany({
     where: {
@@ -260,6 +274,93 @@ async function getRecommendedArticles(customerId, { limit = 20 } = {}) {
   return [...recommended, ...filler].map(a => formatArticle(a, flashSales));
 }
 
+async function getCartComplements({ skuIds = [], limit = 10, page = 1 } = {}) {
+  await ensureArticlesPrismaColumns(prisma);
+  if (skuIds.length === 0) return { data: [], hasMore: false };
+
+  const flashSales = await getActiveFlashSales();
+
+  const coOrders = await prisma.orderItem.findMany({
+    where: { sku_id: { in: skuIds } },
+    select: { order_id: true },
+    distinct: ['order_id'],
+    take: 500,
+  });
+
+  const orderIds = coOrders.map(o => o.order_id);
+  if (orderIds.length === 0) return { data: [], hasMore: false };
+
+  const coItems = await prisma.orderItem.findMany({
+    where: { order_id: { in: orderIds }, sku_id: { not: null } },
+    select: { sku_id: true, sku: { select: { article: { select: { id: true } } } } },
+  });
+
+  const skuIdSet = new Set(skuIds);
+  const articleCounts = new Map();
+
+  for (const item of coItems) {
+    if (skuIdSet.has(item.sku_id)) continue;
+    const articleId = item.sku?.article?.id;
+    if (!articleId) continue;
+    articleCounts.set(articleId, (articleCounts.get(articleId) ?? 0) + 1);
+  }
+
+  if (articleCounts.size === 0) return { data: [], hasMore: false };
+
+  const rankedAll = [...articleCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const pageIds = rankedAll.slice(skip, skip + Number(limit));
+  const hasMore = rankedAll.length > skip + Number(limit);
+  if (pageIds.length === 0) return { data: [], hasMore: false };
+
+  const articles = await prisma.article.findMany({
+    where: { ...BASE_ARTICLE, id: { in: pageIds } },
+    select: ARTICLE_SELECT,
+  });
+
+  const rankMap = new Map(pageIds.map((id, i) => [id, i]));
+  const ordered = articles.sort((a, b) => (rankMap.get(a.id) ?? 999) - (rankMap.get(b.id) ?? 999));
+
+  return { data: ordered.map(a => formatArticle(a, flashSales)), hasMore };
+}
+
+//top rated
+async function getTopRatedArticles({ limit = 10, page = 1 } = {}) {
+  await ensureArticlesPrismaColumns(prisma);
+  const flashSales = await getActiveFlashSales();
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const grouped = await prisma.articleReview.groupBy({
+    by: ['article_id'],
+    where: { is_deleted: false },
+    _avg: { rating: true },
+    _count: { rating: true },
+    having: { rating: { _avg: { gte: 4.5 } } },
+    orderBy: { _count: { rating: 'desc' } },
+    skip,
+    take: Number(limit) + 1,
+  });
+
+  const hasMore = grouped.length > Number(limit);
+  const pageGrouped = grouped.slice(0, Number(limit));
+  const ranked = pageGrouped.map(g => g.article_id);
+  if (ranked.length === 0) return { data: [], hasMore: false };
+
+  const articles = await prisma.article.findMany({
+    where: { ...BASE_ARTICLE, id: { in: ranked } },
+    select: ARTICLE_SELECT,
+  });
+
+  const rankMap = new Map(ranked.map((id, i) => [id, i]));
+  const ordered = articles.sort((a, b) => (rankMap.get(a.id) ?? 999) - (rankMap.get(b.id) ?? 999));
+
+  return { data: ordered.map(a => formatArticle(a, flashSales)), hasMore };
+}
+
+// Cities
 async function getCities() {
   const cities = await prisma.city.findMany({
     where:   { is_deleted: false, is_active: true },
@@ -298,5 +399,47 @@ async function getSubCategories(categoryId) {
   }));
 }
 
+//Produits populaires
+async function getPopularArticles({ limit = 10, page = 1, days = 30 } = {}) {
+  await ensureArticlesPrismaColumns(prisma);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const skip  = (Number(page) - 1) * Number(limit);
 
-module.exports = { getCategories, getArticlesByCategory, getArticleDetail, searchArticles, getCities, getSubCategories, getRecommendedArticles };
+  const topSkus = await prisma.orderItem.groupBy({
+    by: ['sku_id'],
+    where: {
+      sku_id: { not: null },
+      order: { is_deleted: false, created_at: { gte: since } },
+    },
+    _sum: { qty: true },
+    orderBy: { _sum: { qty: 'desc' } },
+    skip,
+    take: Number(limit) + 1, // +1 pour détecter s'il reste des pages
+  });
+
+  const hasMore = topSkus.length > Number(limit);
+  const pageSkus = topSkus.slice(0, Number(limit));
+  const skuIds = pageSkus.map(t => t.sku_id).filter(Boolean);
+  if (skuIds.length === 0) return { data: [], hasMore: false };
+
+  const [skus, flashSales] = await Promise.all([
+    prisma.sku.findMany({
+      where: { id: { in: skuIds } },
+      select: { id: true, article: { select: ARTICLE_SELECT } },
+    }),
+    getActiveFlashSales(),
+  ]);
+
+  const rankMap = new Map(skuIds.map((id, i) => [id, i]));
+  const ordered = skus
+    .filter(s => s.article)
+    .sort((a, b) => (rankMap.get(a.id) ?? 999) - (rankMap.get(b.id) ?? 999));
+
+  return { data: ordered.map(s => formatArticle(s.article, flashSales)), hasMore };
+}
+
+module.exports = {
+  getCategories, getArticlesByCategory, getArticleDetail, searchArticles,
+  getCities, getSubCategories, getRecommendedArticles, getPopularArticles,
+  getCartComplements, getTopRatedArticles,
+};

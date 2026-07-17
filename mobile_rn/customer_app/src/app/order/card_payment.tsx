@@ -35,9 +35,6 @@ function formatExpiry(raw: string): string {
   return digits;
 }
 
-// Construit l'affichage masqué groupé par paquets de 4, en gardant
-// les groupes déjà tapés en clair sauf si tu veux les masquer totalement.
-// Ici on masque TOUT sauf qu'on garde le nombre de groupes tapés (style maquette : **** **** **** ****)
 function maskedCardDisplay(digits: string): string {
   const groups = [];
   const totalGroups = 4;

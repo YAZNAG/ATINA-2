@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   ScrollView, TouchableOpacity, ActivityIndicator,
-  Image, Platform,
+  Image, Platform, Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -15,15 +15,14 @@ import {
 } from '@expo-google-fonts/inter';
 import { ProfileService, Order } from '../../services/profile.service';
 import PageHeader from '../../components/ui/PageHeader';
-import { Alert } from 'react-native'; // déjà importé si tu l'as
+import { Alert } from 'react-native'; 
 import { CartService } from '../../services/cart.service';
 
 const RED  = '#E10600';
 const GRAY = '#9CA3AF';
 const INK  = '#1A1A1A';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
+//helpers
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -35,7 +34,7 @@ function deliveryLabel(code: string): string {
   return 'Livraison à domicile';
 }
 
-// ── Section card ──────────────────────────────────────────────────────────────
+//Section card 
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return <View style={styles.sectionCard}>{children}</View>;
@@ -52,19 +51,18 @@ function SectionTitle({ icon, label }: { icon: string; label: string }) {
   );
 }
 
-// ── Ligne info ────────────────────────────────────────────────────────────────
-
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
-      <Feather name="minus" size={12} color="#D1D5DB" style={{ marginTop: 3 }} />
+      <View style={styles.infoIconBox}>
+        <Feather name={icon as any} size={13} color={GRAY} />
+      </View>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 }
 
-// ── Produit ───────────────────────────────────────────────────────────────────
 
 function ProductRow({ item }: { item: Order['items'][0] }) {
   return (
@@ -94,7 +92,7 @@ function ProductRow({ item }: { item: Order['items'][0] }) {
   );
 }
 
-// ── Ligne résumé paiement ─────────────────────────────────────────────────────
+// resume paiement
 
 function PayRow({ label, value, bold, red }: { label: string; value: string; bold?: boolean; red?: boolean }) {
   return (
@@ -105,7 +103,47 @@ function PayRow({ label, value, bold, red }: { label: string; value: string; bol
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Modal de confirmation "panier non vide" (remplace Alert.alert) ──
+function ReorderModal({
+  visible, onMerge, onReplace, onCancel,
+}: {
+  visible:   boolean;
+  onMerge:   () => void;
+  onReplace: () => void;
+  onCancel:  () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalIconBox}>
+            <Feather name="shopping-cart" size={22} color={RED} />
+          </View>
+          <Text style={styles.modalTitle}>Panier non vide</Text>
+          <Text style={styles.modalSubtitle}>
+            Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?
+          </Text>
+
+          <TouchableOpacity style={styles.btnMerge} onPress={onMerge} activeOpacity={0.85}>
+            <Feather name="git-merge" size={16} color="#fff" />
+            <Text style={styles.btnMergeText}>Fusionner avec le panier</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnReplaceModal} onPress={onReplace} activeOpacity={0.85}>
+            <Feather name="refresh-cw" size={16} color={RED} />
+            <Text style={styles.btnReplaceModalText}>Remplacer le panier</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnCancelModal} onPress={onCancel} activeOpacity={0.7}>
+            <Text style={styles.btnCancelModalText}>Annuler</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+//  Page 
 
 export default function OrderDetailScreen() {
   const router = useRouter();
@@ -120,8 +158,10 @@ export default function OrderDetailScreen() {
   });
 
   const [reordering, setReordering] = useState(false);
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
 
 const performReorder = async (mode: 'merge' | 'replace') => {
+  setReorderModalVisible(false);
   setReordering(true);
   try {
     await CartService.reorder(order!.id, mode);
@@ -137,15 +177,7 @@ const handleReorder = async () => {
   try {
     const currentCart = await CartService.getCart();
     if (currentCart.count > 0) {
-      Alert.alert(
-        'Panier non vide',
-        'Votre panier contient déjà des articles. Que voulez-vous faire ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Fusionner', onPress: () => performReorder('merge') },
-          { text: 'Remplacer', style: 'destructive', onPress: () => performReorder('replace') },
-        ]
-      );
+      setReorderModalVisible(true);
     } else {
       performReorder('merge');
     }
@@ -153,6 +185,11 @@ const handleReorder = async () => {
     Alert.alert('Erreur', e.message ?? 'Impossible de vérifier le panier');
   }
 };
+
+  const handleTrackOrder = () => {
+    if (!order) return;
+    router.push({ pathname: '/order/order_suivie' as any, params: { id: order.id } });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -184,7 +221,8 @@ const handleReorder = async () => {
   }
 
   const subtotal  = order.items.reduce((s, i) => s + i.total_ttc, 0);
-  const discount  = 0; // à adapter si tu as discount_amount dans Order
+  const discount   = order.discount_amount ?? 0;
+  const couponCode = order.coupon_code ?? null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -205,14 +243,14 @@ const handleReorder = async () => {
         <SectionCard>
           <SectionTitle icon="file-text" label="INFORMATIONS DE COMMANDE" />
           <View style={styles.infoList}>
-            <InfoRow label="Numéro"          value={order.reference} />
-            <InfoRow label="Date"             value={formatDate(order.created_at)} />
-            <InfoRow label="Mode de livraison" value={deliveryLabel(order.delivery_type)} />
+            <InfoRow icon="hash"     label="Numéro"          value={order.reference} />
+            <InfoRow icon="calendar" label="Date"             value={formatDate(order.created_at)} />
+            <InfoRow icon="truck"    label="Mode de livraison" value={deliveryLabel(order.delivery_type)} />
             {order.delivery_type === 'pickup' && order.node_name && (
-              <InfoRow label="Magasin" value={order.node_name} />
+              <InfoRow icon="map-pin" label="Magasin" value={order.node_name} />
               )}
               {order.delivery_type !== 'pickup' && order.address_full && (
-                <InfoRow label="Adresse" value={order.address_full} />
+                <InfoRow icon="map-pin" label="Adresse" value={order.address_full} />
                 )}
           </View>
         </SectionCard>
@@ -221,7 +259,7 @@ const handleReorder = async () => {
         <SectionCard>
           <View style={styles.productsTitleRow}>
             <Text style={styles.productsSectionTitle}>
-              Produits commandés ({order.items.length})
+              Produits commandés <Text style={styles.productsCount}>({order.items.length})</Text>
             </Text>
           </View>
           {order.items.map(item => (
@@ -239,8 +277,14 @@ const handleReorder = async () => {
               <PayRow label="Wallet utilisé" value={`-${order.wallet_used.toFixed(2)} MAD`} />
             )}
             {discount > 0 && (
-              <PayRow label="Réduction" value={`-${discount.toFixed(2)} MAD`} red />
-            )}
+  <View style={styles.couponRow}>
+    <View style={styles.couponBadge}>
+      <Feather name="tag" size={11} color="#059669" />
+      <Text style={styles.couponCode}>{couponCode ?? 'Code promo'}</Text>
+    </View>
+    <Text style={styles.couponAmount}>-{discount.toFixed(2)} MAD</Text>
+  </View>
+)}
             <View style={styles.payDivider} />
             <PayRow label="TOTAL" value={`${order.total_ttc.toFixed(2)} MAD`} bold red />
           </View>
@@ -251,8 +295,8 @@ const handleReorder = async () => {
   <SectionCard>
     <SectionTitle icon="credit-card" label="PAIEMENT" />
     <View style={styles.infoList}>
-      <InfoRow label="Méthode"  value={order.payment_method_name} />
-      <InfoRow label="Statut"   value={order.payment_status_label} />
+      <InfoRow icon="credit-card" label="Méthode"  value={order.payment_method_name} />
+      <InfoRow icon="check-circle" label="Statut"   value={order.payment_status_label} />
     </View>
   </SectionCard>
 )}
@@ -275,6 +319,15 @@ const handleReorder = async () => {
 </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.btnTrack}
+            onPress={handleTrackOrder}
+            activeOpacity={0.85}
+          >
+            <Feather name="map-pin" size={16} color={RED} />
+            <Text style={styles.btnTrackText}>Suivre ma commande</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.btnOutline}
             onPress={() => router.replace('/main/home' as any)}
             activeOpacity={0.85}
@@ -286,11 +339,18 @@ const handleReorder = async () => {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <ReorderModal
+        visible={reorderModalVisible}
+        onMerge={() => performReorder('merge')}
+        onReplace={() => performReorder('replace')}
+        onCancel={() => setReorderModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+//=Styles 
 
 const styles = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: '#ffffff' },
@@ -299,71 +359,121 @@ const styles = StyleSheet.create({
 
   scroll: { paddingHorizontal: 16, paddingTop: 16 },
 
-  orderRef: { fontSize: 18, fontFamily: 'Poppins_700Bold', color: INK , marginBottom: 14 },
+  orderRef: { fontSize: 20, fontFamily: 'Poppins_700Bold', color: INK , marginBottom: 16 },
 
   // Section card
   sectionCard: {
-    backgroundColor: '#fff', borderRadius: 16,
-    padding: 16, marginBottom: 12,
+    backgroundColor: '#fff', borderRadius: 18,
+    padding: 18, marginBottom: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
   },
-  sectionTitle:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14},
+  sectionTitle:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16},
   sectionIconBox:  { width: 26, height: 26, borderRadius: 8, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center' },
-  sectionTitleText:{ fontSize: 12, fontFamily: 'Inter_700Bold', color: INK, letterSpacing: 0.5 },
+  sectionTitleText:{ fontSize: 12, fontFamily: 'Inter_700Bold', color: RED, letterSpacing: 0.5 },
 
   // Info rows
-  infoList: { gap: 8 },
-  infoRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoLabel:{ flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: GRAY },
-  infoValue:{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: INK, textAlign: 'right', maxWidth: '55%' },
+  infoList: { gap: 14 },
+  infoRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  infoIconBox: {
+    width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+  },
+  infoLabel:{ flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', color: GRAY },
+  infoValue:{ fontSize: 14, fontFamily: 'Inter_700Bold', color: INK, textAlign: 'right', maxWidth: '55%' },
 
   // Products
-  productsTitleRow:    { marginBottom: 14 },
-  productsSectionTitle:{ fontSize: 14, fontFamily: 'Inter_700Bold', color: INK },
+  productsTitleRow:    { marginBottom: 16 },
+  productsSectionTitle:{ fontSize: 15, fontFamily: 'Inter_700Bold', color: INK },
+  productsCount:        { fontSize: 15, fontFamily: 'Inter_400Regular', color: GRAY },
   productRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1, borderTopColor: '#F5F5F5',
   },
   productImgWrap: {
-    width: 52, height: 52, borderRadius: 12,
+    width: 56, height: 56, borderRadius: 12,
     backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
-  productImg: { width: '100%', height: '100%', borderRadius: 12 },
+  productImg: { width: '100%', height: '100%' },
   productInfo:  { flex: 1 },
-  productName:  { fontSize: 13.5, fontFamily: 'Inter_600SemiBold', color: INK, lineHeight: 18, marginBottom: 3 },
-  productUnit:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: GRAY },
-  productRight: { alignItems: 'flex-end', gap: 6 },
+  productName:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: INK, lineHeight: 19, marginBottom: 3 },
+  productUnit:  { fontSize: 12.5, fontFamily: 'Inter_400Regular', color: GRAY },
+  productRight: { alignItems: 'flex-end', gap: 8 },
   qtyBadge: {
-    backgroundColor: '#FFF0F0', borderRadius: 8,
+    backgroundColor: '#FFF0F0', borderRadius: 20,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  qtyText:      { fontSize: 13, fontFamily: 'Inter_700Bold', color: RED },
-  productTotal: { fontSize: 15, fontFamily: 'Poppins_700Bold', color: INK },
+  qtyText:      { fontSize: 12.5, fontFamily: 'Inter_700Bold', color: RED },
+  productTotal: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: RED },
 
   // Payment
-  payList:   { gap: 10 },
+  payList:   { gap: 12 },
   payRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  payLabel:  { fontSize: 13, fontFamily: 'Inter_400Regular', color: GRAY },
-  payLabelBold: { fontFamily: 'Inter_700Bold', color: INK, fontSize: 14 },
-  payValue:  { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: INK },
-  payValueBold: { fontSize: 16, fontFamily: 'Poppins_700Bold' },
-  payDivider:{ height: 1, backgroundColor: '#F0F0F0', marginVertical: 4 },
+  payLabel:  { fontSize: 14, fontFamily: 'Inter_400Regular', color: GRAY },
+  payLabelBold: { fontFamily: 'Inter_700Bold', color: INK, fontSize: 15 },
+  payValue:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: INK },
+  payValueBold: { fontSize: 20, fontFamily: 'Poppins_700Bold' },
+  payDivider:{
+    borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: '#E5E7EB',
+    marginVertical: 6,
+  },
 
   // Actions
-  actions: { gap: 12, marginTop: 4 },
+  actions: { gap: 12, marginTop: 6 },
   btnRed: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: RED, borderRadius: 14, paddingVertical: 16,
+    backgroundColor: RED, borderRadius: 12, paddingVertical: 17,
     shadowColor: RED, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   btnRedText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+
+  btnTrack: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: RED, borderRadius: 12, paddingVertical: 16,
+    backgroundColor: '#fff',
+  },
+  btnTrackText: { color: RED, fontSize: 15, fontFamily: 'Inter_700Bold' },
+
   btnOutline: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingVertical: 15,
+    borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 16,
     backgroundColor: '#fff',
   },
   btnOutlineText: { color: INK, fontSize: 15, fontFamily: 'Inter_700Bold' },
+
+  // ── Modal reorder ──
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 28, paddingBottom: 40, alignItems: 'center',
+  },
+  modalIconBox: {
+    width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFF0F0',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  modalTitle:    { fontSize: 19, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 8, textAlign: 'center' },
+  modalSubtitle: { fontSize: 13.5, fontFamily: 'Inter_400Regular', color: GRAY, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+
+  btnMerge: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: RED, borderRadius: 14, paddingVertical: 15, marginBottom: 10,
+    shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+  },
+  btnMergeText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+
+  btnReplaceModal: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: RED, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 15, marginBottom: 10,
+  },
+  btnReplaceModalText: { color: RED, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+
+  btnCancelModal: { paddingVertical: 10 },
+  btnCancelModalText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: GRAY },
+
+  couponRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 4 },
+couponBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+couponCode:   { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#059669' },
+couponAmount: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#059669' },
 });

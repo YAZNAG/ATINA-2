@@ -9,7 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import PageHeader from '../../components/ui/PageHeader';
 import {
   PromotionsService, FlashSaleDetail, PromotionProduct,
-  PacksService, PackDetail, PackItem,
+  PacksService, PackDetail, PackItem, PackSummary,
 } from '../../services/promotions.service';
 import { CartService } from '../../services/cart.service';
 import { useCartCount, useCartActions } from '../../context/CartContext';
@@ -93,24 +93,65 @@ function PromoProductCard({ item }: { item: PromotionProduct }) {
   );
 }
 
-function PackItemRow({ item }: { item: PackItem }) {
+// Carte article de pack 
+function PackItemCard({ item }: { item: PackItem }) {
   return (
-    <View style={styles.itemRow}>
-      <View style={styles.itemImageBox}>
+    <View style={styles.packItemCard}>
+      <View style={styles.packItemImageBox}>
         {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={styles.itemImage} resizeMode="contain" />
+          <Image source={{ uri: item.image_url }} style={styles.packItemImage} resizeMode="contain" />
         ) : (
-          <Feather name="image" size={22} color={GRAY} />
+          <View style={styles.imagePlaceholder}>
+            <Feather name="image" size={26} color={GRAY} />
+          </View>
         )}
       </View>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName} numberOfLines={2}>{item.name_fr}</Text>
-        <Text style={styles.itemPrice}>{item.unit_price.toFixed(2)} MAD / unité</Text>
-      </View>
-      <View style={styles.itemQtyBox}>
-        <Text style={styles.itemQty}>×{item.qty}</Text>
+      <View style={styles.packItemBody}>
+        <Text style={styles.packItemName} numberOfLines={2}>{item.name_fr}</Text>
+        {item.unit_label && (
+          <Text style={styles.packItemUnit}>{item.unit_label}</Text>
+        )}
+        <View style={styles.packItemBottomRow}>
+          <Text style={styles.packItemPrice}>{item.unit_price.toFixed(0)} MAD</Text>
+          <View style={styles.stockBadge}>
+            <View style={styles.stockDot} />
+            <Text style={styles.stockText}>STOCK</Text>
+          </View>
+        </View>
       </View>
     </View>
+  );
+}
+
+//Carte pack similaire
+function SimilarPackCard({ item, onPress }: { item: PackSummary; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.similarCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.similarImageBox}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.image} resizeMode="cover" />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Feather name="package" size={28} color={GRAY} />
+          </View>
+        )}
+        {item.discount_pct > 0 && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>-{item.discount_pct}%</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName} numberOfLines={1}>{item.name_fr}</Text>
+        <Text style={styles.cardWeight}>{item.item_count} produits</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={styles.cardNewPrice}>{item.total_price.toFixed(0)} MAD</Text>
+          {item.discount_pct > 0 && (
+            <Text style={styles.cardOldPrice}>{item.original_price.toFixed(0)} MAD</Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -121,21 +162,27 @@ export default function PromotionDetailScreen() {
   const cartCount = useCartCount();
   const { applyCart } = useCartActions();
 
-  const [promo,      setPromo]      = useState<FlashSaleDetail | null>(null);
-  const [pack,       setPack]       = useState<PackDetail | null>(null);
-  const [cartTotal,  setCartTotal]  = useState(0);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [addingPack, setAddingPack] = useState(false);
+  const [promo,        setPromo]        = useState<FlashSaleDetail | null>(null);
+  const [pack,         setPack]         = useState<PackDetail | null>(null);
+  const [similarPacks, setSimilarPacks] = useState<PackSummary[]>([]);
+  const [cartTotal,    setCartTotal]    = useState(0);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [addingPack,   setAddingPack]   = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
     if (!silent) setLoading(true);
     try {
       if (isPack) {
-        const [detail, cart] = await Promise.all([PacksService.getById(id), CartService.getCart()]);
+        const [detail, cart, similar] = await Promise.all([
+          PacksService.getById(id),
+          CartService.getCart(),
+          PacksService.listSimilar(id).catch(() => []),
+        ]);
         setPack(detail);
         setCartTotal(cart.total);
+        setSimilarPacks(similar);
       } else {
         const [detail, cart] = await Promise.all([PromotionsService.getById(id), CartService.getCart()]);
         setPromo(detail);
@@ -175,6 +222,11 @@ export default function PromotionDetailScreen() {
   const rows: PromotionProduct[][] = [];
   for (let i = 0; i < products.length; i += 2) rows.push(products.slice(i, i + 2));
 
+  const packItemRows: PackItem[][] = [];
+  if (pack) {
+    for (let i = 0; i < pack.items.length; i += 2) packItemRows.push(pack.items.slice(i, i + 2));
+  }
+
   const accent   = RED;
   const data     = isPack ? pack : promo;
   const notFound = !loading && !data;
@@ -182,7 +234,7 @@ export default function PromotionDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
-      <PageHeader title={isPack ? 'Détail du pack' : 'Produits en promotion'} />
+      <PageHeader title={isPack ? 'Détails du Pack' : 'Produits en promotion'} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -198,84 +250,133 @@ export default function PromotionDetailScreen() {
           contentContainerStyle={styles.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[accent]} />}
         >
-          {/* ── Bannière ── */}
-          <View style={styles.banner}>
-            <View style={styles.bannerLeft}>
-              <View style={[styles.bannerIconBox, { backgroundColor: accent }]}>
-                {isPack ? (
-                  <Feather name="package" size={20} color="#fff" />
-                ) : (
-                  <Text style={styles.bannerIconText}>%</Text>
-                )}
-              </View>
-              <View style={styles.bannerInfo}>
-                <Text style={styles.bannerTitle} numberOfLines={2}>
-                  {isPack
-                    ? pack!.name_fr
-                    : (promo!.name_fr ?? (promo!.discount_pct != null
-                        ? `-${promo!.discount_pct}% sur ${promo!.scope_name ?? 'les produits'}`
-                        : promo!.scope_name ?? 'Flash Vente'))}
-                </Text>
-                {!isPack && promo!.scope_name && promo!.scope_type !== 'sku' && (
-                  <Text style={styles.bannerScope}>
-                    {scopeLabel[promo!.scope_type] ?? ''} · {promo!.scope_name}
-                  </Text>
-                )}
-                <View style={styles.bannerDateRow}>
-                  <Feather name="calendar" size={12} color={GRAY} />
-                  <Text style={styles.bannerDate}>
-                    Valide jusqu'au {formatDate(isPack ? pack!.valid_to : promo!.ends_at)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <View style={[styles.statusBadge, data!.is_active ? styles.badgeActive : styles.badgeInactive]}>
-              <View style={[styles.statusDot, { backgroundColor: data!.is_active ? GREEN : GRAY }]} />
-              <Text style={[styles.statusText, { color: data!.is_active ? GREEN : GRAY }]}>
-                {data!.is_active ? 'Activé' : 'Expiré'}
-              </Text>
-            </View>
-          </View>
-
           {isPack ? (
             <>
-              {/* ── Prix du pack ── */}
-              <View style={styles.priceCard}>
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Prix normal</Text>
-                  <Text style={styles.priceOld}>{pack!.original_price.toFixed(2)} MAD</Text>
-                </View>
-                <View style={styles.priceDivider} />
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabelPromo}>Prix pack</Text>
-                  <Text style={styles.priceNew}>{pack!.total_price.toFixed(2)} MAD</Text>
-                </View>
-                {pack!.saved_amount > 0 && (
-                  <View style={styles.savingRow}>
-                    <Feather name="check-circle" size={14} color={GREEN} />
-                    <Text style={styles.savingText}>
-                      Vous économisez {pack!.saved_amount.toFixed(2)} MAD
-                    </Text>
+              {/* ── Hero image pack ── */}
+              <View style={styles.heroBox}>
+                {pack!.image_url ? (
+                  <Image source={{ uri: pack!.image_url }} style={styles.heroImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.heroImage, styles.imagePlaceholder]}>
+                    <Feather name="package" size={48} color={GRAY} />
+                  </View>
+                )}
+                {pack!.discount_pct > 0 && (
+                  <View style={styles.heroDiscountBadge}>
+                    <Text style={styles.heroDiscountText}>-{pack!.discount_pct}%</Text>
                   </View>
                 )}
               </View>
 
-              {/* ── Articles inclus ── */}
-              <Text style={styles.sectionTitle}>
-                Articles inclus ({pack!.item_count})
-              </Text>
-              <View style={styles.itemsCard}>
-                {pack!.items.map((item, i) => (
-                  <View key={item.sku_id}>
-                    {i > 0 && <View style={styles.itemDivider} />}
-                    <PackItemRow item={item} />
-                  </View>
-                ))}
+              {/* ── Titre + prix ── */}
+              <Text style={styles.packTitle}>{pack!.name_fr}</Text>
+              <View style={styles.packPriceRow}>
+                <Text style={styles.packPriceNew}>{pack!.total_price.toFixed(0)} MAD</Text>
+                {pack!.saved_amount > 0 && (
+                  <Text style={styles.packPriceOld}>{pack!.original_price.toFixed(0)} MAD</Text>
+                )}
               </View>
+              {pack!.description_fr && (
+                <Text style={styles.packDescription}>{pack!.description_fr}</Text>
+              )}
+
+              {/* ── Le pack contient ── */}
+              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Le pack contient</Text>
+              {packItemRows.map((row, ri) => (
+                <View key={ri} style={styles.row}>
+                  {row.map(item => <PackItemCard key={item.sku_id} item={item} />)}
+                  {row.length === 1 && <View style={{ width: CARD_W }} />}
+                </View>
+              ))}
+
+              {/* ── Détails ── */}
+              <Text style={styles.sectionTitle}>Détails</Text>
+              <View style={styles.detailsCard}>
+                <View style={styles.detailBlock}>
+                  <View style={styles.detailIconBox}>
+                    <Feather name="package" size={18} color={RED} />
+                  </View>
+                  <Text style={styles.detailLabel}>Nombre</Text>
+                  <Text style={styles.detailValue}>{pack!.item_count} Produits</Text>
+                </View>
+                <View style={styles.detailDividerV} />
+                <View style={styles.detailBlock}>
+                  <View style={styles.detailIconBox}>
+                    <Feather name="calendar" size={18} color={RED} />
+                  </View>
+                  <Text style={styles.detailLabel}>Valide jusqu'au</Text>
+                  <Text style={styles.detailValue} numberOfLines={1}>
+                    {formatDate(pack!.valid_to) ?? 'Illimité'}
+                  </Text>
+                </View>
+                <View style={styles.detailDividerV} />
+                <View style={styles.detailBlock}>
+                  <View style={styles.detailIconBox}>
+                    <Feather name="check-circle" size={18} color={pack!.is_active ? GREEN : GRAY} />
+                  </View>
+                  <Text style={styles.detailLabel}>Dispo</Text>
+                  <Text style={[styles.detailValue, { color: pack!.is_active ? GREEN : GRAY }]}>
+                    {pack!.is_active ? 'En stock' : 'Indisponible'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* ── Packs similaires ── */}
+              {similarPacks.length > 0 && (
+                <>
+                  <View style={styles.similarHeader}>
+                    <Text style={styles.sectionTitle}>Packs similaires</Text>
+                    <TouchableOpacity onPress={() => router.push('/main/packs' as any)}>
+                      <Text style={styles.seeAllText}>Voir tout</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
+                    {similarPacks.map(sp => (
+                      <SimilarPackCard
+                        key={sp.id}
+                        item={sp}
+                        onPress={() => router.push({ pathname: '/main/promotion-detail' as any, params: { id: sp.id, type: 'pack' } })}
+                      />
+                    ))}
+                  </ScrollView>
+                </>
+              )}
             </>
           ) : (
             <>
-              {/* ── Produits éligibles ── */}
+              {/* ── Bannière flash sale (inchangée) ── */}
+              <View style={styles.banner}>
+                <View style={styles.bannerLeft}>
+                  <View style={[styles.bannerIconBox, { backgroundColor: accent }]}>
+                    <Text style={styles.bannerIconText}>%</Text>
+                  </View>
+                  <View style={styles.bannerInfo}>
+                    <Text style={styles.bannerTitle} numberOfLines={2}>
+                      {promo!.name_fr ?? (promo!.discount_pct != null
+                        ? `-${promo!.discount_pct}% sur ${promo!.scope_name ?? 'les produits'}`
+                        : promo!.scope_name ?? 'Flash Vente')}
+                    </Text>
+                    {promo!.scope_name && promo!.scope_type !== 'sku' && (
+                      <Text style={styles.bannerScope}>
+                        {scopeLabel[promo!.scope_type] ?? ''} · {promo!.scope_name}
+                      </Text>
+                    )}
+                    <View style={styles.bannerDateRow}>
+                      <Feather name="calendar" size={12} color={GRAY} />
+                      <Text style={styles.bannerDate}>
+                        Valide jusqu'au {formatDate(promo!.ends_at)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={[styles.statusBadge, data!.is_active ? styles.badgeActive : styles.badgeInactive]}>
+                  <View style={[styles.statusDot, { backgroundColor: data!.is_active ? GREEN : GRAY }]} />
+                  <Text style={[styles.statusText, { color: data!.is_active ? GREEN : GRAY }]}>
+                    {data!.is_active ? 'Activé' : 'Expiré'}
+                  </Text>
+                </View>
+              </View>
+
               <Text style={styles.sectionTitle}>
                 Produits éligibles ({promo!.eligible_count})
               </Text>
@@ -303,8 +404,11 @@ export default function PromotionDetailScreen() {
       {/* ── Barre du bas ── */}
       {isPack ? (
         <View style={styles.bottomBar}>
+          <View style={styles.bottomBarPrice}>
+            <Text style={styles.bottomBarPriceValue}>{pack?.total_price.toFixed(0)} MAD</Text>
+          </View>
           <TouchableOpacity
-            style={[styles.cartBtn, { backgroundColor: RED }, addingPack && { opacity: 0.7 }]}
+            style={[styles.cartBtn, { flex: 1 }, addingPack && { opacity: 0.7 }]}
             onPress={handleAddPack}
             activeOpacity={0.85}
             disabled={addingPack}
@@ -315,8 +419,6 @@ export default function PromotionDetailScreen() {
               <>
                 <Feather name="shopping-cart" size={17} color="#fff" />
                 <Text style={styles.cartBtnText}>Ajouter le pack</Text>
-                <View style={styles.cartDivider} />
-                <Text style={styles.cartBtnTotal}>{pack?.total_price.toFixed(2)} MAD</Text>
               </>
             )}
           </TouchableOpacity>
@@ -345,49 +447,56 @@ export default function PromotionDetailScreen() {
   );
 }
 
-
-
 const styles = StyleSheet.create({
   safe:     { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll:   { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
   errorText:{ fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: GRAY },
 
+  // ── Hero pack ──
+  heroBox: {
+    width: '100%', height: 220, borderRadius: 20, overflow: 'hidden',
+    backgroundColor: '#F5F5F5', marginBottom: 18, position: 'relative',
+  },
+  heroImage: { width: '100%', height: '100%' },
+  heroDiscountBadge: {
+    position: 'absolute', top: 14, left: 14,
+    backgroundColor: RED, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  heroDiscountText: { fontSize: 15, fontFamily: 'Poppins_700Bold', color: '#fff' },
+
+  packTitle: { fontSize: 22, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 8 },
+  packPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  packPriceNew: { fontSize: 24, fontFamily: 'Poppins_700Bold', color: RED },
+  packPriceOld: { fontSize: 16, fontFamily: 'Poppins_500Medium', color: GRAY, textDecorationLine: 'line-through' },
+  packDescription: { fontSize: 13.5, fontFamily: 'Poppins_400Regular', color: GRAY, lineHeight: 20, marginBottom: 8 },
+
+  // ── Flash sale banner (inchangé) ──
   banner: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    borderWidth: 1, borderColor: '#FFD9D9',
-    padding: 14,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 20,
-    shadowColor: RED, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+    backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#FFD9D9', padding: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20,
+    shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   bannerLeft:    { flexDirection: 'row', alignItems: 'flex-start', flex: 1, gap: 12 },
-  bannerIconBox: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: RED, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  bannerIconText: { fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#fff' },
-  bannerInfo:     { flex: 1 },
-  bannerTitle:    { fontSize: 14, fontFamily: 'Poppins_700Bold', color: INK, lineHeight: 20, marginBottom: 3 },
-  bannerScope:    { fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: GRAY, marginBottom: 4 },
-  bannerDateRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  bannerDate:     { fontSize: 11, fontFamily: 'Poppins_400Regular', color: GRAY },
-
-  statusBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 50, flexShrink: 0 },
-  badgeActive:    { backgroundColor: '#F0FDF4' },
-  badgeInactive:  { backgroundColor: '#F3F4F6' },
-  statusDot:      { width: 6, height: 6, borderRadius: 3 },
-  statusText:     { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
+  bannerIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: RED, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  bannerIconText:{ fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#fff' },
+  bannerInfo:    { flex: 1 },
+  bannerTitle:   { fontSize: 14, fontFamily: 'Poppins_700Bold', color: INK, lineHeight: 20, marginBottom: 3 },
+  bannerScope:   { fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: GRAY, marginBottom: 4 },
+  bannerDateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  bannerDate:    { fontSize: 11, fontFamily: 'Poppins_400Regular', color: GRAY },
+  statusBadge:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 50, flexShrink: 0 },
+  badgeActive:   { backgroundColor: '#F0FDF4' },
+  badgeInactive: { backgroundColor: '#F3F4F6' },
+  statusDot:     { width: 6, height: 6, borderRadius: 3 },
+  statusText:    { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
 
   sectionTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 14 },
 
   row:  { flexDirection: 'row', gap: 16, marginBottom: 16 },
   card: {
-    width: CARD_W, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    width: CARD_W, backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   imageBox:         { position: 'relative', width: '100%', height: CARD_W * 0.85, backgroundColor: '#FAFAFA' },
   image:            { width: '100%', height: '100%' },
@@ -404,26 +513,41 @@ const styles = StyleSheet.create({
   addBtn:     { margin: 10, marginTop: 6, backgroundColor: RED, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   addBtnText: { fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#fff' },
 
-  priceCard:    { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  priceRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  priceLabel:   { fontSize: 14, fontFamily: 'Poppins_400Regular', color: GRAY },
-  priceOld:     { fontSize: 14, fontFamily: 'Poppins_500Medium', color: GRAY, textDecorationLine: 'line-through' },
-  priceDivider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 4 },
-  priceLabelPromo: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: INK },
-  priceNew:     { fontSize: 18, fontFamily: 'Poppins_700Bold', color: RED },
-  savingRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 10 },
-  savingText:   { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: GREEN },
+  // ── Pack item card (grille 2 colonnes façon capture) ──
+  packItemCard: {
+    width: CARD_W, backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#F0F0F0',
+  },
+  packItemImageBox: { width: '100%', height: CARD_W * 0.75, backgroundColor: '#ffffff' },
+  packItemImage:    { width: '100%', height: '100%' },
+  packItemBody:     { padding: 10 },
+  packItemName:     { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: INK, lineHeight: 18, marginBottom: 2 },
+  packItemUnit:     { fontSize: 11, fontFamily: 'Poppins_400Regular', color: GRAY, marginBottom: 6 },
+  packItemBottomRow:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  packItemPrice:    { fontSize: 14, fontFamily: 'Poppins_700Bold', color: RED },
+  stockBadge:       { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stockDot:         { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
+  stockText:        { fontSize: 9, fontFamily: 'Poppins_600SemiBold', color: GREEN, letterSpacing: 0.3 },
 
-  itemsCard:    { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  itemRow:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  itemImageBox: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },
-  itemImage:    { width: '100%', height: '100%' },
-  itemInfo:     { flex: 1 },
-  itemName:     { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: INK, lineHeight: 18, marginBottom: 3 },
-  itemPrice:    { fontSize: 12, fontFamily: 'Poppins_400Regular', color: GRAY },
-  itemQtyBox:   { backgroundColor: '#FFF0F0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, flexShrink: 0 },
-  itemQty:      { fontSize: 13, fontFamily: 'Poppins_700Bold', color: RED },
-  itemDivider:  { height: 1, backgroundColor: '#F5F5F5', marginHorizontal: 14 },
+  // ── Détails (Nombre / Valide / Dispo) ──
+  detailsCard: {
+    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: '#F0F0F0', marginBottom: 24,
+  },
+  detailBlock:   { flex: 1, alignItems: 'center', gap: 6 },
+  detailIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center' },
+  detailLabel:   { fontSize: 11, fontFamily: 'Poppins_400Regular', color: GRAY },
+  detailValue:   { fontSize: 13, fontFamily: 'Poppins_700Bold', color: INK, textAlign: 'center' },
+  detailDividerV:{ width: 1, backgroundColor: '#F0F0F0', marginHorizontal: 6 },
+
+  // ── Packs similaires ──
+  similarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  seeAllText:    { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: RED },
+  similarCard: {
+    width: CARD_W * 0.85, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  similarImageBox: { width: '100%', height: (CARD_W * 0.85) * 0.75, backgroundColor: '#FAFAFA', position: 'relative' },
 
   empty:     { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: GRAY },
@@ -434,12 +558,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 20,
     flexDirection: 'row', alignItems: 'center', gap: 12,
   },
+  bottomBarPrice:      { backgroundColor: '#FFF0F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  bottomBarPriceValue: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: RED },
   reductionChip:  { backgroundColor: '#FFF0F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
   reductionLabel: { fontSize: 10, fontFamily: 'Poppins_400Regular', color: RED },
   reductionValue: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: RED },
 
-  cartBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: RED, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
-  cartBtnText:  { flex: 1, fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#fff' },
+  cartBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: RED, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
+  cartBtnText:  { fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#fff' },
   cartDivider:  { width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.4)' },
   cartBtnTotal: { fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#fff' },
 });

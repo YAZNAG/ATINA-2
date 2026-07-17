@@ -66,7 +66,6 @@ export interface CreateClaimPayload {
   contact_phone?: string;
 }
 
-// ---------- Service ----------
 
 async function getTypes(): Promise<ClaimTypeOption[]> {
   try {

@@ -239,8 +239,6 @@ class CustomerCartService {
     return this.getCart(customerId);
   }
 
-  // Adds every item of a pack as one bundle (or `bundleQty` bundles), linked via pack_id
-  // so the cart can keep applying the pack's bundle discount.
   async addPack(customerId, packId, bundleQty = 1) {
     const pack = await getPackWithItems(packId);
     if (!pack) throw { statusCode: 404, message: 'Pack introuvable' };
@@ -350,7 +348,6 @@ class CustomerCartService {
     throw { statusCode: 400, message: 'Mode invalide (merge ou replace)' };
   }
 
-  // Vérifie que la commande appartient bien au client, avec ses articles
   const order = await prisma.order.findFirst({
     where: { id: orderId, customer_id: customerId, is_deleted: false },
     include: {

@@ -5,15 +5,15 @@ import {
   RefreshControl, Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
 import { ProfileService, Notification } from '../../services/profile.service';
 import { useNotification } from '../../context/NotificationContext';
 import PageHeader from '../../components/ui/PageHeader';
 import SortBar from '../../components/ui/SortBar';
 
-const RED = '#E62A27';
-
-// ── Filter tabs ───────────────────────────────────────────────────────────────
+const RED = '#E10600';
 
 type Tab = 'all' | 'orders' | 'promos' | 'important';
 
@@ -35,8 +35,6 @@ function applyFilter(notifs: Notification[], tab: Tab): Notification[] {
   });
 }
 
-// ── Icon helpers ──────────────────────────────────────────────────────────────
-
 function getStyle(code: string): { icon: string; color: string; bg: string } {
   const c = code.toLowerCase();
   if (c.includes('confirm'))
@@ -56,7 +54,6 @@ function getStyle(code: string): { icon: string; color: string; bg: string } {
   return   { icon: 'bell',         color: '#6B7280',  bg: '#F5F5F5' };
 }
 
-// ── Date grouping ─────────────────────────────────────────────────────────────
 
 type Group = { title: string; count: number; items: Notification[] };
 
@@ -81,8 +78,6 @@ function groupByDate(notifs: Notification[]): Group[] {
   return ORDER.filter(k => map[k]).map(k => ({ title: k, count: map[k].length, items: map[k] }));
 }
 
-// ── Time label ────────────────────────────────────────────────────────────────
-
 function timeLabel(date: string): string {
   const diff  = Date.now() - new Date(date).getTime();
   const mins  = Math.floor(diff / 60000);
@@ -95,8 +90,6 @@ function timeLabel(date: string): string {
   if (days  < 7)   return `Il y a ${days} j`;
   return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -141,6 +134,14 @@ export default function NotificationsScreen() {
     } catch {}
   };
 
+  const handleDelete = async (id: string) => {
+  setNotifications(prev => prev.filter(n => n.id !== id));
+  try {
+    await ProfileService.deleteNotification(id);
+    await refreshNotifCount();
+  } catch { load(); }
+};
+
   const handleDeleteAll = () => {
     Alert.alert('Tout supprimer', 'Supprimer toutes les notifications ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -162,6 +163,7 @@ export default function NotificationsScreen() {
   const unread   = notifications.filter(n => !n.is_read).length;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
@@ -227,6 +229,18 @@ export default function NotificationsScreen() {
               {group.items.map(item => {
                 const st = getStyle(item.event_code);
                 return (
+                  <Swipeable
+      key={item.id}
+      renderRightActions={() => (
+        <TouchableOpacity
+          style={styles.deleteAction}
+          onPress={() => handleDelete(item.id)}
+          activeOpacity={0.8}
+        >
+          <Feather name="trash-2" size={20} color="#fff" />
+        </TouchableOpacity>
+      )}
+    >
                   <TouchableOpacity
                     key={item.id}
                     style={styles.card}
@@ -252,6 +266,7 @@ export default function NotificationsScreen() {
                       ) : null}
                     </View>
                   </TouchableOpacity>
+                  </Swipeable>
                 );
               })}
             </View>
@@ -259,6 +274,7 @@ export default function NotificationsScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -306,7 +322,7 @@ const styles = StyleSheet.create({
 
   // Empty state
   emptyPage: {
-    flex: 1, backgroundColor: '#F5F5F5',
+    flex: 1, backgroundColor: '#ffffff',
     padding: 16, justifyContent: 'flex-start', paddingTop: 20,
   },
   emptyCard: {
@@ -334,4 +350,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center',
   },
   emptyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  deleteAction: {
+  backgroundColor: '#EF4444',
+  justifyContent: 'center',
+  alignItems: 'center',
+  width: 72,
+  borderRadius: 16,
+  marginBottom: 10,
+},
 });

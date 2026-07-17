@@ -6,7 +6,7 @@ const { createUpload } = require('../../middlewares/upload.middleware');
 const uploadAvatar = createUpload('avatars', [{ name: 'avatar', maxCount: 1 }]);
 
 const router = Router();
-router.use(auth); // All routes require customer JWT
+router.use(auth); 
 
 // Profile
 router.get('/',    ctrl.getProfile.bind(ctrl));

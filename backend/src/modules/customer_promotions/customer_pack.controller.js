@@ -12,6 +12,12 @@ class CustomerPackController {
     try { resp.success(res, await svc.getPackById(req.params.id)); }
     catch(e) { E(res, next, e); }
   }
+
+  async similar(req, res, next) {
+  try {
+    resp.success(res, await svc.listSimilarPacks(req.params.id, req.query.limit));
+  } catch (e) { E(res, next, e); }
+}
 }
 
 module.exports = new CustomerPackController();

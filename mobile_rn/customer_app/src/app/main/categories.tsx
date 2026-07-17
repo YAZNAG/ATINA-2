@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, TouchableOpacity, Image,
+  FlatList, TouchableOpacity,
   Dimensions, ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -30,7 +31,13 @@ const CategoryCard = ({
   <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
     <View style={styles.imageBox}>
       {category.image_path ? (
-        <Image source={{ uri: category.image_path }} style={styles.image} resizeMode="cover" />
+        <Image
+          source={{ uri: category.image_path }}
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
       ) : (
         <View style={styles.imagePlaceholder}>
           <Feather name="image" size={28} color="#D0C9BF" />
@@ -71,13 +78,15 @@ export default function CategoriesScreen() {
   useEffect(() => { loadCategories(); }, []);
   const onRefresh = useCallback(() => { setRefreshing(true); loadCategories(); }, []);
 
-  const filtered = categories.filter((c) => {
-    const matchSearch = search.trim() === '' ||
-      c.name_fr.toLowerCase().includes(search.toLowerCase()) ||
-      c.name_ar.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = selectedCats.length === 0 || selectedCats.includes(c.id);
-    return matchSearch && matchFilter;
-  });
+  const filtered = useMemo(() => {
+    return categories.filter((c) => {
+      const matchSearch = search.trim() === '' ||
+        c.name_fr.toLowerCase().includes(search.toLowerCase()) ||
+        c.name_ar.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = selectedCats.length === 0 || selectedCats.includes(c.id);
+      return matchSearch && matchFilter;
+    });
+  }, [categories, search, selectedCats]);
 
   if (!fontsLoaded) {
     return (
@@ -147,7 +156,7 @@ export default function CategoriesScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-grid: { paddingHorizontal: H_PADDING, paddingBottom: 100 },
+grid: { paddingHorizontal: H_PADDING, paddingBottom: 24 },
 row:  { gap: GAP, marginBottom: 16 },
   card: { width: CARD_SIZE, alignItems: 'center' },
   imageBox: {

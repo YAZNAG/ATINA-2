@@ -55,7 +55,6 @@ export default function CheckoutDeliveryAddressScreen() {
   const [locating, setLocating]       = useState(false);
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
 
-  // ── Chargement initial ──
   useEffect(() => {
     (async () => {
       try {
@@ -94,7 +93,7 @@ export default function CheckoutDeliveryAddressScreen() {
     })();
   }, []);
 
-  // ── Géolocalisation ──
+  // geolocalisation 
   const handleGetLocation = async () => {
     try {
       setLocating(true);
@@ -129,7 +128,6 @@ export default function CheckoutDeliveryAddressScreen() {
     }
   };
 
-  // ── Confirmer ──
   const handleConfirm = async () => {
     if (!streetName.trim()) { Alert.alert('Erreur', 'Veuillez entrer une adresse complète'); return; }
     if (!city.trim())       { Alert.alert('Erreur', 'Veuillez choisir une ville'); return; }
@@ -158,7 +156,7 @@ export default function CheckoutDeliveryAddressScreen() {
         addressId = (created as any)?.id;
       }
 
-      router.push({
+      router.replace({
         pathname: '/order/delivery_datetime' as any,
         params: {
           delivery_type_code: 'home',
@@ -350,8 +348,26 @@ const styles = StyleSheet.create({
   locBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: RED },
 
   fieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280', marginBottom: 8, marginTop: 4 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 8 : 6, marginBottom: 16, backgroundColor: '#FAFAFA' },
-  input: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#1a1a1a' },
+  inputWrap: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  height: 52,                    
+  borderWidth: 1.5,
+  borderColor: '#E5E7EB',
+  borderRadius: 12,
+  paddingHorizontal: 14,
+  marginBottom: 16,
+  backgroundColor: '#FAFAFA',
+},
+  input: {
+  flex: 1,
+  fontSize: 15,
+  fontFamily: 'Inter_400Regular',
+  color: '#1a1a1a',
+  lineHeight: 20,              
+  paddingVertical: 0, 
+},
   placeholder: { color: '#C4C4C4' },
 
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },

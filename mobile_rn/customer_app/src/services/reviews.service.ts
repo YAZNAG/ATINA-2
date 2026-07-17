@@ -15,11 +15,14 @@ export interface Review {
   comment: string | null;
   created_at: string;
   updated_at: string;
+  helpful_count: number;
+  voted_by_me: boolean;
 }
 
 export interface ReviewStats {
   average_rating: number | null;
   review_count: number;
+  distribution: { 5: number; 4: number; 3: number; 2: number; 1: number };
 }
 
 export interface ReviewsMeta {
@@ -116,12 +119,22 @@ async function remove(reviewId: string): Promise<{ id: string }> {
   }
 }
 
+async function toggleHelpful(reviewId: string): Promise<Review> {
+  try {
+    const { data } = await api.post(`/customer/reviews/${reviewId}/helpful`);
+    return data.data;
+  } catch (error: any) {
+    throw { statusCode: error.response?.status ?? 500, message: error.response?.data?.message ?? 'Erreur lors du vote' };
+  }
+}
+
 export const ReviewsService = {
   listByArticle,
   getMyReview,
   create,
   update,
   remove,
+  toggleHelpful,
 };
 
 export default ReviewsService;

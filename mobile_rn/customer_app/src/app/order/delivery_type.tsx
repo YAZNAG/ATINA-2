@@ -41,13 +41,12 @@ export default function CheckoutDeliveryModeScreen() {
     if (!selected) return;
 
     if (selected === 'home') {
-      router.push({
+      router.replace({
         pathname: '/order/delivery_address' as any,
         params: { delivery_type_code: 'home', cart_items },
       });
     } else {
-      // Retrait en magasin → page de sélection du magasin
-      router.push({
+      router.replace({
         pathname: '/order/delivery_pickup' as any,
         params: { delivery_type_code: 'pickup', cart_items },
       });

@@ -22,7 +22,6 @@ const toPublicUrl = (relativePath) => {
   if (!relativePath) return null;
   if (relativePath.startsWith('http')) return relativePath;
   let clean = relativePath.replace(/\\/g, '/');
-  // si chemin absolu Windows, extrait à partir de "storage/"
   const idx = clean.indexOf('storage/');
   if (idx >= 0) clean = '/' + clean.slice(idx);
   return `${BASE_URL}${clean.startsWith('/') ? '' : '/'}${clean}`;

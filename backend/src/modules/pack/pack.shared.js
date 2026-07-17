@@ -9,6 +9,7 @@ const PACK_INCLUDE = {
           article: {
             select: {
               name_fr: true, name_ar: true, sku_code: true, price: true,
+              unit_sale: true, 
               images: {
                 where:  { is_main: true },
                 select: { image_path: true },
@@ -57,19 +58,20 @@ function computePackPrices(packItems, { discount_type, discount_value, total_pri
 function resolveImageUrl(imagePath) {
   if (!imagePath) return null;
   if (/^https?:\/\//.test(imagePath)) return imagePath;
-  const base = process.env.BASE_URL || 'http://192.168.100.114:5000';
+  const base = process.env.BASE_URL || 'http://192.168.1.17:5000';
   return `${base}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
 }
 
 function formatPack(pack) {
   const items = (pack.pack_items ?? []).map(it => ({
-    sku_id:    it.sku_id,
-    name_fr:   it.sku?.article?.name_fr,
-    name_ar:   it.sku?.article?.name_ar,
-    sku_code:  it.sku?.article?.sku_code,
-    qty:       Number(it.qty ?? 1),
+    sku_id:     it.sku_id,
+    name_fr:    it.sku?.article?.name_fr,
+    name_ar:    it.sku?.article?.name_ar,
+    sku_code:   it.sku?.article?.sku_code,
+    qty:        Number(it.qty ?? 1),
     unit_price: Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0),
-    image_url: resolveImageUrl(it.sku?.article?.images?.[0]?.image_path),
+    unit_label: it.sku?.article?.unit_sale ?? null, 
+    image_url:  resolveImageUrl(it.sku?.article?.images?.[0]?.image_path),
   }));
 
   return {

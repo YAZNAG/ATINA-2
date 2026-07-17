@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, SafeAreaView,
   StatusBar, ActivityIndicator, TouchableOpacity,
   RefreshControl, Dimensions, FlatList, Image,
+  NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -23,20 +24,25 @@ import ProductCard   from '../../components/ui/ProductCard';
 import BottomNavBar  from '../../components/ui/BottomNavBar';
 import FilterModal   from '../../components/ui/FilterModal';
 import HomeHeader from '../../components/ui/HomeHeader';
+import FlashSaleSection from '../../components/ui/FlashSaleSection';
+import SeeAllCard from '../../components/ui/SeeAllCard';
 
 import { CatalogService, Category, Article } from '../../services/catalog.service';
 import { ProfileService, Address, Profile }  from '../../services/profile.service';
+import { CartService } from '../../services/cart.service';
 import {
   PromotionsService, FlashSaleSummary,
   PacksService, PackSummary,
   buildSlides, SlideItem,
-  BestDeal, bestDealToArticle,
+  BestDeal, bestDealToArticle, EndingSoonResponse
 } from '../../services/promotions.service';
 import { useNotification } from '../../context/NotificationContext';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
 const GRID_COLUMNS = 2;
+const SLIDE_INTERVAL = width * 0.82 + 12;
+const HORIZONTAL_LIST_LIMIT = 7;
 
 export default function HomeScreen() {
 
@@ -52,6 +58,7 @@ export default function HomeScreen() {
   const [categories, setCategories]   = useState<Category[]>([]);
   const [articles, setArticles]       = useState<Article[]>([]);
   const [recommended, setRecommended] = useState<Article[]>([]);
+  const [popular, setPopular]         = useState<Article[]>([]);
   const [selectedCat, setSelectedCat] = useState<number | null>(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
@@ -62,12 +69,12 @@ export default function HomeScreen() {
   const [promotions, setPromotions]         = useState<FlashSaleSummary[]>([]);
   const [packs,      setPacks]              = useState<PackSummary[]>([]);
   const [bestDeals,  setBestDeals]          = useState<BestDeal[]>([]);
+  const [endingSoon, setEndingSoon] = useState<EndingSoonResponse>({ ends_at: null, products: [] });
   const [favoriteIds, setFavoriteIds]       = useState<Set<number>>(new Set());
+  const [activeSlide, setActiveSlide]       = useState(0);
+  const [complements, setComplements] = useState<Article[]>([]);
+  const [topRated, setTopRated] = useState<Article[]>([]);
 
-  // ── Chargement des articles, avec filtre catégorie appliqué côté backend ──
-  // CatalogService.getArticles n'accepte qu'un seul `category_id` (pas de tableau).
-  // Pour le multi-select (`selectedCats`), on parallélise une requête par
-  // catégorie puis on fusionne + déduplique les résultats côté client.
   const loadArticles = useCallback(async () => {
     try {
       if (selectedCats.length > 0) {
@@ -93,36 +100,57 @@ export default function HomeScreen() {
   }, [selectedCat, selectedCats]);
 
   const loadData = useCallback(async () => {
+  try {
+    const [cats, arts, addresses, recs, profile, promos, pks, homePromos, favs, pop, rated] = await Promise.all([
+  CatalogService.getCategories().catch(() => []),
+  CatalogService.getArticles({ limit: 20 }).catch(() => []),
+  ProfileService.listAddresses().catch(() => []),
+  CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []),
+  ProfileService.getProfile().catch(() => null),
+  PromotionsService.listActive().catch(() => []),
+  PacksService.listActive().catch(() => []),
+  PromotionsService.listHomePromotions(24, 10).catch(() => ({
+    endingSoon: { ends_at: null, products: [] },
+    bestDeals: [],
+  })),
+  ProfileService.listFavorites().catch(() => []),
+  CatalogService.getPopularArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })),
+  CatalogService.getTopRatedArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })),
+]);
+setCategories(cats);
+setArticles(arts);
+setRecommended(recs);
+setPopular(pop.data);    
+setAvatarUrl(profile?.avatar_url ?? null);
+setUser(profile);
+setPromotions(promos);
+setPacks(pks);
+setEndingSoon(homePromos.endingSoon);
+setBestDeals(homePromos.bestDeals); 
+setFavoriteIds(new Set(favs.map((f) => f.id)));
+setTopRated(rated.data);    
+    const defaultAddr = addresses.find((a) => a.is_default) || addresses[0] || null;
+    setDefaultAddress(defaultAddr);
     try {
-      const [cats, arts, addresses, recs, profile, promos, pks, deals, favs] = await Promise.all([
-        CatalogService.getCategories().catch(() => []),
-        CatalogService.getArticles({ limit: 50 }).catch(() => []),
-        ProfileService.listAddresses().catch(() => []),
-        CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []),
-        ProfileService.getProfile().catch(() => null),
-        PromotionsService.listActive().catch(() => []),
-        PacksService.listActive().catch(() => []),
-        PromotionsService.listBestDeals(10).catch(() => []),
-        ProfileService.listFavorites().catch(() => []),
-      ]);
-      setCategories(cats);
-      setArticles(arts);
-      setRecommended(recs);
-      setAvatarUrl(profile?.avatar_url ?? null);
-      setUser(profile);
-      setPromotions(promos);
-      setPacks(pks);
-      setBestDeals(deals);
-      setFavoriteIds(new Set(favs.map(f => f.id)));
-      const defaultAddr = addresses.find((a) => a.is_default) || addresses[0] || null;
-      setDefaultAddress(defaultAddr);
-    } catch (err) {
-      console.log('Error loading data:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      const cart = await CartService.getCart();
+      const skuIds = cart.items.map((i) => i.sku_id).filter(Boolean) as string[];
+      if (skuIds.length > 0) {
+        const comps = await CatalogService.getCartComplements(skuIds, 10);
+        setComplements(comps.data);
+      } else {
+        setComplements([]);
+      }
+    } catch(err) {
+      setComplements([]);
+      console.log('Erreur compléments panier:', err);
     }
-  }, []);
+  } catch (err) {
+    console.log('Error loading data:', err);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -145,6 +173,24 @@ export default function HomeScreen() {
     });
   }, [articles, selectedCat, selectedCats]);
 
+  const suggestions = useMemo(() => {
+  const seen = new Set<number>();
+  const merged: Article[] = [];
+  [...recommended, ...complements].forEach((a) => {
+    if (!seen.has(a.id)) {
+      seen.add(a.id);
+      merged.push(a);
+    }
+  });
+  return merged;
+}, [recommended, complements]);
+
+const suggestionRows = useMemo(() => {
+  const rows: Article[][] = [];
+  for (let i = 0; i < suggestions.length; i += 2) rows.push(suggestions.slice(i, i + 2));
+  return rows;
+}, [suggestions]);
+
   const handleToggleFav = useCallback((articleId: number, next: boolean) => {
     setFavoriteIds(prev => {
       const s = new Set(prev);
@@ -161,10 +207,6 @@ export default function HomeScreen() {
     router.push({ pathname: '/main/categories' });
   }, [router]);
 
-  const handleSeeAllPromotions = useCallback(() => {
-    router.push('/main/promotions' as any);
-  }, [router]);
-
   const handleSelectCategory = useCallback((cat: Category) => {
     setSelectedCat(cat.id === 0 ? null : cat.id);
     setSelectedCats([]);
@@ -176,16 +218,48 @@ export default function HomeScreen() {
     setFilterVisible(false);
   }, []);
 
+  const hasCategoryFilter = selectedCat != null || selectedCats.length > 0;
+
+const activeCategoryName = useMemo(() => {
+  if (selectedCat != null) {
+    return categories.find((c) => c.id === selectedCat)?.name_fr ?? null;
+  }
+  if (selectedCats.length === 1) {
+    return categories.find((c) => c.id === selectedCats[0])?.name_fr ?? null;
+  }
+  if (selectedCats.length > 1) {
+    return `${selectedCats.length} catégories`;
+  }
+  return null;
+}, [selectedCat, selectedCats, categories]);
+
+const handleClearCategoryFilter = useCallback(() => {
+  setSelectedCat(null);
+  setSelectedCats([]);
+}, []);
+
   const slides: SlideItem[] = useMemo(
     () => buildSlides(promotions, packs),
     [promotions, packs]
   );
+
+  // Pagination du carrousel de bannières 
+  const handleSlideScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / SLIDE_INTERVAL);
+    setActiveSlide(Math.max(0, Math.min(index, slides.length - 1)));
+  }, [slides.length]);
 
   const favoriteIdsRef = useRef(favoriteIds);
   favoriteIdsRef.current = favoriteIds;
 
   const handlersRef = useRef({ handleToggleFav, handlePressProduct });
   handlersRef.current = { handleToggleFav, handlePressProduct };
+
+  function withSeeAllSentinel<T extends { id: number }>(items: T[], limit: number) {
+  const trimmed = items.slice(0, limit);
+  const hasMore = items.length > limit;
+  return { trimmed, hasMore };}
 
   const renderProductCard = useCallback(({ item }: { item: Article }) => (
     <ProductCard
@@ -195,6 +269,27 @@ export default function HomeScreen() {
       onPress={() => handlersRef.current.handlePressProduct(item.id)}
     />
   ), []);
+
+  const renderTopRatedCard = useCallback(({ item }: { item: Article }) => (
+  <ProductCard
+    article={item}
+    isFav={favoriteIdsRef.current.has(item.id)}
+    onToggleFav={(next) => handlersRef.current.handleToggleFav(item.id, next)}
+    onPress={() => handlersRef.current.handlePressProduct(item.id)}
+  />
+), []);
+
+  const renderPopularCard = useCallback(({ item, index }: { item: Article; index: number }) => (
+  <View>
+    <ProductCard
+      article={item}
+      isFav={favoriteIdsRef.current.has(item.id)}
+      onToggleFav={(next) => handlersRef.current.handleToggleFav(item.id, next)}
+      onPress={() => handlersRef.current.handlePressProduct(item.id)}
+    />
+  </View>
+), []);
+
   const renderBestDealCard = useCallback(({ item }: { item: BestDeal }) => (
     <ProductCard
       article={bestDealToArticle(item)}
@@ -259,82 +354,175 @@ export default function HomeScreen() {
   const handleOpenFilter = useCallback(() => setFilterVisible(true), []);
 
   const ListHeader = useMemo(() => (
-    <>
-      <SearchBar
-        value=""
-        onChangeText={() => {}}
-        onFilter={handleOpenFilter}
-        onPress={handleOpenSearch}
-      />
+  <>
+    <SearchBar
+      value=""
+      onChangeText={() => {}}
+      onFilter={handleOpenFilter}
+      onPress={handleOpenSearch}
+    />
 
-      {slides.length > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Promotions" onSeeAll={handleSeeAllPromotions} />
-          <FlatList
-            data={slides}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={width * 0.82 + 12}
-            decelerationRate="fast"
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-            keyExtractor={item => `${item.type}-${item.id}`}
-            renderItem={renderPromoSlide}
-          />
-        </View>
-      )}
-
-      <View style={[styles.section, { marginTop: 28 }]}>
-        <SectionHeader title="Catégories" onSeeAll={handleSeeAllCategories} />
-        <CategoryList
-          categories={categories}
-          selectedId={selectedCat}
-          onSelect={handleSelectCategory}
-        />
-      </View>
-
-      {bestDeals.length > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Best Deals" onSeeAll={handleSeeAllPromotions} />
-          <FlatList
-            data={bestDeals}
-            keyExtractor={(item) => `deal-${item.id}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            renderItem={renderBestDealCard}
-            extraData={favoriteIds}
-          />
-        </View>
-      )}
-
-      {recommended.length > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Recommendé pour vous" onSeeAll={() => {}} />
-          <FlatList
-            data={recommended}
-            keyExtractor={(item) => `rec-${item.id}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            renderItem={renderProductCard}
-            extraData={favoriteIds}
-          />
-        </View>
-      )}
-
+    {!hasCategoryFilter && slides.length > 0 && (
       <View style={styles.section}>
-        <SectionHeader
-          title={selectedCat || selectedCats.length > 0 ? 'Produits' : 'Tous les produits'}
-          onSeeAll={() => {}}
+        <FlatList
+          data={slides}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={SLIDE_INTERVAL}
+          decelerationRate="fast"
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          keyExtractor={item => `${item.type}-${item.id}`}
+          renderItem={renderPromoSlide}
+          onMomentumScrollEnd={handleSlideScrollEnd}
         />
+
+        {slides.length > 1 && (
+          <View style={styles.dotsContainer}>
+            {slides.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.dot, i === activeSlide && styles.dotActive]}
+              />
+            ))}
+          </View>
+        )}
       </View>
-    </>
-  ), [
-    slides, bestDeals, recommended, categories, selectedCat, selectedCats, favoriteIds,
-    handleSeeAllPromotions, handleSeeAllCategories, handleSelectCategory,
-    handleOpenSearch, handleOpenFilter,
-    renderPromoSlide, renderBestDealCard, renderProductCard,
-  ]);
+    )}
+
+    {!hasCategoryFilter && (
+      <FlashSaleSection
+        endsAt={endingSoon.ends_at}
+        products={endingSoon.products}
+        favoriteIds={favoriteIds}
+        onToggleFav={handleToggleFav}
+      />
+    )}
+
+    {!hasCategoryFilter && (
+  <View style={styles.section}>
+    <SectionHeader title="Catégories" onSeeAll={handleSeeAllCategories} />
+    <CategoryList
+      categories={categories}
+      selectedId={selectedCat}
+      onSelect={handleSelectCategory}
+    />
+  </View>
+   )}
+
+{!hasCategoryFilter && bestDeals.length > 0 && (() => {
+  const { trimmed, hasMore } = withSeeAllSentinel(bestDeals, HORIZONTAL_LIST_LIMIT);
+  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'bestDeals', title: 'Meilleures offres' } };
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Meilleures offres" onSeeAll={() => router.push(seeAllRoute as any)} />
+      <FlatList
+        data={trimmed}
+        keyExtractor={(item) => `deal-${item.id}`}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+        renderItem={renderBestDealCard}
+        extraData={favoriteIds}
+        ListFooterComponent={hasMore ? <SeeAllCard onPress={() => router.push(seeAllRoute as any)} /> : null}
+      />
+    </View>
+  );
+})()}
+
+{!hasCategoryFilter && popular.length > 0 && (() => {
+  const { trimmed, hasMore } = withSeeAllSentinel(popular, HORIZONTAL_LIST_LIMIT);
+  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'popular', title: 'Produits populaires' } };
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Produits populaires" onSeeAll={() => router.push(seeAllRoute as any)} />
+      <FlatList
+        data={trimmed}
+        keyExtractor={(item) => `pop-${item.id}`}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+        renderItem={renderPopularCard}
+        extraData={favoriteIds}
+        ListFooterComponent={hasMore ? <SeeAllCard onPress={() => router.push(seeAllRoute as any)} /> : null}
+      />
+    </View>
+  );
+})()}
+
+{!hasCategoryFilter && topRated.length > 0 && (() => {
+  const { trimmed, hasMore } = withSeeAllSentinel(topRated, HORIZONTAL_LIST_LIMIT);
+  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'topRated', title: 'Notés 5 étoiles' } };
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Notés 5 étoiles" onSeeAll={() => router.push(seeAllRoute as any)} />
+      <FlatList
+        data={trimmed}
+        keyExtractor={(item) => `rated-${item.id}`}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+        renderItem={renderTopRatedCard}
+        extraData={favoriteIds}
+        ListFooterComponent={hasMore ? <SeeAllCard onPress={() => router.push(seeAllRoute as any)} /> : null}
+      />
+    </View>
+  );
+})()}
+
+{!hasCategoryFilter && suggestions.length > 0 && (() => {
+  const { trimmed, hasMore } = withSeeAllSentinel(suggestions, HORIZONTAL_LIST_LIMIT);
+  const trimmedRows: Article[][] = [];
+  for (let i = 0; i < trimmed.length; i += 2) trimmedRows.push(trimmed.slice(i, i + 2));
+  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'suggestions', title: 'Suggestions pour vous' } };
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Suggestions pour vous" onSeeAll={() => router.push(seeAllRoute as any)} />
+      {trimmedRows.map((row, ri) => (
+        <View key={ri} style={styles.suggestionRow}>
+          {row.map((item) => (
+            <ProductCard
+              key={item.id}
+              article={item}
+              isFav={favoriteIdsRef.current.has(item.id)}
+              onToggleFav={(next) => handlersRef.current.handleToggleFav(item.id, next)}
+              onPress={() => handlersRef.current.handlePressProduct(item.id)}
+            />
+          ))}
+          {row.length === 1 && <View style={{ flex: 1 }} />}
+        </View>
+      ))}
+    </View>
+  );
+})()}
+
+    <View style={styles.section}>
+  {hasCategoryFilter ? (
+    <View style={styles.activeFilterRow}>
+      <View style={styles.activeFilterChip}>
+        <Feather name="filter" size={13} color={RED} />
+        <Text style={styles.activeFilterText}>
+          {activeCategoryName || 'Filtré'}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={handleClearCategoryFilter} activeOpacity={0.7}>
+        <Text style={styles.clearFilterText}>Réinitialiser</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <SectionHeader
+      title="Tous les produits"
+      onSeeAll={() => router.push({ pathname: '/main/product-list', params: { source: 'allProducts', title: 'Tous les produits' } } as any)}
+    />
+  )}
+</View>
+  </>
+), [
+  hasCategoryFilter, slides, bestDeals, recommended, categories, selectedCat, selectedCats,
+  favoriteIds, endingSoon, activeSlide, popular, complements, suggestions, suggestionRows, topRated, activeCategoryName,
+  handleSeeAllCategories, handleSelectCategory,
+  handleOpenSearch, handleOpenFilter, handleSlideScrollEnd, handleApplyFilter, handleClearCategoryFilter,
+  renderPromoSlide, renderBestDealCard, renderProductCard, renderPopularCard, renderTopRatedCard
+]);
 
   if (!fontsLoaded || loading) {
     return (
@@ -399,7 +587,7 @@ const styles = StyleSheet.create({
   safeArea:         { flex: 1, backgroundColor: '#fff' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  section: { marginTop: 8 },
+  section: { marginTop: 16 },
 
   horizontalList: {
     paddingHorizontal: 16,
@@ -470,4 +658,53 @@ const styles = StyleSheet.create({
   starBadgeContent: { alignItems: 'center', justifyContent: 'center' },
   starBadgePct:     { fontSize: 15, fontFamily: 'Poppins_800ExtraBold', lineHeight: 17 },
   starBadgeOff:     { fontSize: 8, fontFamily: 'Poppins_700Bold', letterSpacing: 0.5 },
+
+  dotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E8D4D4',
+  },
+  dotActive: {
+    width: 18,
+    backgroundColor: RED,
+  },
+
+  popularRankBadge: {
+  position: 'absolute', top: 8, left: 8, zIndex: 1,
+  backgroundColor: '#1a1a1a', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,},
+  popularRankText: { fontSize: 11, fontFamily: 'Poppins_700Bold', color: '#fff' },
+
+  suggestionRow: {
+  flexDirection: 'row',
+  paddingHorizontal: 16,
+  gap: 16,
+  marginBottom: 16,
+},
+
+activeFilterRow: {
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  paddingHorizontal: 16, marginBottom: 12,
+},
+activeFilterChip: {
+  flexDirection: 'row', alignItems: 'center', gap: 6,
+  backgroundColor: '#FFF0F0', borderRadius: 20,
+  paddingHorizontal: 12, paddingVertical: 6,
+},
+activeFilterText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: RED },
+clearFilterText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: '#9CA3AF' },
+
+seeAllInlineBtn: {
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  marginHorizontal: 16, marginTop: 4, paddingVertical: 12,
+  borderWidth: 1.5, borderColor: '#FFE1E1', borderRadius: 14, backgroundColor: '#FFF5F5',
+},
+seeAllInlineText: { fontSize: 14, fontFamily: 'Inter_700Bold', color: RED },
 });

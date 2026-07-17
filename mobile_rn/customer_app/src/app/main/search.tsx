@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TextInput, TouchableOpacity, ScrollView, FlatList,
+  TouchableOpacity, ScrollView,
   ActivityIndicator, Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,13 +15,14 @@ import {
 } from '@expo-google-fonts/inter';
 
 import ProductCard from '../../components/ui/ProductCard';
-import { CatalogService, Article } from '../../services/catalog.service';
+import SearchBar from '../../components/ui/SearchBar';
+import FilterModal from '../../components/ui/FilterModal';
+import { CatalogService, Article, Category } from '../../services/catalog.service';
 import { ProfileService } from '../../services/profile.service';
-import { sortArticles} from '../../components/ui/SortBar';
+import { sortArticles } from '../../components/ui/SortBar';
 
 const RED = '#E10600';
 
-const POPULAR_SEARCHES = ['Coca Cola', 'Snacks', 'Chips', 'Eau', 'Biscuit', 'Boissons'];
 type SearchTab = 'default' | 'price_asc' | 'popular' | 'newest';
 
 const TABS: { key: SearchTab; label: string }[] = [
@@ -41,12 +42,18 @@ export default function SearchScreen() {
   });
 
   const [query, setQuery]           = useState(q ?? '');
-  const [activeTab, setActiveTab] = useState<SearchTab>('default');
+  const [activeTab, setActiveTab]   = useState<SearchTab>('default');
   const [results, setResults]       = useState<Article[]>([]);
   const [loading, setLoading]       = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
-  const inputRef = useRef<TextInput>(null);
+  const [popularArticles, setPopularArticles] = useState<Article[]>([]);
+  const [popularGrid, setPopularGrid] = useState<Article[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Filtre catégories (via FilterModal) ──
+  const [categories, setCategories]     = useState<Category[]>([]);
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [selectedCats, setSelectedCats] = useState<number[]>([]);
 
   useEffect(() => {
     ProfileService.listFavorites()
@@ -54,17 +61,37 @@ export default function SearchScreen() {
       .catch(() => {});
   }, []);
 
-  const runSearch = useCallback(async (text: string) => {
-    setLoading(true);
-    try {
-      const res = await CatalogService.searchArticles({ search: text || undefined, limit: 30 });
-      setResults(res.data);
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    CatalogService.getCategories().then(setCategories).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    CatalogService.getPopularArticles({ limit: 6 })
+      .then(res => setPopularArticles(res.data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    CatalogService.getPopularArticles({ limit: 30 })
+      .then(res => setPopularGrid(res.data))
+      .catch(() => {});
+  }, []);
+
+  const runSearch = useCallback(async (text: string) => {
+  setLoading(true);
+  try {
+    const res = await CatalogService.searchArticles({
+      search: text || undefined,
+      limit: 30,
+      category_ids: selectedCats.length > 0 ? selectedCats : undefined,  
+    });
+    setResults(res.data);
+  } catch {
+    setResults([]);
+  } finally {
+    setLoading(false);
+  }
+}, [selectedCats]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -76,14 +103,22 @@ export default function SearchScreen() {
     setQuery(term);
   };
 
-const displayed = (() => {
+  const displayed = (() => {
   switch (activeTab) {
     case 'price_asc': return sortArticles(results, 'price_asc');
-    case 'popular':    return [...results].sort((a, b) => (b.discount_pct ?? 0) - (a.discount_pct ?? 0));
-    case 'newest':     return [...results].sort((a, b) => b.id - a.id);
-    default:           return results;
+    case 'popular': {
+      if (!query) return popularGrid;
+      const popularIds = new Set(popularGrid.map(a => a.id));
+      return [...results].sort((a, b) => (popularIds.has(a.id) ? 0 : 1) - (popularIds.has(b.id) ? 0 : 1));
+    }
+    case 'newest': return [...results].sort((a, b) => b.id - a.id);
+    default:       return results;
   }
 })();
+
+  const popularKeywords = [
+    ...new Set(popularArticles.map(a => a.name_fr.split(' ')[0]))
+  ].slice(0, 6);
 
   if (!fontsLoaded) return null;
 
@@ -91,7 +126,7 @@ const displayed = (() => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── Header : retour + input recherche + filtre ── */}
+      {/* ── Header : retour + SearchBar (historique + suggestions + filtre inclus) ── */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={styles.backBtn}
@@ -101,29 +136,33 @@ const displayed = (() => {
           <Feather name="chevron-left" size={20} color={RED} />
         </TouchableOpacity>
 
-        <View style={styles.searchInputWrap}>
-          <Feather name="search" size={16} color="#9CA3AF" />
-          <TextInput
-            ref={inputRef}
-            style={styles.searchInput}
-            placeholder="Rechercher des produits...."
-            placeholderTextColor="#9CA3AF"
+        <View style={styles.searchBarFlex}>
+          <SearchBar
             value={query}
             onChangeText={setQuery}
-            autoFocus
-            returnKeyType="search"
+            onSubmit={setQuery}
+            onFilter={() => setFilterVisible(true)}
+            articleNames={[...results, ...popularGrid].map(a => a.name_fr)}
           />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} activeOpacity={0.7}>
-              <Feather name="x" size={16} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
         </View>
-
-        <TouchableOpacity style={styles.filterBtn} activeOpacity={0.85}>
-          <Feather name="sliders" size={18} color="#fff" />
-        </TouchableOpacity>
       </View>
+
+      {/* ── Chip de filtre actif (retire le besoin de deviner que le filtre est appliqué) ── */}
+      {selectedCats.length > 0 && (
+        <View style={styles.activeFilterRow}>
+          <View style={styles.activeFilterChip}>
+            <Feather name="filter" size={13} color={RED} />
+            <Text style={styles.activeFilterText}>
+              {selectedCats.length === 1
+                ? categories.find(c => c.id === selectedCats[0])?.name_fr ?? '1 catégorie'
+                : `${selectedCats.length} catégories`}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setSelectedCats([])} activeOpacity={0.7}>
+            <Text style={styles.clearFilterText}>Réinitialiser</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
@@ -131,7 +170,7 @@ const displayed = (() => {
         <View style={styles.popularSection}>
           <Text style={styles.popularTitle}>Recherches populaires</Text>
           <View style={styles.chipsWrap}>
-            {POPULAR_SEARCHES.map(term => {
+            {popularKeywords.map(term => {
               const active = query.toLowerCase() === term.toLowerCase();
               return (
                 <TouchableOpacity
@@ -196,6 +235,20 @@ const displayed = (() => {
         )}
 
       </ScrollView>
+
+      {/* ── Filter Modal (catégories) ── */}
+      <FilterModal
+        visible={filterVisible}
+        categories={categories}
+        subCategories={[]}
+        selected={selectedCats}
+        selectedSubs={[]}
+        onApply={(ids) => {
+          setSelectedCats(ids);
+          setFilterVisible(false);
+        }}
+        onClose={() => setFilterVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -204,27 +257,31 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
 
   headerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 12 : 4, paddingBottom: 12,
+  flexDirection: 'row', alignItems: 'center',
+  paddingTop: Platform.OS === 'android' ? 12 : 4, paddingBottom: 4,
+},
+backBtn: {
+  width: 40, height: 40, borderRadius: 20,
+  backgroundColor: '#FFEAEA',
+  alignItems: 'center', justifyContent: 'center',
+  marginLeft: 16,  
+  marginBottom: 7,
+},
+searchBarFlex: {
+  flex: 1,
+},
+
+  activeFilterRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, marginTop: 8, marginBottom: 4,
   },
-  backBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#FFEAEA',
-    alignItems: 'center', justifyContent: 'center',
+  activeFilterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFF0F0', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
-  searchInputWrap: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F5F5F5', borderRadius: 24,
-    paddingHorizontal: 14, height: 44,
-  },
-  searchInput: {
-    flex: 1, fontSize: 14, color: '#1a1a1a',
-    fontFamily: 'Inter_400Regular', paddingVertical: 0,
-  },
-  filterBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
-  },
+  activeFilterText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED },
+  clearFilterText:  { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
 
   popularSection: { paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
   popularTitle: { fontSize: 15, color: '#1a1a1a', fontFamily: 'Poppins_700Bold', marginBottom: 12 },

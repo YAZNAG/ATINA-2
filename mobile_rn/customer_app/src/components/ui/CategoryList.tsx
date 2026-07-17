@@ -70,7 +70,6 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, gap: 12, paddingBottom: 8 },
   item:      { alignItems: 'center', width: 72 },
 
-  // ── Card ────────────────────────────────────────────────────────────────────
   iconBox: {
     width: 56, height: 56, borderRadius: 16,
     backgroundColor: '#fff',

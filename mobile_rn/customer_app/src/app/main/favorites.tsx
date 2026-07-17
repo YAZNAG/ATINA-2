@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, FlatList,
-  ActivityIndicator, RefreshControl, Image, Alert,
+  ActivityIndicator, RefreshControl, Image, Alert, Modal,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -99,11 +99,41 @@ function FavCard({
   );
 }
 
+//Modal de confirmation de suppression
+function RemoveFavoriteModal({
+  visible, itemName, onConfirm, onCancel,
+}: {
+  visible: boolean;
+  itemName: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Retirer des favoris ?</Text>
+          <Text style={styles.modalSubtitle}>
+            Êtes-vous sûr de vouloir retirer "{itemName}" de vos favoris ?
+          </Text>
+          <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
+            <Text style={styles.btnConfirmDeleteText}>Retirer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
+            <Text style={styles.btnCancelText}>Annuler</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function FavoritesScreen() {
   const router = useRouter();
   const [items, setItems]         = useState<FavoriteArticle[]>([]);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<FavoriteArticle | null>(null);
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -125,25 +155,20 @@ export default function FavoritesScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const handleRemove = async (item: FavoriteArticle) => {
-    Alert.alert(
-      'Retirer des favoris',
-      `Retirer "${item.name_fr}" de vos favoris ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer', style: 'destructive',
-          onPress: async () => {
-            try {
-              await ProfileService.removeFavorite(item.id);
-              setItems(prev => prev.filter(i => i.id !== item.id));
-            } catch (e: any) {
-              Alert.alert('Erreur', e.message);
-            }
-          },
-        },
-      ]
-    );
+  const handleRemove = (item: FavoriteArticle) => {
+    setRemoveTarget(item);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!removeTarget) return;
+    try {
+      await ProfileService.removeFavorite(removeTarget.id);
+      setItems(prev => prev.filter(i => i.id !== removeTarget.id));
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message);
+    } finally {
+      setRemoveTarget(null);
+    }
   };
 
   if (!fontsLoaded) return null;
@@ -186,6 +211,13 @@ export default function FavoritesScreen() {
         )}
       </View>
       <BottomNavBar />
+
+      <RemoveFavoriteModal
+        visible={removeTarget !== null}
+        itemName={removeTarget?.name_fr ?? null}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -231,4 +263,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 12,
   },
   emptyBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+
+  modalOverlay: { flex: 1,  justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 28, paddingBottom: 40, alignItems: 'center',
+    minHeight: 320,
+    justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
+  modalTitle:           { fontSize: 22, color: '#1a1a1a', marginBottom: 10, textAlign: 'center', fontFamily: 'Inter_800ExtraBold' },
+  modalSubtitle:        { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20, marginBottom: 28, fontFamily: 'Inter_400Regular' },
+  btnConfirmDelete:     { width: '100%', paddingVertical: 16, borderRadius: 24, backgroundColor: RED, alignItems: 'center', marginBottom: 12, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnConfirmDeleteText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  btnCancel:            { paddingVertical: 12 },
+  btnCancelText:        { fontSize: 15, color: '#1a1a1a', fontFamily: 'Inter_600SemiBold' },
 });

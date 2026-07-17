@@ -12,6 +12,7 @@ export interface PromotionProduct {
   discount_pct: number;
   saved_amount: number;
   weight_g:     number | null;
+  brand:        { id: number; name_fr: string; name_ar: string } | null;
 }
 
 export interface FlashSaleDetail {
@@ -60,6 +61,40 @@ export interface BestDeal {
   category:      { id: number; name_fr: string; name_ar: string } | null;
 }
 
+export interface EndingSoonResponse {
+  ends_at:  string | null;
+  products: PromotionProduct[];
+}
+
+export interface HomePromotionsResponse {
+  endingSoon: EndingSoonResponse;
+  bestDeals:  BestDeal[];
+}
+
+export function promotionProductToArticle(p: PromotionProduct) {
+  return {
+    id:             p.id,
+    sku_code:       '',
+    sku_id:         p.sku_id,
+    ean13:          null,
+    name_fr:        p.name_fr ?? '',
+    name_ar:        p.name_ar ?? '',
+    description_fr: null,
+    description_ar: null,
+    price:          p.new_price,
+    price_ttc:      p.new_price,
+    vat_rate:       0,
+    unit_sale:      '',
+    is_active:      true,
+    image_url:      p.image_url,
+    updated_at:     new Date().toISOString(),
+    images:         [],
+    brand:          p.brand,
+    category:       null,
+    sub_category:   null,
+  };
+}
+
 export const PromotionsService = {
   async listActive(): Promise<FlashSaleSummary[]> {
     const res = await api.get('/customer/promotions');
@@ -71,9 +106,19 @@ export const PromotionsService = {
     return res.data.data;
   },
 
-  async listBestDeals(limit = 10): Promise<BestDeal[]> {
-    const res = await api.get('/customer/promotions/best-deals', { params: { limit } });
-    return res.data.data ?? [];
+  async listBestDeals(limit = 10, page = 1): Promise<PaginatedBestDeals> {
+  const res = await api.get('/customer/promotions/best-deals', { params: { limit, page } });
+  return res.data.data ?? { data: [], hasMore: false };
+},
+
+  async listEndingSoon(hours = 24): Promise<EndingSoonResponse> {
+    const res = await api.get('/customer/promotions/ending-soon', { params: { hours } });
+    return res.data.data ?? { ends_at: null, products: [] };
+  },
+
+  async listHomePromotions(hours = 24, limit = 10): Promise<HomePromotionsResponse> {
+    const res = await api.get('/customer/promotions/home', { params: { hours, limit } });
+    return res.data.data ?? { endingSoon: { ends_at: null, products: [] }, bestDeals: [] };
   },
 };
 
@@ -109,7 +154,7 @@ export interface PackItem {
   name_ar:    string;
   qty:        number;
   unit_price: number;
-  unit_label?: string;
+  unit_label:  string | null;
   image_url:  string | null;
 }
 
@@ -133,6 +178,11 @@ export interface PackDetail extends PackSummary {
   items:          PackItem[];
 }
 
+export interface PaginatedBestDeals {
+  data: BestDeal[];
+  hasMore: boolean;
+}
+
 export const PacksService = {
   async listActive(): Promise<PackSummary[]> {
     const res = await api.get('/customer/pack');
@@ -142,6 +192,11 @@ export const PacksService = {
   async getById(id: string): Promise<PackDetail> {
     const res = await api.get(`/customer/pack/${id}`);
     return res.data.data;
+  },
+
+  async listSimilar(id: string, limit = 6): Promise<PackSummary[]> {
+    const res = await api.get(`/customer/pack/${id}/similar`, { params: { limit } });
+    return res.data.data ?? [];
   },
 };
 

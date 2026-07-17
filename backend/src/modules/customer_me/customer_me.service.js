@@ -3,9 +3,8 @@ const bcrypt = require('bcrypt');
 const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
-//const BASE_URL = process.env.PUBLIC_URL || 'http://localhost:5000';
 const BASE_URL = process.env.BASE_URL || 'http://192.168.1.17:5000/';
-// ── Profile ───────────────────────────────────────────────────────────────────
+
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
     where:  { id: customerId, is_deleted: false },
@@ -57,7 +56,7 @@ async function updateProfile(customerId, body) {
   return getProfile(customerId);
 }
 
-// ── Addresses ─────────────────────────────────────────────────────────────────
+// Addresses
 async function listAddresses(customerId) {
   return prisma.address.findMany({
     where:   { customer_id: customerId, is_deleted: false },
@@ -149,7 +148,7 @@ async function deleteAddress(customerId, addressId) {
   return { id: addressId };
 }
 
-// ── Orders ────────────────────────────────────────────────────────────────────
+// Orders
 const ORDER_LIST_INCLUDE = {
   status:        { select: { id: true, code: true, name_fr: true, name_ar: true, color: true } },
   delivery_type: { select: { id: true, code: true, name_fr: true } },
@@ -236,6 +235,13 @@ const ORDER_DETAIL_INCLUDE = {
     take: 1,
     include: { status: { select: { code: true, name_fr: true } } },
   },
+  coupon_redemptions: {
+  take: 1,
+  select: {
+    discount_applied: true,
+    promotion: { select: { code: true } },
+  },
+},
 };
 
 function formatOrderList(o) {
@@ -278,6 +284,8 @@ function formatOrderDetail(o) {
     wallet_used:   Number(o.wallet_used ?? 0),
     notes:         o.notes,
     status:        o.status,
+    discount_amount: Number(o.coupon_redemptions?.[0]?.discount_applied ?? 0),
+    coupon_code:     o.coupon_redemptions?.[0]?.promotion?.code ?? null,
     payment_status: payment?.status?.code ?? 'pending',
     payment_status_label: payment?.status?.name_fr ?? 'En attente',
     payment_method_name: payment?.payment_method?.name_fr,
@@ -318,6 +326,7 @@ function formatOrderDetail(o) {
     slot_end:   o.tour?.slot_end   ?? o.slot_end   ?? null,
     stop_status: o.tour_stops?.[0]?.status?.code ?? null,
   };
+  
 }
 
 async function listOrders(customerId) {
@@ -446,8 +455,8 @@ async function changePassword(customerId, body) {
   await prisma.user.update({ where: { id: userId }, data: { password_hash: hash } });
   return { message: 'Mot de passe modifié' };
 }
-// ── Wishlist ──────────────────────────────────────────────────────────────────
 
+//Favoris
 async function listFavorites(customerId) {
   const [items, flashSales] = await Promise.all([
     prisma.wishlist.findMany({
@@ -513,7 +522,7 @@ async function removeFavorite(customerId, articleId) {
   });
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
+// Photo de profile
 async function uploadAvatar(customerId, filePath) {
   await prisma.customer.update({ where: { id: customerId }, data: { avatar_url: filePath } });
   return getProfile(customerId);

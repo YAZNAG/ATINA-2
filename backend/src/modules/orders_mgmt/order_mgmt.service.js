@@ -3,6 +3,7 @@ const pickingService = require('../picking/picking.service');
 const prisma         = require('../../config/database');
 const { createPickingSessionForOrder } = require('../../utils/createPickingSession.helper');
 const loyalty = require('../loyalty/loyalty.service');
+const { notifyOrderReady, notifyInDelivery, notifyDelivered, notifyCancelled } = require('../../utils/notify');
 
 // ── Status transition rules ───────────────────────────────────────────────────
 const TRANSITIONS = {
@@ -50,15 +51,27 @@ class OrderMgmtService {
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
     if (order.status.is_terminal)
       throw { statusCode: 422, message: `Statut "${order.status.name_fr}" est terminal — aucune transition possible` };
-
-    const allowed = TRANSITIONS[order.status.code] ?? [];
+  
+    const deliveryCode = order.delivery_type?.code;
+    let allowed = TRANSITIONS[order.status.code] ?? [];
+    if (deliveryCode === 'pickup') {
+      allowed = allowed.filter(c => c !== 'in_delivery');  
+    } else {
+      allowed = allowed.filter(c => c !== 'picked_up');    
+    }
     if (!allowed.includes(new_status_code))
-      throw { statusCode: 422, message: `Transition "${order.status.code}" → "${new_status_code}" non autorisée. Transitions valides: ${allowed.join(', ') || 'aucune'}` };
+      throw { statusCode: 422, message: `Transition "${order.status.code}" → "${new_status_code}" non autorisée pour ce type de livraison. Transitions valides: ${allowed.join(', ') || 'aucune'}` };
 
     const newStatus = await repo.getStatusByCode(new_status_code);
     if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
 
     const updated = await repo.updateStatus(id, newStatus.id, changed_by);
+    const NOTIFY = {
+  ready:       () => notifyOrderReady(order.customer_id, id, order.delivery_type?.code),
+  in_delivery: () => notifyInDelivery(order.customer_id, id),
+  delivered:   () => notifyDelivered(order.customer_id, id),
+};
+NOTIFY[new_status_code]?.()?.catch(() => {});
 
     // Auto-create picking session when order → picking
     if (new_status_code === 'picking') {
@@ -141,6 +154,8 @@ class OrderMgmtService {
       await prisma.order.update({ where: { id }, data: { cancelled_reason: reason } });
     }
 
+    notifyCancelled(order.customer_id, id, reason).catch(() => {});
+
     return result;
   }
 
@@ -174,8 +189,8 @@ class OrderMgmtService {
       },
     });
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-    if (order.status.code === 'delivered')
-      throw { statusCode: 422, message: 'Commande déjà clôturée (livrée)' };
+    if (order.status.code === 'picked_up')
+  throw { statusCode: 422, message: 'Commande déjà clôturée (retrait confirmé)' };
     if (order.delivery_type?.code !== 'pickup')
       throw { statusCode: 422, message: 'Cette commande n\'est pas de type retrait magasin (pickup)' };
     if (order.status.code !== 'ready')
@@ -200,19 +215,17 @@ class OrderMgmtService {
         where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } },
       });
       if (!level) throw { statusCode: 422, message: `Stock introuvable pour un article de la commande (SKU)` };
-      // qty_physical must be >= qty (real stock on shelves)
-      // qty_reserved must be >= qty (was reserved at checkout)
       if (Number(level.qty_reserved) < qty || Number(level.qty_physical) < qty) {
         throw { statusCode: 422, message: 'Stock insuffisant (physique ou réservé) pour finaliser le retrait' };
       }
     }
 
-    const [deliveredStatus, collectedPayStatus, saleMoveType] = await Promise.all([
-      prisma.orderStatus.findFirst({ where: { code: 'delivered' } }),
+    const [pickedUpStatus, collectedPayStatus, saleMoveType] = await Promise.all([
+      prisma.orderStatus.findFirst({ where: { code: 'picked_up' } }),
       prisma.paymentStatus.findFirst({ where: { code: 'collected' } }),
       prisma.moveType.findFirst({ where: { code: 'sale' } }).then((m) => m || prisma.moveType.findFirst({ where: { code: 'VENTE' } })),
     ]);
-    if (!deliveredStatus) throw { statusCode: 500, message: 'Statut "delivered" introuvable' };
+    if (!pickedUpStatus) throw { statusCode: 500, message: 'Statut "picked_up" introuvable — lancez le seed' };
     if (!collectedPayStatus) throw { statusCode: 500, message: 'Statut paiement "collected" introuvable' };
 
     const historyNote = note?.trim() || 'Commande retirée au magasin';
@@ -257,22 +270,21 @@ class OrderMgmtService {
       await tx.order.update({
         where: { id: order_id },
         data: {
-          status_id: deliveredStatus.id,
+          status_id: pickedUpStatus.id,
           ...(isCOD && !order.cod_collected_at ? { cod_collected_at: new Date() } : {}),
         },
       });
 
       // Credit points using rules engine
-      await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: order_id }, deliveredStatus.id);
-
+      await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: order_id }, pickedUpStatus.id);
       await tx.orderHistory.create({
-        data: { order_id, status_id: deliveredStatus.id, changed_by, note: historyNote },
+        data: { order_id, status_id: pickedUpStatus.id, changed_by, note: historyNote },
       });
     });
 
     // Trigger referral validation (fire-and-forget — never blocks main flow)
     setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, order_id).catch(() => {}));
-
+    notifyDelivered(order.customer_id, order_id).catch(() => {});
     return repo.findById(order_id);
   }
 

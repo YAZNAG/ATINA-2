@@ -58,7 +58,7 @@ function computePackPrices(packItems, { discount_type, discount_value, total_pri
 function resolveImageUrl(imagePath) {
   if (!imagePath) return null;
   if (/^https?:\/\//.test(imagePath)) return imagePath;
-  const base = process.env.BASE_URL || 'http://192.168.1.17:5000';
+  const base = process.env.BASE_URL ;
   return `${base}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
 }
 

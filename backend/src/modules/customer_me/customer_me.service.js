@@ -3,7 +3,9 @@ const bcrypt = require('bcrypt');
 const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
-const BASE_URL = process.env.BASE_URL ;
+const { resolveImageUrl } = require('../pack/pack.shared');
+const BASE_URL = process.env.BASE_URL;
+if (!BASE_URL) throw new Error('BASE_URL non configurée');
 
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
@@ -296,9 +298,7 @@ function formatOrderDetail(o) {
     slot_date:     null,
     items: (o.items ?? []).map(item => {
   const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
-  const image_url = imagePath
-    ? `${BASE_URL}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`
-    : null;
+  const image_url = resolveImageUrl(a.images?.[0]?.image_path ?? null);
   return {
     id:         item.id,
     sku_code:   item.sku?.article?.sku_code,
@@ -480,9 +480,7 @@ async function listFavorites(customerId) {
   return items.map(w => {
     const a = w.article;
     const raw = a.images?.[0]?.image_path ?? null;
-    const image_url = raw
-      ? (raw.startsWith('http') ? raw : `${BASE_URL}${raw}`)
-      : null;
+    const image_url = resolveImageUrl(a.images?.[0]?.image_path ?? null);
     const ttc  = Math.round(Number(a.price) * (1 + Number(a.vat_rate) / 100) * 100) / 100;
     const deal = resolveArticleDiscount({
       articleSkuId: a.catalog_sku?.id ?? null,

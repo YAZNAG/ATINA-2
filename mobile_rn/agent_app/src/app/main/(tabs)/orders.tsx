@@ -13,39 +13,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import OrderCard from "@/components/orders/OrderCard";
-
+import type { Order, OrderStatus } from "@/types/order";
 // ==================================================
 // TYPES
 // ==================================================
-
-export type OrderStatus =
-  | "pending"
-  | "preparing"
-  | "ready"
-  | "delivered"
-  | "cancelled";
-
-export type PaymentType = "cash" | "card" | "online";
-
-export type DeliveryType = "delivery" | "pickup";
 
 export interface OrderItem {
   id: string;
   name: string;
   quantity: number;
   price: number;
-}
-
-export interface Order {
-  id: string;
-  customer: string;
-  createdAt: string;
-  items: OrderItem[];
-  total: number;
-  payment: PaymentType;
-  deliveryType: DeliveryType;
-  address: string;
-  status: OrderStatus;
 }
 
 const COLORS = {
@@ -57,14 +34,7 @@ const COLORS = {
   secondaryText: "#6B7280",
 };
 
-// Statuts visibles sur CETTE liste. "preparing" ne s'affiche que dans
-// order_prepare.tsx (checklist), "delivered"/"cancelled" vont ailleurs
-// (onglet Completed).
 const VISIBLE_STATUSES: OrderStatus[] = ["pending", "ready"];
-
-// ==================================================
-// DONNEES MOCK
-// ==================================================
 
 const MOCK_ORDERS: Order[] = [
   {
@@ -93,7 +63,7 @@ const MOCK_ORDERS: Order[] = [
     payment: "card",
     deliveryType: "pickup",
     address: "Retrait en magasin",
-    status: "preparing",
+    status: "pending",
   },
   {
     id: "CMD-1003",
@@ -118,7 +88,7 @@ const MOCK_ORDERS: Order[] = [
     payment: "cash",
     deliveryType: "pickup",
     address: "Retrait en magasin",
-    status: "delivered",
+    status: "pending",
   },
   {
     id: "CMD-1005",
@@ -132,7 +102,7 @@ const MOCK_ORDERS: Order[] = [
     payment: "card",
     deliveryType: "delivery",
     address: "8 Rue Tarik Ibn Ziad, Agadir",
-    status: "cancelled",
+    status: "ready",
   },
   {
     id: "CMD-1006",
@@ -182,12 +152,10 @@ export default function OrdersScreen() {
     router.back();
   };
 
-  // "Préparer la commande" -> toujours vers la checklist (commande pending)
   const handlePrepare = (item: Order) => {
     router.push({ pathname: "/main/order_prepare", params: { id: item.id } });
   };
 
-  // Icône œil / "Voir les détails" -> toujours vers l'écran détail
   const handleViewDetails = (item: Order) => {
     router.push({ pathname: "/main/order_detail", params: { id: item.id } });
   };

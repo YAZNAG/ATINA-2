@@ -46,7 +46,40 @@ const COLORS = {
   secondaryText: "#8B92A0",
   divider: "#F0F0F0",
 };
+//Mock data for testing purposes
+const MOCK_ORDER: OrderDetailData = {
+  id: "CMD-1001",
+  customerName: "Youssef El Amrani",
+  phone: "06 12 34 56 78",
+  address: "12 Rue Al Massira, Agadir",
+  date: "09/07/2026",
+  time: "08:12",
 
+  items: [
+    {
+      id: "1",
+      name: "Sandwich Poulet",
+      category: "Sandwich",
+      quantity: 2,
+      unitPrice: 35,
+      imageUrl:
+        "https://images.unsplash.com/photo-1550547660-d9450f859349?w=300",
+    },
+    {
+      id: "2",
+      name: "Coca-Cola",
+      category: "Boisson",
+      quantity: 2,
+      unitPrice: 10,
+      imageUrl:
+        "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300",
+    },
+  ],
+
+  subtotal: 90,
+  deliveryFee: 10,
+  total: 100,
+};
 // ---------- Composant principal ----------
 
 export default function OrderDetailScreen() {
@@ -59,8 +92,11 @@ export default function OrderDetailScreen() {
   const fetchOrder = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await apiClient.get(`/orders/${id}`);
-      setOrder(data);
+      //const { data } = await apiClient.get(`/orders/${id}`);
+      //setOrder(data);
+      //j'ai mis un mock pour simuler la récupération de la commande 
+      await new Promise(resolve => setTimeout(resolve, 700));
+      setOrder(MOCK_ORDER);
     } catch (error) {
       console.error("Erreur lors du chargement de la commande:", error);
     } finally {

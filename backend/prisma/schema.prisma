@@ -98,6 +98,8 @@ model Picker {
   phone_number  String    @db.VarChar(15)
   name          String    @db.VarChar(150)
   password_hash String
+  email         String?  @db.VarChar(255)
+  avatar_url    String?
   is_active     Boolean   @default(true)
   is_deleted    Boolean   @default(false)
   deleted_at    DateTime? @db.Timestamptz(6)

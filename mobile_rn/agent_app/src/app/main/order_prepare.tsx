@@ -9,10 +9,10 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import apiClient from '../../api/client';
-
 // ---------- Types ----------
 
 interface OrderItem {
@@ -24,6 +24,15 @@ interface OrderItem {
   collected: boolean;
 }
 
+const COLORS = {
+  primary: "#D90404",
+  background: "#F8F8F8",
+  card: "#FFFFFF",
+  border: "#ECECEC",
+  text: "#111827",
+  secondaryText: "#6B7280",
+};
+
 interface OrderPrepareData {
   id: string;
   reference: string; 
@@ -31,8 +40,30 @@ interface OrderPrepareData {
   status: 'pending' | 'preparing' | 'ready';
   items: OrderItem[];
 }
-
-// ---------- Composant principal ----------
+const MOCK_ORDER: OrderPrepareData = {
+  id: "CMD-1001",
+  reference: "REF-1001",
+  customerName: "Youssef El Amrani",
+  status: "preparing",
+  items: [
+    {
+      id: "1",
+      productName: "Sandwich Poulet",
+      quantity: 2,
+      unit: "unité",
+      imageUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=300",
+      collected: false
+    },
+    {
+      id: "2",
+      productName: "Coca-Cola",
+      quantity: 2,
+      unit: "unité",
+      imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300",
+      collected: false
+    }
+  ]
+};
 
 export default function OrderPrepareScreen() {
   const router = useRouter();
@@ -47,8 +78,11 @@ export default function OrderPrepareScreen() {
   const fetchOrder = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await apiClient.get(`/orders/${id}/prepare`);
-      setOrder(data);
+     // const { data } = await apiClient.get(`/orders/${id}/prepare`);
+      //setOrder(data);
+      //j'ai mis un mock pour simuler la récupération de la commande 
+      await new Promise(resolve => setTimeout(resolve, 700));
+      setOrder(MOCK_ORDER);
     } catch (error) {
       console.error('Erreur lors du chargement de la commande:', error);
       Alert.alert('Erreur', 'Impossible de charger la commande.');
@@ -73,9 +107,10 @@ export default function OrderPrepareScreen() {
     setOrder({ ...order, items: updatedItems });
 
     try {
-      await apiClient.patch(`/orders/${id}/items/${itemId}`, {
+     /* await apiClient.patch(`/orders/${id}/items/${itemId}`, {
         collected: updatedItems.find((i) => i.id === itemId)?.collected,
-      });
+      });*/
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       // Rollback en cas d'échec
       setOrder(order);
@@ -107,9 +142,12 @@ export default function OrderPrepareScreen() {
   const submitPreparation = async () => {
     try {
       setSubmitting(true);
-      await apiClient.patch(`/orders/${id}/status`, {
+     /* await apiClient.patch(`/orders/${id}/status`, {
         status: 'ready',
-      });
+      });*/
+      //j'ai mis un mock pour simuler la mise à jour du statut de la commande
+        await new Promise((resolve) => setTimeout(resolve, 600));
+    console.log('Mock: statut de la commande mis à jour ->', id, 'ready');
       router.push({
         pathname: '/main/order_placement',
         params: { id },
@@ -128,6 +166,9 @@ export default function OrderPrepareScreen() {
       params: { id },
     } as any);
   };
+  const handleGoBack = () => {
+    router.back();
+  };
 
   // ---------- Rendu ----------
 
@@ -141,6 +182,7 @@ export default function OrderPrepareScreen() {
 
 if (!order) {
   return (
+    
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -160,15 +202,21 @@ if (!order) {
   const progressRatio = totalCount > 0 ? collectedCount / totalCount : 0;
 
   return (
-    <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#111" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Commande Préparer</Text>
-          <View style={{ width: 24 }} />
-        </View>
+          <SafeAreaView style={styles.container} edges={["top"]}>
+                   {/* Header */}
+                  <View style={styles.header}>
+                    <TouchableOpacity
+                      onPress={handleGoBack}
+                      style={styles.backButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="chevron-back" size={26} color={COLORS.text} />
+                    </TouchableOpacity>
+            
+                    <Text style={styles.headerTitle}>Commande préparer</Text>
+            
+                    <View style={styles.headerSpacer} />
+                  </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Badge + titre commande */}
@@ -260,7 +308,7 @@ if (!order) {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -287,6 +335,18 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
     marginBottom: 6,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+   headerSpacer: {
+    width: 40,
   },
   orderBadgeText: { color: '#E53935', fontSize: 11, fontWeight: '700' },
   orderTitle: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 16 },

@@ -16,11 +16,7 @@ import {
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
-import {
-  getOrderSubstitutions,
-  respondToSubstitution,
-  type Substitution,
-} from '../../api/substitution.api';
+import { SubstitutionService, type Substitution } from '../../services/substitution.service';
 
 const RED   = '#E10600';
 const GREEN = '#16A34A';
@@ -51,7 +47,7 @@ export default function OrderSubstitutionScreen() {
     if (!order_id) return;
     setLoading(true);
     try {
-      const data = await getOrderSubstitutions(order_id);
+      const data = await SubstitutionService.getOrderSubstitutions(order_id);
       setSubstitutions(data);
       setError(null);
     } catch (err: any) {
@@ -68,7 +64,7 @@ export default function OrderSubstitutionScreen() {
   const handleRespond = async (substitutionId: string, status: 'accepted' | 'refused') => {
     setResponding(substitutionId);
     try {
-      const updated = await respondToSubstitution(substitutionId, status);
+      const updated = await SubstitutionService.respondToSubstitution(substitutionId, status);
       setSubstitutions(prev =>
         prev.map(s => (s.id === substitutionId ? updated : s)),
       );

@@ -6,12 +6,9 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
-  useFonts,
+  useFonts,Poppins_400Regular, Poppins_500Medium,
   Poppins_600SemiBold, Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
-import {
-  Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
-} from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import { FaqService, FaqCategory, FaqItem } from '../../services/faq.service';
 
@@ -72,7 +69,7 @@ export default function FaqScreen() {
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
+    Poppins_400Regular, Poppins_500Medium,
   });
 
   const load = useCallback(async () => {
@@ -113,97 +110,131 @@ export default function FaqScreen() {
           <Text style={styles.emptyDesc}>Revenez plus tard.</Text>
         </View>
       ) : (
-        <>
-          {/* ── Tabs catégories ── */}
-          <View style={styles.tabsWrap}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsContent}
-            >
-              {categories.map(cat => {
-                const active = activeTab === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[styles.tab, active && styles.tabActive]}
-                    onPress={() => setActiveTab(cat.id)}
-                    activeOpacity={0.7}
-                  >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.list}
+        >
+          {/* ── Grille catégories ── */}
+          <View style={styles.grid}>
+            {categories.map(cat => {
+              const active = activeTab === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.gridCard, active && styles.gridCardActive]}
+                  onPress={() => setActiveTab(cat.id)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.gridIconBox, active && styles.gridIconBoxActive]}>
                     {cat.icon && (
                       <Feather
                         name={cat.icon as any}
-                        size={14}
-                        color={active ? '#fff' : '#6B7280'}
+                        size={20}
+                        color={active ? RED : '#6B7280'}
                       />
                     )}
-                    <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                      {cat.name_fr}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                  </View>
+                  <Text
+                    style={[styles.gridLabel, active && styles.gridLabelActive]}
+                    numberOfLines={2}
+                  >
+                    {cat.name_fr}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* ── Accordéon ── */}
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.list}
+          <Text style={styles.sectionTitle}>Questions fréquentes</Text>
+
+          {activeCategory?.items.map(item => (
+            <AccordionItem key={item.id} item={item} />
+          ))}
+
+          {/* Card contact */}
+          <TouchableOpacity
+            style={styles.contactCard}
+            onPress={() => router.push('/support/conversations' as any)}
+            activeOpacity={0.8}
           >
-            <Text style={styles.countLabel}>
-              {activeCategory?.items.length ?? 0} question{(activeCategory?.items.length ?? 0) > 1 ? 's' : ''}
-            </Text>
+            <View style={styles.contactIcon}>
+              <Feather name="message-circle" size={22} color={RED} />
+            </View>
+            <View style={styles.contactText}>
+              <Text style={styles.contactTitle}>Pas trouvé votre réponse ?</Text>
+              <Text style={styles.contactDesc}>Notre équipe est disponible pour vous aider.</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={GRAY} />
+          </TouchableOpacity>
 
-            {activeCategory?.items.map(item => (
-              <AccordionItem key={item.id} item={item} />
-            ))}
-
-            {/* Card contact */}
-              <TouchableOpacity
-              style={styles.contactCard}
-              onPress={() => router.push('/support/conversations' as any)}
-              activeOpacity={0.8}
-              >
-              <View style={styles.contactIcon}>
-                <Feather name="message-circle" size={22} color={RED} />
-              </View>
-              <View style={styles.contactText}>
-                <Text style={styles.contactTitle}>Pas trouvé votre réponse ?</Text>
-                <Text style={styles.contactDesc}>Notre équipe est disponible pour vous aider.</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={GRAY} />
-            </TouchableOpacity>
-
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </>
+          <View style={{ height: 40 }} />
+        </ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
+const CARD_GAP = 10;
+
 const styles = StyleSheet.create({
   safe:     { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // Tabs
-  tabsWrap:    { backgroundColor: '#fff' },
-  tabsContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  tab: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: 50, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#E5E7EB',
-  },
-  tabActive:      { backgroundColor: RED },
-  tabLabel:       { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  tabLabelActive: { color: '#fff' },
+  // List / page padding
+  list: { paddingHorizontal: 16, paddingTop: 16 },
 
-  // List
-  list:       { paddingHorizontal: 16, paddingTop: 16 },
-  countLabel: {
-    fontSize: 12, fontFamily: 'Inter_500Medium', color: GRAY,
-    marginBottom: 12, marginLeft: 2,
+  // Grid catégories (3 par ligne)
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  gridCard: {
+  width: `${(100 - 2 * 6) / 3}%`,
+  backgroundColor: '#ffffff',
+  borderRadius: 16,
+  paddingVertical: 16,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: CARD_GAP,
+  borderWidth: 1.5,
+  borderColor: '#F9FAFB',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.05,
+  shadowRadius: 6,
+  elevation: 2,
+},
+  gridCardActive: {
+    backgroundColor: '#ffffff',
+    borderColor: RED,
+  },
+  gridIconBox: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  gridIconBoxActive: {
+    backgroundColor: '#E1060021',
+  },
+  gridLabel: {
+    fontSize: 12.5,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  gridLabelActive: {
+    color: RED,
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    color: '#1A1A1A',
+    marginTop: 8,
+    marginBottom: 14,
   },
 
   // Accordion
@@ -213,7 +244,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
     borderWidth: 1,
-  borderColor: 'transparent',
+    borderColor: '#F0F0F0',
   },
   accordionItemOpen: {
     borderColor: '#FEE2E2',
@@ -223,7 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16, gap: 12,
   },
-  question:      { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1A1A1A', lineHeight: 20 },
+  question:      { flex: 1, fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#1A1A1A', lineHeight: 20 },
   questionOpen:  { color: RED },
   chevronBox: {
     width: 30, height: 30, borderRadius: 15,
@@ -233,7 +264,7 @@ const styles = StyleSheet.create({
   chevronBoxOpen:  { backgroundColor: '#FFF0F0' },
   accordionBody:   { paddingHorizontal: 16, paddingBottom: 16 },
   divider:         { height: 1, backgroundColor: '#F5F5F5', marginBottom: 12 },
-  answer:          { fontSize: 13.5, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 21 },
+  answer:          { fontSize: 13.5, fontFamily: 'Poppins_400Regular', color: '#1A1A1A', lineHeight: 21 },
 
   // Contact
   contactCard: {
@@ -248,8 +279,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   contactText:  { flex: 1 },
-  contactTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1A1A1A', marginBottom: 2 },
-  contactDesc:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: GRAY },
+  contactTitle: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#1A1A1A', marginBottom: 2 },
+  contactDesc:  { fontSize: 12, fontFamily: 'Poppins_400Regular', color: GRAY },
 
   // Empty
   emptyIcon: {
@@ -257,5 +288,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   emptyTitle: { fontSize: 17, fontFamily: 'Poppins_600SemiBold', color: '#1A1A1A', marginBottom: 6 },
-  emptyDesc:  { fontSize: 13, fontFamily: 'Inter_400Regular', color: GRAY },
+  emptyDesc:  { fontSize: 13, fontFamily: 'Poppins_400Regular', color: GRAY },
 });

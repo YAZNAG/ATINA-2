@@ -41,8 +41,7 @@ export default function CheckoutPickupScreen() {
 useEffect(() => {
   (async () => {
     try {
-      const items = cart_items ? JSON.parse(cart_items) : [];
-      const result = await findPickupNodes(items);
+      const result = await findPickupNodes([]);
 
       const list = Array.isArray(result) ? result : [];
       setNodes(list);

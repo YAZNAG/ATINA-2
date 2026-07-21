@@ -130,6 +130,7 @@ export interface Order {
   timeline:            OrderTimeline[];
   discount_amount:  number;
 coupon_code:      string | null;  
+has_pending_substitution: boolean;
 }
 
 export interface Wallet {

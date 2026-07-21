@@ -14,37 +14,22 @@ import {
   StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   useFonts,
   Poppins_600SemiBold,
   Poppins_700Bold,
+  Poppins_500Medium,
+  Poppins_400Regular
 } from '@expo-google-fonts/poppins';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import supportService, {
   SupportConversation,
   SupportMessage,
-  ConversationStatus,
-  SupportCategory,
 } from '../../services/support.service';
 import { useSupportSocket } from '../../hooks/useSupportSocket';
+import PageHeader from '@/components/ui/PageHeader';
 
 const RED = '#E10600';
-
-const CATEGORY_LABELS: Record<SupportCategory, string> = {
-  ORDER: 'Commande',
-  ACCOUNT: 'Compte',
-  LOYALTY: 'Fidélité',
-  PRODUCT: 'Produit',
-  OTHER: 'Autre',
-};
-
-const STATUS_CONFIG: Record<ConversationStatus, { label: string; color: string }> = {
-  OPEN: { label: 'Ouverte', color: '#22C55E' },
-  PENDING: { label: 'En attente', color: '#F59E0B' },
-  RESOLVED: { label: 'Résolue', color: '#F59E0B' },
-  CLOSED: { label: 'Fermée', color: '#94A3B8' },
-};
 
 type PendingMessage = SupportMessage & { _pending?: boolean };
 
@@ -61,10 +46,37 @@ function formatDateSeparator(dateString: string): string {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
 }
 
+
+function buildWelcomeMessages(conversationId: string, customerName?: string): PendingMessage[] {
+  const greeting = customerName ? `Bonjour ${customerName} ! 👋` : 'Bonjour ! 👋';
+  const now = new Date().toISOString();
+  return [
+    {
+      id: 'welcome-1',
+      conversation_id: conversationId,
+      sender_type: 'AGENT',
+      sender_id: 'system',
+      content: greeting,
+      attachments: [],
+      created_at: now,
+    },
+    {
+      id: 'welcome-2',
+      conversation_id: conversationId,
+      sender_type: 'AGENT',
+      sender_id: 'system',
+      content: "Bienvenue sur le support El Herri. Comment puis-je vous aider aujourd'hui ?",
+      attachments: [],
+      created_at: now,
+    },
+  ];
+}
+
 export default function ChatScreen() {
-  const { id, initialText } = useLocalSearchParams<{
+  const { id, initialText, customerName } = useLocalSearchParams<{
     id?: string;
     initialText?: string;
+    customerName?: string;
   }>();
   const router = useRouter();
   const listRef = useRef<FlatList<PendingMessage>>(null);
@@ -79,9 +91,8 @@ export default function ChatScreen() {
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold,
     Poppins_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
+    Poppins_400Regular,
+    Poppins_500Medium,
   });
 
   const loadConversation = useCallback(async () => {
@@ -94,7 +105,7 @@ export default function ChatScreen() {
 
         if (conversations?.length) {
           const data = await supportService.getConversationById(conversations[0].id);
-          setConversation(data);
+          setConversation(withWelcomeIfEmpty(data));
           return;
         }
 
@@ -102,19 +113,27 @@ export default function ChatScreen() {
           subject: 'Demande de support',
           category: 'OTHER',
         });
-        setConversation(created);
+        setConversation(withWelcomeIfEmpty(created));
         setInputText('Bonjour, j’ai besoin d’aide.');
         return;
       }
 
       const data = await supportService.getConversationById(id);
-      setConversation(data);
+      setConversation(withWelcomeIfEmpty(data));
     } catch (e: any) {
       setError(e.message ?? 'Impossible de charger la conversation');
     } finally {
       setLoading(false);
     }
   }, [id]);
+
+  const withWelcomeIfEmpty = (data: SupportConversation): SupportConversation => {
+    if (data?.messages && data.messages.length > 0) return data;
+    return {
+      ...data,
+      messages: buildWelcomeMessages(data.id, customerName),
+    };
+  };
 
   useEffect(() => {
     loadConversation();
@@ -127,7 +146,7 @@ export default function ChatScreen() {
     }
   }, [initialText, inputText, initialTextConsumed]);
 
-  // reception des messages en temps reel (agent) 
+  // reception des messages en temps reel (agent)
   const handleIncomingMessage = useCallback((message: SupportMessage) => {
     setConversation((prev) => {
       if (!prev) return prev;
@@ -152,7 +171,7 @@ export default function ChatScreen() {
     const content = inputText.trim();
     if (!content || sending || !id) return;
 
-    const isFirstMessage = conversation?.messages?.length === 0;
+    const isFirstMessage = conversation?.messages?.every((m) => m.id.startsWith('welcome-'));
 
     setSending(true);
     setInputText('');
@@ -196,6 +215,14 @@ export default function ChatScreen() {
     }
   };
 
+  const handleAttach = () => {
+    // TODO: brancher le picker de fichiers
+  };
+
+  const handleCamera = () => {
+    // TODO: brancher la caméra / galerie
+  };
+
   if (!fontsLoaded) return null;
 
   if (loading) {
@@ -224,10 +251,6 @@ export default function ChatScreen() {
     );
   }
 
-  const statusInfo = STATUS_CONFIG[(conversation.status as ConversationStatus) ?? 'OPEN'] ?? {
-    label: 'Inconnu',
-    color: '#64748B',
-  };
   const isClosed = (conversation.status ?? 'OPEN') === 'CLOSED';
   const messages = Array.isArray(conversation.messages)
     ? conversation.messages.filter((message, index, self) =>
@@ -242,6 +265,7 @@ export default function ChatScreen() {
     const showDateSeparator =
       !prevMessage ||
       new Date(prevMessage.created_at).toDateString() !== new Date(itemDate).toDateString();
+    const isFirstInGroup = showDateSeparator || prevMessage?.sender_type !== item?.sender_type;
 
     return (
       <View>
@@ -251,23 +275,38 @@ export default function ChatScreen() {
           </View>
         )}
         <View style={[styles.bubbleRow, isCustomer ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
-          <View
-            style={[
-              styles.bubble,
-              isCustomer ? styles.bubbleCustomer : styles.bubbleAgent,
-              item._pending && styles.bubblePending,
-            ]}
-          >
-            <Text style={[styles.bubbleText, isCustomer && styles.bubbleTextCustomer]}>
-              {item?.content ?? ''}
-            </Text>
-            <View style={styles.bubbleFooter}>
-              <Text style={[styles.bubbleTime, isCustomer && styles.bubbleTimeCustomer]}>
-                {formatTime(itemDate)}
-              </Text>
-              {item._pending && (
-                <Feather name="clock" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+          {!isCustomer && (
+            <View style={styles.avatarSlot}>
+              {isFirstInGroup && (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>EH</Text>
+                </View>
               )}
+            </View>
+          )}
+
+          <View style={styles.bubbleCol}>
+            <View
+              style={[
+                styles.bubble,
+                isCustomer ? styles.bubbleCustomer : styles.bubbleAgent,
+                item._pending && styles.bubblePending,
+              ]}
+            >
+              <Text style={[styles.bubbleText, isCustomer && styles.bubbleTextCustomer]}>
+                {item?.content ?? ''}
+              </Text>
+            </View>
+            <View style={[styles.bubbleFooter, isCustomer ? styles.bubbleFooterRight : styles.bubbleFooterLeft]}>
+              {isCustomer && (
+                <MaterialCommunityIcons
+                  name={item._pending ? 'clock-outline' : 'check-all'}
+                  size={14}
+                  color={item._pending ? '#94A3B8' : '#34B7F1'}
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text style={styles.bubbleTime}>{formatTime(itemDate)}</Text>
             </View>
           </View>
         </View>
@@ -284,32 +323,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Feather name="arrow-left" size={22} color="#1a1a1a" />
-          </TouchableOpacity>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {conversation.subject ?? 'Conversation'}
-            </Text>
-            <View style={styles.headerMetaRow}>
-              <Text style={styles.headerCategory}>{CATEGORY_LABELS[(conversation.category as SupportCategory) ?? 'OTHER'] ?? 'Autre'}</Text>
-              <View style={styles.dot} />
-              <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
-              <Text style={[styles.headerStatus, { color: statusInfo.color }]}>{statusInfo.label}</Text>
-            </View>
-          </View>
-        </View>
-
-        {conversation.assigned_agent && (
-          <View style={styles.agentBanner}>
-            <Feather name="user-check" size={14} color={RED} />
-            <Text style={styles.agentBannerText}>
-              Pris en charge par {conversation.assigned_agent.full_name}
-            </Text>
-          </View>
-        )}
+        <PageHeader title='Support El Herri'/>
 
         {/* Messages */}
         <FlatList
@@ -336,6 +350,10 @@ export default function ChatScreen() {
           </View>
         ) : (
           <View style={styles.inputBar}>
+            <TouchableOpacity onPress={handleAttach} style={styles.iconButton}>
+              <Feather name="paperclip" size={20} color="#6B7280" />
+            </TouchableOpacity>
+
             <TextInput
               style={styles.input}
               placeholder="Écrivez votre message..."
@@ -345,6 +363,11 @@ export default function ChatScreen() {
               multiline
               maxLength={2000}
             />
+
+            <TouchableOpacity onPress={handleCamera} style={styles.iconButton}>
+              <Feather name="camera" size={20} color="#6B7280" />
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
               onPress={handleSend}
@@ -353,7 +376,11 @@ export default function ChatScreen() {
               {sending ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Feather name="send" size={18} color="#FFFFFF" />
+                <Feather
+                  name="send"
+                  size={17}
+                  color={!inputText.trim() ? '#9CA3AF' : '#FFFFFF'}
+                />
               )}
             </TouchableOpacity>
           </View>
@@ -363,12 +390,14 @@ export default function ChatScreen() {
   );
 }
 
+const AVATAR_SIZE = 32;
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   container: { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   errorText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Poppins_500Medium',
     fontSize: 14,
     color: '#475569',
     marginTop: 12,
@@ -388,74 +417,93 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 14,
+    paddingBottom: 16,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
-  backButton: { marginRight: 12, padding: 4 },
-  headerInfo: { flex: 1 },
-  headerTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#1a1a1a' },
-  headerMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  headerCategory: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#64748B' },
-  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#CBD5E1', marginHorizontal: 6 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
-  headerStatus: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-
-  agentBanner: {
-    flexDirection: 'row',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FDEAEA',
     alignItems: 'center',
-    backgroundColor: '#FFF1F1',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    gap: 6,
+    justifyContent: 'center',
+    marginRight: 14,
   },
-  agentBannerText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: RED },
+  headerTitle: {
+    flex: 1,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 21,
+    color: '#1a1a1a',
+  },
+  menuButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   messagesList: { padding: 16, paddingBottom: 8 },
 
-  dateSeparator: { alignItems: 'center', marginVertical: 12 },
+  dateSeparator: { alignItems: 'center', marginVertical: 16 },
   dateSeparatorText: {
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 11,
-    color: '#94A3B8',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: '#6A7282',
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
     overflow: 'hidden',
   },
 
-  bubbleRow: { flexDirection: 'row', marginBottom: 8 },
+  bubbleRow: { flexDirection: 'row', marginBottom: 14, alignItems: 'flex-end' },
   bubbleRowRight: { justifyContent: 'flex-end' },
   bubbleRowLeft: { justifyContent: 'flex-start' },
 
+  avatarSlot: {
+    width: AVATAR_SIZE,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: '#FDEAEA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: RED,
+  },
+
+  bubbleCol: { maxWidth: '76%' },
+
   bubble: {
-    maxWidth: '78%',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   bubbleCustomer: { backgroundColor: RED, borderBottomRightRadius: 4 },
   bubbleAgent: {
-    backgroundColor: '#F8F9FB',
+    backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#EEF0F3',
   },
   bubblePending: { opacity: 0.6 },
 
-  bubbleText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#1a1a1a', lineHeight: 20 },
+  bubbleText: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#1a1a1a', lineHeight: 21 },
   bubbleTextCustomer: { color: '#FFFFFF' },
 
-  bubbleFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4 },
-  bubbleTime: { fontFamily: 'Inter_400Regular', fontSize: 10, color: '#94A3B8' },
-  bubbleTimeCustomer: { color: 'rgba(255,255,255,0.75)' },
+  bubbleFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  bubbleFooterLeft: { justifyContent: 'flex-start' },
+  bubbleFooterRight: { justifyContent: 'flex-end' },
+  bubbleTime: { fontFamily: 'Poppins_500Medium', fontSize: 11, color: '#99A1AF' },
 
   closedBanner: {
     flexDirection: 'row',
@@ -467,21 +515,27 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#EEF0F3',
   },
-  closedBannerText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#94A3B8' },
+  closedBannerText: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: '#94A3B8' },
 
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    gap: 8,
+    gap: 6,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Poppins_400Regular',
     fontSize: 14,
     color: '#1a1a1a',
     backgroundColor: '#F1F5F9',
@@ -491,18 +545,18 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: RED,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sendButtonDisabled: { backgroundColor: '#F5A9A6' },
+  sendButtonDisabled: { backgroundColor: '#E5E7EB' },
 
   emptyText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#111827', marginTop: 12, textAlign: 'center' },
   emptySubtext: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Poppins_400Regular',
     fontSize: 13,
     color: '#94A3B8',
     marginTop: 4,

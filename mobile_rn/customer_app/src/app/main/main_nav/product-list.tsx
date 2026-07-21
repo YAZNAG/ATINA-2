@@ -5,16 +5,15 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import PageHeader from '../../components/ui/PageHeader';
-import ProductCard from '../../components/ui/ProductCard';
-import BottomNavBar from '../../components/ui/BottomNavBar';
+import PageHeader from '../../../components/ui/PageHeader';
+import ProductCard from '../../../components/ui/ProductCard';
 
-import { CatalogService, Article } from '../../services/catalog.service';
-import { ProfileService } from '../../services/profile.service';
-import { CartService } from '../../services/cart.service';
+import { CatalogService, Article } from '../../../services/catalog.service';
+import { ProfileService } from '../../../services/profile.service';
+import { CartService } from '../../../services/cart.service';
 import {
   PromotionsService, BestDeal, bestDealToArticle,
-} from '../../services/promotions.service';
+} from '../../../services/promotions.service';
 
 const PAGE_SIZE = 20;
 
@@ -213,7 +212,6 @@ export default function ProductListScreen() {
         />
       )}
 
-      <BottomNavBar />
     </SafeAreaView>
   );
 }

@@ -4,6 +4,7 @@ const fs     = require('fs');
 const path   = require('path');
 const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
 const { resolveImageUrl } = require('../pack/pack.shared');
+const { toPublicUrl } = require('../../utils/fileStorage');
 const BASE_URL = process.env.BASE_URL;
 if (!BASE_URL) throw new Error('BASE_URL non configurée');
 
@@ -271,7 +272,7 @@ function formatOrderList(o) {
   };
 }
 
-function formatOrderDetail(o) {
+function formatOrderDetail(o, pendingSubstitutionsCount = 0) {
   const payment = o.payments?.[0];
   const slot    = o.confirmed_slot;
   const address = o.address;
@@ -286,6 +287,7 @@ function formatOrderDetail(o) {
     wallet_used:   Number(o.wallet_used ?? 0),
     notes:         o.notes,
     status:        o.status,
+    has_pending_substitution: pendingSubstitutionsCount > 0,
     discount_amount: Number(o.coupon_redemptions?.[0]?.discount_applied ?? 0),
     coupon_code:     o.coupon_redemptions?.[0]?.promotion?.code ?? null,
     payment_status: payment?.status?.code ?? 'pending',
@@ -298,7 +300,7 @@ function formatOrderDetail(o) {
     slot_date:     null,
     items: (o.items ?? []).map(item => {
   const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
-  const image_url = resolveImageUrl(a.images?.[0]?.image_path ?? null);
+  const image_url = toPublicUrl(imagePath);
   return {
     id:         item.id,
     sku_code:   item.sku?.article?.sku_code,
@@ -344,7 +346,18 @@ async function getOrderById(customerId, orderId) {
     include: ORDER_DETAIL_INCLUDE,
   });
   if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-  return formatOrderDetail(order);
+
+  const pendingSubstitutionsCount = await prisma.pickingSessionItem.count({
+    where: {
+      status: { code: 'substituted' },
+      order_item: {
+        order_id: orderId,
+        status: { code: { notIn: ['SUBSTITUTED', 'CANCELLED', 'RETURNED', 'DELIVERED'] } },
+      },
+    },
+  });
+
+  return formatOrderDetail(order, pendingSubstitutionsCount);
 }
 
 
@@ -479,8 +492,8 @@ async function listFavorites(customerId) {
   ]);
   return items.map(w => {
     const a = w.article;
-    const raw = a.images?.[0]?.image_path ?? null;
-    const image_url = resolveImageUrl(a.images?.[0]?.image_path ?? null);
+    const imagePath = a.images?.[0]?.image_path ?? null;
+    const image_url = toPublicUrl(imagePath);
     const ttc  = Math.round(Number(a.price) * (1 + Number(a.vat_rate) / 100) * 100) / 100;
     const deal = resolveArticleDiscount({
       articleSkuId: a.catalog_sku?.id ?? null,

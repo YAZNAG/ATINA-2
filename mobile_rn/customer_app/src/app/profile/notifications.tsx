@@ -202,7 +202,7 @@ export default function NotificationsScreen() {
             </View>
             <TouchableOpacity
               style={styles.emptyBtn}
-              onPress={() => router.replace('/main/home' as any)}
+              onPress={() => router.replace('/main/main_nav/home' as any)}
               activeOpacity={0.8}
             >
               <Text style={styles.emptyBtnText}>Explorer les offres</Text>

@@ -107,10 +107,16 @@ export default function SearchScreen() {
   switch (activeTab) {
     case 'price_asc': return sortArticles(results, 'price_asc');
     case 'popular': {
-      if (!query) return popularGrid;
-      const popularIds = new Set(popularGrid.map(a => a.id));
-      return [...results].sort((a, b) => (popularIds.has(a.id) ? 0 : 1) - (popularIds.has(b.id) ? 0 : 1));
-    }
+  const base = query ? results : popularGrid;
+  const filtered = selectedCats.length > 0
+    ? base.filter(a => a.category?.id != null && selectedCats.includes(a.category.id))
+    : base;
+  if (!query) return filtered;
+  const popularIds = new Set(popularGrid.map(a => a.id));
+  return [...filtered].sort(
+    (a, b) => (popularIds.has(a.id) ? 0 : 1) - (popularIds.has(b.id) ? 0 : 1)
+  );
+}
     case 'newest': return [...results].sort((a, b) => b.id - a.id);
     default:       return results;
   }
@@ -130,7 +136,7 @@ export default function SearchScreen() {
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/main/home'))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/main/main_nav/home'))}
           activeOpacity={0.7}
         >
           <Feather name="chevron-left" size={20} color={RED} />

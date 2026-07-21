@@ -39,11 +39,6 @@ export default function EditProfileScreen() {
   const [fullAddress, setFullAddress] = useState('');
   const [postalCode, setPostalCode] = useState('');
 
-  // TODO backend — aucun champ de préférences notifications n'existe encore
-  const [notifOrders, setNotifOrders] = useState(true);
-  const [notifPromos, setNotifPromos] = useState(true);
-  const [notifNews, setNotifNews] = useState(false);
-
   const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [otpStep, setOtpStep] = useState<'confirm' | 'code'>('confirm');
   const [otp, setOtp] = useState('');
@@ -267,15 +262,6 @@ export default function EditProfileScreen() {
             <FieldRow icon="hash" label="Code postal" value={postalCode} onChangeText={setPostalCode} placeholder="20330" keyboardType="number-pad" maxLength={5} />
           </View>
 
-          {/* ── Préférences (⚠️ non persistées — pas de champ backend) ── */}
-          <Text style={styles.sectionTitle}>Préférences</Text>
-          <View style={styles.card}>
-            <ToggleRow icon="bell" label="Notifications des commandes" value={notifOrders} onChange={setNotifOrders} />
-            <Divider />
-            <ToggleRow icon="tag" label="Recevoir les promotions" value={notifPromos} onChange={setNotifPromos} />
-            <Divider />
-            <ToggleRow icon="star" label="Recevoir les nouveautés" value={notifNews} onChange={setNotifNews} />
-          </View>
 
           {/* ── Boutons ── */}
           <TouchableOpacity style={[styles.btnSave, saving && { opacity: 0.7 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>

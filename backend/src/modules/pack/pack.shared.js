@@ -59,6 +59,7 @@ function resolveImageUrl(imagePath) {
   if (!imagePath) return null;
   if (/^https?:\/\//.test(imagePath)) return imagePath;
   const base = process.env.BASE_URL ;
+  if (!base) throw { statusCode: 500, message: 'BASE_URL non configurée' };
   return `${base}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
 }
 

@@ -28,7 +28,7 @@ export default function PageHeader({
           if (router.canGoBack()) {
             router.back();
           } else {
-            router.replace('/main/home');
+            router.replace('/main/main_nav/home');
            }
           }}
         activeOpacity={0.7}>

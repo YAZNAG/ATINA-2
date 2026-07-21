@@ -11,11 +11,10 @@ import {
   Poppins_600SemiBold, Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import PageHeader from '../../components/ui/PageHeader';
-import { ProfileService, FavoriteArticle } from '../../services/profile.service';
-import { CartService } from '../../services/cart.service';
-import BottomNavBar from '@/components/ui/BottomNavBar';
-import { useCartActions } from '../../context/CartContext';
+import PageHeader from '../../../components/ui/PageHeader';
+import { ProfileService, FavoriteArticle } from '../../../services/profile.service';
+import { CartService } from '../../../services/cart.service';
+import { useCartActions } from '../../../context/CartContext';
 
 
 const RED = '#E10600';
@@ -210,7 +209,6 @@ export default function FavoritesScreen() {
           />
         )}
       </View>
-      <BottomNavBar />
 
       <RemoveFavoriteModal
         visible={removeTarget !== null}

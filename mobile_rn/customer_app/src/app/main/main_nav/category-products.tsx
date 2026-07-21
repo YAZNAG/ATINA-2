@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, TouchableOpacity, TextInput,
+  FlatList, TouchableOpacity,
   Dimensions, ActivityIndicator, RefreshControl, ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -12,16 +12,14 @@ import {
 } from '@expo-google-fonts/inter';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import BottomNavBar from '../../components/ui/BottomNavBar';
-import ProductCard  from '../../components/ui/ProductCard';
-import FilterModal  from '../../components/ui/FilterModal';
-import PageHeader from '../../components/ui/PageHeader';
+import ProductCard  from '../../../components/ui/ProductCard';
+import FilterModal  from '../../../components/ui/FilterModal';
+import PageHeader from '../../../components/ui/PageHeader';
 import SearchBar from '@/components/ui/SearchBar';
 
-import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../services/catalog.service';
-import { ProfileService } from '../../services/profile.service';
+import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../../services/catalog.service';
+import { ProfileService } from '../../../services/profile.service';
 
-const { width } = Dimensions.get('window');
 const RED = '#E10600';
 
 const SubCatPill = ({
@@ -132,8 +130,6 @@ export default function CategoryProductsScreen() {
     if (!loadingMore && page < totalPages) loadArticles(page + 1, false);
   };
 
-  const totalFilters = selectedCats.length + selectedSubs.length;
-
   const filtered = useMemo(() => {
   return articles.filter((a) => {
     const matchSub = selectedSubs.length > 0
@@ -212,7 +208,6 @@ export default function CategoryProductsScreen() {
         />
       )}
 
-      <BottomNavBar />
 
       {/* ── Filter Modal ── */}
       <FilterModal

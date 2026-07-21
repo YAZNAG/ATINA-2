@@ -45,6 +45,8 @@ const customerClaimsRoutes = require('../modules/customer_claims/customer_claims
 const customerCartRoutes    = require('../modules/customer_cart/customer_cart.routes');
 const supportRoutes         = require('../modules/support/support.routes');
 const customerSupportRoutes = require('../modules/customer_support/customer_support.routes');
+const customerSubstitutionRoutes = require ('../modules/customer_substitution/customer_substitution.routes')
+const customerOrderSubstitutionRoutes = require('../modules/customer_substitution/customer_order_substitution.routes')
 
 const router = Router();
 
@@ -63,6 +65,8 @@ router.use('/customer/faq',     customerFaqRoutes);
 router.use('/customer/support', customerSupportRoutes);
 router.use('/customer/reviews', customerReviewsRoutes);
 router.use('/customer/claims', customerClaimsRoutes);
+router.use('/customer/substitutions', customerSubstitutionRoutes);
+router.use('/customer/orders', customerOrderSubstitutionRoutes);
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
 router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
 

@@ -194,8 +194,9 @@ export default function PaymentScreen() {
       applyCart(cart);
       router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');
-    } finally {
+  if ((e?.message ?? '').includes('Stock insuffisant')) return;
+  Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');
+} finally {
       setConfirming(false);
     }
   };

@@ -191,6 +191,11 @@ const handleReorder = async () => {
     router.push({ pathname: '/order/order_suivie' as any, params: { id: order.id } });
   };
 
+  const handleViewSubstitutions = () => {
+  if (!order) return;
+  router.push({ pathname: '/order/substitution' as any, params: { order_id: order.id } });
+};
+
   useEffect(() => {
     if (!id) return;
     ProfileService.getOrderById(id)
@@ -326,10 +331,16 @@ const handleReorder = async () => {
             <Feather name="map-pin" size={16} color={RED} />
             <Text style={styles.btnTrackText}>Suivre ma commande</Text>
           </TouchableOpacity>
+          
+          {order.has_pending_substitution && (
+  <TouchableOpacity onPress={handleViewSubstitutions}>
+    <Text>Voir les substitutions</Text>
+  </TouchableOpacity>
+)}
 
           <TouchableOpacity
             style={styles.btnOutline}
-            onPress={() => router.replace('/main/home' as any)}
+            onPress={() => router.replace('/main/main_nav/home' as any)}
             activeOpacity={0.85}
           >
             <Feather name="home" size={16} color={INK} />

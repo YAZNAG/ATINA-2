@@ -79,7 +79,7 @@ export default function LoginScreen() {
       } else {
         await login('', password, country.code, email.trim());
       }
-      router.replace('/main/home');
+      router.replace('/main/main_nav/home');
     } catch (e: any) {
       setError(e.message ?? 'Erreur de connexion');
     } finally {

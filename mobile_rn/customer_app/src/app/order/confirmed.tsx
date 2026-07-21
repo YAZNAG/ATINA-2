@@ -58,7 +58,7 @@ export default function OrderConfirmedScreen() {
 
           <TouchableOpacity
             style={styles.btnHome}
-            onPress={() => router.replace('/main/home' as any)}
+            onPress={() => router.replace('/main/main_nav/home' as any)}
             activeOpacity={0.85}
           >
             <Text style={styles.btnHomeText}>Retour à l'accueil</Text>

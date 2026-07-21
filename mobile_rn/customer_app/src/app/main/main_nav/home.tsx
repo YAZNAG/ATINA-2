@@ -17,26 +17,25 @@ import {
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-import SearchBar     from '../../components/ui/SearchBar';
-import CategoryList  from '../../components/ui/CategoryList';
-import SectionHeader from '../../components/ui/SectionHeader';
-import ProductCard   from '../../components/ui/ProductCard';
-import BottomNavBar  from '../../components/ui/BottomNavBar';
-import FilterModal   from '../../components/ui/FilterModal';
-import HomeHeader from '../../components/ui/HomeHeader';
-import FlashSaleSection from '../../components/ui/FlashSaleSection';
-import SeeAllCard from '../../components/ui/SeeAllCard';
+import SearchBar     from '../../../components/ui/SearchBar';
+import CategoryList  from '../../../components/ui/CategoryList';
+import SectionHeader from '../../../components/ui/SectionHeader';
+import ProductCard   from '../../../components/ui/ProductCard';
+import FilterModal   from '../../../components/ui/FilterModal';
+import HomeHeader from '../../../components/ui/HomeHeader';
+import FlashSaleSection from '../../../components/ui/FlashSaleSection';
+import SeeAllCard from '../../../components/ui/SeeAllCard';
 
-import { CatalogService, Category, Article } from '../../services/catalog.service';
-import { ProfileService, Address, Profile }  from '../../services/profile.service';
-import { CartService } from '../../services/cart.service';
+import { CatalogService, Category, Article } from '../../../services/catalog.service';
+import { ProfileService, Address, Profile }  from '../../../services/profile.service';
+import { CartService } from '../../../services/cart.service';
 import {
   PromotionsService, FlashSaleSummary,
   PacksService, PackSummary,
   buildSlides, SlideItem,
   BestDeal, bestDealToArticle, EndingSoonResponse
-} from '../../services/promotions.service';
-import { useNotification } from '../../context/NotificationContext';
+} from '../../../services/promotions.service';
+import { useNotification } from '../../../context/NotificationContext';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
@@ -204,7 +203,7 @@ const suggestionRows = useMemo(() => {
   }, [router]);
 
   const handleSeeAllCategories = useCallback(() => {
-    router.push({ pathname: '/main/categories' });
+    router.push({ pathname: '/main/main_nav/categories' });
   }, [router]);
 
   const handleSelectCategory = useCallback((cat: Category) => {
@@ -411,7 +410,7 @@ const handleClearCategoryFilter = useCallback(() => {
 
 {!hasCategoryFilter && bestDeals.length > 0 && (() => {
   const { trimmed, hasMore } = withSeeAllSentinel(bestDeals, HORIZONTAL_LIST_LIMIT);
-  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'bestDeals', title: 'Meilleures offres' } };
+  const seeAllRoute = { pathname: '/main/main_nav/product-list', params: { source: 'bestDeals', title: 'Meilleures offres' } };
   return (
     <View style={styles.section}>
       <SectionHeader title="Meilleures offres" onSeeAll={() => router.push(seeAllRoute as any)} />
@@ -431,7 +430,7 @@ const handleClearCategoryFilter = useCallback(() => {
 
 {!hasCategoryFilter && popular.length > 0 && (() => {
   const { trimmed, hasMore } = withSeeAllSentinel(popular, HORIZONTAL_LIST_LIMIT);
-  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'popular', title: 'Produits populaires' } };
+  const seeAllRoute = { pathname: '/main/main_nav/product-list', params: { source: 'popular', title: 'Produits populaires' } };
   return (
     <View style={styles.section}>
       <SectionHeader title="Produits populaires" onSeeAll={() => router.push(seeAllRoute as any)} />
@@ -451,7 +450,7 @@ const handleClearCategoryFilter = useCallback(() => {
 
 {!hasCategoryFilter && topRated.length > 0 && (() => {
   const { trimmed, hasMore } = withSeeAllSentinel(topRated, HORIZONTAL_LIST_LIMIT);
-  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'topRated', title: 'Notés 5 étoiles' } };
+  const seeAllRoute = { pathname: '/main/main_nav/product-list', params: { source: 'topRated', title: 'Notés 5 étoiles' } };
   return (
     <View style={styles.section}>
       <SectionHeader title="Notés 5 étoiles" onSeeAll={() => router.push(seeAllRoute as any)} />
@@ -473,7 +472,7 @@ const handleClearCategoryFilter = useCallback(() => {
   const { trimmed, hasMore } = withSeeAllSentinel(suggestions, HORIZONTAL_LIST_LIMIT);
   const trimmedRows: Article[][] = [];
   for (let i = 0; i < trimmed.length; i += 2) trimmedRows.push(trimmed.slice(i, i + 2));
-  const seeAllRoute = { pathname: '/main/product-list', params: { source: 'suggestions', title: 'Suggestions pour vous' } };
+  const seeAllRoute = { pathname: '/main/main_nav/product-list', params: { source: 'suggestions', title: 'Suggestions pour vous' } };
   return (
     <View style={styles.section}>
       <SectionHeader title="Suggestions pour vous" onSeeAll={() => router.push(seeAllRoute as any)} />
@@ -511,7 +510,7 @@ const handleClearCategoryFilter = useCallback(() => {
   ) : (
     <SectionHeader
       title="Tous les produits"
-      onSeeAll={() => router.push({ pathname: '/main/product-list', params: { source: 'allProducts', title: 'Tous les produits' } } as any)}
+      onSeeAll={() => router.push({ pathname: '/main/main_nav/product-list', params: { source: 'allProducts', title: 'Tous les produits' } } as any)}
     />
   )}
 </View>
@@ -578,7 +577,6 @@ const handleClearCategoryFilter = useCallback(() => {
         windowSize={7}
       />
 
-      <BottomNavBar />
     </SafeAreaView>
   );
 }

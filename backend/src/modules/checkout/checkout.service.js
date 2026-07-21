@@ -366,13 +366,10 @@ async function findEligibleNodes(address_id, cart_items, date, { debug = false }
       reasons.push({ code: 'daily_capacity_reached', current: cap.current, max: cap.max });
 
     const stock = await checkStock(node.id, cart_items, { strict: false });
-    if (!stock.ok)
-      reasons.push({ code: 'insufficient_stock', issues: stock.issues });
-
-    if (reasons.length === 0)
-      eligible.push({ ...node, distance_km, day_slots: daySlots, needs_backorder: stock.needs_backorder });
-    else
-      ineligible.push({ node_id: node.id, name_fr: node.name_fr, city: node.city, reasons });
+if (reasons.length === 0)
+  eligible.push({ ...node, day_slots: daySlots, needs_backorder: stock.needs_backorder });
+else
+  ineligible.push({ node_id: node.id, name_fr: node.name_fr, city: node.city, reasons });
   }
 
   eligible.sort((a, b) => {
@@ -529,7 +526,7 @@ async function createOrder(payload) {
     if (!address_id) throw { statusCode: 400, message: 'address_id requis pour livraison à domicile' };
     if (finalNodeId) {
       const s = await checkStock(finalNodeId, cart_items, { strict: false });
-      needsBackorder = s.needs_backorder;
+      needsBackorder = s.needs_backorder || !s.ok;
       if (!s.ok) throw { statusCode: 422, message: 'Stock insuffisant pour ce node', issues: s.issues };
     } else {
       const result = await findEligibleNodes(address_id, cart_items, checkDate);
@@ -749,14 +746,27 @@ async function createOrder(payload) {
             });
           }
         } else {
-          // Stock insuffisant sans backorder → rollback
-          const skuInfo = await tx.sku.findUnique({
-            where: { id: item.sku_id },
-            select: { article: { select: { name_fr: true } } },
-          });
-          const name = skuInfo?.article?.name_fr ?? item.sku_id;
-          throw { statusCode: 422, message: `Stock insuffisant pour "${name}" (disponible: ${avail}, demandé: ${qty})` };
-        }
+  // Stock insuffisant sans backorder → backorder forcé (substitution à venir)
+  const toBackorder = qty;
+  await tx.stockLevel.updateMany({
+    where: { node_id: finalNodeId, sku_id: item.sku_id },
+    data:  { qty_backordered: { increment: toBackorder } },
+  });
+  await tx.orderItem.updateMany({
+    where: { order_id: newOrder.id, sku_id: item.sku_id },
+    data:  { qty_backordered: toBackorder },
+  });
+  if (reservationMoveType) {
+    await tx.stockMove.create({
+      data: {
+        node_id: finalNodeId, sku_id: item.sku_id,
+        move_type_id: reservationMoveType.id, order_id: newOrder.id,
+        qty_delta: 0,
+        reason: `Backorder forcé (stock épuisé: ${avail}/${qty}) — substitution à venir — commande ${newOrder.id.slice(0, 8)}`,
+      },
+    });
+  }
+}
       }
     }
 

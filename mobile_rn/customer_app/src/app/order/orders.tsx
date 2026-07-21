@@ -318,7 +318,7 @@ export default function OrdersScreen() {
           <Feather name="shopping-bag" size={52} color="#E5E7EB" />
           <Text style={styles.emptyTitle}>Aucune commande</Text>
           <Text style={styles.emptySub}>Vos commandes apparaîtront ici</Text>
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/home' as any)}>
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/main_nav/home' as any)}>
             <Text style={styles.emptyBtnText}>Commencer mes achats</Text>
           </TouchableOpacity>
         </View>

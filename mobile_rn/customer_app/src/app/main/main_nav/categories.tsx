@@ -12,11 +12,10 @@ import {
   Inter_400Regular, Inter_500Medium,
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import BottomNavBar  from '../../components/ui/BottomNavBar';
-import FilterModal   from '../../components/ui/FilterModal';
-import PageHeader    from '../../components/ui/PageHeader';
-import SearchBar     from '../../components/ui/SearchBar';
-import { CatalogService, Category } from '../../services/catalog.service';
+import FilterModal   from '../../../components/ui/FilterModal';
+import PageHeader    from '../../../components/ui/PageHeader';
+import SearchBar     from '../../../components/ui/SearchBar';
+import { CatalogService, Category } from '../../../services/catalog.service';
 
 const { width } = Dimensions.get('window');
 const RED       = '#E10600';
@@ -131,15 +130,13 @@ export default function CategoriesScreen() {
             <CategoryCard
               category={item}
               onPress={() => router.push({
-                pathname: '/main/category-products' as any,
+                pathname: '/main/main_nav/category-products' as any,
                 params: { category_id: item.id, category_name: item.name_fr },
               })}
             />
           )}
         />
       )}
-
-      <BottomNavBar />
 
       <FilterModal
         visible={filterVisible}

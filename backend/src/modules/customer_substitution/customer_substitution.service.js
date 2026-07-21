@@ -1,11 +1,8 @@
 const prisma = require('../../config/database');
+const { toPublicUrl } = require('../../utils/fileStorage');
 
 class CustomerSubstitutionService {
 
-  /**
-   * Récupère toutes les substitutions d'une commande pour le client.
-   * Une substitution = un PickingSessionItem dont le statut est "substituted" ou "out_of_stock".
-   */
   async getOrderSubstitutions(customerId, orderId) {
     // Vérifie que la commande appartient bien au client
     const order = await prisma.order.findUnique({
@@ -45,11 +42,6 @@ class CustomerSubstitutionService {
     return items.map(this._formatItem);
   }
 
-  /**
-   * Substitutions en attente de réponse pour le client connecté (toutes commandes confondues).
-   * "En attente" = statut substituted mais order_item pas encore status "substituted" côté client
-   * (on utilise order_item.status.code === 'pending_customer_response' si dispo, sinon 'substituted')
-   */
   async getPendingForCustomer(customerId) {
     const items = await prisma.pickingSessionItem.findMany({
       where: {
@@ -87,10 +79,6 @@ class CustomerSubstitutionService {
     return items.map(this._formatItem);
   }
 
-  /**
-   * Le client répond à une substitution proposée.
-   * status: 'accepted' | 'refused'
-   */
   async respond(customerId, sessionItemId, status) {
     if (!['accepted', 'refused'].includes(status)) {
       throw { statusCode: 400, message: 'Statut invalide. Utiliser: accepted ou refused' };
@@ -178,14 +166,14 @@ class CustomerSubstitutionService {
         name_fr:   originalArticle.name_fr,
         name_ar:   originalArticle.name_ar,
         price:     originalArticle.price ? Number(originalArticle.price) : null,
-        image_url: item.order_item.sku.images?.[0]?.url ?? null,
+        image_url: toPublicUrl(item.order_item.sku.images?.[0]?.url),
       } : null,
       substitute_sku: substituteArticle ? {
         id:        item.substitute_sku.id,
         name_fr:   substituteArticle.name_fr,
         name_ar:   substituteArticle.name_ar,
         price:     substituteArticle.price ? Number(substituteArticle.price) : null,
-        image_url: item.substitute_sku.images?.[0]?.url ?? null,
+        image_url: toPublicUrl(item.substitute_sku.images?.[0]?.url),
       } : null,
       reason:     null,
       created_at: item.picked_at ?? null,

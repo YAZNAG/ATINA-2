@@ -1,16 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, usePathname, useFocusEffect } from 'expo-router';
+import { useRouter, usePathname} from 'expo-router';
 import { useCartCount } from '../../context/CartContext';
 
 const RED = '#E10600';
 
 const TABS = [
-  { name: 'Accueil',    icon: 'home',          route: '/main/home',       match: ['/main/home'] },
-  { name: 'Catégories', icon: 'grid',           route: '/main/categories', match: ['/main/categories', '/main/category-products'] },
+  { name: 'Accueil',    icon: 'home',          route: '/main/main_nav/home',       match: ['/main/main_nav/home', '/main/main_nav/product-list'] },
+  { name: 'Catégories', icon: 'grid',           route: '/main/main_nav/categories', match: ['/main/main_nav/categories', '/main/main_nav/category-products'] },
   { name: 'Panier',     icon: 'shopping-cart',  route: '/main/cart',       match: ['/main/cart'] },
-  { name: 'Favoris',    icon: 'heart',          route: '/main/favorites',  match: ['/main/favorites'] },
+  { name: 'Favoris',    icon: 'heart',          route: '/main/main_nav/favorites',  match: ['/main/main_nav/favorites'] },
   { name: 'Profil',     icon: 'user',           route: '/profile/profile', match: ['/profile/profile'] },
 ];
 
@@ -18,20 +18,12 @@ function normalize(p: string) {
   return p.replace(/\/+$/, '') || '/';
 }
 
-export default function BottomNavBar() {
-  const router        = useRouter();
-  const pathname      = usePathname();
+export default function BottomNavBar(_props: any) {
+  const router    = useRouter();
+  const pathname  = usePathname();
   const cartCount = useCartCount();
-  const [stablePath, setStablePath] = useState(pathname);
-
-  useFocusEffect(
-    useCallback(() => {
-      setStablePath(pathname);
-    }, [pathname])
-  );
-
   const isActive = (tab: typeof TABS[0]) => {
-    const p = normalize(stablePath);
+    const p = normalize(pathname);
     return tab.match.some(m => p === normalize(m) || p.startsWith(normalize(m)));
   };
 

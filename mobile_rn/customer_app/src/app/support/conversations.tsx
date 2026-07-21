@@ -19,7 +19,7 @@ import {
   Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import supportService, {
   SupportCategory,
@@ -119,11 +119,44 @@ function ConversationCard({
   );
 }
 
+// Modal de confirmation de suppression (même pattern que RemoveFavoriteModal)
+function DeleteConversationModal({
+  visible,
+  subject,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  subject: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
+        <View style={styles.confirmModalCard}>
+          <Text style={styles.confirmModalTitle}>Supprimer la conversation ?</Text>
+          <Text style={styles.confirmModalSubtitle}>
+            Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.
+          </Text>
+          <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
+            <Text style={styles.btnConfirmDeleteText}>Supprimer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
+            <Text style={styles.btnCancelText}>Annuler</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function ConversationsScreen() {
   const router = useRouter();
   const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SupportConversation | null>(null);
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold,
@@ -131,6 +164,7 @@ export default function ConversationsScreen() {
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
+    Inter_700Bold,
   });
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState<SupportCategory | null>(null);
@@ -186,27 +220,20 @@ export default function ConversationsScreen() {
     setCategoryModalVisible(true);
   };
 
-  const handleDeleteConversation = (conversationId: string) => {
-    Alert.alert(
-      'Supprimer la conversation',
-      'Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supportService.deleteConversation(conversationId);
-              setConversations((prev) => prev.filter((item) => item.id !== conversationId));
-            } catch {
-              Alert.alert('Erreur', 'Impossible de supprimer la conversation');
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  const handleDeleteConversation = (conversation: SupportConversation) => {
+    setDeleteTarget(conversation);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await supportService.deleteConversation(deleteTarget.id);
+      setConversations((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+    } catch {
+      Alert.alert('Erreur', 'Impossible de supprimer la conversation');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   if (!fontsLoaded) return null;
@@ -279,7 +306,7 @@ export default function ConversationsScreen() {
               <ConversationCard
                 item={item}
                 onPress={() => openConversation(item.id)}
-                onDelete={() => handleDeleteConversation(item.id)}
+                onDelete={() => handleDeleteConversation(item)}
               />
             )}
             contentContainerStyle={styles.list}
@@ -291,6 +318,13 @@ export default function ConversationsScreen() {
           />
         )}
       </View>
+
+      <DeleteConversationModal
+        visible={deleteTarget !== null}
+        subject={deleteTarget?.subject ?? null}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -364,9 +398,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   emptyBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
   },
   modalCard: {
@@ -375,6 +409,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 30,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
   },
   modalTitle: {
     fontSize: 18,
@@ -416,4 +451,52 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#111827',
   },
+
+  // Modal de confirmation de suppression (style repris de FavoritesScreen)
+  confirmModalCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 28,
+    paddingBottom: 40,
+    alignItems: 'center',
+    minHeight: 320,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  confirmModalTitle: {
+    fontSize: 22,
+    color: '#1a1a1a',
+    marginBottom: 10,
+    textAlign: 'center',
+    fontFamily: 'Poppins_700Bold',
+  },
+  confirmModalSubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+    fontFamily: 'Inter_400Regular',
+  },
+  btnConfirmDelete: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 24,
+    backgroundColor: RED,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: RED,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  btnConfirmDeleteText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  btnCancel: { paddingVertical: 12 },
+  btnCancelText: { fontSize: 15, color: '#1a1a1a', fontFamily: 'Inter_600SemiBold' },
 });

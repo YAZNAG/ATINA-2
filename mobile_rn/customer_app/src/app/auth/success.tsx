@@ -56,7 +56,7 @@ export default function SuccessScreen() {
         <View style={styles.bottomSection}>
           <TouchableOpacity
             style={styles.btnCommencer}
-            onPress={() => router.replace('/main/home')}
+            onPress={() => router.replace('/main/main_nav/home')}
             activeOpacity={0.85}
           >
             <Text style={styles.btnCommencerText}>Commencer</Text>

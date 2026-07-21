@@ -394,7 +394,7 @@ export default function CartScreen() {
           <Text style={styles.emptySubtitle}>
             Ajoutez des produits pour commencer votre commande et retrouvez ici tous vos articles favoris.
           </Text>
-          <TouchableOpacity style={styles.btnExplore} onPress={() => router.push('/main/home' as any)} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.btnExplore} onPress={() => router.push('/main/main_nav/home' as any)} activeOpacity={0.85}>
             <Feather name="shopping-bag" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.btnExploreText}>Découvrir les produits</Text>
           </TouchableOpacity>

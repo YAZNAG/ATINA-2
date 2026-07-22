@@ -106,7 +106,12 @@ const getSkusWithPrices = (sku_ids) =>
   prisma.sku.findMany({
     where: { id: { in: sku_ids } },
     include: {
-      article: { select: { id: true, name_fr: true, price: true, vat_rate: true, ean13: true } },
+      article: {
+        select: {
+          id: true, name_fr: true, price: true, vat_rate: true, ean13: true,
+          tax: { select: { rate: true } },
+        },
+      },
     },
   });
 

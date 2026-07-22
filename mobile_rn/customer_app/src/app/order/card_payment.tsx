@@ -99,7 +99,7 @@ export default function CardPaymentScreen() {
         address_id:          params.address_id,
         slot_id:             params.slot_id,
         payment_method_code: params.payment_method_code ?? 'card',
-        wallet_amount:       walletAmount > 0 ? walletAmount : undefined,
+        wallet_used:         walletAmount > 0 ? walletAmount : undefined,
         promo_code:          params.promo_code || undefined,
       });
       const cart = await CartService.clearCart();
@@ -249,7 +249,7 @@ export default function CardPaymentScreen() {
             {/* Total à payer */}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total à payer</Text>
-              <Text style={styles.totalValue}>{cardAmount.toFixed(0)} DH</Text>
+              <Text style={styles.totalValue}>{cardAmount.toFixed(2)} DH</Text>
             </View>
 
             {/* Sécurité */}

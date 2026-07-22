@@ -206,6 +206,12 @@ export default function ProfileScreen() {
               <RedBadge text={`${(profile?.points_balance ?? 0).toLocaleString()} pts`} />
             }
           />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="credit-card"
+            label="Wallet"
+            onPress={() => router.push('/profile/WalletScreen' as any)}
+          />
         </View>
 
         {/* ── Paramètres ────────────────────────────────────────────────── */}

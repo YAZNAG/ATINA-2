@@ -9,7 +9,8 @@ const PACK_INCLUDE = {
           article: {
             select: {
               name_fr: true, name_ar: true, sku_code: true, price: true,
-              unit_sale: true, 
+              unit_sale: true, vat_rate: true,
+              tax: { select: { rate: true } },
               images: {
                 where:  { is_main: true },
                 select: { image_path: true },

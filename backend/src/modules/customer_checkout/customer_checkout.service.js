@@ -24,18 +24,27 @@ async function resolveCartItems(cart_items) {
       where: { article: { sku_code: { in: codes } } },
       select: {
         id: true,
-        article: { select: { sku_code: true, price: true, vat_rate: true, name_fr: true } },
+        article: {
+          select: {
+            sku_code: true, price: true, vat_rate: true, name_fr: true,
+            tax: { select: { rate: true } },
+          },
+        },
       },
     }),
     prisma.sku.findMany({
       where: { id: { in: codes } },
       select: {
         id: true,
-        article: { select: { sku_code: true, price: true, vat_rate: true, name_fr: true } },
+        article: {
+          select: {
+            sku_code: true, price: true, vat_rate: true, name_fr: true,
+            tax: { select: { rate: true } },
+          },
+        },
       },
     }),
   ]);
-
 
   const codeMap = Object.fromEntries(byCode.map(s => [s.article.sku_code, s]));
   const idMap   = Object.fromEntries(byId.map(s => [s.id, s]));
@@ -47,7 +56,7 @@ async function resolveCartItems(cart_items) {
       ...item,
       sku_id:     sku?.id     ?? item.sku_id ?? null,
       unit_price: item.unit_price ?? Number(sku?.article?.price ?? 0),
-      vat_rate:   item.vat_rate   ?? Number(sku?.article?.vat_rate ?? 20),
+      vat_rate:   item.vat_rate   ?? Number(sku?.article?.tax?.rate ?? sku?.article?.vat_rate ?? 20),
     };
   });
 }

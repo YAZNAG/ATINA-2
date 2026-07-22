@@ -1,5 +1,6 @@
 const prisma = require('../../config/database');
 const repo   = require('./checkout.repository');
+const { resolveItemPrice } = require('./pricing.shared');
 
 // ── City normalizer ───────────────────────────────────────────────────────────
 function normalizeCity(s) {
@@ -234,42 +235,33 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
   if (!cart_items?.length) throw { statusCode: 400, message: 'Panier vide' };
   if (!node_id)            throw { statusCode: 400, message: 'node_id requis' };
 
-  // 1. Load SKU prices from DB
-  const sku_ids = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
-  const skus = sku_ids.length ? await repo.getSkusWithPrices(sku_ids) : [];
-  const skuMap = Object.fromEntries(skus.map(s => [s.id, s]));
-
-  // 2. App configs for delivery fee
+  // 1. App configs for delivery fee
   const configs = await repo.getAppConfigs(node_id);
   const deliveryFeeConfig        = parseFloat(configs['delivery_fee'] ?? configs['delivery_fee_home'] ?? 0);
   const freeDeliveryThreshold    = parseFloat(configs['free_delivery_threshold'] ?? 0);
   const minOrderAmount           = parseFloat(configs['min_order_amount'] ?? 0);
 
-  // 3. Compute line items
+  // 2. Compute line items — prix recalculé serveur (jamais celui du client)
   let subtotal_ht  = 0;
   let vat_amount   = 0;
   const enrichedItems = [];
 
   for (const item of cart_items) {
-    const qty      = Number(item.qty || 1);
-    const skuData  = item.sku_id ? skuMap[item.sku_id] : null;
-    const article  = skuData?.article;
+    const qty    = Number(item.qty || 1);
+    const priced = await resolveItemPrice(node_id, item);
 
-    // Price: use provided unit_price, else fetch from DB, else 0
-    const unitPriceTTC = Number(item.unit_price ?? article?.price ?? 0);
-    const vatRate      = Number(item.vat_rate ?? article?.vat_rate ?? 20);
-
-    const lineHT = unitPriceTTC / (1 + vatRate / 100);
+    const lineHT = priced.unit_price / (1 + priced.vat_rate / 100);
     subtotal_ht += lineHT * qty;
-    vat_amount  += (unitPriceTTC - lineHT) * qty;
+    vat_amount  += (priced.unit_price - lineHT) * qty;
 
     enrichedItems.push({
-      sku_id:        item.sku_id || null,
-      name_fr:       article?.name_fr ?? item.name_fr ?? 'Article',
+      sku_id:         item.sku_id  || null,
+      pack_id:        item.pack_id || null,
+      name_fr:        priced.name_fr,
       qty,
-      unit_price_ttc: parseFloat(unitPriceTTC.toFixed(2)),
-      vat_rate:      vatRate,
-      line_total:    parseFloat((unitPriceTTC * qty).toFixed(2)),
+      unit_price_ttc: priced.unit_price,
+      vat_rate:       priced.vat_rate,
+      line_total:     parseFloat((priced.unit_price * qty).toFixed(2)),
     });
   }
 
@@ -563,43 +555,33 @@ async function createOrder(payload) {
     if (pm) paymentMethodId = pm.id;
   }
 
-  // Compute totals from DB prices (backend recalculation)
-  const sku_ids = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
-  const skus = sku_ids.length ? await repo.getSkusWithPrices(sku_ids) : [];
-  const skuMap = Object.fromEntries(skus.map(s => [s.id, s]));
-
   const configs        = await repo.getAppConfigs(finalNodeId);
   const deliveryFeeConf     = parseFloat(configs['delivery_fee'] ?? configs['delivery_fee_home'] ?? 0);
   const freeDeliveryThreshold = parseFloat(configs['free_delivery_threshold'] ?? 0);
 
   let subtotal_ht = 0;
   let vat_amount  = 0;
+  const itemsData = [];
 
-  const itemsData = cart_items.map(item => {
-    const qty      = Number(item.qty || 1);
-    const skuData  = item.sku_id ? skuMap[item.sku_id] : null;
-    const article  = skuData?.article;
+  for (const item of cart_items) {
+    const qty    = Number(item.qty || 1);
+    const priced = await resolveItemPrice(finalNodeId, item);
 
-    // Unit price: trust the cart's already-computed price (reflects active flash-sale /
-    // pack discounts), fallback to the raw catalog price only if the client omitted it.
-    const unitPriceTTC = Number(item.unit_price ?? article?.price ?? 0);
-    const vatRate      = Number(item.vat_rate ?? article?.vat_rate ?? 20);
-
-    const lineHT = unitPriceTTC / (1 + vatRate / 100);
+    const lineHT = priced.unit_price / (1 + priced.vat_rate / 100);
     subtotal_ht += lineHT * qty;
-    vat_amount  += (unitPriceTTC - lineHT) * qty;
+    vat_amount  += (priced.unit_price - lineHT) * qty;
 
-    return {
-      sku_id:          item.sku_id || null,
+    itemsData.push({
+      sku_id:          item.sku_id  || null,
       pack_id:         item.pack_id || null,
       status_id:       activeItem.id,
       qty,
-      unit_price_sold: parseFloat(unitPriceTTC.toFixed(2)),
+      unit_price_sold: priced.unit_price,
       discount_amount: 0,
-      vat_rate:        vatRate,
+      vat_rate:        priced.vat_rate,
       node_id:         finalNodeId,
-    };
-  });
+    });
+  }
 
   subtotal_ht = parseFloat(subtotal_ht.toFixed(2));
   vat_amount  = parseFloat(vat_amount.toFixed(2));

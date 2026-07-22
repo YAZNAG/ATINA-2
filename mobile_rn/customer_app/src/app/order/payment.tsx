@@ -85,15 +85,23 @@ export default function PaymentScreen() {
   const walletUsed = (isCard && useWallet) ? Math.min(walletBalance, total) : 0;
   const cardAmount = total - walletUsed;
 
-  const runCalculate = (promoCode?: string | null) => {
+  // ── Calcul serveur — envoie toujours le wallet_used courant, pour que
+  //    le total affiché (calculation.total_ttc / calculation.wallet_used)
+  //    reste cohérent avec ce qui sera réellement envoyé à createOrder().
+  const runCalculate = (promoCode?: string | null, walletAmount?: number) => {
     if (!params.node_id) return;
     calculateOrder({
       node_id:            params.node_id,
       delivery_type_code: params.delivery_type_code,
       cart_items:         cartItems,
       promo_code:         promoCode ?? undefined,
+      wallet_used:        walletAmount && walletAmount > 0 ? walletAmount : undefined,
     })
-      .then(c => { setCalculation(c); setCalcError(null); })
+      .then(c => {
+      console.log('[runCalculate] réponse ←', JSON.stringify(c, null, 2));
+      setCalculation(c);
+      setCalcError(null);
+    })
       .catch(e => setCalcError(e?.message ?? 'Erreur de calcul'));
   };
 
@@ -110,7 +118,7 @@ export default function PaymentScreen() {
       );
       setAppliedCode(res.code);
       setCouponMsg({ type: 'success', text: res.warning ?? res.message });
-      runCalculate(res.code);
+      runCalculate(res.code, walletUsed);
     } catch (e: any) {
       setCouponMsg({ type: 'error', text: e.message ?? 'Code promo invalide' });
     } finally {
@@ -151,13 +159,32 @@ export default function PaymentScreen() {
       .catch(() => {});
   }, []);
 
+  // ── Reset du toggle wallet si la méthode sélectionnée n'est plus "carte"
+  //    (évite un state useWallet=true "fantôme" pour une méthode qui n'affiche
+  //    même plus le toggle à l'écran).
+  useEffect(() => {
+    if (!isCard && useWallet) {
+      setUseWallet(false);
+    }
+  }, [isCard]);
+
+  // ── Resynchronise le calcul serveur à chaque changement de méthode ou de
+  //    toggle wallet, pour que le récap (et le total affiché) reflète
+  //    toujours ce qui sera réellement envoyé à createOrder().
+  useEffect(() => {
+    if (!calculation) return; // pas encore de calcul initial disponible
+    const nextWalletUsed = (isCard && useWallet) ? Math.min(walletBalance, calculation.total_ttc) : 0;
+    runCalculate(appliedCode, nextWalletUsed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, useWallet]);
+
   const handleApplyCoupon = () => applyCoupon(couponInput.trim().toUpperCase());
 
   const handleRemoveCoupon = () => {
     setAppliedCode(null);
     setCouponInput('');
     setCouponMsg(null);
-    runCalculate(null);
+    runCalculate(null, walletUsed);
   };
 
   if (!fontsLoaded) return null;
@@ -188,15 +215,16 @@ export default function PaymentScreen() {
         address_id:          params.address_id,
         slot_id:             params.slot_id,
         payment_method_code: selected.code,
+        wallet_used:         walletUsed > 0 ? walletUsed : undefined,
         promo_code:          appliedCode ?? undefined,
       });
       const cart = await CartService.clearCart();
       applyCart(cart);
       router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
-  if ((e?.message ?? '').includes('Stock insuffisant')) return;
-  Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');
-} finally {
+      if ((e?.message ?? '').includes('Stock insuffisant')) return;
+      Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');
+    } finally {
       setConfirming(false);
     }
   };

@@ -1,14 +1,12 @@
-/**
- * Wallet service — manages wallet balance and transaction history.
- * All mutations go through this service to keep the ledger consistent.
- */
 const prisma = require('../../config/database');
 const h = require('../../utils/statusHelpers');
 
 // ── Internal: create transaction record ───────────────────────────────────────
 async function _recordTxn(tx, { customer_id, txn_type_code, order_id, amount, balance_before, balance_after, note, reference }) {
   const txnType = await h.getWalletTxnType(txn_type_code);
-  if (!txnType) return; // graceful: don't fail if txn type missing
+  if (!txnType) {
+    throw { statusCode: 500, message: `Type de transaction wallet "${txn_type_code}" introuvable — vérifier le seed` };
+  }
   return tx.walletTransaction.create({
     data: {
       customer_id,
@@ -59,7 +57,7 @@ async function creditWallet({ customer_id, amount, txn_type_code = 'credit_recha
 
 // ── Refund wallet (order cancelled or returned) ────────────────────────────────
 async function refundWallet({ customer_id, amount, order_id, note } = {}) {
-  return creditWallet({ customer_id, amount, txn_type_code: 'credit_refund', order_id, note: note || 'Remboursement wallet' });
+  return creditWallet({ customer_id, amount, txn_type_code: 'refund', order_id, note: note || 'Remboursement wallet' });
 }
 
 // ── Get customer balance + last txns ──────────────────────────────────────────

@@ -54,7 +54,7 @@ export interface CreateOrderPayload {
   slot_id?:            string;
   payment_method_code: string;
   notes?:              string;
-  wallet_amount?:      number;
+  wallet_used?:        number;
   referral_code?:      string;
   promo_code?:         string;
 }

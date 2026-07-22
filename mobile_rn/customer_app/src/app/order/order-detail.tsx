@@ -197,12 +197,15 @@ const handleReorder = async () => {
 };
 
   useEffect(() => {
-    if (!id) return;
-    ProfileService.getOrderById(id)
-      .then(setOrder)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+  if (!id) return;
+  ProfileService.getOrderById(id)
+    .then(data => {
+      setOrder(data);
+      console.log(JSON.stringify(data, null, 2)); // log la vraie donnée reçue
+    })
+    .catch(e => setError(e.message))
+    .finally(() => setLoading(false));
+}, [id]);
 
   if (!fontsLoaded) return null;
 

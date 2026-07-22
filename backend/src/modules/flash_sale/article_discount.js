@@ -5,7 +5,7 @@ async function getActiveFlashSales() {
   return prisma.flashSale.findMany({
     where: { is_active: true, is_deleted: false, starts_at: { lte: now }, ends_at: { gte: now } },
     select: {
-      sku_id: true, category_id: true, brand_id: true,
+      node_id: true, sku_id: true, category_id: true, brand_id: true,
       discount_type: true, discount_value: true, flash_price: true,
     },
   });

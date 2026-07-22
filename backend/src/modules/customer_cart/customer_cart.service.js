@@ -13,6 +13,7 @@ const SKU_SELECT = {
       name_ar:  true,
       price:    true,
       vat_rate: true,
+      tax: { select: { rate: true } }, 
 
       images: {
         orderBy: [
@@ -126,8 +127,12 @@ async function getActivePackRatios() {
 
 function formatItem(item, flashSales, packRatios) {
   const article  = item.sku?.article;
-  const price    = parseFloat(article?.price    ?? 0);
-  const vatRate  = parseFloat(article?.vat_rate ?? 20);
+  const price    = parseFloat(article?.price ?? 0);
+  console.log({
+    tax: article?.tax,
+    vat_rate: article?.vat_rate
+});
+  const vatRate  = parseFloat(article?.tax?.rate ?? article?.vat_rate ?? 20); 
   const priceTtc = Math.round(price * (1 + vatRate / 100) * 100) / 100;
   const imageUrl = item.sku?.article?.images?.[0]?.image_path
   ? toPublicUrl(item.sku.article.images[0].image_path)

@@ -457,6 +457,7 @@ export default function CartScreen() {
                   vat_rate:   item.article.vat_rate,
                   pack_id:    item.pack?.id ?? null,
                 }));
+                console.log(JSON.stringify(cart_items))
                 router.push({
                   pathname: '/order/delivery_type' as any,
                   params: { cart_items: JSON.stringify(cart_items) },

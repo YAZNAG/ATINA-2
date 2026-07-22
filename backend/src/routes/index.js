@@ -105,5 +105,4 @@ router.use('/support', supportRoutes);
 router.use('/reviews', reviewsRoutes);
 router.use('/claims', claimsRoutes);
 
-
 module.exports = router;

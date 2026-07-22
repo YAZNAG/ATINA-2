@@ -94,9 +94,11 @@ model Picker {
   phone_number  String           @db.VarChar(15)
   name          String           @db.VarChar(150)
   password_hash String
-  is_active     Boolean          @default(true)
-  is_deleted    Boolean          @default(false)
-  deleted_at    DateTime?        @db.Timestamptz(6)
+  email         String?  @db.VarChar(255)
+  avatar_url    String?
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  deleted_at    DateTime? @db.Timestamptz(6)
   created_by    Int?
   created_at    DateTime         @default(now()) @db.Timestamptz(6)
   updated_at    DateTime         @updatedAt @db.Timestamptz(6)

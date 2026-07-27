@@ -64,6 +64,11 @@ class ArticleService {
     const priceNum = Number(mapped.price);
     if (priceNum < 0) throw { statusCode: 400, message: 'Le prix doit être positif ou nul' };
 
+    if (mapped.tax_id != null) {
+    const tax = await prisma.tax.findUnique({ where: { id: mapped.tax_id }, select: { rate: true } });
+    if (tax) mapped.vat_rate = Number(tax.rate);  
+  }
+
     const payload = this._toPrismaPayload(mapped);
     return prisma.$transaction(async (tx) => {
       const sku = await tx.sku.create({ data: {} });
@@ -94,6 +99,10 @@ class ArticleService {
       const exists = await repo.findByEan13(mapped.ean13, Number(id));
       if (exists) throw { statusCode: 409, message: 'Ce code EAN-13 est déjà utilisé' };
     }
+    if (mapped.tax_id != null) {
+    const tax = await prisma.tax.findUnique({ where: { id: mapped.tax_id }, select: { rate: true } });
+    if (tax) mapped.vat_rate = Number(tax.rate);   
+  }
 
     await this._validateReferences(merged, mapped);
 

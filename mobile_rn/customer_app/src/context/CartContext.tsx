@@ -4,7 +4,22 @@ import React, {
 import { CartService, Cart } from '../services/cart.service';
 
 function cartCountFrom(cart: Cart): number {
-  return cart.items?.length ?? 0;
+  const seenPacks = new Set<string | number>();
+  let count = 0;
+
+  for (const item of cart.items ?? []) {
+    const packId = item.pack?.id;
+    if (packId != null) {
+      if (!seenPacks.has(packId)) {
+        seenPacks.add(packId);
+        count += 1;
+      }
+    } else {
+      count += 1;
+    }
+  }
+
+  return count;
 }
 
 interface CartActionsType {

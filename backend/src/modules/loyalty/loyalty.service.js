@@ -14,6 +14,41 @@
  */
 const prisma = require('../../config/database');
 
+const { POINTS_PER_MAD, MILESTONE_STEP, REDEEM_MAD } = require('./loyalty.shared');
+
+async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId) {
+  if (Number(order.points_earned ?? 0) > 0) return 0;
+
+  const points = await calculatePoints(customer_id, order);
+  if (points <= 0) return 0;
+
+  const customer = await tx.customer.update({
+    where: { id: customer_id },
+    data:  { points_balance: { increment: points }, points_lifetime: { increment: points } },
+  });
+
+  await tx.order.update({ where: { id: order.id }, data: { points_earned: points } });
+
+  await tx.pointsTransaction.create({
+    data: {
+      customer_id,
+      order_id:      order.id,
+      type:          'earn',
+      points,
+      balance_after: customer.points_balance,
+      label:         `Commande #${order.id.slice(0, 6).toUpperCase()}`,
+    },
+  });
+
+  if (deliveredStatusId) {
+    await tx.orderHistory.create({
+      data: { order_id: order.id, status_id: deliveredStatusId, changed_by: null, note: `Points fidélité crédités : +${points} pts` },
+    }).catch(() => {});
+  }
+
+  return points;
+}
+
 // ── Points Rules Engine ───────────────────────────────────────────────────────
 
 async function calculatePoints(customer_id, order) {
@@ -72,33 +107,6 @@ async function calculatePoints(customer_id, order) {
   return Math.max(0, totalPoints);
 }
 
-// ── Credit points after delivery ──────────────────────────────────────────────
-
-async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId) {
-  // Anti-double-credit guard
-  if (Number(order.points_earned ?? 0) > 0) return 0;
-
-  const points = await calculatePoints(customer_id, order);
-  if (points <= 0) return 0;
-
-  await tx.customer.update({
-    where: { id: customer_id },
-    data:  { points_balance: { increment: points }, points_lifetime: { increment: points } },
-  });
-
-  await tx.order.update({
-    where: { id: order.id },
-    data:  { points_earned: points },
-  });
-
-  if (deliveredStatusId) {
-    await tx.orderHistory.create({
-      data: { order_id: order.id, status_id: deliveredStatusId, changed_by: null, note: `Points fidélité crédités : +${points} pts` },
-    }).catch(() => {}); // non-fatal
-  }
-
-  return points;
-}
 
 // ── Referral validation ───────────────────────────────────────────────────────
 
@@ -226,4 +234,7 @@ async function createReferralOnRegistration(referee_id, referral_code) {
   }
 }
 
-module.exports = { calculatePoints, creditPointsOnDelivery, validateReferralOnDelivery, createReferralOnRegistration };
+module.exports = {
+  calculatePoints, creditPointsOnDelivery, validateReferralOnDelivery,
+  createReferralOnRegistration, POINTS_PER_MAD, MILESTONE_STEP, REDEEM_MAD,
+};

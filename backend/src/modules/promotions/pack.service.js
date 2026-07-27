@@ -20,7 +20,7 @@ function normalizeItems(items) {
 async function fetchSkuPrices(skuIds) {
   const skus = await prisma.sku.findMany({
     where:  { id: { in: skuIds } },
-    select: { id: true, article: { select: { price: true } } },
+    select: { id: true, article: { select: { price: true, vat_rate: true, tax: { select: { rate: true } } } } },
   });
 
   const foundIds = new Set(skus.map(s => s.id));
@@ -33,7 +33,8 @@ async function fetchSkuPrices(skuIds) {
   skus.forEach(s => {
     const price = Number(s.article?.price ?? 0);
     if (price <= 0) throw { statusCode: 400, message: `SKU ${s.id} : prix invalide ou article sans prix` };
-    map[s.id] = price;
+    const vatRate = Number(s.article?.tax?.rate ?? s.article?.vat_rate ?? 20);
+    map[s.id] = { price, vatRate };
   });
   return map;
 }
@@ -82,11 +83,14 @@ async function create(body, createdBy) {
 
   const skuPrices = await fetchSkuPrices(normItems.map(i => i.sku_id));
 
-  const itemsForCalc = normItems.map(it => ({
+const itemsForCalc = normItems.map(it => {
+  const { price, vatRate } = skuPrices[it.sku_id] ?? { price: 0, vatRate: 20 };
+  return {
     qty: it.qty,
-    sku: { article: { price: skuPrices[it.sku_id] ?? 0 } },
-    unit_price_in_pack: skuPrices[it.sku_id] ?? 0,
-  }));
+    sku: { article: { price, vat_rate: vatRate } },
+    unit_price_in_pack: price,
+  };
+});
 
   const { originalPrice, finalPrice, discountPct } =
     computePackPrices(itemsForCalc, { discount_type, discount_value, total_price });
@@ -106,13 +110,13 @@ async function create(body, createdBy) {
       valid_to:       valid_to   ? new Date(valid_to)   : null,
       created_by:     createdBy,
       pack_items: {
-        create: normItems.map((it, idx) => ({
-          sku_id:             it.sku_id,
-          qty:                it.qty,
-          unit_price_in_pack: skuPrices[it.sku_id] ?? 0,
-          sort_order:         idx,
-        })),
-      },
+  create: normItems.map((it, idx) => ({
+    sku_id:             it.sku_id,
+    qty:                it.qty,
+    unit_price_in_pack: skuPrices[it.sku_id]?.price ?? 0, 
+    sort_order:         idx,
+  })),
+},
     },
     include: PACK_INCLUDE,
   });
@@ -148,11 +152,14 @@ async function update(id, body) {
   const priceChanged = body.discount_type !== undefined || body.discount_value !== undefined || body.total_price !== undefined;
   if (itemsChanged || priceChanged) {
     const skuPrices = await fetchSkuPrices(normItems.map(i => i.sku_id));
-    const itemsForCalc = normItems.map(it => ({
-      qty: it.qty,
-      sku: { article: { price: skuPrices[it.sku_id] ?? 0 } },
-      unit_price_in_pack: skuPrices[it.sku_id] ?? 0,
-    }));
+const itemsForCalc = normItems.map(it => {
+  const { price, vatRate } = skuPrices[it.sku_id] ?? { price: 0, vatRate: 20 };
+  return {
+    qty: it.qty,
+    sku: { article: { price, vat_rate: vatRate } },
+    unit_price_in_pack: price,
+  };
+});
     const existingPct = Number(existing.discount_pct ?? 0);
     const { originalPrice, finalPrice, discountPct } = computePackPrices(itemsForCalc, {
       discount_type:  body.discount_type  ?? (existingPct > 0 ? 'percentage' : undefined),
@@ -164,17 +171,16 @@ async function update(id, body) {
     data.discount_pct   = discountPct;
 
     if (itemsChanged) {
-      await prisma.packItem.deleteMany({ where: { pack_id: id } });
-      await prisma.packItem.createMany({
-        data: normItems.map((it, idx) => ({
-          pack_id:            id,
-          sku_id:             it.sku_id,
-          qty:                it.qty,
-          unit_price_in_pack: skuPrices[it.sku_id] ?? 0,
-          sort_order:         idx,
-        })),
-      });
-    }
+  await prisma.packItem.deleteMany({ where: { pack_id: id } });
+  await prisma.packItem.createMany({
+    data: normItems.map((it, idx) => ({
+      pack_id:            id,
+      sku_id:             it.sku_id,
+      qty:                it.qty,
+      unit_price_in_pack: skuPrices[it.sku_id]?.price ?? 0,  
+    })),
+  });
+}
   }
 
   if (body.image_url !== undefined) data.image_url = body.image_url ?? null;

@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Dimensions, Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Feather, MaterialCommunityIcons} from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
-import { ProfileService } from '../../services/profile.service';
 import { useCartActions } from '../../context/CartContext';
+import { useIsFavorite, useToggleFavorite } from '../../store/useIsFavorite';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -20,20 +20,18 @@ interface ProductCardProps {
   onAddToCart?: () => void;
   discount?:    number;
   oldPrice?:    number;
-  isFav?:       boolean;
-  onToggleFav?: (newState: boolean) => void;
-  isFlashSale?: boolean;   
+  isFlashSale?: boolean;
 }
 
 function ProductCard({
-  article, onPress, onAddToCart, discount, oldPrice, isFav = false, onToggleFav, isFlashSale = false,
+  article, onPress, onAddToCart, discount, oldPrice, isFlashSale = false,
 }: ProductCardProps) {
-  const [isFavorite, setIsFavorite]     = useState(isFav);
+  const isFavorite = useIsFavorite(article.id);
+  const toggleFavorite = useToggleFavorite(article.id);
+
   const [addingToCart, setAddingToCart] = useState(false);
   const [toggling, setToggling]         = useState(false);
   const { applyCart } = useCartActions();
-
-  useEffect(() => { setIsFavorite(isFav); }, [isFav]);
 
   const effectiveDiscount = discount ?? article.discount_pct ?? undefined;
   const effectiveOldPrice = oldPrice ?? article.old_price_ttc ?? undefined;
@@ -61,23 +59,13 @@ function ProductCard({
   const handleToggleFavorite = useCallback(async () => {
     if (toggling || article.id == null) return;
     setToggling(true);
-    const next = !isFavorite;
-    setIsFavorite(next);
-    try {
-      if (next) await ProfileService.addFavorite(article.id);
-      else      await ProfileService.removeFavorite(article.id);
-      onToggleFav?.(next);
-    } catch {
-      setIsFavorite(!next);
-    } finally {
-      setToggling(false);
-    }
-  }, [toggling, isFavorite, article.id, onToggleFav]);
+    await toggleFavorite();
+    setToggling(false);
+  }, [toggling, article.id, toggleFavorite]);
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
 
-      {/* ── Image ── */}
       <View style={styles.imageContainer}>
         {article.image_url ? (
           <Image
@@ -103,7 +91,6 @@ function ProductCard({
           </View>
         )}
 
-        {/* Favorite button */}
         <TouchableOpacity
           style={[styles.favoriteBtn, toggling && { opacity: 0.6 }]}
           onPress={handleToggleFavorite}
@@ -111,23 +98,20 @@ function ProductCard({
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons
-          name={isFavorite ? "heart" : "heart-outline"}
-          size={18}
-          color={isFavorite ? RED : '#4B5563'}/>
+            name={isFavorite ? "heart" : "heart-outline"}
+            size={18}
+            color={isFavorite ? RED : '#4B5563'}
+          />
         </TouchableOpacity>
       </View>
 
-      {/* ── Info ── */}
       <View style={styles.info}>
-        {/* Nom complet */}
         <Text style={styles.name} numberOfLines={2}>{article.name_fr}</Text>
 
-        {/* Marque */}
         {article.brand && (
           <Text style={styles.brand} numberOfLines={1}>{article.brand.name_fr}</Text>
         )}
 
-        {/* Price + Add button */}
         <View style={styles.priceRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.price}>{article.price_ttc.toFixed(2)} MAD</Text>
@@ -164,31 +148,22 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-
-  imageContainer: {
-    width: '100%', height: 130,
-    backgroundColor: '#fff',
-    position: 'relative',
-  },
-  image:            { width: '100%', height: '100%' },
+  imageContainer: { width: '100%', height: 130, backgroundColor: '#fff', position: 'relative' },
+  image: { width: '100%', height: '100%' },
   imagePlaceholder: {
     width: '100%', height: '100%',
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#F9F9F9',
   },
-
   discountBadge: {
     position: 'absolute', top: 10, left: 10,
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: RED, borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  discountBadgeFlash: {
-    paddingLeft: 6,   
-  },
+  discountBadgeFlash: { paddingLeft: 6 },
   flameIcon: { marginRight: 2 },
   discountText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
-
   favoriteBtn: {
     position: 'absolute', top: 10, right: 10,
     width: 32, height: 32, borderRadius: 16,
@@ -196,13 +171,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 5, elevation: 3,
   },
-
-  info:   { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
-  name:   { fontSize: 14, color: '#1a1a1a', fontFamily: 'Inter_700Bold', marginBottom: 3, lineHeight: 18 },
-  brand:  { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 10 },
-
+  info: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
+  name: { fontSize: 14, color: '#1a1a1a', fontFamily: 'Inter_700Bold', marginBottom: 3, lineHeight: 18 },
+  brand: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 10 },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  price:    { fontSize: 16, color: '#E10600', fontFamily: 'Inter_700Bold' },
+  price: { fontSize: 16, color: '#E10600', fontFamily: 'Inter_700Bold' },
   oldPrice: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textDecorationLine: 'line-through', marginTop: 1 },
   addBtn: {
     width: 40, height: 40, borderRadius: 12,

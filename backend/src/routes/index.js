@@ -48,6 +48,7 @@ const supportRoutes         = require('../modules/support/support.routes');
 const customerSupportRoutes = require('../modules/customer_support/customer_support.routes');
 const customerSubstitutionRoutes = require ('../modules/customer_substitution/customer_substitution.routes')
 const customerOrderSubstitutionRoutes = require('../modules/customer_substitution/customer_order_substitution.routes')
+const customerLoyaltyRoutes = require('../modules/customer_loyalty/customer_loyalty.routes')
 
 const router = Router();
 
@@ -67,6 +68,7 @@ router.use('/customer/support', customerSupportRoutes);
 router.use('/customer/reviews', customerReviewsRoutes);
 router.use('/customer/claims', customerClaimsRoutes);
 router.use('/customer/wallet', customerWalletRoutes);
+router.use('/customer/loyalty',customerLoyaltyRoutes );
 router.use('/customer/substitutions', customerSubstitutionRoutes);
 router.use('/customer/orders', customerOrderSubstitutionRoutes);
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login

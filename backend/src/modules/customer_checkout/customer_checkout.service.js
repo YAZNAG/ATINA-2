@@ -50,15 +50,10 @@ async function resolveCartItems(cart_items) {
   const idMap   = Object.fromEntries(byId.map(s => [s.id, s]));
 
   return cart_items.map(item => {
-    const identifier = item.sku_code || item.sku_id;
-    const sku = codeMap[identifier] ?? idMap[identifier];
-    return {
-      ...item,
-      sku_id:     sku?.id     ?? item.sku_id ?? null,
-      unit_price: item.unit_price ?? Number(sku?.article?.price ?? 0),
-      vat_rate:   item.vat_rate   ?? Number(sku?.article?.tax?.rate ?? sku?.article?.vat_rate ?? 20),
-    };
-  });
+  const identifier = item.sku_code || item.sku_id;
+  const sku = codeMap[identifier] ?? idMap[identifier];
+  return { ...item, sku_id: sku?.id ?? item.sku_id ?? null };  
+});
 }
 
 async function calculate(customerId, payload) {

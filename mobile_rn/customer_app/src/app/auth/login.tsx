@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, Image, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator, Dimensions,
-  Modal, FlatList,
 } from 'react-native';
 import {
   useFonts, Inter_400Regular, Inter_500Medium,
@@ -16,10 +15,9 @@ import { login } from '../../services/customer_auth.service';
 import countries from '../../constants/countries.json';
 
 SplashScreen.preventAutoHideAsync();
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const RED = '#E10600';
 
-type Country = { code: string; flag: string; name: string };
 type LoginMode = 'phone' | 'email';
 
 const Logo = () => (
@@ -29,6 +27,24 @@ const Logo = () => (
     <Image source={require('../../../assets/images/app/arab.png')} style={styles.logoTextRight} resizeMode="stretch" />
   </View>
 );
+
+// accepte "06xxxxxxxx", "+2126xxxxxxxx", "002126xxxxxxxx" ──
+function parsePhoneInput(raw: string): { countryCode: string; number: string } {
+  let s = raw.trim().replace(/[\s.-]/g, '');
+
+  if (s.startsWith('00')) s = '+' + s.slice(2);
+
+  if (s.startsWith('+')) {
+    const sorted = [...(countries as { code: string }[])].sort((a, b) => b.code.length - a.code.length);
+    const match = sorted.find((c) => s.startsWith(c.code));
+    if (match) return { countryCode: match.code, number: s.slice(match.code.length) };
+    // Code pays inconnu : on garde par défaut +212 et le reste tel quel
+    return { countryCode: '+212', number: s.replace('+', '') };
+  }
+
+  // Pas de "+" format local (ex: 0611111111) pays par défaut
+  return { countryCode: '+212', number: s };
+}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -47,21 +63,6 @@ export default function LoginScreen() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
-  // Sélecteur de pays 
-  const countryList = countries as Country[];
-  const [country, setCountry] = useState<Country>(
-    countryList.find((c) => c.code === '+212') || countryList[0]
-  );
-  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
-
-  const filteredCountries = useMemo(() =>
-    countryList.filter((c) =>
-      c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-      c.code.includes(countrySearch)
-    ), [countryList, countrySearch]
-  );
-
   if (!fontsLoaded) return null;
 
   const clearError = () => setError('');
@@ -75,9 +76,10 @@ export default function LoginScreen() {
       setLoading(true);
       clearError();
       if (mode === 'phone') {
-        await login(phone.trim(), password, country.code);
+        const { countryCode, number } = parsePhoneInput(phone);
+        await login(number, password, countryCode);
       } else {
-        await login('', password, country.code, email.trim());
+        await login('', password, '+212', email.trim());
       }
       router.replace('/main/main_nav/home');
     } catch (e: any) {
@@ -85,12 +87,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSelectCountry = (c: Country) => {
-    setCountry(c);
-    setCountryPickerVisible(false);
-    setCountrySearch('');
   };
 
   return (
@@ -136,20 +132,11 @@ export default function LoginScreen() {
               {mode === 'phone' ? (
                 <>
                   <Text style={styles.label}>Numéro de téléphone</Text>
-                  <View style={styles.phoneRow}>
-                    {/* Sélecteur de pays */}
-                    <TouchableOpacity
-                      style={styles.countryPill}
-                      onPress={() => setCountryPickerVisible(true)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.countryFlag}>{country.flag}</Text>
-                      <Text style={styles.countryCode}>{country.code}</Text>
-                      <Feather name="chevron-down" size={14} color="#9CA3AF" />
-                    </TouchableOpacity>
+                  <View style={styles.inputWrapper}>
+                    <Feather name="phone" size={18} color="#9CA3AF" style={styles.inputIcon} />
                     <TextInput
-                      style={styles.phoneInput}
-                      placeholder="6 12 34 56 78"
+                      style={styles.input}
+                      placeholder="+2126XXXXXXXX"
                       placeholderTextColor="#9CA3AF"
                       value={phone}
                       onChangeText={t => { setPhone(t); clearError(); }}
@@ -194,14 +181,16 @@ export default function LoginScreen() {
                   <Feather name={showPwd ? 'eye-off' : 'eye'} size={18} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
+
               {/* ── Mot de passe oublié ── */}
-<TouchableOpacity
-  style={styles.forgotRow}
-  onPress={() => router.push('/auth/forgot-password' as any)}
-  activeOpacity={0.7}
->
-  <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
-</TouchableOpacity>
+              <TouchableOpacity
+                style={styles.forgotRow}
+                onPress={() => router.push('/auth/forgot-password' as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+              </TouchableOpacity>
+
               {/* ── Erreur ── */}
               {!!error && (
                 <View style={styles.errorBox}>
@@ -238,64 +227,6 @@ export default function LoginScreen() {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-
-      {/* ── Country Picker Modal ── */}
-      <Modal
-        visible={countryPickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCountryPickerVisible(false)}
-      >
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerCard}>
-            <View style={styles.pickerHandle} />
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Choisir un pays</Text>
-              <TouchableOpacity onPress={() => { setCountryPickerVisible(false); setCountrySearch(''); }}>
-                <Feather name="x" size={22} color="#1a1a1a" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchRow}>
-              <Feather name="search" size={16} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Rechercher un pays..."
-                placeholderTextColor="#9CA3AF"
-                value={countrySearch}
-                onChangeText={setCountrySearch}
-                autoFocus
-              />
-            </View>
-
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={(item) => item.code + item.name}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.countryItem, country.code === item.code && country.name === item.name && styles.countryItemSelected]}
-                  onPress={() => handleSelectCountry(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.countryItemFlag}>{item.flag}</Text>
-                  <Text style={styles.countryItemName}>{item.name}</Text>
-                  <Text style={styles.countryItemCode}>{item.code}</Text>
-                  {country.code === item.code && country.name === item.name && (
-                    <Feather name="check" size={18} color={RED} />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.pickerEmpty}>
-                  <Text style={styles.pickerEmptyText}>Aucun pays trouvé</Text>
-                </View>
-              }
-            />
-          </View>
-        </View>
-      </Modal>
-
     </SafeAreaView>
   );
 }
@@ -341,21 +272,6 @@ const styles = StyleSheet.create({
   },
   inputIcon: { position: 'absolute', left: 14, zIndex: 1 },
 
-  phoneRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F5F5F5', borderRadius: 12,
-    borderWidth: 1, borderColor: '#EEEEEE',
-    marginBottom: 16, overflow: 'hidden',
-  },
-  countryPill: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-    borderRightWidth: 1, borderRightColor: '#E0E0E0', gap: 6,
-  },
-  countryFlag: { fontSize: 18 },
-  countryCode: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#212121' },
-  phoneInput:  { flex: 1, paddingHorizontal: 14, fontSize: 15, color: '#212121' },
-
   pwdRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#F5F5F5', borderRadius: 12,
@@ -389,20 +305,4 @@ const styles = StyleSheet.create({
 
   forgotRow: { alignSelf: 'flex-end', marginBottom: 16, marginTop: -8 },
   forgotText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED },
-
-  // Country picker
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, maxHeight: height * 0.75 },
-  pickerHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 12 },
-  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
-  pickerTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1a1a1a' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#1a1a1a' },
-  countryItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
-  countryItemSelected: { backgroundColor: '#FFF5F5' },
-  countryItemFlag: { fontSize: 22 },
-  countryItemName: { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', color: '#1a1a1a' },
-  countryItemCode: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-  pickerEmpty: { alignItems: 'center', padding: 32 },
-  pickerEmptyText: { color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' },
 });

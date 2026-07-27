@@ -4,9 +4,9 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Address } from '../../services/profile.service';
-import { CONFIG } from '../../constants/config';
-import { useNotification } from '../../context/NotificationContext';
+import { Address } from '../../../services/profile.service';
+import { CONFIG } from '../../../constants/config';
+import { useNotification } from '../../../context/NotificationContext';
 
 const RED = '#E10600';
 

@@ -159,23 +159,18 @@ export default function PaymentScreen() {
       .catch(() => {});
   }, []);
 
-  // ── Reset du toggle wallet si la méthode sélectionnée n'est plus "carte"
-  //    (évite un state useWallet=true "fantôme" pour une méthode qui n'affiche
-  //    même plus le toggle à l'écran).
+
   useEffect(() => {
     if (!isCard && useWallet) {
       setUseWallet(false);
     }
   }, [isCard]);
 
-  // ── Resynchronise le calcul serveur à chaque changement de méthode ou de
-  //    toggle wallet, pour que le récap (et le total affiché) reflète
-  //    toujours ce qui sera réellement envoyé à createOrder().
+
   useEffect(() => {
-    if (!calculation) return; // pas encore de calcul initial disponible
+    if (!calculation) return; 
     const nextWalletUsed = (isCard && useWallet) ? Math.min(walletBalance, calculation.total_ttc) : 0;
     runCalculate(appliedCode, nextWalletUsed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, useWallet]);
 
   const handleApplyCoupon = () => applyCoupon(couponInput.trim().toUpperCase());

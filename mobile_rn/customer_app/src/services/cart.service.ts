@@ -22,6 +22,7 @@ export interface CartItem {
   quantity: number;
   article:  CartArticle;
   subtotal: number;
+  created_at: string;
 }
 
 export interface Cart {

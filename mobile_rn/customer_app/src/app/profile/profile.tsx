@@ -19,7 +19,7 @@ const StatCard = ({
   icon, value, label,
 }: { icon: string; value: string; label: string }) => (
   <View style={styles.statCard}>
-    <Feather name={icon as any} size={22} color={RED} style={styles.statIcon} />
+    <Feather name={icon as any} size={22} color={'#ffff'} style={styles.statIcon} />
     <Text style={styles.statValue}>{value}</Text>
     <Text style={styles.statLabel}>{label}</Text>
   </View>
@@ -155,7 +155,7 @@ export default function ProfileScreen() {
             label="POINTS"
           />
           <StatCard
-            icon="gift"
+            icon="box"
             value={String(orderCount)}
             label="COMMANDES"
           />
@@ -201,7 +201,7 @@ export default function ProfileScreen() {
           <MenuRow
             icon="award"
             label="Mes points fidélité"
-            onPress={() => {}}
+            onPress={() => router.push('/profile/loyalty' as any)}
             rightContent={
               <RedBadge text={`${(profile?.points_balance ?? 0).toLocaleString()} pts`} />
             }
@@ -270,7 +270,7 @@ export default function ProfileScreen() {
           onPress={() => router.push('/profile/edit_profile' as any)}
           activeOpacity={0.85}
         >
-          <Feather name="edit-2" size={16} color="#fff" />
+          <Feather name="edit" size={16} color="#fff" />
           <Text style={styles.editBtnText}>Modifier profil</Text>
         </TouchableOpacity>
 
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16, paddingHorizontal: 8,
     alignItems: 'center',
   },
-  statIcon:  { marginBottom: 6 },
+  statIcon:  { marginBottom: 6, backgroundColor:RED , borderRadius:18, padding:9},
   statValue: { fontSize: 20, fontWeight: '800', color: '#1a1a1a' },
   statLabel: { fontSize: 10, color: '#9CA3AF', fontWeight: '600', marginTop: 2, letterSpacing: 0.6 },
 
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   editBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: RED, borderRadius: 50,
-    paddingVertical: 17, marginTop: 4, marginBottom: 14,
+    paddingVertical: 15, marginTop: 4, marginBottom: 14,
   },
   editBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 

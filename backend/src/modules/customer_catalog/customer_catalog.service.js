@@ -8,10 +8,11 @@ const BASE_ARTICLE = { deleted_at: null, is_deleted: false, is_active: true };
 const BASE_CAT     = { deleted_at: null, status: 'active' };
 
 const ARTICLE_SELECT = {
-  id: true, sku_code: true, ean13: true,sku_uuid: true,
+  id: true, sku_code: true, ean13: true, sku_uuid: true,
   name_fr: true, name_ar: true,
   description_fr: true, description_ar: true,
   price: true, vat_rate: true, unit_sale: true,
+  tax: { select: { rate: true } },  
   is_active: true,
   updated_at: true,
   brand:        { select: { id: true, name_fr: true, name_ar: true } },
@@ -33,7 +34,7 @@ const ARTICLE_SELECT = {
 };
 
 function formatArticle(a, flashSales = []) {
-  const vatRate  = parseFloat(a.vat_rate ?? 0);
+  const vatRate  = parseFloat(a.tax?.rate ?? a.vat_rate ?? 20);
   const price    = parseFloat(a.price ?? 0);
   const priceTtc = Math.round(price * (1 + vatRate / 100) * 100) / 100;
 
@@ -47,7 +48,7 @@ function formatArticle(a, flashSales = []) {
     brandId:      a.brand?.id ?? null,
     priceTtc,
   }, flashSales);
-
+  console.log(articleImgs)
   return {
     id:             a.id,
     sku_code:       a.sku_code,

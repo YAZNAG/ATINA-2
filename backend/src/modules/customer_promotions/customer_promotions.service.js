@@ -24,8 +24,9 @@ function applyDiscount(priceTtc, discount_type, discount_value) {
   return priceTtc;
 }
 
-function priceTtc(price, vat_rate) {
-  return Math.round(parseFloat(price ?? 0) * (1 + parseFloat(vat_rate ?? 20) / 100) * 100) / 100;
+function priceTtc(price, vat_rate, tax_rate) {
+  const rate = parseFloat(tax_rate ?? vat_rate ?? 20);
+  return Math.round(parseFloat(price ?? 0) * (1 + rate / 100) * 100) / 100;
 }
 
 function computeIsActive(fs) {
@@ -42,7 +43,7 @@ function articleImageUrl(a) {
 }
 
 function formatArticleProduct(a, fs) {
-  const ttc      = priceTtc(a.price, a.vat_rate);
+  const ttc = priceTtc(a.price, a.vat_rate, a.tax?.rate);
   const newPrice = applyDiscount(ttc, fs.discount_type, fs.discount_value);
   const pct      = ttc > 0 ? Math.round((1 - newPrice / ttc) * 100) : 0;
   return {
@@ -63,6 +64,7 @@ function formatArticleProduct(a, fs) {
 const ARTICLE_SELECT = {
   id: true, name_fr: true, name_ar: true, sku_code: true,
   price: true, vat_rate: true, weight_g: true, sku_uuid: true,
+  tax: { select: { rate: true } },
   catalog_sku: {
     select: {
       id: true,
@@ -80,7 +82,7 @@ const FLASH_LIST_INCLUDE = {
   sku: {
     select: {
       id: true,
-      article: { select: { name_fr: true, price: true, vat_rate: true } },
+      article: { select: { name_fr: true, price: true, vat_rate: true, tax: { select: { rate: true } } } },
     },
   },
   category: { select: { id: true, name_fr: true, _count: { select: { articles: { where: ARTICLE_WHERE } } } } },
@@ -93,14 +95,15 @@ const FLASH_DETAIL_INCLUDE = {
       id: true,
       images: { select: { url: true }, orderBy: { sort_order: 'asc' }, take: 1 },
       article: {
-        select: {
-          id: true,
-          name_fr: true, name_ar: true, price: true, vat_rate: true,
-          weight_g: true,
-          brand: { select: { id: true, name_fr: true, name_ar: true } },
-          images: { select: { image_path: true }, take: 1 },
-        },
-      },
+  select: {
+    id: true,
+    name_fr: true, name_ar: true, price: true, vat_rate: true,
+    tax: { select: { rate: true } },
+    weight_g: true,
+    brand: { select: { id: true, name_fr: true, name_ar: true } },
+    images: { select: { image_path: true }, take: 1 },
+  },
+},
     },
   },
   category: {
@@ -126,7 +129,7 @@ function formatSummary(fs) {
   if (fs.discount_value && isPct) {
     discountPct = parseFloat(fs.discount_value);
   } else if (fs.flash_price && fs.sku?.article) {
-    const ttc = priceTtc(fs.sku.article.price, fs.sku.article.vat_rate);
+    const ttc = priceTtc(fs.sku.article.price, fs.sku.article.vat_rate, fs.sku.article.tax?.rate);
     if (ttc > 0) discountPct = Math.round((1 - parseFloat(fs.flash_price) / ttc) * 100);
   }
 
@@ -156,7 +159,7 @@ function formatDetail(fs) {
   let eligible = [];
   if (scopeType === 'sku' && fs.sku) {
     const a = fs.sku.article;
-    const ttc = priceTtc(a?.price, a?.vat_rate);
+    const ttc = priceTtc(a?.price, a?.vat_rate, a?.tax?.rate);
     const newPrice = parseFloat(fs.flash_price ?? 0);
     const pct = ttc > 0 ? Math.round((1 - newPrice / ttc) * 100) : 0;
     const skuImg = fs.sku.images?.[0]?.url ?? null;
@@ -238,7 +241,7 @@ async function listBestDeals(limit = 10, excludeIds = [], page = 1) {
     for (const a of articles) {
       if (excludeSet.has(a.id)) continue;
 
-      const ttc = priceTtc(a.price, a.vat_rate);
+      const ttc = priceTtc(a.price, a.vat_rate, a.tax?.rate);
       const newPrice = (scopeType === 'sku' && fs.flash_price != null)
         ? parseFloat(fs.flash_price)
         : applyDiscount(ttc, fs.discount_type, fs.discount_value);
@@ -257,7 +260,7 @@ async function listBestDeals(limit = 10, excludeIds = [], page = 1) {
           price_ttc: newPrice,
           old_price_ttc: ttc,
           discount_pct: pct,
-          vat_rate: parseFloat(a.vat_rate ?? 20),
+          vat_rate: parseFloat(a.tax?.rate ?? a.vat_rate ?? 20),
           image_url: articleImageUrl(a) ?? a._skuImg ?? null,
           brand: a.brand ?? null,
           category: a.category ?? null,

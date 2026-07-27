@@ -112,7 +112,7 @@ function PackItemCard({ item }: { item: PackItem }) {
           <Text style={styles.packItemUnit}>{item.unit_label}</Text>
         )}
         <View style={styles.packItemBottomRow}>
-          <Text style={styles.packItemPrice}>{item.unit_price.toFixed(0)} MAD</Text>
+          <Text style={styles.packItemPrice}>{item.unit_price.toFixed(2)} MAD</Text>
           <View style={styles.stockBadge}>
             <View style={styles.stockDot} />
             <Text style={styles.stockText}>STOCK</Text>
@@ -145,9 +145,9 @@ function SimilarPackCard({ item, onPress }: { item: PackSummary; onPress: () => 
         <Text style={styles.cardName} numberOfLines={1}>{item.name_fr}</Text>
         <Text style={styles.cardWeight}>{item.item_count} produits</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={styles.cardNewPrice}>{item.total_price.toFixed(0)} MAD</Text>
+          <Text style={styles.cardNewPrice}>{item.total_price.toFixed(2)} MAD</Text>
           {item.discount_pct > 0 && (
-            <Text style={styles.cardOldPrice}>{item.original_price.toFixed(0)} MAD</Text>
+            <Text style={styles.cardOldPrice}>{item.original_price.toFixed(2)} MAD</Text>
           )}
         </View>
       </View>
@@ -271,9 +271,9 @@ export default function PromotionDetailScreen() {
               {/* ── Titre + prix ── */}
               <Text style={styles.packTitle}>{pack!.name_fr}</Text>
               <View style={styles.packPriceRow}>
-                <Text style={styles.packPriceNew}>{pack!.total_price.toFixed(0)} MAD</Text>
+                <Text style={styles.packPriceNew}>{pack!.total_price.toFixed(2)} MAD</Text>
                 {pack!.saved_amount > 0 && (
-                  <Text style={styles.packPriceOld}>{pack!.original_price.toFixed(0)} MAD</Text>
+                  <Text style={styles.packPriceOld}>{pack!.original_price.toFixed(2)} MAD</Text>
                 )}
               </View>
               {pack!.description_fr && (
@@ -405,7 +405,7 @@ export default function PromotionDetailScreen() {
       {isPack ? (
         <View style={styles.bottomBar}>
           <View style={styles.bottomBarPrice}>
-            <Text style={styles.bottomBarPriceValue}>{pack?.total_price.toFixed(0)} MAD</Text>
+            <Text style={styles.bottomBarPriceValue}>{pack?.total_price.toFixed(2)} MAD</Text>
           </View>
           <TouchableOpacity
             style={[styles.cartBtn, { flex: 1 }, addingPack && { opacity: 0.7 }]}

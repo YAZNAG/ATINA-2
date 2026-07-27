@@ -155,10 +155,11 @@ const searchArticles = (search, limit = 20) => {
     take: Number(limit),
     orderBy: { name_fr: 'asc' },
     select: {
-      id: true, name_fr: true, name_ar: true,
-      sku_code: true, sku_uuid: true,
-      price: true, vat_rate: true,
-    },
+  id: true, name_fr: true, name_ar: true,
+  sku_code: true, sku_uuid: true,
+  price: true, vat_rate: true,
+  tax: { select: { rate: true } },  
+},
   });
 };
 

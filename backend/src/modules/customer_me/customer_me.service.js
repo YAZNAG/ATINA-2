@@ -481,6 +481,7 @@ async function listFavorites(customerId) {
           select: {
             id: true, sku_code: true, name_fr: true, name_ar: true,
             price: true, vat_rate: true,
+            tax: { select: { rate: true } },
             category_id: true, brand_id: true,
             catalog_sku: { select: { id: true } },
             images: { select: { image_path: true }, take: 1 },
@@ -491,16 +492,17 @@ async function listFavorites(customerId) {
     getActiveFlashSales(),
   ]);
   return items.map(w => {
-    const a = w.article;
-    const imagePath = a.images?.[0]?.image_path ?? null;
-    const image_url = toPublicUrl(imagePath);
-    const ttc  = Math.round(Number(a.price) * (1 + Number(a.vat_rate) / 100) * 100) / 100;
-    const deal = resolveArticleDiscount({
-      articleSkuId: a.catalog_sku?.id ?? null,
-      categoryId:   a.category_id ?? null,
-      brandId:      a.brand_id ?? null,
-      priceTtc:     ttc,
-    }, flashSales);
+  const a = w.article;
+  const imagePath = a.images?.[0]?.image_path ?? null;
+  const image_url = toPublicUrl(imagePath);
+  const vatRate = Number(a.tax?.rate ?? a.vat_rate ?? 20);       
+  const ttc  = Math.round(Number(a.price) * (1 + vatRate / 100) * 100) / 100;
+  const deal = resolveArticleDiscount({
+    articleSkuId: a.catalog_sku?.id ?? null,
+    categoryId:   a.category_id ?? null,
+    brandId:      a.brand_id ?? null,
+    priceTtc:     ttc,
+  }, flashSales);
     return {
       wishlist_id:   w.id,
       id:            a.id,

@@ -81,7 +81,11 @@ type DeleteTarget =
 
 const stableCart = (c: Cart): Cart => ({
   ...c,
-  items: [...c.items].sort((a, b) => a.id.localeCompare(b.id)),
+  items: [...c.items].sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return dateB - dateA;
+  }),
 });
 
 const ConfirmDeleteModal = ({
@@ -167,17 +171,21 @@ const CartItemRow = React.memo(({
         <Feather name="trash-2" size={16} color={RED} />
       </TouchableOpacity>
       <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrease(item)} disabled={updating} activeOpacity={0.7}>
-          <Feather name="minus" size={14} color="#1a1a1a" />
-        </TouchableOpacity>
-        {updating
-          ? <ActivityIndicator size="small" color={RED} style={{ width: 24 }} />
-          : <Text style={styles.qtyText}>{item.quantity}</Text>
-        }
-        <TouchableOpacity style={styles.qtyBtnPlus} onPress={() => onIncrease(item)} disabled={updating} activeOpacity={0.7}>
-          <Feather name="plus" size={14} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
+  <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrease(item)} disabled={updating} activeOpacity={0.7}>
+    <Feather name="minus" size={14} color="#1a1a1a" />
+  </TouchableOpacity>
+
+  <View style={styles.qtyValueBox}>
+    {updating
+      ? <ActivityIndicator size="small" color={RED} />
+      : <Text style={styles.qtyText}>{item.quantity}</Text>
+    }
+  </View>
+
+  <TouchableOpacity style={styles.qtyBtnPlus} onPress={() => onIncrease(item)} disabled={updating} activeOpacity={0.7}>
+    <Feather name="plus" size={14} color="#1a1a1a" />
+  </TouchableOpacity>
+</View>
     </View>
   </View>
 ));
@@ -225,17 +233,21 @@ const PackCartRow = React.memo(({
         <Feather name="trash-2" size={16} color={RED} />
       </TouchableOpacity>
       <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrease(group)} disabled={updating} activeOpacity={0.7}>
-          <Feather name="minus" size={14} color="#1a1a1a" />
-        </TouchableOpacity>
-        {updating
-          ? <ActivityIndicator size="small" color={RED} style={{ width: 24 }} />
-          : <Text style={styles.qtyText}>{group.bundleQty}</Text>
-        }
-        <TouchableOpacity style={styles.qtyBtnPlus} onPress={() => onIncrease(group)} disabled={updating} activeOpacity={0.7}>
-          <Feather name="plus" size={14} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
+  <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrease(group)} disabled={updating} activeOpacity={0.7}>
+    <Feather name="minus" size={14} color="#1a1a1a" />
+  </TouchableOpacity>
+
+  <View style={styles.qtyValueBox}>
+    {updating
+      ? <ActivityIndicator size="small" color={RED} />
+      : <Text style={styles.qtyText}>{group.bundleQty}</Text>
+    }
+  </View>
+
+  <TouchableOpacity style={styles.qtyBtnPlus} onPress={() => onIncrease(group)} disabled={updating} activeOpacity={0.7}>
+    <Feather name="plus" size={14} color="#1a1a1a" />
+  </TouchableOpacity>
+</View>
     </View>
   </View>
 ));
@@ -522,7 +534,12 @@ const styles = StyleSheet.create({
   qtyRow:               { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F5F5F5', borderRadius: 20, paddingHorizontal: 4, paddingVertical: 4 },
   qtyBtn:               { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   qtyBtnPlus:           { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  qtyText:              { fontSize: 15, color: '#1a1a1a', minWidth: 20, textAlign: 'center', fontFamily: 'Inter_700Bold' },
+  qtyText:              { fontSize: 15, color: '#1a1a1a', textAlign: 'center', fontFamily: 'Inter_700Bold' },
+  qtyValueBox: {
+  width: 24,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 
   summary: {
     backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,

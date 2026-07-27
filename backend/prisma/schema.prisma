@@ -1001,6 +1001,7 @@ model Customer {
   wishlist_items        Wishlist[]
   reviews ArticleReview[]
   claims Claim[]
+  points_transactions PointsTransaction[]
 
   @@map("customers")
 }
@@ -1137,6 +1138,7 @@ model Order {
   tour_stops            TourStop[]
   wallet_transactions   WalletTransaction[]
   claims Claim[]
+  points_transactions PointsTransaction[]
 
   @@map("orders")
 }
@@ -1436,6 +1438,24 @@ model PointsRule {
   rule_type        PointsRuleType @relation(fields: [rule_type_id], references: [id])
 
   @@map("points_rules")
+}
+
+model PointsTransaction {
+  id            String   @id @default(uuid()) @db.Uuid
+  customer_id   String   @db.Uuid
+  order_id      String?  @db.Uuid
+  type          String   @db.VarChar(20) // 'earn' | 'redeem'
+  points        Int      // positif pour earn, négatif pour redeem
+  balance_after Int
+  label         String   @db.VarChar(255)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order    Order?   @relation(fields: [order_id], references: [id])
+
+  @@index([customer_id])
+  @@index([created_at(sort: Desc)])
+  @@map("points_transactions")
 }
 
 model ReferralConfig {

@@ -27,9 +27,11 @@ const PACK_INCLUDE = {
 
 function computePackPrices(packItems, { discount_type, discount_value, total_price } = {}) {
   const original = packItems.reduce((sum, it) => {
-    const price = Number(it.sku?.article?.price ?? it.unit_price_in_pack ?? 0);
-    const qty   = Number(it.qty ?? 1);
-    return sum + price * qty;
+    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0);
+    const vatRate = Number(it.sku?.article?.tax?.rate ?? it.sku?.article?.vat_rate ?? 20);
+    const priceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
+    const qty = Number(it.qty ?? 1);
+    return sum + priceTtc * qty;
   }, 0);
 
   const originalPrice = Math.round(original * 100) / 100;
@@ -65,16 +67,22 @@ function resolveImageUrl(imagePath) {
 }
 
 function formatPack(pack) {
-  const items = (pack.pack_items ?? []).map(it => ({
-    sku_id:     it.sku_id,
-    name_fr:    it.sku?.article?.name_fr,
-    name_ar:    it.sku?.article?.name_ar,
-    sku_code:   it.sku?.article?.sku_code,
-    qty:        Number(it.qty ?? 1),
-    unit_price: Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0),
-    unit_label: it.sku?.article?.unit_sale ?? null, 
-    image_url:  resolveImageUrl(it.sku?.article?.images?.[0]?.image_path),
-  }));
+  const items = (pack.pack_items ?? []).map(it => {
+    const vatRate = Number(it.sku?.article?.tax?.rate ?? it.sku?.article?.vat_rate ?? 20);
+    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0);
+    const priceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
+
+    return {
+      sku_id:     it.sku_id,
+      name_fr:    it.sku?.article?.name_fr,
+      name_ar:    it.sku?.article?.name_ar,
+      sku_code:   it.sku?.article?.sku_code,
+      qty:        Number(it.qty ?? 1),
+      unit_price: priceTtc,
+      unit_label: it.sku?.article?.unit_sale ?? null,
+      image_url:  resolveImageUrl(it.sku?.article?.images?.[0]?.image_path),
+    };
+  });
 
   return {
     id:             pack.id,

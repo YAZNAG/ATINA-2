@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -36,15 +36,12 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-export default function FlashSaleSection({
-  endsAt, products,
-  favoriteIds, onToggleFav,
-}: {
+interface FlashSaleSectionProps {
   endsAt: string | null;
   products: PromotionProduct[];
-  favoriteIds?: Set<number>;
-  onToggleFav?: (articleId: number, next: boolean) => void;
-}) {
+}
+
+function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
   const router = useRouter();
   const remaining = useCountdown(endsAt);
 
@@ -102,7 +99,7 @@ export default function FlashSaleSection({
 
       <FlatList
         data={products}
-        style={{ paddingBottom: 8}}
+        style={{ paddingBottom: 8 }}
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item, i) => `${item.sku_id ?? item.id}-${i}`}
@@ -112,9 +109,7 @@ export default function FlashSaleSection({
             article={promotionProductToArticle(item)}
             discount={item.discount_pct}
             oldPrice={item.old_price}
-            isFlashSale                                              
-            isFav={favoriteIds?.has(item.id) ?? false}
-            onToggleFav={(next) => onToggleFav?.(item.id, next)}
+            isFlashSale
             onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })}
           />
         )}
@@ -124,7 +119,6 @@ export default function FlashSaleSection({
 }
 
 const styles = StyleSheet.create({
-
   section:   { marginTop: 8, overflow: 'visible' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 4 },
   title:     { fontSize: 19, fontFamily: 'Poppins_700Bold', color: '#1a1a1a' },
@@ -166,8 +160,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
   },
   countdownValue: { fontSize: 20, fontFamily: 'Poppins_700Bold', color: '#fff' },
-  countdownUnit:  { fontSize: 10, fontFamily: 'Poppins_500Medium', color: 'rgba(255,255,255,0.85)'},
+  countdownUnit:  { fontSize: 10, fontFamily: 'Poppins_500Medium', color: 'rgba(255,255,255,0.85)' },
 
   countdownDots: { gap: 4, alignItems: 'center' },
   dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.7)' },
 });
+
+export default React.memo(FlashSaleSection);

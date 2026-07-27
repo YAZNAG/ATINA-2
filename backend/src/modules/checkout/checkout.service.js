@@ -262,6 +262,7 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
       unit_price_ttc: priced.unit_price,
       vat_rate:       priced.vat_rate,
       line_total:     parseFloat((priced.unit_price * qty).toFixed(2)),
+      price_source:   priced.source,
     });
   }
 

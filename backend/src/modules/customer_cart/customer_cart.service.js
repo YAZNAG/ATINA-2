@@ -182,6 +182,7 @@ function formatItem(item, flashSales, packRatios) {
       category:           article?.category ?? null,
     },
     subtotal: Math.round(finalPriceTtc * item.quantity * 100) / 100,
+    created_at: item.created_at,
   };
 }
 

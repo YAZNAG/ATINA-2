@@ -29,7 +29,7 @@ async function resolveSkuPrice(node_id, sku_id) {
   const priceHt = Number(a.price ?? 0);
   const basePriceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
 
-  const flashSales = (await getActiveFlashSales()).filter(fs => !fs.node_id || fs.node_id === node_id);
+  const flashSales = await getActiveFlashSales();
   const discount = resolveArticleDiscount(
     { articleSkuId: sku_id, categoryId: a.category_id, brandId: a.brand_id, priceTtc: basePriceTtc },
     flashSales,
@@ -74,7 +74,10 @@ async function resolvePackItemPrice(node_id, pack_id, sku_id) {
   const unitDiscounted = baseQty > 0 ? Math.round((lineDiscounted / baseQty) * 100) / 100 : unitOriginal;
 
   const vatRate = Number(target.sku?.article?.tax?.rate ?? target.sku?.article?.vat_rate ?? 20);
-
+  console.log('[resolvePackItemPrice DEBUG]', {
+  pack_id, sku_id,
+  total, originalSum, baseQty, unitOriginal, lineOriginal, share, lineDiscounted, unitDiscounted,
+});
   return {
     unit_price: unitDiscounted,
     vat_rate:   vatRate,

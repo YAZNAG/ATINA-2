@@ -463,7 +463,7 @@ export default function CartScreen() {
               activeOpacity={0.85}
               onPress={() => {
                 const cart_items = cart.items.map((item) => ({
-                  sku_code:   item.sku_id ?? item.article?.sku_code,
+                  sku_id:     item.sku_id,
                   qty:        item.quantity,
                   unit_price: item.article.price_ttc,
                   vat_rate:   item.article.vat_rate,

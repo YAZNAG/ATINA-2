@@ -38,6 +38,7 @@ function resolveArticleDiscount({ articleSkuId, categoryId, brandId, priceTtc },
   }
   if (best == null) return null;
   const pct = priceTtc > 0 ? Math.round((1 - best / priceTtc) * 100) : 0;
+  
   return { price_ttc: best, old_price_ttc: priceTtc, discount_pct: pct };
 }
 

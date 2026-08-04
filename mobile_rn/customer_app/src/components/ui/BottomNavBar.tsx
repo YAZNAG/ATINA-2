@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, usePathname} from 'expo-router';
 import { useCartCount } from '../../context/CartContext';
@@ -19,6 +20,7 @@ function normalize(p: string) {
 }
 
 export default function BottomNavBar(_props: any) {
+  const insets = useSafeAreaInsets();
   const router    = useRouter();
   const pathname  = usePathname();
   const cartCount = useCartCount();
@@ -28,7 +30,7 @@ export default function BottomNavBar(_props: any) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
       {TABS.map(tab => {
         const active = isActive(tab);
         const isCart = tab.name === 'Panier';
@@ -85,7 +87,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    paddingBottom: 20,
     paddingTop: 8,
     paddingHorizontal: 4,
     shadowColor: '#000',

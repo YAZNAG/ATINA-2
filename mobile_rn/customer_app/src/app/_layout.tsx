@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CartProvider } from '../context/CartContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import {
@@ -27,10 +28,12 @@ export default function RootLayout() {
   }
 
   return (
-    <NotificationProvider>
-      <CartProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </CartProvider>
-    </NotificationProvider>
+    <SafeAreaProvider>
+      <NotificationProvider>
+        <CartProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </CartProvider>
+      </NotificationProvider>
+    </SafeAreaProvider>
   );
 }

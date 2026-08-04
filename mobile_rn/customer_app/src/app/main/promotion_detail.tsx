@@ -113,10 +113,6 @@ function PackItemCard({ item }: { item: PackItem }) {
         )}
         <View style={styles.packItemBottomRow}>
           <Text style={styles.packItemPrice}>{item.unit_price.toFixed(2)} MAD</Text>
-          <View style={styles.stockBadge}>
-            <View style={styles.stockDot} />
-            <Text style={styles.stockText}>STOCK</Text>
-          </View>
         </View>
       </View>
     </View>
@@ -326,9 +322,6 @@ export default function PromotionDetailScreen() {
                 <>
                   <View style={styles.similarHeader}>
                     <Text style={styles.sectionTitle}>Packs similaires</Text>
-                    <TouchableOpacity onPress={() => router.push('/main/packs' as any)}>
-                      <Text style={styles.seeAllText}>Voir tout</Text>
-                    </TouchableOpacity>
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
                     {similarPacks.map(sp => (
@@ -491,7 +484,7 @@ const styles = StyleSheet.create({
   statusDot:     { width: 6, height: 6, borderRadius: 3 },
   statusText:    { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
 
-  sectionTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 14 },
+  sectionTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', color: INK, marginBottom: 10 },
 
   row:  { flexDirection: 'row', gap: 16, marginBottom: 16 },
   card: {
@@ -525,9 +518,7 @@ const styles = StyleSheet.create({
   packItemUnit:     { fontSize: 11, fontFamily: 'Poppins_400Regular', color: GRAY, marginBottom: 6 },
   packItemBottomRow:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   packItemPrice:    { fontSize: 14, fontFamily: 'Poppins_700Bold', color: RED },
-  stockBadge:       { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  stockDot:         { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
-  stockText:        { fontSize: 9, fontFamily: 'Poppins_600SemiBold', color: GREEN, letterSpacing: 0.3 },
+
 
   // ── Détails (Nombre / Valide / Dispo) ──
   detailsCard: {
@@ -542,10 +533,9 @@ const styles = StyleSheet.create({
 
   // ── Packs similaires ──
   similarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  seeAllText:    { fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: RED },
   similarCard: {
     width: CARD_W * 0.85, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, marginBottom:10
   },
   similarImageBox: { width: '100%', height: (CARD_W * 0.85) * 0.75, backgroundColor: '#FAFAFA', position: 'relative' },
 

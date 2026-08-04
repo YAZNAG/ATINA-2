@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   TouchableOpacity, Image, ScrollView, ActivityIndicator,
-  Dimensions, Platform, Alert, FlatList, NativeSyntheticEvent,
+  Dimensions, Platform, FlatList, NativeSyntheticEvent,
   NativeScrollEvent, Modal, TextInput,
 } from 'react-native';
 import { CONFIG } from '../../constants/config'
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -23,10 +23,57 @@ import { ProfileService } from '../../services/profile.service';
 import { ReviewsService, Review, ReviewStats } from '../../services/reviews.service';
 import { useCartActions } from '../../context/CartContext';
 import ProductCard from '../../components/ui/ProductCard';
+import { favoritesStore } from '../../store/favoritesStore';
+import { useIsFavorite, useToggleFavorite } from '../../store/useIsFavorite';
 
 const { width, height } = Dimensions.get('window');
 const RED    = '#E10600';
 const IMG_H  = height * 0.42;
+
+// ── Modal générique  ──
+type InfoModalState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  variant?: 'default' | 'success';
+};
+
+const INITIAL_INFO_MODAL: InfoModalState = {
+  visible: false, title: '', message: '',
+};
+
+function InfoModal({
+  state, onClose,
+}: {
+  state: InfoModalState;
+  onClose: () => void;
+}) {
+  const isSuccess = state.variant === 'success';
+  return (
+    <Modal visible={state.visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlayAlert} onPress={onClose} activeOpacity={1}>
+        <TouchableOpacity style={styles.modalCardAlert} activeOpacity={1} onPress={() => {}}>
+          {isSuccess && (
+            <View style={styles.successIconWrap}>
+              <Feather name="check-circle" size={40} color="#22C55E" />
+            </View>
+          )}
+          <Text style={styles.modalTitleAlert}>{state.title}</Text>
+          <Text style={styles.modalSubtitleAlert}>{state.message}</Text>
+
+          <TouchableOpacity
+            style={[styles.btnConfirmAlert, isSuccess && styles.btnConfirmAlertSuccess]}
+            onPress={onClose}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.btnConfirmAlertText}>{state.confirmLabel ?? 'OK'}</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
 
 //Image carousel 
 function ImageCarousel({ images }: { images: string[] }) {
@@ -34,6 +81,7 @@ function ImageCarousel({ images }: { images: string[] }) {
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
   };
+  console.log('IMAGES REÇUES:', images, images.length);
   if (!images.length) {
     return (
       <View style={[styles.heroContainer, styles.heroPlaceholder]}>
@@ -67,7 +115,7 @@ function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1,2,3,4,5].map(i => (
-        <Ionicons key={i} name="star" size={size} color={i <= rating ? '#F59E0B' : '#E5E7EB'} />
+        <MaterialCommunityIcons key={i} name="star" size={size} color={i <= rating ? '#F59E0B' : '#E5E7EB'} />
       ))}
     </View>
   );
@@ -97,7 +145,13 @@ function Avatar({ name, avatarUrl, size = 40 }: { name: string; avatarUrl?: stri
 }
 
 // Carte avis 
-function ReviewCard({ review, onVoted }: { review: Review; onVoted: (updated: Review) => void }) {
+function ReviewCard({
+  review, onVoted, onError,
+}: {
+  review: Review;
+  onVoted: (updated: Review) => void;
+  onError: (title: string, message: string) => void;
+}) {
   const [voting, setVoting] = useState(false);
   const name = review.customer?.name ?? 'Client';
   const date = new Date(review.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -109,7 +163,7 @@ function ReviewCard({ review, onVoted }: { review: Review; onVoted: (updated: Re
       const updated = await ReviewsService.toggleHelpful(review.id);
       onVoted(updated);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? 'Impossible de voter');
+      onError('Erreur', e.message ?? 'Impossible de voter');
     } finally {
       setVoting(false);
     }
@@ -152,13 +206,14 @@ function ReviewCard({ review, onVoted }: { review: Review; onVoted: (updated: Re
 
 // Section avis 
 function ReviewsSection({
-  articleId, stats, reviews, onWriteReview, onReviewVoted,
+  articleId, stats, reviews, onWriteReview, onReviewVoted, onError,
 }: {
   articleId: number;
   stats: ReviewStats | null;
   reviews: Review[];
   onWriteReview: () => void;
   onReviewVoted: (updated: Review) => void;
+  onError: (title: string, message: string) => void;
 }) {
   const router = useRouter();
   if (!stats) return null;
@@ -176,7 +231,7 @@ function ReviewsSection({
               return (
                 <View key={star} style={styles.ratingBarRow}>
                   <Text style={styles.ratingBarLabel}>{star}</Text>
-                  <Ionicons name="star" size={11} color='#F59E0B' />
+                  <MaterialCommunityIcons name="star" size={11} color='#F59E0B' />
                   <View style={styles.ratingBarTrack}>
                     <View style={[styles.ratingBarFill, { width: `${pct}%` }]} />
                   </View>
@@ -210,7 +265,7 @@ function ReviewsSection({
           <Text style={styles.noReviewsSubtitle}>Soyez le premier à donner votre avis sur ce produit</Text>
         </View>
       ) : (
-        reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} onVoted={onReviewVoted} />)
+        reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} onVoted={onReviewVoted} onError={onError} />)
       )}
     </View>
   );
@@ -218,26 +273,27 @@ function ReviewsSection({
 
 //Modal écrire un avis 
 function WriteReviewModal({
-  visible, articleId, onClose, onSuccess,
+  visible, articleId, onClose, onSuccess, onError,
 }: {
   visible: boolean;
   articleId: number;
   onClose: () => void;
   onSuccess: () => void;
+  onError: (title: string, message: string) => void;
 }) {
   const [rating,    setRating]    = useState(0);
   const [comment,   setComment]   = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (rating === 0) return Alert.alert('Note requise', 'Veuillez sélectionner une note.');
+    if (rating === 0) return onError('Note requise', 'Veuillez sélectionner une note.');
     try {
       setSubmitting(true);
       await ReviewsService.create(articleId, { rating, comment });
       onSuccess();
       onClose();
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? 'Impossible d\'envoyer votre avis');
+      onError('Erreur', e.message ?? "Impossible d'envoyer votre avis");
     } finally {
       setSubmitting(false);
     }
@@ -259,13 +315,12 @@ function WriteReviewModal({
           {/* Étoiles */}
           <Text style={styles.modalLabel}>Votre note</Text>
           <View style={styles.starsRow}>
-            {[1,2,3,4,5].map(i => (
-              <TouchableOpacity key={i} onPress={() => setRating(i)} activeOpacity={0.7}>
-                <Ionicons name="star" size={36} color={i <= rating ? '#FFD700' : '#E5E7EB'} />
-              </TouchableOpacity>
-              
-            ))}
-          </View>
+  {[1,2,3,4,5].map(i => (
+    <TouchableOpacity key={i} onPress={() => setRating(i)} activeOpacity={0.7}>
+      <MaterialCommunityIcons name="star" size={36} color={i <= rating ? '#FFD700' : '#E5E7EB'} />
+    </TouchableOpacity>
+  ))}
+</View>
 
           {/* Commentaire */}
           <Text style={styles.modalLabel}>Commentaire (optionnel)</Text>
@@ -306,19 +361,27 @@ export default function ProductDetailScreen() {
   const [similar,       setSimilar]       = useState<Article[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [quantity,      setQuantity]      = useState(1);
-  const [wished,        setWished]        = useState(false);
   const [adding,        setAdding]        = useState(false);
   const [toggling,      setToggling]      = useState(false);
   const [reviews,       setReviews]       = useState<Review[]>([]);
   const [reviewStats,   setReviewStats]   = useState<ReviewStats | null>(null);
   const [reviewModal,   setReviewModal]   = useState(false);
-  const [favoriteIds,   setFavoriteIds]   = useState<Set<number>>(new Set());
+  const [infoModal,     setInfoModal]     = useState<InfoModalState>(INITIAL_INFO_MODAL);
   const { applyCart } = useCartActions();
+
+  const showInfo = (title: string, message: string, opts?: { confirmLabel?: string; variant?: 'default' | 'success' }) => {
+    setInfoModal({ visible: true, title, message, confirmLabel: opts?.confirmLabel, variant: opts?.variant });
+  };
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
+
+  // Hooks du store — appelés inconditionnellement, avant tout return anticipé.
+  const articleId = article?.id ?? -1;
+  const isWished = useIsFavorite(articleId);
+  const toggleWished = useToggleFavorite(articleId);
 
   const loadReviews = async (id: number) => {
     try {
@@ -341,7 +404,7 @@ export default function ProductDetailScreen() {
           ProfileService.listFavorites().catch(() => []),
         ]);
         setArticle(art);
-        setFavoriteIds(new Set(favs.map((f: any) => f.id)));
+        favoritesStore.setIds(new Set(favs.map((f: any) => f.id)));
         await loadReviews(id);
         if (art.category?.id) {
           const res = await CatalogService.getArticlesByCategory(art.category.id, { limit: 8 });
@@ -372,26 +435,21 @@ export default function ProductDetailScreen() {
   const total  = (article.price_ttc * quantity).toFixed(2);
 
   const handleAddToCart = async () => {
-    if (!article.sku_id) return Alert.alert('Indisponible', "Ce produit n'est pas disponible.");
+    if (!article.sku_id) return showInfo('Indisponible', "Ce produit n'est pas disponible.");
     try {
       setAdding(true);
       const cart = await CartService.addItem(article.sku_id, quantity);
       applyCart(cart);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message || "Erreur lors de l'ajout au panier");
+      showInfo('Erreur', e.message || "Erreur lors de l'ajout au panier");
     } finally { setAdding(false); }
   };
 
   const handleToggleWish = async () => {
     if (toggling) return;
     setToggling(true);
-    const next = !wished;
-    setWished(next);
-    try {
-      if (next) await ProfileService.addFavorite(article.id);
-      else      await ProfileService.removeFavorite(article.id);
-    } catch { setWished(!next); }
-    finally   { setToggling(false); }
+    await toggleWished();
+    setToggling(false);
   };
 
   return (
@@ -399,7 +457,6 @@ export default function ProductDetailScreen() {
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 90 }}>
-        {/* ── Carousel ── */}
         <View>
           <ImageCarousel images={images} />
           <View style={[styles.heroButtons, { top: insets.top + 10 }]}>
@@ -407,23 +464,22 @@ export default function ProductDetailScreen() {
               <Feather name="chevron-left" size={22} color={RED} />
             </TouchableOpacity>
             <View style={styles.heroRight}>
-              <TouchableOpacity style={styles.iconBtn} onPress={handleToggleWish}>
-                <MaterialCommunityIcons name={wished ? "heart" : "heart-outline"} size={18} color={RED}/>
+              <TouchableOpacity style={styles.iconBtn} onPress={handleToggleWish} disabled={toggling}>
+                <MaterialCommunityIcons name={isWished ? "heart" : "heart-outline"} size={18} color={RED}/>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* ── Sheet ── */}
         <View style={styles.sheet}>
           <View style={styles.topRow}>
             <Text style={styles.category}>{article.category?.name_fr?.toUpperCase() ?? ''}</Text>
             {reviewStats && reviewStats.review_count > 0 && (
-              <View style={styles.ratingBadge}>
-                <Ionicons name="star" size={14} color="#FFD700" />
-                <Text style={styles.ratingText}>{reviewStats.average_rating?.toFixed(1)}</Text>
-              </View>
-            )}
+  <View style={styles.ratingBadge}>
+    <MaterialCommunityIcons name="star" size={14} color="#FFD700" />
+    <Text style={styles.ratingText}>{reviewStats.average_rating?.toFixed(1)}</Text>
+  </View>
+)}
           </View>
 
           <Text style={styles.name}>{article.name_fr}</Text>
@@ -455,7 +511,6 @@ export default function ProductDetailScreen() {
             </>
           )}
 
-          {/* Badges */}
           <View style={styles.badgesRow}>
             <View style={[styles.infoBadge, { borderColor: '#25CF77', backgroundColor: '#E4F3EC'  }]}>
               <View style={[styles.badgeIcon, { backgroundColor: '#ffffff' }]}>
@@ -477,16 +532,15 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {/* ── Section avis ── */}
           <ReviewsSection
             articleId={article.id}
             stats={reviewStats}
             reviews={reviews}
             onWriteReview={() => setReviewModal(true)}
             onReviewVoted={handleReviewVoted}
+            onError={showInfo}
           />
 
-          {/* ── Produits similaires ── */}
           {similar.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>Produits similaires</Text>
@@ -498,12 +552,6 @@ export default function ProductDetailScreen() {
                 {similar.map(sim => (
                   <ProductCard
                     key={sim.id} article={sim}
-                    isFav={favoriteIds.has(sim.id)}
-                    onToggleFav={(next) => setFavoriteIds(prev => {
-                      const s = new Set(prev);
-                      if (next) s.add(sim.id); else s.delete(sim.id);
-                      return s;
-                    })}
                     onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: sim.id } })}
                   />
                 ))}
@@ -513,38 +561,38 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Footer ── */}
-{/* ── Footer ── */}
-<View style={styles.footer}>
-  <View style={styles.footerLeft}>
-    <View style={styles.totalBlock}>
-      <Text style={styles.totalLabel}>TOTAL</Text>
-      <Text style={styles.totalValue}>{total} DH</Text>
-    </View>
-    <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
-      <Ionicons name="star" size={14} color={RED} />
-      <Text style={styles.reviewFooterBtnText}>un avis</Text>
-    </TouchableOpacity>
-  </View>
+      <View style={styles.footer}>
+        <View style={styles.footerLeft}>
+          <View style={styles.totalBlock}>
+            <Text style={styles.totalLabel}>TOTAL</Text>
+            <Text style={styles.totalValue}>{total} DH</Text>
+          </View>
+          <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
+  <MaterialCommunityIcons name="star" size={14} color={RED} />
+  <Text style={styles.reviewFooterBtnText}>un avis</Text>
+</TouchableOpacity>
+        </View>
 
-  <TouchableOpacity
-    style={[styles.cartBtn, adding && { opacity: 0.7 }]}
-    onPress={handleAddToCart} disabled={adding} activeOpacity={0.85}
-  >
-    {adding
-      ? <ActivityIndicator color="#fff" />
-      : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>Ajouter au panier</Text></>
-    }
-  </TouchableOpacity>
-</View>
+        <TouchableOpacity
+          style={[styles.cartBtn, adding && { opacity: 0.7 }]}
+          onPress={handleAddToCart} disabled={adding} activeOpacity={0.85}
+        >
+          {adding
+            ? <ActivityIndicator color="#fff" />
+            : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>Ajouter au panier</Text></>
+          }
+        </TouchableOpacity>
+      </View>
 
-      {/* ── Modal avis ── */}
       <WriteReviewModal
         visible={reviewModal}
         articleId={article.id}
         onClose={() => setReviewModal(false)}
         onSuccess={() => loadReviews(article.id)}
+        onError={showInfo}
       />
+
+      <InfoModal state={infoModal} onClose={() => setInfoModal(INITIAL_INFO_MODAL)} />
     </SafeAreaView>
   );
 }
@@ -556,9 +604,13 @@ const styles = StyleSheet.create({
   heroContainer:   { width, height: IMG_H, backgroundColor: '#F5F5F5' },
   heroImage:       { width, height: IMG_H },
   heroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  dots:      { position: 'absolute', bottom: 14, flexDirection: 'row', alignSelf: 'center', gap: 6 },
-  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.2)' },
-  dotActive: { width: 18, backgroundColor: RED },
+  dots: {
+  position: 'absolute',
+  bottom: 38,   
+  flexDirection: 'row', alignSelf: 'center', gap: 6,
+},
+dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.2)' },
+dotActive: { width: 18, backgroundColor: RED },
   heroButtons: {
     position: 'absolute',
     left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -674,4 +726,51 @@ cartBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
   modalInput:   { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 14, padding: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#1a1a1a', textAlignVertical: 'top', minHeight: 100, marginBottom: 20 },
   submitBtn:    { backgroundColor: RED, borderRadius: 16, paddingVertical: 15, alignItems: 'center', shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   submitBtnText:{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+
+  // ── Info/Alert modal──
+  modalOverlayAlert: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalCardAlert: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 36,
+    alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
+  successIconWrap: { marginBottom: 14 },
+  modalTitleAlert: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    color: '#1a1a1a',
+    textAlign: 'center',
+  },
+  modalSubtitleAlert: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 24,
+    lineHeight: 19,
+  },
+  btnConfirmAlert: {
+    backgroundColor: RED,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  btnConfirmAlertSuccess: {
+    backgroundColor: '#22C55E',
+  },
+  btnConfirmAlertText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+  },
 });

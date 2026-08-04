@@ -68,32 +68,33 @@ export default function CheckoutDateTimeScreen() {
   }, [viewMonth, viewYear]);
 
   useEffect(() => {
-    if (!selectedDate) return;
-    (async () => {
-      try {
-        setLoadingSlots(true);
-        setSlotsError('');
-        setSelectedSlot(null);
-        setResolvedNodeId(null);
+  if (!selectedDate) return;
+  (async () => {
+    try {
+      setLoadingSlots(true);
+      setSlotsError('');
+      setSelectedSlot(null);
+      setResolvedNodeId(null);
 
-        const dateStr = formatDate(selectedDate);
-        const result = await getDeliverySlots({
-          delivery_type_code: params.delivery_type_code,
-          node_id:            params.node_id,
-          address_id:         params.address_id,
-          date:               dateStr,
-        });
+      const dateStr = formatDate(selectedDate);
+      const result = await getDeliverySlots({
+        delivery_type_code: params.delivery_type_code,
+        node_id:            params.node_id,
+        address_id:         params.address_id,
+        date:               dateStr,
+        cart_items:         params.cart_items ? JSON.parse(params.cart_items) : undefined,
+      });
 
-        setSlots(result.slots);
-        setResolvedNodeId(result.node_id);
-      } catch (e: any) {
-        setSlots([]);
-        setSlotsError(e.message || 'Erreur chargement des créneaux');
-      } finally {
-        setLoadingSlots(false);
-      }
-    })();
-  }, [selectedDate]);
+      setSlots(result.slots);
+      setResolvedNodeId(result.node_id);
+    } catch (e: any) {
+      setSlots([]);
+      setSlotsError(e.message || 'Erreur chargement des créneaux');
+    } finally {
+      setLoadingSlots(false);
+    }
+  })();
+}, [selectedDate]);
 
   if (!fontsLoaded) return null;
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   TouchableOpacity, ScrollView,
@@ -19,6 +19,7 @@ import SearchBar from '../../components/ui/SearchBar';
 import FilterModal from '../../components/ui/FilterModal';
 import { CatalogService, Article, Category } from '../../services/catalog.service';
 import { ProfileService } from '../../services/profile.service';
+import { favoritesStore } from '../../store/favoritesStore';
 import { sortArticles } from '../../components/ui/SortBar';
 
 const RED = '#E10600';
@@ -45,19 +46,17 @@ export default function SearchScreen() {
   const [activeTab, setActiveTab]   = useState<SearchTab>('default');
   const [results, setResults]       = useState<Article[]>([]);
   const [loading, setLoading]       = useState(false);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
   const [popularArticles, setPopularArticles] = useState<Article[]>([]);
   const [popularGrid, setPopularGrid] = useState<Article[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Filtre catégories (via FilterModal) ──
   const [categories, setCategories]     = useState<Category[]>([]);
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedCats, setSelectedCats] = useState<number[]>([]);
 
   useEffect(() => {
     ProfileService.listFavorites()
-      .then(favs => setFavoriteIds(new Set(favs.map(f => f.id))))
+      .then(favs => favoritesStore.setIds(new Set(favs.map(f => f.id))))
       .catch(() => {});
   }, []);
 
@@ -132,7 +131,6 @@ export default function SearchScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── Header : retour + SearchBar (historique + suggestions + filtre inclus) ── */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={styles.backBtn}
@@ -153,7 +151,6 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {/* ── Chip de filtre actif (retire le besoin de deviner que le filtre est appliqué) ── */}
       {selectedCats.length > 0 && (
         <View style={styles.activeFilterRow}>
           <View style={styles.activeFilterChip}>
@@ -172,7 +169,6 @@ export default function SearchScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* ── Recherches populaires ── */}
         <View style={styles.popularSection}>
           <Text style={styles.popularTitle}>Recherches populaires</Text>
           <View style={styles.chipsWrap}>
@@ -192,7 +188,6 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        {/* ── Tabs de tri ── */}
         <View style={styles.tabsRow}>
           {TABS.map(tab => {
             const active = activeTab === tab.key;
@@ -210,7 +205,6 @@ export default function SearchScreen() {
           })}
         </View>
 
-        {/* ── Résultats ── */}
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={RED} />
@@ -226,12 +220,6 @@ export default function SearchScreen() {
               <ProductCard
                 key={article.id}
                 article={article}
-                isFav={favoriteIds.has(article.id)}
-                onToggleFav={(next) => setFavoriteIds(prev => {
-                  const s = new Set(prev);
-                  if (next) s.add(article.id); else s.delete(article.id);
-                  return s;
-                })}
                 onPress={() =>
                   router.push({ pathname: '/main/product-detail' as any, params: { article_id: article.id } })
                 }
@@ -242,7 +230,6 @@ export default function SearchScreen() {
 
       </ScrollView>
 
-      {/* ── Filter Modal (catégories) ── */}
       <FilterModal
         visible={filterVisible}
         categories={categories}

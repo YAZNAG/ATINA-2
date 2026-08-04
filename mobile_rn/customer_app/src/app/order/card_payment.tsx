@@ -130,9 +130,9 @@ export default function CardPaymentScreen() {
           <PageHeader title="Paiement" />
           <CheckoutStepper currentStep={3} />
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 200 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-            {/* ── Carte visuelle (100% code, sans image) ── */}
+            {/* ── Carte visuelle ── */}
             <LinearGradient
               colors={['#FF3B30', '#B30000', '#5C0000']}
               start={{ x: 0, y: 0 }}

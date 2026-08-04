@@ -13,6 +13,7 @@ import {
 import {
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
+
 import { ProfileService, Order } from '../../services/profile.service';
 import PageHeader from '../../components/ui/PageHeader';
 import { Alert } from 'react-native'; 
@@ -238,7 +239,11 @@ const handleReorder = async () => {
 
       {/* ── Header ── */}
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Historique des commandes" />
+      <PageHeader
+              title="Détails commande"
+              rightIcon={'home'}
+              onRightPress={() => router.replace('/main/main_nav/home' as any)}
+        />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -273,6 +278,19 @@ const handleReorder = async () => {
           {order.items.map(item => (
             <ProductRow key={item.id} item={item} />
           ))}
+          {order.has_pending_substitution && (
+  <TouchableOpacity
+    style={styles.btnSub}
+    onPress={handleViewSubstitutions}
+    activeOpacity={0.85}
+  >
+    <View style={styles.btnSubIconWrap}>
+      <Feather name="repeat" size={14} color={RED} />
+    </View>
+    <Text style={styles.btnSubText}>Voir les substitutions</Text>
+    <Feather name="chevron-right" size={16} color={RED} />
+  </TouchableOpacity>
+)}
         </SectionCard>
 
         {/* ── Résumé de paiement ── */}
@@ -340,15 +358,6 @@ const handleReorder = async () => {
     <Text>Voir les substitutions</Text>
   </TouchableOpacity>
 )}
-
-          <TouchableOpacity
-            style={styles.btnOutline}
-            onPress={() => router.replace('/main/main_nav/home' as any)}
-            activeOpacity={0.85}
-          >
-            <Feather name="home" size={16} color={INK} />
-            <Text style={styles.btnOutlineText}>Retour à l'accueil</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={{ height: 32 }} />
@@ -441,21 +450,42 @@ const styles = StyleSheet.create({
     shadowColor: RED, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
-  btnRedText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+  btnRedText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_700Bold' },
 
   btnTrack: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderWidth: 1.5, borderColor: RED, borderRadius: 12, paddingVertical: 16,
     backgroundColor: '#fff',
   },
-  btnTrackText: { color: RED, fontSize: 15, fontFamily: 'Inter_700Bold' },
+  btnTrackText: { color: RED, fontSize: 15, fontFamily: 'Poppins_700Bold' },
 
-  btnOutline: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 16,
-    backgroundColor: '#fff',
-  },
-  btnOutlineText: { color: INK, fontSize: 15, fontFamily: 'Inter_700Bold' },
+  btnSub: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  borderWidth: 1.5,
+  borderColor: RED,
+  borderRadius: 12,
+  paddingVertical: 14,
+  paddingHorizontal: 16,
+  backgroundColor: '#FFF5F5',
+},
+btnSubIconWrap: {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  backgroundColor: RED,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+btnSubText: {
+  color: RED,
+  fontSize: 15,
+  fontFamily: 'Poppins_700Bold',
+  flex: 1,
+  textAlign: 'center',
+},
 
   // ── Modal reorder ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },

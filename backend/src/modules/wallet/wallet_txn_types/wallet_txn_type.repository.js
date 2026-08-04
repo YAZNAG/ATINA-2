@@ -27,13 +27,15 @@ const update     = (id, data) => prisma.walletTxnType.update({ where: { id }, da
 const remove     = (id)   => prisma.walletTxnType.delete({ where: { id } });
 
 const seed = () => prisma.$transaction([
-  prisma.walletTxnType.upsert({ where: { code: 'order_payment'     }, update: {}, create: { code: 'order_payment',     name_fr: 'Paiement commande',      name_ar: 'دفع الطلب',          direction: 'OUT' } }),
-  prisma.walletTxnType.upsert({ where: { code: 'refund'            }, update: {}, create: { code: 'refund',            name_fr: 'Remboursement',          name_ar: 'استرجاع',            direction: 'IN'  } }),
-  prisma.walletTxnType.upsert({ where: { code: 'referral_reward'   }, update: {}, create: { code: 'referral_reward',   name_fr: 'Récompense parrainage',  name_ar: 'مكافأة الإحالة',     direction: 'IN'  } }),
-  prisma.walletTxnType.upsert({ where: { code: 'promo_credit'      }, update: {}, create: { code: 'promo_credit',      name_fr: 'Crédit promotionnel',    name_ar: 'رصيد ترويجي',        direction: 'IN'  } }),
-  prisma.walletTxnType.upsert({ where: { code: 'prize_award'       }, update: {}, create: { code: 'prize_award',       name_fr: 'Gain jeu',               name_ar: 'جائزة اللعبة',       direction: 'IN'  } }),
-  prisma.walletTxnType.upsert({ where: { code: 'manual_adjustment' }, update: {}, create: { code: 'manual_adjustment', name_fr: 'Ajustement manuel',      name_ar: 'تعديل يدوي',         direction: 'IN'  } }),
-  prisma.walletTxnType.upsert({ where: { code: 'expiry'            }, update: {}, create: { code: 'expiry',            name_fr: 'Expiration solde',       name_ar: 'انتهاء الرصيد',      direction: 'OUT' } }),
+  prisma.walletTxnType.upsert({ where: { code: 'DEBIT_PURCHASE'    }, update: {}, create: { code: 'DEBIT_PURCHASE',    name_fr: 'Paiement commande',      name_ar: 'دفع الطلب',          direction: 'OUT' } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_REFUND'     }, update: {}, create: { code: 'CREDIT_REFUND',     name_fr: 'Remboursement',          name_ar: 'استرجاع',            direction: 'IN'  } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_REFERRAL'   }, update: {}, create: { code: 'CREDIT_REFERRAL',   name_fr: 'Récompense parrainage',  name_ar: 'مكافأة الإحالة',     direction: 'IN'  } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_PROMO'      }, update: {}, create: { code: 'CREDIT_PROMO',      name_fr: 'Crédit promotionnel',    name_ar: 'رصيد ترويجي',        direction: 'IN'  } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_PRIZE'      }, update: {}, create: { code: 'CREDIT_PRIZE',      name_fr: 'Gain jeu',               name_ar: 'جائزة اللعبة',       direction: 'IN'  } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_ADMIN'      }, update: {}, create: { code: 'CREDIT_ADMIN',      name_fr: 'Ajustement crédit admin', name_ar: 'تعديل رصيد إداري',  direction: 'IN'  } }),
+  prisma.walletTxnType.upsert({ where: { code: 'DEBIT_ADMIN'       }, update: {}, create: { code: 'DEBIT_ADMIN',       name_fr: 'Débit admin',            name_ar: 'خصم إداري',          direction: 'OUT' } }),
+  prisma.walletTxnType.upsert({ where: { code: 'DEBIT_EXPIRY'      }, update: {}, create: { code: 'DEBIT_EXPIRY',      name_fr: 'Expiration du solde',    name_ar: 'انتهاء الرصيد',      direction: 'OUT' } }),
+  prisma.walletTxnType.upsert({ where: { code: 'CREDIT_ORDER'      }, update: {}, create: { code: 'CREDIT_ORDER',      name_fr: 'Crédit remboursement co...', name_ar: 'رصيد استرداد الطلب', direction: 'IN'  } }),
 ]);
 
 module.exports = { findAll, findById, findByCode, create, update, remove, seed, VALID_DIRS };

@@ -6,7 +6,6 @@ export interface LoyaltySummary {
   next_milestone: number;
   remaining_points: number;
   progress_pct: number;
-  reward_mad: number;
   can_redeem: boolean;
   redeem_cost: number;
   redeem_reward_mad: number;
@@ -20,6 +19,16 @@ export interface LoyaltyHistoryItem {
   created_at: string;
 }
 
+export type LoyaltyReward =
+  | { type: 'coupon'; code: string; value_mad: number; valid_to: string }
+  | { type: 'wallet'; amount_mad: number };
+
+export interface LoyaltyRedeemResult {
+  points_balance: number;
+  reward: LoyaltyReward;
+  rule_applied: string;
+}
+
 export const LoyaltyService = {
   getSummary: async (): Promise<LoyaltySummary> => {
     const { data } = await api.get('/customer/loyalty/summary');
@@ -31,7 +40,7 @@ export const LoyaltyService = {
     return data.data;
   },
 
-  redeem: async (): Promise<{ points_balance: number; coupon: { code: string; value_mad: number; valid_to: string } }> => {
+  redeem: async (): Promise<LoyaltyRedeemResult> => {
     const { data } = await api.post('/customer/loyalty/redeem');
     return data.data;
   },

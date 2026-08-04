@@ -108,10 +108,17 @@ class PickingService {
     if (session.status.code !== 'in_progress')
       throw { statusCode: 422, message: `Session "${session.status.name_fr}" — démarrez la session avant de terminer` };
 
-    // Check all items are resolved
-    const pending = session.items?.filter(i => i.status.code === 'pending') ?? [];
-    if (pending.length > 0)
-      throw { statusCode: 422, message: `${pending.length} article(s) encore en attente — traitez tous les items avant de terminer` };
+    // Bloque sur les items non traités ET sur les substitutions en attente
+    // de réponse client (status 'substituted' == proposé mais pas encore résolu).
+    const unresolved = session.items?.filter(i => ['pending', 'substituted'].includes(i.status.code)) ?? [];
+    if (unresolved.length > 0) {
+      const pendingCount     = unresolved.filter(i => i.status.code === 'pending').length;
+      const substitutedCount = unresolved.filter(i => i.status.code === 'substituted').length;
+      const parts = [];
+      if (pendingCount > 0)     parts.push(`${pendingCount} article(s) encore en attente`);
+      if (substitutedCount > 0) parts.push(`${substitutedCount} substitution(s) en attente de réponse client`);
+      throw { statusCode: 422, message: `${parts.join(' et ')} — impossible de terminer la préparation` };
+    }
 
     const [completedStatus, readyOrderStatus] = await Promise.all([
       repo.getPickingStatusByCode('completed'),
@@ -180,17 +187,46 @@ class PickingService {
   }
 
   // ── Substitute item ───────────────────────────────────────────────────────
-  async substituteItem(item_id) {
+  async substituteItem(item_id, { reason } = {}) {
     const item = await repo.findItemById(item_id);
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
     if (item.session.status.code !== 'in_progress')
       throw { statusCode: 422, message: 'Démarrez la session picking avant de traiter les articles' };
-    const status = await repo.getPickItemStatusByCode('substituted');
-    const oisSub = await repo.getOrderItemStatusByCode('substituted');
-    if (oisSub) {
-      await prisma.orderItem.update({ where: { id: item.order_item_id }, data: { status_id: oisSub.id } });
-    }
-    return repo.updateItem(item_id, { status_id: status.id, picked_at: new Date() });
+
+    const [status, oisSub, awaitingStockStatus] = await Promise.all([
+      repo.getPickItemStatusByCode('substituted'),
+      repo.getOrderItemStatusByCode('substituted'),
+      repo.getOrderStatusByCode('awaiting_stock'),
+    ]);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pickingSessionItem.update({
+        where: { id: item_id },
+        data:  { status_id: status.id, picked_at: new Date() },
+      });
+
+      if (oisSub) {
+        await tx.orderItem.update({ where: { id: item.order_item_id }, data: { status_id: oisSub.id } });
+      }
+
+      // La commande passe en attente de réponse client tant que la
+      // substitution proposée n'a pas été acceptée/refusée.
+      if (awaitingStockStatus) {
+        await tx.order.update({
+          where: { id: item.session.order_id },
+          data:  { status_id: awaitingStockStatus.id },
+        });
+        await tx.orderHistory.create({
+          data: {
+            order_id:  item.session.order_id,
+            status_id: awaitingStockStatus.id,
+            note:      `Substitution proposée${reason ? ' : ' + reason : ''} — en attente de réponse client`,
+          },
+        });
+      }
+    });
+
+    return repo.findItemById(item_id);
   }
 
   // ── Out of stock ──────────────────────────────────────────────────────────
@@ -199,7 +235,7 @@ class PickingService {
     if (!item) throw { statusCode: 404, message: 'Article picking introuvable' };
     if (item.session.status.code !== 'in_progress')
       throw { statusCode: 422, message: 'Démarrez la session picking avant de traiter les articles' };
-    const status = await repo.getPickItemStatusByCode('out_of_stock');
+    const status = await repo.getPickItemStatusByCode('missing'); 
 
     // Also update order_item status
     const oisOos = await repo.getOrderItemStatusByCode('out_of_stock');

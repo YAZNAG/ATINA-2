@@ -385,12 +385,9 @@ async function findPickupNodes(cart_items, date) {
 
   for (const node of allNodes) {
     const reasons = [];
-
     const daySlots = node.delivery_slots.filter(s => s.day_of_week === dayOfWeek);
 
     const stock = await checkStock(node.id, cart_items, { strict: false });
-    if (!stock.ok)
-      reasons.push({ code: 'insufficient_stock', issues: stock.issues });
 
     if (reasons.length === 0)
       eligible.push({ ...node, day_slots: daySlots, needs_backorder: stock.needs_backorder });
@@ -520,7 +517,6 @@ async function createOrder(payload) {
     if (finalNodeId) {
       const s = await checkStock(finalNodeId, cart_items, { strict: false });
       needsBackorder = s.needs_backorder || !s.ok;
-      if (!s.ok) throw { statusCode: 422, message: 'Stock insuffisant pour ce node', issues: s.issues };
     } else {
       const result = await findEligibleNodes(address_id, cart_items, checkDate);
       if (!result.best_node) {
@@ -537,7 +533,7 @@ async function createOrder(payload) {
   }
 
   // Statuses
-  const targetCode = needsBackorder ? 'awaiting_stock' : initial_status_code;
+  const targetCode = initial_status_code; 
   const [orderStatusRow, activeItem, pendingPayment, reservationMoveType, debitTxnType] = await Promise.all([
     repo.getOrderStatusByCode(targetCode).then(s => s || repo.getOrderStatusByCode('pending')),
     repo.getOrderItemStatusByCode('active'),

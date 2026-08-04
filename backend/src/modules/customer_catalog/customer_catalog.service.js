@@ -28,9 +28,10 @@ const ARTICLE_SELECT = {
     },
   },
   images: {
-    select: { image_path: true },
-    take: 8,
-  },
+  orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }, { id: 'asc' }],
+  select: { image_path: true },
+  take: 8,
+},
 };
 
 function formatArticle(a, flashSales = []) {

@@ -25,6 +25,7 @@ export default function LoyaltyScreen() {
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [redeeming, setRedeeming]   = useState(false);
+  const [error, setError]           = useState(false);
 
   const [fontsLoaded] = useFonts({
       Poppins_600SemiBold,
@@ -34,41 +35,52 @@ export default function LoyaltyScreen() {
     });
 
   const load = useCallback(async () => {
-    try {
-      const [s, h] = await Promise.all([
-        LoyaltyService.getSummary(),
-        LoyaltyService.getHistory(4),
-      ]);
-      setSummary(s);
-      setHistory(h.items);
-    } catch (e) {
-      console.warn('loyalty load error', e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  try {
+    setError(false);
+    const [s, h] = await Promise.all([
+      LoyaltyService.getSummary(),
+      LoyaltyService.getHistory(4),
+    ]);
+    setSummary(s);
+    setHistory(h.items);
+  } catch (e) {
+    console.warn('loyalty load error', e);
+    setError(true);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, []);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const handleRedeem = async () => {
-    if (!summary?.can_redeem || redeeming) return;
-    try {
-      setRedeeming(true);
-      const res = await LoyaltyService.redeem();
+  if (!summary?.can_redeem || redeeming) return;
+  try {
+    setRedeeming(true);
+    const res = await LoyaltyService.redeem();
+
+    if (res.reward.type === 'coupon') {
       Alert.alert(
         'Coupon débloqué 🎉',
-        `Code : ${res.coupon.code}\nValeur : ${res.coupon.value_mad} MAD\nValable jusqu'au ${new Date(res.coupon.valid_to).toLocaleDateString('fr-FR')}`
+        `Code : ${res.reward.code}\nValeur : ${res.reward.value_mad} MAD\nValable jusqu'au ${new Date(res.reward.valid_to).toLocaleDateString('fr-FR')}`
       );
-      load();
-    } catch (e: any) {
-      Alert.alert('Erreur', e?.response?.data?.message ?? 'Échec de l\'échange.');
-    } finally {
-      setRedeeming(false);
+    } else {
+      Alert.alert(
+        'Crédit ajouté 🎉',
+        `${res.reward.amount_mad} MAD ont été ajoutés à votre portefeuille.`
+      );
     }
-  };
+
+    load();
+  } catch (e: any) {
+    Alert.alert('Erreur', e?.response?.data?.message ?? "Échec de l'échange.");
+  } finally {
+    setRedeeming(false);
+  }
+};
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -81,15 +93,26 @@ export default function LoyaltyScreen() {
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={RED} />
-      </SafeAreaView>
-    );
-  }
+  if (loading || !fontsLoaded) {
+  return (
+    <SafeAreaView style={styles.center}>
+      <ActivityIndicator size="large" color={RED} />
+    </SafeAreaView>
+  );
+}
 
-  if (!fontsLoaded) return null;
+if (error) {
+  return (
+    <SafeAreaView style={styles.center}>
+      <Feather name="wifi-off" size={40} color="#9CA3AF" />
+      <Text style={styles.errorTitle}>Impossible de charger vos points</Text>
+      <Text style={styles.errorDesc}>Vérifiez votre connexion et réessayez.</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={load} activeOpacity={0.85}>
+        <Text style={styles.retryBtnText}>Réessayer</Text>
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
+}
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <PageHeader  title='Points fidélité'/>
@@ -126,7 +149,7 @@ export default function LoyaltyScreen() {
               <View style={[styles.progressFill, { width: `${summary?.progress_pct ?? 0}%` }]} />
             </View>
             <Text style={styles.progressHint}>
-              Plus que <Text style={styles.progressHintBold}>{summary?.remaining_points} pts</Text> pour débloquer un coupon de {summary?.reward_mad} MAD.
+              Plus que <Text style={styles.progressHintBold}>{summary?.remaining_points} pts</Text> pour débloquer un coupon de {summary?.redeem_reward_mad} MAD.
             </Text>
           </View>
 
@@ -311,4 +334,12 @@ const styles = StyleSheet.create({
   timelinePointsNeg: { color: '#1a1a1a' },
 
   emptyText: { textAlign: 'center', color: '#9CA3AF', fontSize: 13, paddingVertical: 24 },
+
+errorTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginTop: 16, textAlign: 'center' },
+errorDesc:  { fontSize: 13, color: '#6B7280', marginTop: 4, textAlign: 'center' },
+retryBtn: {
+  marginTop: 20, backgroundColor: RED, borderRadius: 12,
+  paddingHorizontal: 24, paddingVertical: 12,
+},
+retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

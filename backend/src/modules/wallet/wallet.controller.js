@@ -23,11 +23,11 @@ class WalletController {
   }
 
   async debit(req, res, next) {
-    try {
-      const { customer_id, amount, order_id, note, reference } = req.body;
-      resp.success(res, await svc.debitWallet({ customer_id, amount: Number(amount), order_id, note, reference }));
-    } catch(e) { E(res, next, e); }
-  }
+  try {
+    const { customer_id, amount, order_id, note, reference, txn_type_code } = req.body;
+    resp.success(res, await svc.debitWallet({ customer_id, amount: Number(amount), order_id, note, reference, txn_type_code }));
+  } catch(e) { E(res, next, e); }
+}
 
   async refund(req, res, next) {
     try {

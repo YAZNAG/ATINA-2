@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Address } from '../../../services/profile.service';
 import { CONFIG } from '../../../constants/config';
 import { useNotification } from '../../../context/NotificationContext';
@@ -18,6 +19,7 @@ interface Props {
 
 export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { notifCount } = useNotification();
 
   const resolvedAvatar = avatarUrl
@@ -25,13 +27,13 @@ export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
     : null;
 
   const initial = (
-  user?.name?.charAt(0) ||
-  user?.full_name?.charAt(0) ||
-  '?'
-)?.toUpperCase();
+    user?.name?.charAt(0) ||
+    user?.full_name?.charAt(0) ||
+    '?'
+  )?.toUpperCase();
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
       <TouchableOpacity onPress={() => router.push('/profile/addresses' as any)}>
         <View style={styles.locationRow}>
           <Feather name="map-pin" size={14} color={RED} />
@@ -69,7 +71,6 @@ export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
             <Image source={{ uri: resolvedAvatar }} style={styles.avatarImage} />
           ) : (
             <Text style={styles.avatarText}>{initial}</Text>
-            
           )}
         </TouchableOpacity>
       </View>

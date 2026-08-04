@@ -16,6 +16,7 @@ import ProductCard  from '../../../components/ui/ProductCard';
 import FilterModal  from '../../../components/ui/FilterModal';
 import PageHeader from '../../../components/ui/PageHeader';
 import SearchBar from '@/components/ui/SearchBar';
+import { favoritesStore } from '../../../store/favoritesStore';
 
 import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../../services/catalog.service';
 import { ProfileService } from '../../../services/profile.service';
@@ -66,7 +67,6 @@ export default function CategoryProductsScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedCats, setSelectedCats]   = useState<number[]>([]);
   const [selectedSubs, setSelectedSubs]   = useState<number[]>([]);
-  const [favoriteIds, setFavoriteIds]     = useState<Set<number>>(new Set());
 
   const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
   const catName = Array.isArray(category_name) ? category_name[0] : (category_name || 'Catégorie');
@@ -115,7 +115,7 @@ export default function CategoryProductsScreen() {
 
   useEffect(() => {
     ProfileService.listFavorites()
-      .then(favs => setFavoriteIds(new Set(favs.map(f => f.id))))
+      .then(favs => favoritesStore.setIds(new Set(favs.map(f => f.id))))
       .catch(() => {});
   }, []);
 
@@ -145,14 +145,12 @@ export default function CategoryProductsScreen() {
 
       <PageHeader title={catName} />
 
-      {/* ── Search bar ── */}
       <SearchBar
         value={search}
         onChangeText={setSearch}
         onFilter={() => setFilterVisible(true)}
         articleNames={articles.map(a => a.name_fr)}
       />
-      {/* ── Products grid ── */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={RED} />
@@ -196,20 +194,12 @@ export default function CategoryProductsScreen() {
           renderItem={({ item }) => (
             <ProductCard
               article={item}
-              isFav={favoriteIds.has(item.id)}
-              onToggleFav={(next) => setFavoriteIds(prev => {
-                const s = new Set(prev);
-                if (next) s.add(item.id); else s.delete(item.id);
-                return s;
-              })}
               onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })}
             />
           )}
         />
       )}
 
-
-      {/* ── Filter Modal ── */}
       <FilterModal
         visible={filterVisible}
         categories={[]}

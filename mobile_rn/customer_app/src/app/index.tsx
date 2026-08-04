@@ -44,7 +44,7 @@ export default function SplashScreen() {
         ]}
       >
         <Image
-          source={require('../../assets/images/app/logo.png')}  // "الهري"
+          source={require('../../assets/images/app/logo.png')}  
           style={styles.logo}
           resizeMode="contain"
         />

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, ScrollView, TextInput,
-  ActivityIndicator, Alert, Modal, Image,
+  ActivityIndicator, Modal, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -27,6 +27,55 @@ const TYPE_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   OTHER:           'help-circle',
 };
 
+// ── Modal générique (remplace Alert.alert) ──
+type InfoModalState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  variant?: 'default' | 'success';
+  onConfirm?: () => void;
+};
+
+const INITIAL_INFO_MODAL: InfoModalState = {
+  visible: false, title: '', message: '',
+};
+
+function InfoModal({
+  state, onClose,
+}: {
+  state: InfoModalState;
+  onClose: () => void;
+}) {
+  const isSuccess = state.variant === 'success';
+  return (
+    <Modal visible={state.visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlayAlert} onPress={onClose} activeOpacity={1}>
+        <TouchableOpacity style={styles.modalCardAlert} activeOpacity={1} onPress={() => {}}>
+          {isSuccess && (
+            <View style={styles.successIconWrap}>
+              <Feather name="check-circle" size={40} color="#22C55E" />
+            </View>
+          )}
+          <Text style={styles.modalTitleAlert}>{state.title}</Text>
+          <Text style={styles.modalSubtitleAlert}>{state.message}</Text>
+
+          <TouchableOpacity
+            style={[styles.btnConfirmAlert, isSuccess && styles.btnConfirmAlertSuccess]}
+            onPress={() => {
+              state.onConfirm?.();
+              onClose();
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.btnConfirmAlertText}>{state.confirmLabel ?? 'OK'}</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function CreateClaimScreen() {
   const router = useRouter();
   const { order_id: presetOrderId } = useLocalSearchParams<{ order_id?: string }>();
@@ -44,6 +93,23 @@ export default function CreateClaimScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent'>('normal');
+
+  const [infoModal, setInfoModal] = useState<InfoModalState>(INITIAL_INFO_MODAL);
+
+  const showInfo = (
+    title: string,
+    message: string,
+    opts?: { confirmLabel?: string; variant?: 'default' | 'success'; onConfirm?: () => void }
+  ) => {
+    setInfoModal({
+      visible: true,
+      title,
+      message,
+      confirmLabel: opts?.confirmLabel,
+      variant: opts?.variant,
+      onConfirm: opts?.onConfirm,
+    });
+  };
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -77,7 +143,7 @@ export default function CreateClaimScreen() {
   const handlePickCamera = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission requise', "L'accès à la caméra est nécessaire pour prendre une photo.");
+      showInfo('Permission requise', "L'accès à la caméra est nécessaire pour prendre une photo.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -87,7 +153,7 @@ export default function CreateClaimScreen() {
   const handlePickGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission requise', "L'accès à vos photos est nécessaire.");
+      showInfo('Permission requise', "L'accès à vos photos est nécessaire.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ImagePicker.MediaTypeOptions.Images });
@@ -95,37 +161,40 @@ export default function CreateClaimScreen() {
   };
 
   const handleSubmit = async () => {
-  if (!selectedOrderId) return Alert.alert('Commande requise', 'Sélectionnez la commande concernée.');
-  if (!selectedType) return Alert.alert('Type requis', 'Sélectionnez le type de réclamation.');
-  if (!description.trim()) return Alert.alert('Description requise', 'Décrivez le problème rencontré.');
+    if (!selectedOrderId) return showInfo('Commande requise', 'Sélectionnez la commande concernée.');
+    if (!selectedType) return showInfo('Type requis', 'Sélectionnez le type de réclamation.');
+    if (!description.trim()) return showInfo('Description requise', 'Décrivez le problème rencontré.');
 
-  setSubmitting(true);
-  try {
-    const claim = await ClaimsService.createClaim({
-      order_id: selectedOrderId,
-      type: selectedType,
-      description: description.trim(),
-      priority: priority === 'urgent' ? 'URGENT' : 'NORMAL',
-      contact_phone: phone.trim() || undefined,
-    });
+    setSubmitting(true);
+    try {
+      const claim = await ClaimsService.createClaim({
+        order_id: selectedOrderId,
+        type: selectedType,
+        description: description.trim(),
+        priority: priority === 'urgent' ? 'URGENT' : 'NORMAL',
+        contact_phone: phone.trim() || undefined,
+      });
 
-    if (photoUri) {
-      try {
-        await ClaimsService.attachPhoto(claim.id, photoUri);
-      } catch {
+      if (photoUri) {
+        try {
+          await ClaimsService.attachPhoto(claim.id, photoUri);
+        } catch {
 
+        }
       }
-    }
 
-    Alert.alert('Réclamation envoyée', 'Nous la traiterons dans les plus brefs délais.', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
-  } catch (e: any) {
-    Alert.alert('Erreur', e.message ?? "Impossible d'envoyer la réclamation");
-  } finally {
-    setSubmitting(false);
-  }
-};
+      showInfo('Réclamation envoyée', 'Nous la traiterons dans les plus brefs délais.', {
+        variant: 'success',
+        confirmLabel: 'OK',
+        onConfirm: () => router.back(),
+      });
+    } catch (e: any) {
+      showInfo('Erreur', e.message ?? "Impossible d'envoyer la réclamation");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (!fontsLoaded) return null;
 
   return (
@@ -320,6 +389,9 @@ export default function CreateClaimScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Modal générique (remplace tous les Alert.alert) ── */}
+      <InfoModal state={infoModal} onClose={() => setInfoModal(INITIAL_INFO_MODAL)} />
     </SafeAreaView>
   );
 }
@@ -429,4 +501,51 @@ const styles = StyleSheet.create({
   },
   orderOptionRef: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
   orderOptionMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
+
+  // ── Info/Alert modal ──
+  modalOverlayAlert: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalCardAlert: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 36,
+    alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
+  successIconWrap: { marginBottom: 14 },
+  modalTitleAlert: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    color: '#1a1a1a',
+    textAlign: 'center',
+  },
+  modalSubtitleAlert: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 24,
+    lineHeight: 19,
+  },
+  btnConfirmAlert: {
+    backgroundColor: RED,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  btnConfirmAlertSuccess: {
+    backgroundColor: '#22C55E',
+  },
+  btnConfirmAlertText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+  },
 });

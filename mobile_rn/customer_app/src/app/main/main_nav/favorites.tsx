@@ -4,7 +4,7 @@ import {
   SafeAreaView, StatusBar, FlatList,
   ActivityIndicator, RefreshControl, Image, Alert, Modal,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
   useFonts,
@@ -15,7 +15,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import { ProfileService, FavoriteArticle } from '../../../services/profile.service';
 import { CartService } from '../../../services/cart.service';
 import { useCartActions } from '../../../context/CartContext';
-
+import { favoritesStore } from '../../../store/favoritesStore';
 
 const RED = '#E10600';
 
@@ -48,7 +48,6 @@ function FavCard({
   };
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      {/* Image */}
       <View style={styles.imgWrap}>
         {item.image_url ? (
           <Image source={{ uri: item.image_url }} style={styles.img} resizeMode="contain" />
@@ -64,7 +63,6 @@ function FavCard({
         )} 
       </View>
 
-      {/* Info */}
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={2}>{item.name_fr}</Text>
         <View style={styles.priceRow}>
@@ -75,14 +73,11 @@ function FavCard({
         </View>
       </View>
 
-      {/* Actions */}
       <View style={styles.actions}>
-        {/* Retirer favori */}
         <TouchableOpacity style={styles.removeBtn} onPress={onRemove} activeOpacity={0.7}>
           <Feather name="heart" size={18} color={RED} />
         </TouchableOpacity>
 
-        {/* Ajouter au panier */}
         <TouchableOpacity
           style={[styles.cartBtn, adding && { opacity: 0.6 }]}
           onPress={handleAddToCart}
@@ -98,7 +93,6 @@ function FavCard({
   );
 }
 
-//Modal de confirmation de suppression
 function RemoveFavoriteModal({
   visible, itemName, onConfirm, onCancel,
 }: {
@@ -133,6 +127,7 @@ export default function FavoritesScreen() {
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<FavoriteArticle | null>(null);
+  const { from } = useLocalSearchParams<{ from?: string }>();
 
   const [fontsLoaded] = useFonts({
     Poppins_600SemiBold, Poppins_700Bold,
@@ -144,6 +139,7 @@ export default function FavoritesScreen() {
     try {
       const data = await ProfileService.listFavorites();
       setItems(data ?? []);
+      favoritesStore.setIds(new Set((data ?? []).map(f => f.id)));
     } catch {
       setItems([]);
     } finally {
@@ -162,6 +158,7 @@ export default function FavoritesScreen() {
     if (!removeTarget) return;
     try {
       await ProfileService.removeFavorite(removeTarget.id);
+      favoritesStore.toggle(removeTarget.id, false);
       setItems(prev => prev.filter(i => i.id !== removeTarget.id));
     } catch (e: any) {
       Alert.alert('Erreur', e.message);
@@ -176,7 +173,8 @@ export default function FavoritesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-        <PageHeader title="Mes favoris" />
+        <PageHeader title="Mes favoris" 
+        onBack={from === 'profile' ? () => router.replace('../../profile/profile' as any) : undefined}/>
 
         {loading ? (
           <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
@@ -185,7 +183,7 @@ export default function FavoritesScreen() {
             <Feather name="heart" size={52} color="#E5E7EB" />
             <Text style={styles.emptyTitle}>Aucun favori</Text>
             <Text style={styles.emptySubtitle}>Ajoutez des produits à vos favoris en appuyant sur ♡</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/home' as any)}>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/main_nav/home' as any)}>
               <Text style={styles.emptyBtnText}>Découvrir des produits</Text>
             </TouchableOpacity>
           </View>

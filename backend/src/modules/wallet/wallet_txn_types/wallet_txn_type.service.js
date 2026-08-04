@@ -22,7 +22,7 @@ class WalletTxnTypeService {
     if (!p.direction)         throw { statusCode: 400, message: 'Direction requise (IN ou OUT)' };
     p.direction = p.direction.toUpperCase();
     if (!repo.VALID_DIRS.includes(p.direction)) throw { statusCode: 400, message: 'Direction invalide — valeurs autorisées : IN, OUT' };
-    p.code = p.code.trim().toLowerCase().replace(/\s+/g, '_');
+    p.code = p.code.trim().toUpperCase().replace(/\s+/g, '_');
     if (await repo.findByCode(p.code)) throw { statusCode: 409, message: `Le code «${p.code}» existe déjà` };
     return repo.create(p);
   }

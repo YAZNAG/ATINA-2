@@ -18,15 +18,15 @@ async function resolveCartItems(cart_items) {
   if (!cart_items?.length) return [];
 
   const codes = cart_items.map(i => i.sku_code || i.sku_id).filter(Boolean);
-
-  const [byCode, byId] = await Promise.all([
+  
+  const [byEan, byId] = await Promise.all([
     prisma.sku.findMany({
-      where: { article: { sku_code: { in: codes } } },
+      where: { article: { ean13: { in: codes } } },
       select: {
         id: true,
         article: {
           select: {
-            sku_code: true, price: true, vat_rate: true, name_fr: true,
+            ean13: true, price: true, vat_rate: true, name_fr: true,
             tax: { select: { rate: true } },
           },
         },
@@ -38,7 +38,7 @@ async function resolveCartItems(cart_items) {
         id: true,
         article: {
           select: {
-            sku_code: true, price: true, vat_rate: true, name_fr: true,
+            ean13: true, price: true, vat_rate: true, name_fr: true,
             tax: { select: { rate: true } },
           },
         },
@@ -46,14 +46,14 @@ async function resolveCartItems(cart_items) {
     }),
   ]);
 
-  const codeMap = Object.fromEntries(byCode.map(s => [s.article.sku_code, s]));
-  const idMap   = Object.fromEntries(byId.map(s => [s.id, s]));
+  const eanMap = Object.fromEntries(byEan.map(s => [s.article.ean13, s]));
+  const idMap  = Object.fromEntries(byId.map(s => [s.id, s]));
 
   return cart_items.map(item => {
-  const identifier = item.sku_code || item.sku_id;
-  const sku = codeMap[identifier] ?? idMap[identifier];
-  return { ...item, sku_id: sku?.id ?? item.sku_id ?? null };  
-});
+    const identifier = item.sku_code || item.sku_id;
+    const sku = eanMap[identifier] ?? idMap[identifier];
+    return { ...item, sku_id: sku?.id ?? item.sku_id ?? null };
+  });
 }
 
 async function calculate(customerId, payload) {

@@ -15,11 +15,20 @@ const DETAIL_INCLUDE = {
       order_item: {
         select: {
           id: true, qty: true, unit_price_sold: true,
-          sku: { select: { id: true, article: { select: { name_fr: true, sku_code: true, ean13: true } } } },
+          sku: { select: { id: true, article: { select: { name_fr: true, ean13: true } } } },
         },
       },
       status:   { select: { id: true, code: true, name_fr: true } },
-      location: { select: { id: true, code: true, aisle: true, shelf: true } },
+      location: {
+  select: {
+    id:    true,
+    label: true,
+    aisle: true,
+    shelf: true,
+    zone:  { select: { code: true, name_fr: true } },
+    level: { select: { code: true, name_fr: true } },
+  },
+},
     },
     orderBy: { order_item: { unit_price_sold: 'desc' } },
   },
@@ -62,7 +71,7 @@ const findItemById = (id) =>
     where: { id },
     include: {
       session: { select: { id: true, status: { select: { code: true } } } },
-      order_item: { select: { id: true, sku: { select: { article: { select: { ean13: true, sku_code: true } } } } } },
+      order_item: { select: { id: true, sku: { select: { article: { select: { ean13: true } } } } } },
       status: { select: { code: true, name_fr: true } },
     },
   });

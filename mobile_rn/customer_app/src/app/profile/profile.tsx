@@ -72,6 +72,12 @@ export default function ProfileScreen() {
   const [loading,      setLoading]      = useState(true);
   const [totalSpent,   setTotalSpent]   = useState(0);
   const [orderCount,   setOrderCount]   = useState(0);
+  const LANG_LABELS: Record<string, string> = {
+  fr: 'Français (FR)',
+  ar: 'العربية (AR)',
+  en: 'English (EN)',
+};
+const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.preferred_lang ?? 'Français (FR)';
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -184,7 +190,10 @@ export default function ProfileScreen() {
           <MenuRow
             icon="heart"
             label="Mes favoris"
-            onPress={() => router.push('/main/main_nav/favorites' as any)}
+            onPress={() => router.push({
+              pathname: '/main/main_nav/favorites' as any,
+              params: { from: 'profile' },
+            })}
           />
         </View>
 
@@ -220,11 +229,10 @@ export default function ProfileScreen() {
 
           {/* Langue */}
           <MenuRow
-            icon="globe"
-            label="Langue"
-            onPress={() => {}}
-            rightContent={<Text style={styles.infoText}>Français (FR)</Text>}
-          />
+          icon="globe"
+          label="Langue"
+          onPress={() => router.push('/profile/langue' as any)}
+          rightContent={<Text style={styles.infoText}>{langLabel}</Text>}/>
           <View style={styles.divider} />
 
           <MenuRow

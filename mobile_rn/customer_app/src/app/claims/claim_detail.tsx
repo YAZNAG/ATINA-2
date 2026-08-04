@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, ScrollView,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -29,12 +29,53 @@ function formatDate(dateString: string) {
   });
 }
 
+// Modal de confirmation d'annulation
+function CancelClaimModal({
+  visible, onConfirm, onCancel, loading,
+}: {
+  visible: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
+        <TouchableOpacity style={styles.modalCard} activeOpacity={1} onPress={() => {}}>
+          <Text style={styles.modalTitle}>Annuler la réclamation ?</Text>
+          <Text style={styles.modalSubtitle}>
+            Voulez-vous vraiment annuler cette réclamation ?
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.btnConfirmDelete, loading && { opacity: 0.6 }]}
+            onPress={onConfirm}
+            activeOpacity={0.85}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnConfirmDeleteText}>Oui</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7} disabled={loading}>
+            <Text style={styles.btnCancelText}>Non</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function ClaimDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [claim, setClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -57,28 +98,23 @@ export default function ClaimDetailScreen() {
   });
 
   const handleCancel = () => {
-    Alert.alert(
-      'Annuler la réclamation',
-      'Voulez-vous vraiment annuler cette réclamation ?',
-      [
-        { text: 'Non', style: 'cancel' },
-        {
-          text: 'Oui, annuler', style: 'destructive',
-          onPress: async () => {
-            if (!id) return;
-            setCancelling(true);
-            try {
-              await ClaimsService.cancelClaim(id);
-              router.back();
-            } catch (e: any) {
-              Alert.alert('Erreur', e.message ?? "Impossible d'annuler");
-            } finally {
-              setCancelling(false);
-            }
-          },
-        },
-      ]
-    );
+    setCancelModalVisible(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!id) return;
+    setCancelling(true);
+    try {
+      await ClaimsService.cancelClaim(id);
+      setCancelModalVisible(false);
+      router.back();
+    } catch (e: any) {
+      setCancelModalVisible(false);
+      // Vous pouvez remplacer par un toast si vous en avez un dans l'app
+      console.warn(e.message ?? "Impossible d'annuler");
+    } finally {
+      setCancelling(false);
+    }
   };
 
   if (!fontsLoaded) return null;
@@ -170,6 +206,13 @@ export default function ClaimDetailScreen() {
           )}
         </ScrollView>
       </View>
+
+      <CancelClaimModal
+        visible={cancelModalVisible}
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelModalVisible(false)}
+        loading={cancelling}
+      />
     </SafeAreaView>
   );
 }
@@ -208,4 +251,55 @@ const styles = StyleSheet.create({
     paddingVertical: 15, alignItems: 'center',
   },
   cancelBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: RED },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 36,
+    alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    color: '#1a1a1a',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 24,
+    lineHeight: 19,
+  },
+  btnConfirmDelete: {
+    backgroundColor: RED,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  btnConfirmDeleteText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+  },
+  btnCancel: {
+    marginTop: 16,
+    paddingVertical: 6,
+  },
+  btnCancelText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#6B7280',
+  },
 });

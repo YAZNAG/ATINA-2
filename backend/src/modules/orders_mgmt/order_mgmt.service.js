@@ -8,9 +8,9 @@ const { notifyOrderReady, notifyInDelivery, notifyDelivered, notifyCancelled } =
 // ── Status transition rules ───────────────────────────────────────────────────
 const TRANSITIONS = {
   pending:        ['confirmed', 'cancelled'],
-  awaiting_stock: ['confirmed', 'cancelled'],
   confirmed:      ['picking',   'cancelled'],
-  picking:        ['ready',     'cancelled'],
+  picking:        ['ready', 'awaiting_stock', 'cancelled'],
+  awaiting_stock: ['picking', 'cancelled'],
   ready:          ['in_delivery','cancelled'],
   in_delivery:    ['delivered', 'cancelled', 'returned'],
 };
@@ -47,41 +47,54 @@ class OrderMgmtService {
   }
 
   async changeStatus(id, new_status_code, changed_by = null) {
-    const order = await repo.findById(id);
-    if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-    if (order.status.is_terminal)
-      throw { statusCode: 422, message: `Statut "${order.status.name_fr}" est terminal — aucune transition possible` };
-  
-    const deliveryCode = order.delivery_type?.code;
-    let allowed = TRANSITIONS[order.status.code] ?? [];
-    if (deliveryCode === 'pickup') {
-      allowed = allowed.filter(c => c !== 'in_delivery');  
-    } else {
-      allowed = allowed.filter(c => c !== 'picked_up');    
-    }
-    if (!allowed.includes(new_status_code))
-      throw { statusCode: 422, message: `Transition "${order.status.code}" → "${new_status_code}" non autorisée pour ce type de livraison. Transitions valides: ${allowed.join(', ') || 'aucune'}` };
+  const order = await repo.findById(id);
+  if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+  if (order.status.is_terminal)
+    throw { statusCode: 422, message: `Statut "${order.status.name_fr}" est terminal — aucune transition possible` };
 
-    const newStatus = await repo.getStatusByCode(new_status_code);
-    if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
-
-    const updated = await repo.updateStatus(id, newStatus.id, changed_by);
-    const NOTIFY = {
-  ready:       () => notifyOrderReady(order.customer_id, id, order.delivery_type?.code),
-  in_delivery: () => notifyInDelivery(order.customer_id, id),
-  delivered:   () => notifyDelivered(order.customer_id, id),
-};
-NOTIFY[new_status_code]?.()?.catch(() => {});
-
-    // Auto-create picking session when order → picking
-    if (new_status_code === 'picking') {
-      pickingService.createSession(id).catch(err =>
-        console.warn('[picking] Création session auto échouée:', err.message)
-      );
-    }
-
-    return updated;
+  const deliveryCode = order.delivery_type?.code;
+  let allowed = TRANSITIONS[order.status.code] ?? [];
+  if (deliveryCode === 'pickup') {
+    allowed = allowed.filter(c => c !== 'in_delivery');
+  } else {
+    allowed = allowed.filter(c => c !== 'picked_up');
   }
+  if (!allowed.includes(new_status_code))
+    throw { statusCode: 422, message: `Transition "${order.status.code}" → "${new_status_code}" non autorisée pour ce type de livraison. Transitions valides: ${allowed.join(', ') || 'aucune'}` };
+
+  const newStatus = await repo.getStatusByCode(new_status_code);
+  if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const upd = await tx.order.update({ where: { id }, data: { status_id: newStatus.id }, include: repo.DETAIL_INCLUDE });
+    await tx.orderHistory.create({ data: { order_id: id, status_id: newStatus.id, changed_by, note: null } });
+
+    if (new_status_code === 'delivered') {
+      await loyalty.creditPointsOnDelivery(tx, order.customer_id, order, newStatus.id);
+    }
+
+    return upd;
+  });
+
+  if (new_status_code === 'delivered') {
+    setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, id).catch(() => {}));
+  }
+
+  const NOTIFY = {
+    ready:       () => notifyOrderReady(order.customer_id, id, order.delivery_type?.code),
+    in_delivery: () => notifyInDelivery(order.customer_id, id),
+    delivered:   () => notifyDelivered(order.customer_id, id),
+  };
+  NOTIFY[new_status_code]?.()?.catch(() => {});
+
+  if (new_status_code === 'picking') {
+    pickingService.createSession(id).catch(err =>
+      console.warn('[picking] Création session auto échouée:', err.message)
+    );
+  }
+
+  return updated;
+}
 
   async cancel(id, reason, changed_by = null) {
     const order = await repo.findById(id);

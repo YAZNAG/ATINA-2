@@ -10,6 +10,7 @@ const PACK_INCLUDE = {
             select: {
               name_fr: true, name_ar: true, sku_code: true, price: true,
               unit_sale: true, vat_rate: true,
+              category_id: true,   // ← ajouté, ne casse rien côté formatPack
               tax: { select: { rate: true } },
               images: {
                 where:  { is_main: true },

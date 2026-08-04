@@ -349,10 +349,10 @@ async function getOrderById(customerId, orderId) {
 
   const pendingSubstitutionsCount = await prisma.pickingSessionItem.count({
     where: {
-      status: { code: 'SUBSTITUTED' },
+      status: { code: 'substituted' },
       order_item: {
         order_id: orderId,
-        status: { code: { notIn: ['SUBSTITUTED', 'CANCELLED', 'RETURNED', 'DELIVERED'] } },
+        status: { code: { notIn: ['substituted', 'cancelled', 'returned', 'delivered'] } },
       },
     },
   });

@@ -1,33 +1,35 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, ActivityIndicator, Alert,
+  SafeAreaView, StatusBar, ActivityIndicator, Alert, Image, Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import {
-  useFonts, Inter_400Regular, Inter_500Medium,
-  Inter_600SemiBold, Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  useFonts, Poppins_400Regular, Poppins_500Medium,
+  Poppins_600SemiBold, Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
 import { ProfileService } from '../../services/profile.service';
 import { getToken } from '../../services/customer_auth.service';
 
 const RED = '#E10600';
 export const LANG_KEY = 'preferred_lang';
 
+const { width } = Dimensions.get('window');
+
 type Lang = 'fr' | 'ar';
 
-const LANGUAGES: { code: Lang; label: string; native: string; flag: string }[] = [
-  { code: 'fr', label: 'Français', native: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'Arabe',    native: 'العربية',  flag: '🇲🇦' },
+const LANGUAGES: { code: Lang; label: string; native: string }[] = [
+  { code: 'fr', label: 'Français', native: 'Français' },
+  { code: 'ar', label: 'Arabe',    native: 'العربية' },
 ];
 
 export default function LanguageScreen() {
   const router = useRouter();
 
   const [fontsLoaded] = useFonts({
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
+    Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold,
   });
 
   const [selected, setSelected] = useState<Lang>('fr');
@@ -38,18 +40,15 @@ export default function LanguageScreen() {
   const handleContinue = async () => {
     setSaving(true);
     try {
-      // 1. Sauvegarde locale (marche avant login + persiste)
       await SecureStore.setItemAsync(LANG_KEY, selected);
 
-      // 2. Si déjà connecté, synchronise avec la table customer
       const token = await getToken();
       if (token) {
         try {
           await ProfileService.updateProfile({ preferred_lang: selected });
-        } catch { /* sync DB échoue → pas bloquant, le local suffit */ }
+        } catch { /* sync DB échoue pas bloquant, le local suffit */ }
       }
 
-      // 3. Étape suivante de l'onboarding
       router.push('/onboarding/slide1' as any);
     } catch (e: any) {
       Alert.alert('Erreur', e.message || 'Impossible d\'enregistrer la langue');
@@ -60,41 +59,40 @@ export default function LanguageScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor={RED} />
 
       <View style={styles.container}>
 
-        {/* ── En-tête ── */}
-        <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <Feather name="globe" size={32} color={RED} />
-          </View>
-          <Text style={styles.title}>Choisissez votre langue</Text>
-          <Text style={styles.title}>اختر لغتك</Text>
+        {/* ── Logo ── */}
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../../assets/images/app/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
-        {/* ── Options ── */}
+
+        {/* ── Options (boutons) ── */}
         <View style={styles.options}>
           {LANGUAGES.map((lang) => {
             const active = selected === lang.code;
             return (
               <TouchableOpacity
-                key={lang.code}
-                style={[styles.langCard, active && styles.langCardActive]}
-                onPress={() => setSelected(lang.code)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.langFlag}>{lang.flag}</Text>
-                <View style={styles.langText}>
-                  <Text style={[styles.langNative, active && styles.langNativeActive]}>
-                    {lang.native}
-                  </Text>
-                  <Text style={styles.langLabel}>{lang.label}</Text>
-                </View>
-                <View style={[styles.radio, active && styles.radioActive]}>
-                  {active && <Feather name="check" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
+  key={lang.code}
+  style={[styles.langBtn, active && styles.langBtnActive]}
+  onPress={() => setSelected(lang.code)}
+  activeOpacity={0.85}
+>
+  <Text style={[styles.langNative, active && styles.langNativeActive]}>
+    {lang.native}
+  </Text>
+  {active && (
+    <View style={styles.checkCircle}>
+      <Feather name="check" size={14} color={RED} />
+    </View>
+  )}
+</TouchableOpacity>
             );
           })}
         </View>
@@ -107,7 +105,7 @@ export default function LanguageScreen() {
           activeOpacity={0.85}
         >
           {saving
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={RED} />
             : <Text style={styles.btnText}>Continuer</Text>
           }
         </TouchableOpacity>
@@ -118,40 +116,45 @@ export default function LanguageScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea:  { flex: 1, backgroundColor: '#fff' },
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60, justifyContent: 'center' },
+  safeArea:  { flex: 1, backgroundColor: RED },
+  container: {
+  flex: 1,
+  paddingHorizontal: 24,
+  paddingTop: 60,           // remonte le contenu vers le haut
+  justifyContent: 'flex-start',  // au lieu de 'center'
+},
 
-  header: { alignItems: 'center', marginBottom: 48 },
-  iconCircle: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFF0F0',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 24,
-  },
-  title:    { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#1a1a1a', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 18, fontFamily: 'Inter_500Medium', color: '#9CA3AF', textAlign: 'center' },
+  logoContainer: { alignItems: 'center', marginBottom: 32 },
+  logo: { width: width * 0.7, height: (width * 0.7) / (267 / 314), },
 
   options: { gap: 16, marginBottom: 40 },
-  langCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 16,
-    padding: 18, backgroundColor: '#fff',
-  },
-  langCardActive: { borderColor: RED, backgroundColor: '#FFF8F8' },
-  langFlag: { fontSize: 32 },
-  langText: { flex: 1 },
-  langNative: { fontSize: 18, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
-  langNativeActive: { color: RED },
-  langLabel:  { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
-  radio: {
-    width: 26, height: 26, borderRadius: 13,
-    borderWidth: 2, borderColor: '#D1D5DB',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioActive: { backgroundColor: RED, borderColor: RED },
+  langBtn: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',   
+  position: 'relative',       
+  borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 16,
+  paddingVertical: 18, paddingHorizontal: 20,
+  backgroundColor: 'rgba(255,255,255,0.08)',
+},
+langBtnActive: {
+  borderColor: '#fff',
+  backgroundColor: '#fff',
+},
+langNative: {
+  fontSize: 18, fontFamily: 'Poppins_600SemiBold', color: '#fff',
+  textAlign: 'center',
+},
+langNativeActive: { color: RED },
+checkCircle: {
+  position: 'absolute',
+  right: 20,
+  width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff',
+  alignItems: 'center', justifyContent: 'center',
+},
 
   btnContinue: {
-    backgroundColor: RED, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-    shadowColor: RED, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 16, elevation: 5,
+     alignItems: 'center',
   },
-  btnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  btnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
 });

@@ -261,7 +261,7 @@ export default function PickingSessionDetailPage() {
               </>
             )}
           </div>
-        )}
+        )
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import ProductCard from '../../../components/ui/ProductCard';
 
 import { CatalogService, Article } from '../../../services/catalog.service';
+import { favoritesStore } from '../../../store/favoritesStore';
 import { ProfileService } from '../../../services/profile.service';
 import { CartService } from '../../../services/cart.service';
 import {
@@ -36,7 +37,6 @@ export default function ProductListScreen() {
   const [cards, setCards]           = useState<ListCard[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
 
   const [page, setPage]               = useState(1);
   const [hasMore, setHasMore]         = useState(false);
@@ -44,7 +44,6 @@ export default function ProductListScreen() {
 
   const pageTitle = Array.isArray(title) ? title[0] : (title || 'Produits');
 
-  // ── Compléments panier : les skuIds du panier ne changent pas d'une page à l'autre ──
   const [cartSkuIds, setCartSkuIds] = useState<string[]>([]);
 
   const fetchPage = useCallback(async (targetPage: number): Promise<{ cards: ListCard[]; more: boolean }> => {
@@ -69,8 +68,6 @@ export default function ProductListScreen() {
         return { cards: res.data.map((a) => ({ article: a })), more: res.hasMore };
       }
       case 'suggestions': {
-        // Pas de vraie source "recommandations" paginable côté backend — on ne paginera que les compléments panier.
-        // Page 1 : recommandations + première page de compléments. Pages suivantes : compléments uniquement.
         if (targetPage === 1) {
           const recs = await CatalogService.getRecommendedArticles({ limit: PAGE_SIZE }).catch(() => []);
           let compData: Article[] = [];
@@ -106,7 +103,6 @@ export default function ProductListScreen() {
   const loadInitial = useCallback(async () => {
     setLoading(true);
     try {
-      // Prépare les skuIds du panier une seule fois avant de charger la 1ère page (utile pour 'suggestions')
       let skuIds = cartSkuIds;
       if (source === 'suggestions') {
         try {
@@ -149,19 +145,11 @@ export default function ProductListScreen() {
 
   useEffect(() => {
     ProfileService.listFavorites()
-      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.id))))
+      .then((favs) => favoritesStore.setIds(new Set(favs.map((f) => f.id))))
       .catch(() => {});
   }, []);
 
   const onRefresh = useCallback(() => { setRefreshing(true); loadInitial(); }, [loadInitial]);
-
-  const handleToggleFav = useCallback((articleId: number, next: boolean) => {
-    setFavoriteIds((prev) => {
-      const s = new Set(prev);
-      if (next) s.add(articleId); else s.delete(articleId);
-      return s;
-    });
-  }, []);
 
   const renderItem = useCallback(({ item }: { item: ListCard }) => (
     <ProductCard
@@ -169,11 +157,9 @@ export default function ProductListScreen() {
       discount={item.discount}
       oldPrice={item.oldPrice}
       isFlashSale={item.isFlashSale}
-      isFav={favoriteIds.has(item.article.id)}
-      onToggleFav={(next) => handleToggleFav(item.article.id, next)}
       onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.article.id } })}
     />
-  ), [favoriteIds, handleToggleFav, router]);
+  ), [router]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

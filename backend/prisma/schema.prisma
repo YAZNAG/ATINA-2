@@ -884,12 +884,13 @@ model PointsRuleType {
 }
 
 model RewardType {
-  id                           String           @id @default(uuid()) @db.Uuid
-  code                         String           @unique @db.VarChar(50)
-  name_fr                      String           @db.VarChar(100)
-  name_ar                      String           @db.VarChar(100)
-  referral_configs_as_referee  ReferralConfig[] @relation("RefereeRewardType")
-  referral_configs_as_referrer ReferralConfig[] @relation("ReferrerRewardType")
+  id                            String           @id @default(uuid()) @db.Uuid
+  code                          String           @unique @db.VarChar(50)
+  name_fr                       String           @db.VarChar(100)
+  name_ar                       String           @db.VarChar(100)
+  referral_configs_as_referee   ReferralConfig[] @relation("RefereeRewardType")
+  referral_configs_as_referrer  ReferralConfig[] @relation("ReferrerRewardType")
+  points_rules                  PointsRule[]      // ← ajouter aussi ça
 
   @@map("reward_types")
 }
@@ -1427,6 +1428,7 @@ model PointsRule {
   rule_type_id     String         @db.Uuid
   node_id          String?        @db.Uuid
   category_id      String?        @db.Uuid
+  reward_type_id   String?        @db.Uuid   // ← CETTE LIGNE MANQUE
   points_value     Int
   per_mad_spent    Decimal?       @db.Decimal(5, 2)
   min_order_amount Decimal        @default(0) @db.Decimal(12, 2)
@@ -1436,6 +1438,7 @@ model PointsRule {
   created_at       DateTime       @default(now()) @db.Timestamptz(6)
   node             Node?          @relation(fields: [node_id], references: [id])
   rule_type        PointsRuleType @relation(fields: [rule_type_id], references: [id])
+  reward_type      RewardType?    @relation(fields: [reward_type_id], references: [id])
 
   @@map("points_rules")
 }

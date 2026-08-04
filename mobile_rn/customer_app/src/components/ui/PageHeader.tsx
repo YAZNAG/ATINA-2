@@ -25,18 +25,20 @@ export default function PageHeader({
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => {
-          if (router.canGoBack()) {
+          if (onBack) {
+            onBack();
+          } else if (router.canGoBack()) {
             router.back();
           } else {
             router.replace('/main/main_nav/home');
-           }
-          }}
+          }
+        }}
         activeOpacity={0.7}>
         <Feather name="chevron-left" size={20} color={RED} />
       </TouchableOpacity>
 
       {/* ── Title ── */}
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
+      <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{title}</Text>
 
       {/* ── Right slot ── */}
       {rightText ? (

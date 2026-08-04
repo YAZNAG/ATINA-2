@@ -1,7 +1,7 @@
 import api from '../api/client';
 
 export interface CartItem {
-  sku_code:    string;
+  sku_id:      string;
   qty:         number;
   unit_price?: number;
   vat_rate?:   number;

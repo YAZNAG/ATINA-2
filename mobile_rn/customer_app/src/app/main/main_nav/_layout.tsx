@@ -1,4 +1,3 @@
-// main/main_nav/_layout.tsx
 import { Tabs } from 'expo-router';
 import BottomNavBar from '../../../components/ui/BottomNavBar';
 

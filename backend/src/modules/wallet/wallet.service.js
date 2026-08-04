@@ -22,10 +22,16 @@ async function _recordTxn(tx, { customer_id, txn_type_code, order_id, amount, ba
 }
 
 // ── Debit wallet (during checkout or adjustment) ──────────────────────────────
-async function debitWallet({ customer_id, amount, order_id, note, reference } = {}) {
+async function debitWallet({ customer_id, amount, order_id, note, reference, txn_type_code = 'DEBIT_PURCHASE' } = {}) {
   if (!customer_id || !amount || amount <= 0) throw { statusCode: 400, message: 'customer_id et amount > 0 requis' };
 
   return prisma.$transaction(async (tx) => {
+    const txnType = await h.getWalletTxnType(txn_type_code);
+    if (!txnType) throw { statusCode: 500, message: `Type de transaction wallet "${txn_type_code}" introuvable — vérifier le seed` };
+    if (txnType.direction !== 'OUT') {
+      throw { statusCode: 400, message: `Le type "${txn_type_code}" est de direction ${txnType.direction}, incompatible avec un débit` };
+    }
+
     const customer = await tx.customer.findUnique({ where: { id: customer_id }, select: { wallet_balance: true } });
     if (!customer) throw { statusCode: 404, message: 'Client introuvable' };
 
@@ -34,16 +40,22 @@ async function debitWallet({ customer_id, amount, order_id, note, reference } = 
 
     const after = parseFloat((before - amount).toFixed(2));
     await tx.customer.update({ where: { id: customer_id }, data: { wallet_balance: after } });
-    await _recordTxn(tx, { customer_id, txn_type_code: 'debit_order', order_id, amount, balance_before: before, balance_after: after, note, reference });
+    await _recordTxn(tx, { customer_id, txn_type_code, order_id, amount, balance_before: before, balance_after: after, note, reference });
     return { balance_before: before, balance_after: after };
   });
 }
 
 // ── Credit wallet (refund, recharge, points conversion) ───────────────────────
-async function creditWallet({ customer_id, amount, txn_type_code = 'credit_recharge', order_id, note, reference } = {}) {
+async function creditWallet({ customer_id, amount, txn_type_code = 'CREDIT_ADMIN', order_id, note, reference }, externalTx = null) {
   if (!customer_id || !amount || amount <= 0) throw { statusCode: 400, message: 'customer_id et amount > 0 requis' };
 
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx) => {
+    const txnType = await h.getWalletTxnType(txn_type_code);
+    if (!txnType) throw { statusCode: 500, message: `Type de transaction wallet "${txn_type_code}" introuvable` };
+    if (txnType.direction !== 'IN') {
+      throw { statusCode: 400, message: `Le type "${txn_type_code}" est de direction OUT, incompatible avec un crédit` };
+    }
+
     const customer = await tx.customer.findUnique({ where: { id: customer_id }, select: { wallet_balance: true } });
     if (!customer) throw { statusCode: 404, message: 'Client introuvable' };
 
@@ -52,12 +64,17 @@ async function creditWallet({ customer_id, amount, txn_type_code = 'credit_recha
     await tx.customer.update({ where: { id: customer_id }, data: { wallet_balance: after } });
     await _recordTxn(tx, { customer_id, txn_type_code, order_id, amount, balance_before: before, balance_after: after, note, reference });
     return { balance_before: before, balance_after: after };
-  });
+  };
+
+  return externalTx ? run(externalTx) : prisma.$transaction(run);
 }
 
 // ── Refund wallet (order cancelled or returned) ────────────────────────────────
-async function refundWallet({ customer_id, amount, order_id, note } = {}) {
-  return creditWallet({ customer_id, amount, txn_type_code: 'refund', order_id, note: note || 'Remboursement wallet' });
+async function refundWallet({ customer_id, amount, order_id, note }, externalTx = null) {
+  return creditWallet(
+    { customer_id, amount, txn_type_code: 'CREDIT_REFUND', order_id, note: note || 'Remboursement wallet' },
+    externalTx
+  );
 }
 
 // ── Get customer balance + last txns ──────────────────────────────────────────

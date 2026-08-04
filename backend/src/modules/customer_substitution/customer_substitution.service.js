@@ -2,13 +2,12 @@ const prisma = require('../../config/database');
 const { toPublicUrl } = require('../../utils/fileStorage');
 const walletService = require('../wallet/wallet.service');
 
-const PAID_STATUS_CODES = ['PAID', 'COLLECTED']; 
-const COD_METHOD_CODES  = ['COD', 'CASH'];   
+const PAID_STATUS_CODES = ['paid', 'collected'];
+const COD_METHOD_CODES  = ['COD', 'CASH'];
 
 class CustomerSubstitutionService {
 
   async getOrderSubstitutions(customerId, orderId) {
-    // Vérifie que la commande appartient bien au client
     const order = await prisma.order.findUnique({
       where:  { id: orderId },
       select: { id: true, customer_id: true },
@@ -19,7 +18,7 @@ class CustomerSubstitutionService {
     const items = await prisma.pickingSessionItem.findMany({
       where: {
         session: { order_id: orderId },
-        status:  { code: { in: ['SUBSTITUTED', 'MISSING'] } },
+        status:  { code: { in: ['substituted', 'missing'] } },
       },
       include: {
         status: { select: { code: true, name_fr: true } },
@@ -49,10 +48,10 @@ class CustomerSubstitutionService {
   async getPendingForCustomer(customerId) {
     const items = await prisma.pickingSessionItem.findMany({
       where: {
-        status: { code: 'SUBSTITUTED' },
+        status: { code: 'substituted' },
         order_item: {
           order: { customer_id: customerId },
-          status: { code: { notIn: ['SUBSTITUTED', 'CANCELLED', 'RETURNED', 'DELIVERED'] } },
+          status: { code: { notIn: ['substituted', 'cancelled', 'returned', 'delivered'] } },
         },
       },
       include: {
@@ -95,7 +94,17 @@ class CustomerSubstitutionService {
           },
         },
         status: { select: { code: true } },
-        substitute_sku: { include: { article: { select: { price: true } } } },
+        substitute_sku: {
+          include: {
+            article: {
+              select: {
+                price:    true,
+                vat_rate: true,
+                tax:      { select: { rate: true } },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -103,11 +112,11 @@ class CustomerSubstitutionService {
     if (item.order_item.order.customer_id !== customerId) {
       throw { statusCode: 403, message: 'Non autorisé' };
     }
-    if (item.status.code !== 'SUBSTITUTED') {
+    if (item.status.code !== 'substituted') {
       throw { statusCode: 422, message: 'Cet article n\'est pas en attente de substitution' };
     }
 
-    const targetCode = status === 'accepted' ? 'SUBSTITUTED' : 'CANCELLED';
+    const targetCode = status === 'accepted' ? 'substituted' : 'cancelled';
     const orderItemStatus = await prisma.orderItemStatus.findUnique({ where: { code: targetCode } });
     if (!orderItemStatus) {
       throw { statusCode: 500, message: `Statut order_item "${targetCode}" introuvable — vérifier le seed` };
@@ -122,14 +131,33 @@ class CustomerSubstitutionService {
         : originalPrice;
       const qty = Number(item.order_item.qty);
 
-      // Le substitut est moins cher → on recalcule ; plus cher ou égal → on garde le prix initial
       const isCheaper = substitutePrice < originalPrice;
       const chargedUnitPrice = isCheaper ? substitutePrice : originalPrice;
       const diffTotal = isCheaper
         ? parseFloat(((originalPrice - substitutePrice) * qty).toFixed(2))
         : 0;
 
+      const vatRate = Number(item.substitute_sku.article.tax?.rate ?? item.substitute_sku.article.vat_rate ?? 20);
+      const diffHt = diffTotal > 0
+        ? parseFloat((diffTotal / (1 + vatRate / 100)).toFixed(2))
+        : 0;
+
+      const paidOnline = diffTotal > 0 ? await this._isPaidOnline(item.order_item.order.id) : false;
+
       await prisma.$transaction(async (tx) => {
+        const resolvedItemStatus = await tx.pickItemStatus.findUnique({ where: { code: 'picked' } });
+        if (!resolvedItemStatus) {
+          throw { statusCode: 500, message: `Statut pick_item "picked" introuvable` };
+        }
+
+        const guard = await tx.pickingSessionItem.updateMany({
+          where: { id: sessionItemId, status_id: item.status_id },
+          data:  { status_id: resolvedItemStatus.id },
+        });
+        if (guard.count === 0) {
+          throw { statusCode: 409, message: 'Cette substitution a déjà été traitée' };
+        }
+
         await tx.orderItem.update({
           where: { id: item.order_item_id },
           data: {
@@ -140,37 +168,81 @@ class CustomerSubstitutionService {
         });
 
         if (diffTotal > 0) {
-          const order = item.order_item.order;
           await tx.order.update({
-            where: { id: order.id },
+            where: { id: item.order_item.order.id },
             data: {
-              subtotal_ht: { decrement: diffTotal },
+              subtotal_ht: { decrement: diffHt },
               total_ttc:   { decrement: diffTotal },
             },
           });
+
+          if (paidOnline) {
+            await walletService.refundWallet(
+              {
+                customer_id: customerId,
+                amount:      diffTotal,
+                order_id:    item.order_item.order.id,
+                note:        'Remboursement suite à substitution moins chère',
+              },
+              tx,
+            );
+            walletCredited = diffTotal;
+          }
         }
+      });
+    } else {
+      await prisma.$transaction(async (tx) => {
+        const resolvedItemStatus = await tx.pickItemStatus.findUnique({ where: { code: 'missing' } });
+        if (!resolvedItemStatus) {
+          throw { statusCode: 500, message: `Statut pick_item "missing" introuvable` };
+        }
+
+        const guard = await tx.pickingSessionItem.updateMany({
+          where: { id: sessionItemId, status_id: item.status_id },
+          data:  { status_id: resolvedItemStatus.id },
+        });
+        if (guard.count === 0) {
+          throw { statusCode: 409, message: 'Cette substitution a déjà été traitée' };
+        }
+
+        await tx.orderItem.update({
+          where: { id: item.order_item_id },
+          data: { status_id: orderItemStatus.id },
+        });
+      });
+    }
+
+    // Après le traitement (accepted ou refused), vérifier s'il reste des
+    // substitutions en attente pour CETTE commande, et reprendre le picking si non.
+    const orderId = item.order_item.order.id;
+    const remainingPending = await prisma.pickingSessionItem.count({
+      where: {
+        status: { code: 'substituted' },
+        order_item: { order_id: orderId },
+      },
+    });
+
+    if (remainingPending === 0) {
+      const order = await prisma.order.findUnique({
+        where:  { id: orderId },
+        select: { status: { select: { code: true } } },
       });
 
-      if (diffTotal > 0) {
-        const paidOnline = await this._isPaidOnline(item.order_item.order.id);
-        if (paidOnline) {
-          await walletService.refundWallet({
-            customer_id: customerId,
-            amount:      diffTotal,
-            order_id:    item.order_item.order.id,
-            note:        'Remboursement suite à substitution moins chère',
-          });
-          walletCredited = diffTotal;
+      if (order?.status?.code === 'awaiting_stock') {
+        const pickingStatus = await prisma.orderStatus.findUnique({ where: { code: 'picking' } });
+        if (pickingStatus) {
+          await prisma.$transaction([
+            prisma.order.update({ where: { id: orderId }, data: { status_id: pickingStatus.id } }),
+            prisma.orderHistory.create({
+              data: {
+                order_id: orderId,
+                status_id: pickingStatus.id,
+                note: 'Reprise de la préparation — toutes les substitutions ont été traitées',
+              },
+            }),
+          ]);
         }
-        // Si COD, rien à faire de plus : le total de la commande est déjà réduit,
-        // le client paiera simplement moins à la livraison.
       }
-    } else {
-      // Refus → annule l'article (statut CANCELLED)
-      await prisma.orderItem.update({
-        where: { id: item.order_item_id },
-        data: { status_id: orderItemStatus.id },
-      });
     }
 
     const updated = await prisma.pickingSessionItem.findUnique({
@@ -193,7 +265,6 @@ class CustomerSubstitutionService {
     return formatted;
   }
 
-  // ── Détecte si la commande a déjà été payée en ligne (carte), vs COD ─────────
   async _isPaidOnline(orderId) {
     const payments = await prisma.payment.findMany({
       where:   { order_id: orderId },
@@ -216,8 +287,8 @@ class CustomerSubstitutionService {
 
     let status = 'pending';
     if (overrideStatus) status = overrideStatus;
-    else if (item.status?.code === 'out_of_stock') status = 'refused';
-    else if (item.status?.code === 'SUBSTITUTED')  status = 'pending';
+    else if (item.status?.code === 'missing')     status = 'refused';
+    else if (item.status?.code === 'substituted') status = 'pending';
 
     return {
       id:              item.id,

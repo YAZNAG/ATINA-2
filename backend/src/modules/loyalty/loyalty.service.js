@@ -1,20 +1,5 @@
-/**
- * Loyalty service — points fidélité + parrainage.
- *
- * Points: triggered on order.status = delivered
- *   - Reads active points_rules from DB (per_spend, flat_bonus, first_order, referral_bonus)
- *   - Anti-double-credit: order.points_earned > 0 → skip
- *   - Updates customers.points_balance + customers.points_lifetime + orders.points_earned
- *
- * Referral: triggered on first qualifying order delivered
- *   - Looks up pending referral for referee
- *   - Validates config (min_order_amount, valid_from/valid_to, is_active)
- *   - Credits referrer + referee via wallet or points
- *   - Anti-double-validation: @@unique([referrer_id, referee_id])
- */
 const prisma = require('../../config/database');
-
-const { POINTS_PER_MAD, MILESTONE_STEP, REDEEM_MAD } = require('./loyalty.shared');
+const { creditReward } = require('./reward-credit.util');
 
 async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId) {
   if (Number(order.points_earned ?? 0) > 0) return 0;
@@ -49,7 +34,7 @@ async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId)
   return points;
 }
 
-// ── Points Rules Engine ───────────────────────────────────────────────────────
+// ── Points Rules Engine 
 
 async function calculatePoints(customer_id, order) {
   if (!order || !customer_id) return 0;
@@ -57,21 +42,24 @@ async function calculatePoints(customer_id, order) {
   const now   = new Date();
   const total = Number(order.total_ttc ?? 0);
 
-  // Load active rules (sorted by priority: first_order first, then per_spend)
+  // Load active gain rules
   const rules = await prisma.pointsRule.findMany({
     where: {
       is_active:  true,
       valid_from: { lte: now },
-      OR: [{ valid_to: null }, { valid_to: { gte: now } }],
+      AND: [
+        { OR: [{ valid_to: null }, { valid_to: { gte: now } }] },
+        { OR: [{ node_id: null }, { node_id: order.node_id }] },
+      ],
       min_order_amount: { lte: total },
-      OR: [{ node_id: null }, { node_id: order.node_id }],
+      rule_type: { code: { in: ['PURCHASE', 'BONUS', 'FIRST_ORDER'] } },
     },
     include: { rule_type: { select: { code: true } } },
     orderBy: { created_at: 'asc' },
   });
 
   if (!rules.length) {
-    // Fallback: 1 point per 10 MAD if no rules configured
+    // 1 point per 10 MAD if no rules configured
     return Math.max(0, Math.floor(total / 10));
   }
 
@@ -81,32 +69,24 @@ async function calculatePoints(customer_id, order) {
   for (const rule of rules) {
     const code = rule.rule_type?.code;
 
-    if (code === 'per_spend') {
-      // points_value per per_mad_spent
+    if (code === 'PURCHASE') {
       const rate = Number(rule.per_mad_spent ?? 10);
       totalPoints += Math.floor(total / rate) * rule.points_value;
 
-    } else if (code === 'flat_bonus') {
-      // Fixed points on every qualifying order
+    } else if (code === 'BONUS') {
       totalPoints += rule.points_value;
 
-    } else if (code === 'first_order' && !firstOrderChecked) {
-      // Bonus on first delivered order
+    } else if (code === 'FIRST_ORDER' && !firstOrderChecked) {
       firstOrderChecked = true;
       const prevDelivered = await prisma.order.count({
-        where: {
-          customer_id, is_deleted: false, status: { code: 'delivered' },
-          NOT: { id: order.id },
-        },
+        where: { customer_id, is_deleted: false, status: { code: 'delivered' }, NOT: { id: order.id } },
       });
       if (prevDelivered === 0) totalPoints += rule.points_value;
     }
-    // category_multiplier and referral_bonus handled separately
   }
 
   return Math.max(0, totalPoints);
 }
-
 
 // ── Referral validation ───────────────────────────────────────────────────────
 
@@ -158,7 +138,7 @@ async function validateReferralOnDelivery(customer_id, order_id) {
       await tx.referral.update({
         where: { id: referral.id },
         data: {
-          status_id:          validatedStatus.id,
+          status_id:           validatedStatus.id,
           qualifying_order_id: order_id,
           reward_amount:       config.referrer_reward_value,
           validated_at:        now,
@@ -166,38 +146,16 @@ async function validateReferralOnDelivery(customer_id, order_id) {
       });
 
       // Credit REFERRER
-      await _creditReward(tx, referral.referrer_id, config.referrer_type?.code, config.referrer_reward_value, walletTxnType, `Bonus parrainage — ${referral.referee_id.slice(0, 8)}`);
+      await creditReward(tx, referral.referrer_id, config.referrer_type?.code, config.referrer_reward_value, walletTxnType, `Bonus parrainage — ${referral.referee_id.slice(0, 8)}`);
 
       // Credit REFEREE
-      await _creditReward(tx, referral.referee_id, config.referee_type?.code, config.referee_reward_value, walletTxnType, 'Bienvenue — bonus filleul');
+      await creditReward(tx, referral.referee_id, config.referee_type?.code, config.referee_reward_value, walletTxnType, 'Bienvenue — bonus filleul');
     });
 
     console.log(`[referral] validated: referrer=${referral.referrer_id.slice(0,8)}, referee=${customer_id.slice(0,8)}`);
   } catch (err) {
     // Referral validation must never break main delivery flow
     console.warn('[referral] validation error:', err.message);
-  }
-}
-
-async function _creditReward(tx, customer_id, rewardTypeCode, value, walletTxnType, note) {
-  const amount = Number(value ?? 0);
-  if (amount <= 0) return;
-
-  if (rewardTypeCode === 'wallet' || rewardTypeCode === 'credit') {
-    const customer = await tx.customer.findUnique({ where: { id: customer_id }, select: { wallet_balance: true } });
-    const before   = Number(customer?.wallet_balance ?? 0);
-    const after    = before + amount;
-    await tx.customer.update({ where: { id: customer_id }, data: { wallet_balance: after } });
-    if (walletTxnType) {
-      await tx.walletTransaction.create({
-        data: { customer_id, txn_type_id: walletTxnType.id, amount, balance_before: before, balance_after: after, note },
-      });
-    }
-  } else if (rewardTypeCode === 'points') {
-    await tx.customer.update({
-      where: { id: customer_id },
-      data: { points_balance: { increment: Math.round(amount) }, points_lifetime: { increment: Math.round(amount) } },
-    });
   }
 }
 
@@ -216,11 +174,14 @@ async function createReferralOnRegistration(referee_id, referral_code) {
 
     // Find the best active config (newest)
     const config = await prisma.referralConfig.findFirst({
-      where: { is_active: true, valid_from: { lte: new Date() }, OR: [{ valid_to: null }, { valid_to: { gte: new Date() } }] },
+      where: {
+        is_active: true,
+        valid_from: { lte: new Date() },
+        OR: [{ valid_to: null }, { valid_to: { gte: new Date() } }],
+      },
       orderBy: { created_at: 'desc' },
     });
 
-    // Check uniqueness guard — @@unique([referrer_id, referee_id])
     const existing = await prisma.referral.findUnique({ where: { referrer_id_referee_id: { referrer_id: referrer.id, referee_id } } });
     if (existing) return;
 
@@ -235,6 +196,8 @@ async function createReferralOnRegistration(referee_id, referral_code) {
 }
 
 module.exports = {
-  calculatePoints, creditPointsOnDelivery, validateReferralOnDelivery,
-  createReferralOnRegistration, POINTS_PER_MAD, MILESTONE_STEP, REDEEM_MAD,
+  calculatePoints,
+  creditPointsOnDelivery,
+  validateReferralOnDelivery,
+  createReferralOnRegistration,
 };

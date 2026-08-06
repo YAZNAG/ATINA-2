@@ -93,6 +93,18 @@ export default function LoyaltyScreen() {
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
+  const rewardLabel = (type?: string) => {
+  switch (type) {
+    case 'WALLET':
+    case 'DISCOUNT':
+      return { noun: 'crédit', article: 'un' };
+    case 'POINTS':
+      return { noun: 'bonus de points', article: 'un' };
+    default: 
+      return { noun: 'coupon', article: 'un' };
+  }
+};
+
   if (loading || !fontsLoaded) {
   return (
     <SafeAreaView style={styles.center}>
@@ -148,9 +160,12 @@ if (error) {
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${summary?.progress_pct ?? 0}%` }]} />
             </View>
-            <Text style={styles.progressHint}>
-              Plus que <Text style={styles.progressHintBold}>{summary?.remaining_points} pts</Text> pour débloquer un coupon de {summary?.redeem_reward_mad} MAD.
-            </Text>
+            <Text style={styles.stepTitle}>Profitez</Text>
+<Text style={styles.stepDesc}>
+  {summary?.reward_type === 'WALLET' || summary?.reward_type === 'DISCOUNT'
+    ? 'Échangez vos points contre un crédit ajouté directement à votre portefeuille.'
+    : 'Échangez vos points contre des coupons de réduction.'}
+</Text>
           </View>
 
           <TouchableOpacity
@@ -163,7 +178,11 @@ if (error) {
               <ActivityIndicator color={RED} />
             ) : (
               <>
-                <MaterialCommunityIcons name="ticket-percent-outline" size={18} color={RED} />
+                <MaterialCommunityIcons
+  name={summary?.reward_type === 'WALLET' || summary?.reward_type === 'DISCOUNT' ? 'wallet-outline' : 'ticket-percent-outline'}
+  size={18}
+  color={RED}
+/>
                 <Text style={styles.redeemBtnText}>Échanger mes points</Text>
               </>
             )}

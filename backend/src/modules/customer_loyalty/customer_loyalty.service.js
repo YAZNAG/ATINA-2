@@ -10,30 +10,31 @@ function labelFor(txn, pointsPerMad) {
 class CustomerLoyaltyService {
 
   async getSummary(customerId, node_id = null) {
-    const customer = await prisma.customer.findUnique({
-      where:  { id: customerId },
-      select: { points_balance: true, points_lifetime: true },
-    });
-    if (!customer) throw { statusCode: 404, message: 'Client introuvable' };
+  const customer = await prisma.customer.findUnique({
+    where:  { id: customerId },
+    select: { points_balance: true, points_lifetime: true },
+  });
+  if (!customer) throw { statusCode: 404, message: 'Client introuvable' };
 
-    const { milestone_step, redeem_mad } = await getRedemptionConfig(node_id);
+  const { milestone_step, redeem_mad, reward_type_code } = await getRedemptionConfig(node_id);
 
-    const balance          = customer.points_balance;
-    const intoCurrentCycle = balance % milestone_step;
-    const remaining        = balance >= milestone_step ? 0 : milestone_step - intoCurrentCycle;
-    const progressPct      = Math.min(100, Math.round((intoCurrentCycle / milestone_step) * 100));
+  const balance          = customer.points_balance;
+  const intoCurrentCycle = balance % milestone_step;
+  const remaining        = balance >= milestone_step ? 0 : milestone_step - intoCurrentCycle;
+  const progressPct      = Math.min(100, Math.round((intoCurrentCycle / milestone_step) * 100));
 
-    return {
-      points_balance:    balance,
-      points_lifetime:   customer.points_lifetime,
-      next_milestone:    milestone_step,
-      remaining_points:  remaining,
-      progress_pct:      balance >= milestone_step ? 100 : progressPct,
-      can_redeem:        balance >= milestone_step,
-      redeem_cost:       milestone_step,
-      redeem_reward_mad: redeem_mad,
-    };
-  }
+  return {
+    points_balance:    balance,
+    points_lifetime:   customer.points_lifetime,
+    next_milestone:    milestone_step,
+    remaining_points:  remaining,
+    progress_pct:      balance >= milestone_step ? 100 : progressPct,
+    can_redeem:        balance >= milestone_step,
+    redeem_cost:       milestone_step,
+    redeem_reward_mad: redeem_mad,
+    reward_type:       reward_type_code, 
+  };
+}
 
   async getHistory(customerId, limit = 20, cursor = null, node_id = null) {
     const { points_per_mad } = await getRedemptionConfig(node_id);

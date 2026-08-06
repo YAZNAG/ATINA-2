@@ -9,6 +9,7 @@ export interface LoyaltySummary {
   can_redeem: boolean;
   redeem_cost: number;
   redeem_reward_mad: number;
+  reward_type: 'COUPON' | 'WALLET' | 'DISCOUNT' | 'POINTS'; 
 }
 
 export interface LoyaltyHistoryItem {

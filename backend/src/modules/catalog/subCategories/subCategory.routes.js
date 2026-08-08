@@ -29,5 +29,6 @@ router.post('/', perm('sub_categories.create'), upload, createValidator, ctrl.st
 router.get('/:id', perm('sub_categories.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('sub_categories.update'), upload, updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('sub_categories.delete'), ctrl.destroy.bind(ctrl));
+router.patch('/:id/restore', perm('sub_categories.delete'), ctrl.restore.bind(ctrl));
 
 module.exports = router;

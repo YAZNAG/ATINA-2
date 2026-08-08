@@ -6,8 +6,8 @@ const INCLUDE = {
   },
 };
 
-const buildWhere = ({ search, province_id, is_active }) => ({
-  is_deleted: false,
+const buildWhere = ({ search, province_id, is_active, is_deleted }) => ({
+  ...(is_deleted !== undefined && { is_deleted: is_deleted === 'true' || is_deleted === true }),
   ...(province_id && { province_id }),
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
   ...(search && {
@@ -20,8 +20,8 @@ const buildWhere = ({ search, province_id, is_active }) => ({
   }),
 });
 
-const findAll = async ({ search, province_id, is_active, page = 1, limit = 20 }) => {
-  const where = buildWhere({ search, province_id, is_active });
+const findAll = async ({ search, province_id, is_active, is_deleted, page = 1, limit = 20 }) => {
+  const where = buildWhere({ search, province_id, is_active, is_deleted });
   const pageNum = Number(page);
   const limitNum = Number(limit);
   const skip = (pageNum - 1) * limitNum;

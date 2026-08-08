@@ -29,5 +29,6 @@ router.post('/', perm('families.create'), upload, createValidator, ctrl.store.bi
 router.get('/:id', perm('families.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('families.update'), upload, updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('families.delete'), ctrl.destroy.bind(ctrl));
+router.patch('/:id/restore', perm('families.delete'), ctrl.restore.bind(ctrl));
 
 module.exports = router;

@@ -65,6 +65,13 @@ class FamilyService {
     await repo.softDelete(Number(id));
     removeFamilyMediaFolder(Number(id));
   }
+
+  async restore(id) {
+  const item = await repo.findByIdIncludingDeleted(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
+  if (!item.deleted_at) throw { statusCode: 400, message: "Cette famille n'est pas supprimée" };
+  return repo.restore(Number(id));
+}
 }
 
 module.exports = new FamilyService();

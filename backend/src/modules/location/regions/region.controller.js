@@ -25,6 +25,12 @@ class RegionController {
     } catch (err) { next(err); }
   }
 
+  async stats(req, res, next) {
+    try {
+      return response.success(res, await service.getStats(req.params.id));
+    } catch (err) { next(err); }
+  }
+
   async destroy(req, res, next) {
     try {
       await service.delete(req.params.id, req.user.id);

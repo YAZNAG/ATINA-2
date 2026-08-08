@@ -2,17 +2,25 @@ const prisma = require('../../../config/database');
 
 const BASE_WHERE = { deleted_at: null };
 
-const buildWhere = ({ search, status }) => ({
-  ...BASE_WHERE,
-  ...(status && { status }),
-  ...(search && {
-    OR: [
-      { name_fr: { contains: search, mode: 'insensitive' } },
-      { name_ar: { contains: search, mode: 'insensitive' } },
-      { code: { contains: search, mode: 'insensitive' } },
-    ],
-  }),
-});
+const buildWhere = ({ search, status }) => {
+  const base =
+    status === 'deleted'
+      ? { deleted_at: { not: null } }
+      : { deleted_at: null, ...(status && status !== 'all' && { status }) };
+  return {
+    ...base,
+    ...(search && {
+      OR: [
+        { name_fr: { contains: search, mode: 'insensitive' } },
+        { name_ar: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+};
+
+const findByIdIncludingDeleted = (id) => prisma.family.findUnique({ where: { id } });
+const restore = (id) => prisma.family.update({ where: { id }, data: { deleted_at: null } });
 
 const findAll = async ({ search, status, page = 1, limit = 20 }) => {
   const where = buildWhere({ search, status });
@@ -40,4 +48,5 @@ const create = (data) => prisma.family.create({ data });
 const update = (id, data) => prisma.family.update({ where: { id }, data });
 const softDelete = (id) => prisma.family.update({ where: { id }, data: { deleted_at: new Date() } });
 
-module.exports = { findAll, findAll_noPage, findById, findByCode, countCategories, create, update, softDelete };
+
+module.exports = { findAll, findAll_noPage, findById, findByIdIncludingDeleted, findByCode, countCategories, create, update, softDelete, restore };

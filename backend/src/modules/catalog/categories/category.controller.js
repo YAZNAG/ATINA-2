@@ -21,6 +21,19 @@ class CategoryController {
   async destroy(req, res, next) {
     try { await service.delete(req.params.id); return response.success(res, null, 'Catégorie supprimée'); } catch (err) { next(err); }
   }
+async toggleStatus(req, res, next) {
+  try {
+    const row = await service.toggleStatus(req.params.id);
+    response.success(res, row, 'Statut mis à jour');
+  } catch (e) { next(e); }
+}
+
+async restore(req, res, next) {
+  try {
+    const row = await service.restore(req.params.id);
+    response.success(res, row, 'Catégorie restaurée');
+  } catch (e) { next(e); }
+}
 }
 
 module.exports = new CategoryController();

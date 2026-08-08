@@ -31,9 +31,13 @@ import SkusPage from '../pages/catalog/SkusPage';
 import SkuImagesPage from '../pages/catalog/SkuImagesPage';
 import SkuImageFormPage from '../pages/catalog/SkuImageFormPage';
 import GeoPage from '../pages/location/GeoPage';
+import RegionsPage from '../pages/MasterDataGeography/Geograhy/RegionsPage';
+import ProvincesPage from '../pages/MasterDataGeography/Geograhy/ProvincesPage';
+import CitiesPage from '../pages/MasterDataGeography/Geograhy/CitiesPage';
 import NodeTypesPage from '../pages/location/NodeTypesPage';
 import NodeForm from '../pages/location/NodeForm';
-import NodesPage from '../pages/location/NodesPage';
+import NodesPage from '../pages/MasterDataGeography/Nodes/nodesPage';
+//import NodesPage from '../pages/location/NodesPage';
 import NodeDetailPage from '../pages/location/NodeDetailPage';
 import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
@@ -87,6 +91,11 @@ import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
 import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
 import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
 import NodeConfigPage from '../pages/orders/NodeConfigPage';
+import BrandsPage from '../pages/MasterDataProduit/BrandsPage';
+import GeographyPage from '../pages/MasterDataGeography/Geograhy/Geographypage';
+import GeographyHub from '../pages/MasterDataGeography/Geograhy/GeographyHub';
+import CatalogHierarchy from '../pages/MasterDataProduit/hierarchy/hierarchyPage';
+
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -170,11 +179,13 @@ export default function AppRoutes() {
           <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
+          <Route path="/catalog/brands" element={<BrandsPage />} />
           {/* Geography */}
-          <Route path="/geo" element={<GeoPage />} />
-          <Route path="/geo/regions" element={<GeoPage />} />
-          <Route path="/geo/provinces" element={<GeoPage />} />
-          <Route path="/geo/cities" element={<GeoPage />} />
+          {/* <Route path="/geo" element={<GeoPage />} /> */}
+          <Route path="/geo/regions" element={<RegionsPage />} />
+          <Route path="/geo/provinces" element={<ProvincesPage />} />
+          <Route path="/geo/cities" element={<CitiesPage />} />
+          <Route path="/geo" element={<GeographyHub />} />
           {/* Node paramétrage */}
           <Route path="/node-types" element={<NodeTypesPage />} />
           {/* Nodes */}
@@ -216,6 +227,9 @@ export default function AppRoutes() {
           <Route path="/orders/slot-statuses"       element={<OrderSlotStatusesPage />} />
           <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
           <Route path="/orders/node-config"         element={<NodeConfigPage />} />
+
+          {/* <Route path="/geo" element={<GeoPage />} /> */}
+          <Route path="/catalog/hierarchy" element={<CatalogHierarchy />} />
           
         </Route>
       </Route>

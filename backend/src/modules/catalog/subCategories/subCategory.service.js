@@ -67,6 +67,13 @@ class SubCategoryService {
     await repo.softDelete(Number(id));
     removeSubCategoryMediaFolder(Number(id));
   }
+
+  async restore(id) {
+  const item = await repo.findByIdIncludingDeleted(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
+  if (!item.deleted_at) throw { statusCode: 400, message: "Cette sous-catégorie n'est pas supprimée" };
+  return repo.restore(Number(id));
+}
 }
 
 module.exports = new SubCategoryService();

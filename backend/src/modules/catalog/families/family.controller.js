@@ -28,6 +28,12 @@ class FamilyController {
     try { await service.delete(req.params.id); return response.success(res, null, 'Famille supprimée'); }
     catch (err) { next(err); }
   }
+  async restore(req, res, next) {
+  try {
+    const row = await service.restore(req.params.id);
+    response.success(res, row, 'Famille restaurée');
+  } catch (e) { next(e); }
+}
 }
 
 module.exports = new FamilyController();

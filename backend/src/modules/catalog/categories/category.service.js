@@ -67,6 +67,19 @@ class CategoryService {
     await repo.softDelete(Number(id));
     removeCategoryMediaFolder(Number(id));
   }
+
+  async toggleStatus(id) {
+  const item = await repo.findById(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
+  return repo.update(Number(id), { status: item.status === 'active' ? 'inactive' : 'active' });
+}
+
+async restore(id) {
+  const item = await repo.findByIdIncludingDeleted(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
+  if (!item.deleted_at) throw { statusCode: 400, message: "Cette catégorie n'est pas supprimée" };
+  return repo.restore(Number(id));
+}
 }
 
 module.exports = new CategoryService();

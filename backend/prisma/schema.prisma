@@ -1428,7 +1428,7 @@ model PointsRule {
   rule_type_id     String         @db.Uuid
   node_id          String?        @db.Uuid
   category_id      String?        @db.Uuid
-  reward_type_id   String?        @db.Uuid   // ← CETTE LIGNE MANQUE
+  reward_type_id   String?        @db.Uuid   
   points_value     Int
   per_mad_spent    Decimal?       @db.Decimal(5, 2)
   min_order_amount Decimal        @default(0) @db.Decimal(12, 2)

@@ -21,6 +21,12 @@ class SubCategoryController {
   async destroy(req, res, next) {
     try { await service.delete(req.params.id); return response.success(res, null, 'Sous-catégorie supprimée'); } catch (err) { next(err); }
   }
+  async restore(req, res, next) {
+  try {
+    const row = await service.restore(req.params.id);
+    response.success(res, row, 'Sous-catégorie restaurée');
+  } catch (e) { next(e); }
+}
 }
 
 module.exports = new SubCategoryController();

@@ -1,6 +1,3 @@
-/**
- * Modale plein écran (même style que le CRUD référentiel).
- */
 export default function Modal({
   open,
   onClose,

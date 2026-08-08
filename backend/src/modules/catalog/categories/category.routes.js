@@ -29,5 +29,7 @@ router.post('/', perm('categories.create'), upload, createValidator, ctrl.store.
 router.get('/:id', perm('categories.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('categories.update'), upload, updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('categories.delete'), ctrl.destroy.bind(ctrl));
+router.patch('/:id/toggle-status', perm('categories.update'), ctrl.toggleStatus.bind(ctrl));
+router.patch('/:id/restore', perm('categories.delete'), ctrl.restore.bind(ctrl));
 
 module.exports = router;

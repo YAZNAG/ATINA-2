@@ -147,3 +147,9 @@ export const setArticleSkuImageSort = (articleId, imageId, sort_order) =>
 
 export const deleteArticleSkuImage = (articleId, imageId) =>
   api.delete(`${c}/articles/${articleId}/sku-images/${imageId}`);
+
+export const toggleCategoryStatus = (id) => api.patch(`${c}/categories/${id}/toggle-status`);
+export const restoreCategory = (id) => api.patch(`${c}/categories/${id}/restore`);
+export const restoreFamily = (id) => api.patch(`${c}/families/${id}/restore`);
+export const restoreSubCategory = (id) => api.patch(`${c}/sub-categories/${id}/restore`);
+

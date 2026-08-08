@@ -29,6 +29,14 @@ class RegionService {
     return item;
   }
 
+  async getStats(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Région introuvable' };
+    const provinceCount = await repo.countProvinces(id);
+    const cityCount = await repo.countCities(id);
+    return { province_count: provinceCount, city_count: cityCount };
+  }
+
   async create(body, userId) {
     const data = pickRegionPayload(body, 'create');
     const exists = await repo.findByCode(data.code);
@@ -47,14 +55,27 @@ class RegionService {
     return repo.update(id, { ...data, updated_by: userId });
   }
 
+  /**
+   * Suppression en cascade : la région est soft-deletée, ainsi que TOUTES ses
+   * provinces et TOUTES les villes de ces provinces, automatiquement.
+   * Seul un lien direct région -> nodes bloque encore la suppression, car un
+   * node actif rattaché à la région correspond à une opération logistique en
+   * cours, pas à de la simple donnée de référence.
+   */
   async delete(id, userId) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Région introuvable' };
-    const provinceCount = await repo.countProvinces(id);
-    if (provinceCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: région liée à des provinces' };
+
     const nodeCount = await repo.countNodes(id);
-    if (nodeCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer: région liée à des nodes' };
-    await repo.softDelete(id, userId);
+    if (nodeCount > 0) {
+      throw {
+        statusCode: 400,
+        message: 'Impossible de supprimer : cette région est directement liée à des nodes actifs.',
+      };
+    }
+
+    const { province_count, city_count } = await repo.softDeleteCascade(id, userId);
+    return { province_count, city_count };
   }
 }
 

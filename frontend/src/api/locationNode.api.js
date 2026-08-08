@@ -2,6 +2,7 @@ import api from './axios';
 
 export const getRegions = (params) => api.get('/regions', { params });
 export const getRegion = (id) => api.get(`/regions/${id}`);
+export const getRegionStats = (id) => api.get(`/regions/${id}/stats`);
 export const createRegion = (data) => api.post('/regions', data);
 export const updateRegion = (id, data) => api.put(`/regions/${id}`, data);
 export const deleteRegion = (id) => api.delete(`/regions/${id}`);

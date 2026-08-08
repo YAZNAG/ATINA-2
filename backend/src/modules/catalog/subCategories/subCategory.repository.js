@@ -7,19 +7,28 @@ const INCLUDE = {
   },
 };
 
-const buildWhere = ({ search, status, category_id, family_id }) => ({
-  ...BASE_WHERE,
-  ...(status && { status }),
-  ...(category_id && { category_id: Number(category_id) }),
-  ...(family_id && { category: { family_id: Number(family_id) } }),
-  ...(search && {
-    OR: [
-      { name_fr: { contains: search, mode: 'insensitive' } },
-      { name_ar: { contains: search, mode: 'insensitive' } },
-      { code: { contains: search, mode: 'insensitive' } },
-    ],
-  }),
-});
+const buildWhere = ({ search, status, category_id, family_id }) => {
+  const base =
+    status === 'deleted'
+      ? { deleted_at: { not: null } }
+      : { deleted_at: null, ...(status && status !== 'all' && { status }) };
+  return {
+    ...base,
+    ...(category_id && { category_id: Number(category_id) }),
+    ...(family_id && { category: { family_id: Number(family_id) } }),
+    ...(search && {
+      OR: [
+        { name_fr: { contains: search, mode: 'insensitive' } },
+        { name_ar: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+};
+
+const findByIdIncludingDeleted = (id) => prisma.subCategory.findUnique({ where: { id }, include: INCLUDE });
+const restore = (id) => prisma.subCategory.update({ where: { id }, data: { deleted_at: null } });
+
 
 const findAll = async ({ search, status, category_id, family_id, page = 1, limit = 20 }) => {
   const where = buildWhere({ search, status, category_id, family_id });
@@ -48,4 +57,5 @@ const create = (data) => prisma.subCategory.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.subCategory.update({ where: { id }, data, include: INCLUDE });
 const softDelete = (id) => prisma.subCategory.update({ where: { id }, data: { deleted_at: new Date() } });
 
-module.exports = { findAll, findAll_noPage, findById, findByCode, countArticles, create, update, softDelete };
+
+module.exports = { findAll, findAll_noPage, findById, findByIdIncludingDeleted, findByCode, countArticles, create, update, softDelete, restore };

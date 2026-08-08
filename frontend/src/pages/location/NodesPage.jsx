@@ -210,9 +210,27 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
 
   // ── step 1/2 save ────────────────────────────────────────────────────────────
 
+  const validateInfo = () => {
+    const required = [
+      { value: info.code?.trim(), label: 'Code' },
+      { value: info.name_fr?.trim(), label: 'Nom (Français)' },
+      { value: info.node_type_id, label: 'Type de nœud' },
+      { value: info.region_id, label: 'Région' },
+      { value: info.province_id, label: 'Province' },
+      { value: info.city_id, label: 'Ville' },
+    ];
+
+    const missing = required.find((field) => !field.value);
+    if (missing) {
+      toast.error(`${missing.label} est requis`);
+      return false;
+    }
+
+    return true;
+  };
+
   const saveNode = async () => {
-    if (!info.code.trim() || !info.name_fr.trim() || !info.node_type_id || !info.city_id) {
-      toast.error('Code, Nom FR, Type et Ville sont requis');
+    if (!validateInfo()) {
       return null;
     }
     setSaving(true);
@@ -247,7 +265,11 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
   };
 
   const handleNext = async () => {
-    if (step === 1) { setStep(2); return; }
+    if (step === 1) {
+      if (!validateInfo()) return;
+      setStep(2);
+      return;
+    }
     if (step === 2) {
       const node = await saveNode();
       if (node) setStep(3);

@@ -115,7 +115,7 @@ export default function NodeForm() {
             <input className="form-input" placeholder="Nom FR" value={node.name_fr} onChange={(e) => setNode({ ...node, name_fr: e.target.value })} required />
             <input className="form-input" placeholder="Nom AR" value={node.name_ar} onChange={(e) => setNode({ ...node, name_ar: e.target.value })} required />
             <select className="form-select" value={node.node_type_id} onChange={(e) => setNode({ ...node, node_type_id: e.target.value })} required>
-              <option value="">Type node</option>{nodeTypes.map((t) => <option key={t.id} value={t.id}>{t.name_fr}</option>)}
+              <option value="">Type node</option>{nodeTypes.map((t) => <option key={t.id} value={t.id}>{t.icon ? `${t.icon} ` : ''}{t.name_fr}</option>)}
             </select>
             <select className="form-select" value={node.region_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, region_id: v, province_id: '', city_id: '' }); await loadDependent(v, null); }} required>
               <option value="">Région</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}

@@ -23,6 +23,14 @@ const pickBrandPayload = (body, mode = 'create') => {
   return out;
 };
 
+// Message renvoyé quand la contrainte @unique de Postgres bloque l'insert/update
+// parce que le code est déjà pris par une marque soft-deleted (findByCode ne la voit pas,
+// mais la contrainte SQL, elle, ne fait pas la différence).
+const CODE_TAKEN_BY_DELETED_MSG =
+  "Ce code est déjà utilisé par une marque supprimée. Choisissez un autre code, ou demandez à un administrateur de restaurer l'ancienne marque.";
+
+const isUniqueCodeViolation = (err) => err?.code === 'P2002' && err?.meta?.target?.includes('code');
+
 class BrandService {
   async getAll(params) {
     const { data, total } = await repo.findAll(params);
@@ -45,7 +53,17 @@ class BrandService {
     const payload = pickBrandPayload(data, 'create');
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    let row = await repo.create(payload);
+
+    let row;
+    try {
+      row = await repo.create(payload);
+    } catch (err) {
+      if (isUniqueCodeViolation(err)) {
+        throw { statusCode: 409, message: CODE_TAKEN_BY_DELETED_MSG };
+      }
+      throw err;
+    }
+
     const paths = persistBrandLogo(row.id, files, null);
     if (paths.logo) {
       row = await repo.update(row.id, paths);
@@ -62,7 +80,15 @@ class BrandService {
       if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
     }
     const paths = persistBrandLogo(Number(id), files, item);
-    return repo.update(Number(id), { ...payload, ...paths });
+
+    try {
+      return await repo.update(Number(id), { ...payload, ...paths });
+    } catch (err) {
+      if (isUniqueCodeViolation(err)) {
+        throw { statusCode: 409, message: CODE_TAKEN_BY_DELETED_MSG };
+      }
+      throw err;
+    }
   }
 
   async delete(id) {

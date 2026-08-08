@@ -16,6 +16,7 @@ const ICONS = {
   perms: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
   catalog: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
   masterDataProduit: 'M4 6h16M4 6a2 2 0 012-2h12a2 2 0 012 2M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6M9 10h6M9 14h6',
+  masterDataGeo: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 2',
   settings: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
   geo: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 2',
   warehouse: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
@@ -77,11 +78,18 @@ const navItems = [
   {
     label: 'Master Data Produit', key: 'masterDataProduit', group: true, icon: ICONS.masterDataProduit,
     children: [
-      { label: 'Produits (SKUs)',    path: '/catalog/articles',  permission: 'articles.view' },
-      { label: 'Marques',            path: '/master-data/brands',    permission: 'brands.view' },
-      { label: 'Hiérarchie Produit', path: '/master-data/hierarchy', anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
+      /*{ label: 'Produits (SKUs)',    path: '/catalog/articles',  permission: 'articles.view' },*/
+      { label: 'Marques',            path: '/catalog/brands',    permission: 'brands.view' },
+      { label: 'Hiérarchie Produit', path: "/catalog/hierarchy", anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
     ],
   },
+  {
+  label: 'Master Data Géographie', key: 'masterDataGeo', group: true, icon: ICONS.masterDataGeo,
+  children: [
+    { label: 'Région, Province & Ville', path: '/geo', exact: true, anyPermissions: ['regions.view', 'provinces.view', 'cities.view', 'dashboard.view'] },
+    { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
+  ],
+},
   {
     label: 'Paramétrage Catalogue', key: 'catalogRef', group: true, icon: ICONS.settings,
     children: [
@@ -102,7 +110,7 @@ const navItems = [
       { label: 'Niveaux rayonnage', path: '/warehouse/levels', anyPermissions: ['warehouse.manage', 'dashboard.view'] },
     ],
   },
-  {
+  /*{
     label: 'Géographie', key: 'geo', group: true, icon: ICONS.geo,
     children: [
       { label: 'Régions',   path: '/geo/regions',   anyPermissions: ['regions.view',   'dashboard.view'] },
@@ -115,7 +123,7 @@ const navItems = [
     children: [
       { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
     ],
-  },
+  },*/
   {
     label: 'Paramétrage Noeuds', key: 'nodeRef', group: true, icon: ICONS.gear,
     children: [
@@ -264,7 +272,7 @@ export default function Sidebar() {
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
     commandesRef: false, pickingCfgRef: false, staffRef: false, clientsRef: false, accessRef: false,
-    catalog: false, masterDataProduit: false, catalogRef: false,
+    catalog: false, masterDataProduit: false, masterDataGeo: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
     stockOps: false, stockRef: false,
@@ -325,9 +333,12 @@ export default function Sidebar() {
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
-    if (pathname.startsWith('/master-data-produit')) open('masterDataProduit');
+    // Dashboard admin v2
+    if (pathname.startsWith('/brands')) open('masterDataProduit');
+    if (pathname.startsWith('/geo')) open('masterDataGeo');
+    //--------------
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');
-    if (pathname.startsWith('/geo')) open('geo');
+    /*if (pathname.startsWith('/geo')) open('geo');*/
     if (pathname.startsWith('/nodes')) open('nodes');
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');

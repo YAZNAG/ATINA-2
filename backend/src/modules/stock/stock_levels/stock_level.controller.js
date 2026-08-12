@@ -74,6 +74,11 @@ class StockLevelController {
     try { return response.success(res, await service.applyMove(req.body), 'Mouvement appliqué', 201); }
     catch (e) { next(e); }
   }
+
+  async bySku(req, res, next) {
+  try { return res.json({ success: true, data: await service.getAllBySku(req.params.sku_id) }); }
+  catch (e) { next(e); }
+}
 }
 
 module.exports = new StockLevelController();

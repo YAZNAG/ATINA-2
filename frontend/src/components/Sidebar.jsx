@@ -26,9 +26,31 @@ const ICONS = {
   chevron: 'M19 9l-7 7-7-7',
   gear:  'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
   order: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
+  reference:'M12 3v18M7 7h10M5 7l-3 6h6L5 7zm14 0l-3 6h6l-3-6z',
 };
 
 const navItems = [
+    {
+    label: 'Master Data Produit', key: 'masterDataProduit', group: true, icon: ICONS.masterDataProduit,
+    children: [
+      { label: 'Produits (SKUs)',    path: '/catalog/articles',  permission: 'articles.view' },
+      { label: 'Marques',            path: '/catalog/brands',    permission: 'brands.view' },
+      { label: 'Hiérarchie Produit', path: "/catalog/hierarchy", anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
+    ],
+  },
+  {
+  label: 'Master Data Géographie', key: 'masterDataGeo', group: true, icon: ICONS.masterDataGeo,
+  children: [
+    { label: 'Région, Province & Ville', path: '/geo', exact: true, anyPermissions: ['regions.view', 'provinces.view', 'cities.view', 'dashboard.view'] },
+    { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
+  ],
+  },
+  {
+  label: 'Référence', key: 'reference', group: true, icon: ICONS.reference,
+  children: [
+    { label: 'Unités', path: '/reference/units', exact: true, anyPermissions: ['units.view'] },
+  ],
+  },
   {
     label: 'Commandes', key: 'commandesRef', group: true, icon: ICONS.order,
     children: [
@@ -76,21 +98,6 @@ const navItems = [
     ],
   },
   {
-    label: 'Master Data Produit', key: 'masterDataProduit', group: true, icon: ICONS.masterDataProduit,
-    children: [
-      /*{ label: 'Produits (SKUs)',    path: '/catalog/articles',  permission: 'articles.view' },*/
-      { label: 'Marques',            path: '/catalog/brands',    permission: 'brands.view' },
-      { label: 'Hiérarchie Produit', path: "/catalog/hierarchy", anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
-    ],
-  },
-  {
-  label: 'Master Data Géographie', key: 'masterDataGeo', group: true, icon: ICONS.masterDataGeo,
-  children: [
-    { label: 'Région, Province & Ville', path: '/geo', exact: true, anyPermissions: ['regions.view', 'provinces.view', 'cities.view', 'dashboard.view'] },
-    { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
-  ],
-},
-  {
     label: 'Paramétrage Catalogue', key: 'catalogRef', group: true, icon: ICONS.settings,
     children: [
       { label: 'Taxonomie', path: '/catalog/taxonomy', anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
@@ -110,20 +117,6 @@ const navItems = [
       { label: 'Niveaux rayonnage', path: '/warehouse/levels', anyPermissions: ['warehouse.manage', 'dashboard.view'] },
     ],
   },
-  /*{
-    label: 'Géographie', key: 'geo', group: true, icon: ICONS.geo,
-    children: [
-      { label: 'Régions',   path: '/geo/regions',   anyPermissions: ['regions.view',   'dashboard.view'] },
-      { label: 'Provinces', path: '/geo/provinces',  anyPermissions: ['provinces.view', 'dashboard.view'] },
-      { label: 'Villes',    path: '/geo/cities',     anyPermissions: ['cities.view',    'dashboard.view'] },
-    ],
-  },
-  {
-    label: 'Noeuds', key: 'nodes', group: true, icon: ICONS.node,
-    children: [
-      { label: 'Noeuds', path: '/nodes', anyPermissions: ['nodes.view', 'dashboard.view'] },
-    ],
-  },*/
   {
     label: 'Paramétrage Noeuds', key: 'nodeRef', group: true, icon: ICONS.gear,
     children: [
@@ -196,8 +189,8 @@ function NavItem({ item, isActive }) {
       className={() =>
         `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-red-600 text-white shadow-sm shadow-red-900/30'
-            : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+            ? 'bg-red-600 text-white shadow-sm shadow-red-200'
+            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
         }`
       }
     >
@@ -224,8 +217,8 @@ function GroupItem({ item, isPathActive, openGroups, setOpenGroups, hasPermissio
         onClick={() => setOpenGroups((p) => ({ ...p, [item.key]: !isOpen }))}
         className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
           groupActive
-            ? 'bg-red-600 text-white shadow-sm shadow-red-900/30'
-            : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+            ? 'bg-red-600 text-white shadow-sm shadow-red-200'
+            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
         }`}
       >
         <span className="flex items-center gap-3">
@@ -239,7 +232,7 @@ function GroupItem({ item, isPathActive, openGroups, setOpenGroups, hasPermissio
       </button>
 
       {isOpen && (
-        <div className={`ml-8 space-y-0.5 border-l-2 border-red-800/40 pl-3 ${
+        <div className={`ml-8 space-y-0.5 border-l-2 border-red-100 pl-3 ${
           item.key === 'p0tables' ? 'max-h-[min(70vh,28rem)] overflow-y-auto pr-1' : ''
         }`}>
           {children.map((child) => {
@@ -252,8 +245,8 @@ function GroupItem({ item, isPathActive, openGroups, setOpenGroups, hasPermissio
                 className={() =>
                   `block px-3 py-2 rounded-lg text-xs font-medium transition-all truncate ${
                     active
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800'
                   }`
                 }
               >
@@ -272,7 +265,7 @@ export default function Sidebar() {
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
     commandesRef: false, pickingCfgRef: false, staffRef: false, clientsRef: false, accessRef: false,
-    catalog: false, masterDataProduit: false, masterDataGeo: false, catalogRef: false,
+    catalog: false, masterDataProduit: false, masterDataGeo: false,reference: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
     stockOps: false, stockRef: false,
@@ -333,12 +326,10 @@ export default function Sidebar() {
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
-    // Dashboard admin v2
     if (pathname.startsWith('/brands')) open('masterDataProduit');
     if (pathname.startsWith('/geo')) open('masterDataGeo');
-    //--------------
+    if(pathname.startsWith('/reference/units')) open('reference');
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');
-    /*if (pathname.startsWith('/geo')) open('geo');*/
     if (pathname.startsWith('/nodes')) open('nodes');
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
@@ -355,25 +346,25 @@ export default function Sidebar() {
   const initials = user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';
 
   return (
-    <aside className="w-64 bg-zinc-950 min-h-screen flex flex-col flex-shrink-0 border-r border-zinc-800/60">
+    <aside className="w-64 bg-white min-h-screen flex flex-col flex-shrink-0 border-r border-zinc-200">
       {/* Brand */}
-      <div className="px-4 py-5 border-b border-zinc-800/60">
+      <div className="px-4 py-5 border-b border-zinc-100">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/40 flex-shrink-0">
+          <div className="w-10 h-10 bg-red-600 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              <path d="M17 20a2 2 0 100-4 2 2 0 000 4zM9 20a2 2 0 100-4 2 2 0 000 4zM1 1h3l2.68 12.39a2 2 0 002 1.61h9.72a2 2 0 002-1.94l1.38-7.06H6" />
             </svg>
           </div>
           <div>
-            <h1 className="text-white font-bold text-sm tracking-tight">Dark Store</h1>
-            <p className="text-zinc-500 text-xs">Management System</p>
+            <h1 className="text-zinc-900 font-bold text-base tracking-tight">El Herri</h1>
+            <p className="text-zinc-400 text-xs font-medium">Management Portal</p>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {visibleItems.map((item) => {
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+        {visibleItems.map((item, idx) => {
           if (!item.group) {
             const active = isPathActive(item.path, item.exact);
             return <NavItem key={item.path} item={item} isActive={active} />;
@@ -392,14 +383,14 @@ export default function Sidebar() {
       </nav>
 
       {/* User */}
-      <div className="px-3 py-3 border-t border-zinc-800/60">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-zinc-800/60 transition-colors cursor-default">
-          <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-600/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-red-400 text-xs font-bold">{initials}</span>
+      <div className="px-3 py-3 border-t border-zinc-100">
+        <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-zinc-100 transition-colors cursor-default">
+          <div className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center flex-shrink-0">
+            <span className="text-red-600 text-xs font-bold">{initials}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-zinc-200 text-xs font-semibold truncate">{user?.full_name}</p>
-            <p className="text-zinc-500 text-xs truncate">{user?.email}</p>
+            <p className="text-zinc-800 text-xs font-semibold truncate">{user?.full_name}</p>
+            <p className="text-zinc-400 text-xs truncate">{user?.email}</p>
           </div>
         </div>
       </div>

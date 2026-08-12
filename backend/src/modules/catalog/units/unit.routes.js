@@ -9,6 +9,9 @@ router.use(auth);
 
 router.get('/', perm('units.view'), ctrl.index.bind(ctrl));
 router.post('/', perm('units.create'), createValidator, ctrl.store.bind(ctrl));
+router.patch('/:id/toggle-status', perm('units.update'), ctrl.toggleStatus.bind(ctrl));
+router.patch('/:id/restore', perm('units.delete'), ctrl.restore.bind(ctrl));
+router.patch('/reorder', perm('units.update'), ctrl.reorder.bind(ctrl));
 router.get('/:id', perm('units.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('units.update'), updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('units.delete'), ctrl.destroy.bind(ctrl));

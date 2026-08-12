@@ -43,6 +43,20 @@ class ArticleController {
       next(err);
     }
   }
+
+  async toggleStatus(req, res, next) {
+  try {
+    const row = await service.toggleStatus(req.params.id);
+    response.success(res, row, 'Statut mis à jour');
+  } catch (e) { next(e); }
+}
+
+async restore(req, res, next) {
+  try {
+    const row = await service.restore(req.params.id);
+    response.success(res, row, 'Article restauré');
+  } catch (e) { next(e); }
+}
 }
 
 module.exports = new ArticleController();

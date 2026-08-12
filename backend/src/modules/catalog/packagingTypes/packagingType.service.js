@@ -7,7 +7,7 @@ class PackagingTypeService {
     const limit = Number(params.limit) || 20;
     return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
-  async getList() { return repo.findAll_noPage(); }
+  async getList(params) { return repo.findAll_noPage(params); }
   async getById(id) {
     const item = await repo.findById(Number(id));
     if (!item) throw { statusCode: 404, message: 'Conditionnement introuvable' };

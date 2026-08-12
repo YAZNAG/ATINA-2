@@ -15,6 +15,13 @@ const getOrCreate = (node_id, sku_id) =>
 const findById = (id) =>
   prisma.stockLevel.findUnique({ where: { id } });
 
+const findAllBySku = (sku_id) =>
+  prisma.stockLevel.findMany({
+    where: { sku_id },
+    include: { node: { select: { id: true, code: true, name_fr: true, is_active: true } } },
+    orderBy: { node: { name_fr: 'asc' } },
+  });
+
 const findOne = (node_id, sku_id) =>
   prisma.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
 

@@ -3,40 +3,61 @@ const { ensureArticlesPrismaColumns } = require('../../../utils/articleSkuLink')
 
 const BASE_WHERE = { deleted_at: null, is_deleted: false };
 
-/** Sans `images` (article_images) : beaucoup de BDD n'ont pas les colonnes Prisma (`is_main`, `deleted_at`, …) → erreur « colonne inexistante ». La galerie se gère via `sku_images` (routes article/sku-images). */
 const INCLUDE = {
   family: { select: { id: true, name_fr: true, name_ar: true } },
   category: { select: { id: true, name_fr: true, name_ar: true } },
   sub_category: { select: { id: true, name_fr: true, name_ar: true } },
   brand: { select: { id: true, name_fr: true, name_ar: true } },
-  /** 1re image SKU = principale (tri identique au panneau galerie) */
-  catalog_sku: {
-    select: {
-      images: {
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-        take: 1,
-        select: { url: true },
-      },
-    },
+  images: {
+    where: { deleted_at: null },
+    orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }, { id: 'asc' }],
+    take: 1,
+    select: { image_path: true, is_main: true },
   },
+  unit_purchase_ref: { select: { id: true, name_fr: true, code: true } },
+  unit_sale_ref: { select: { id: true, name_fr: true, code: true } },
+  packaging_type: { select: { id: true, name_fr: true, code: true, quantity: true } },
 };
 
-const buildWhere = ({ search, is_active, family_id, category_id, sub_category_id, brand_id }) => ({
-  ...BASE_WHERE,
-  ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
-  ...(family_id && { family_id: Number(family_id) }),
-  ...(category_id && { category_id: Number(category_id) }),
-  ...(sub_category_id && { sub_category_id: Number(sub_category_id) }),
-  ...(brand_id && { brand_id: Number(brand_id) }),
-  ...(search && {
-    OR: [
-      { name_fr: { contains: search, mode: 'insensitive' } },
-      { name_ar: { contains: search, mode: 'insensitive' } },
-      { sku_code: { contains: search, mode: 'insensitive' } },
-      { ean13: { contains: search, mode: 'insensitive' } },
-    ],
-  }),
-});
+const buildWhere = ({ search, status, family_id, category_id, sub_category_id, brand_id }) => {
+  let base;
+  if (status === 'deleted') {
+    base = { deleted_at: { not: null } };
+  } else if (status === 'active') {
+    base = { deleted_at: null, is_deleted: false, is_active: true };
+  } else if (status === 'inactive') {
+    base = { deleted_at: null, is_deleted: false, is_active: false };
+  } else {
+    base = { deleted_at: null, is_deleted: false };
+  }
+
+  return {
+    ...base,
+    ...(family_id && { family_id: Number(family_id) }),
+    ...(category_id && { category_id: Number(category_id) }),
+    ...(sub_category_id && { sub_category_id: Number(sub_category_id) }),
+    ...(brand_id && { brand_id: Number(brand_id) }),
+    ...(search && {
+      OR: [
+        { name_fr: { contains: search, mode: 'insensitive' } },
+        { name_ar: { contains: search, mode: 'insensitive' } },
+        { sku_code: { contains: search, mode: 'insensitive' } },
+        { ean13: { contains: search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+};
+
+const findByIdIncludingDeleted = async (id) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.findUnique({ where: { id }, include: INCLUDE });
+};
+
+const restore = async (id) => {
+  await ensureArticlesPrismaColumns(prisma);
+  return prisma.article.update({ where: { id }, data: { deleted_at: null, is_deleted: false } });
+};
+
 
 const findAll = async (params) => {
   await ensureArticlesPrismaColumns(prisma);
@@ -47,6 +68,7 @@ const findAll = async (params) => {
     prisma.article.findMany({ where, skip, take: Number(limit), include: INCLUDE, orderBy: { created_at: 'desc' } }),
     prisma.article.count({ where }),
   ]);
+
   return { data, total };
 };
 
@@ -89,10 +111,12 @@ const softDelete = async (id) => {
 module.exports = {
   findAll,
   findById,
+  findByIdIncludingDeleted,
   findBySkuCode,
   findByEan13,
   create,
   update,
   softDelete,
+  restore,
   INCLUDE,
 };

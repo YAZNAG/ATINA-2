@@ -27,8 +27,16 @@ const findAll = async ({ search, status, page = 1, limit = 20 }) => {
   return { data, total };
 };
 
-const findAll_noPage = () =>
-  prisma.packagingType.findMany({ where: { ...BASE_WHERE, status: 'active' }, include: INCLUDE, orderBy: { name_fr: 'asc' } });
+const findAll_noPage = ({ unit_id } = {}) =>
+  prisma.packagingType.findMany({
+    where: {
+      ...BASE_WHERE,
+      status: 'active',
+      ...(unit_id && { unit_id: Number(unit_id) }),
+    },
+    include: INCLUDE,
+    orderBy: { name_fr: 'asc' },
+  });
 
 const findById = (id) => prisma.packagingType.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
 const findByCode = (code, excludeId) =>

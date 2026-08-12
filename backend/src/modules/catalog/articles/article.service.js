@@ -30,6 +30,9 @@ const INPUT_KEYS = [
   'weight_g',
   'volume_ml',
   'is_active',
+  'unit_purchase_id',
+  'unit_sale_id',
+  'packaging_type_id',
 ];
 
 const toBool = (v) => v === 'true' || v === true || v === '1' || v === 1;
@@ -179,7 +182,12 @@ class ArticleService {
       out.ean13 = t === '' ? null : t;
     }
 
-    const intFields = ['brand_id', 'family_id', 'sub_category_id', 'category_id', 'article_type_id', 'article_status_id', 'conservation_type_id', 'tax_id', 'weight_g', 'volume_ml'];
+    const intFields = [
+  'brand_id', 'family_id', 'sub_category_id', 'category_id',
+  'article_type_id', 'article_status_id', 'conservation_type_id', 'tax_id',
+  'weight_g', 'volume_ml',
+  'unit_purchase_id', 'unit_sale_id', 'packaging_type_id',
+];
     intFields.forEach((f) => {
       if (out[f] !== undefined) {
         if (out[f] === '' || out[f] === null) out[f] = null;
@@ -236,9 +244,25 @@ class ArticleService {
     assign('weight_g', mapped.weight_g);
     assign('volume_ml', mapped.volume_ml);
     assign('is_active', mapped.is_active);
+    assign('unit_purchase_id', mapped.unit_purchase_id);
+    assign('unit_sale_id', mapped.unit_sale_id);
+    assign('packaging_type_id', mapped.packaging_type_id);
 
     return data;
   }
+
+  async toggleStatus(id) {
+  const item = await repo.findById(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Article introuvable' };
+  return repo.update(Number(id), { is_active: !item.is_active });
+}
+
+async restore(id) {
+  const item = await repo.findByIdIncludingDeleted(Number(id));
+  if (!item) throw { statusCode: 404, message: 'Article introuvable' };
+  if (!item.deleted_at && !item.is_deleted) throw { statusCode: 400, message: "Cet article n'est pas supprimé" };
+  return repo.restore(Number(id));
+}
 }
 
 module.exports = new ArticleService();

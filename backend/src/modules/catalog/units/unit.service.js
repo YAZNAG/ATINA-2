@@ -39,6 +39,27 @@ class UnitService {
     if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
     await repo.softDelete(Number(id));
   }
+
+  async toggleStatus(id) {
+    const unit = await repo.findById(Number(id));
+    if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
+    return repo.update(Number(id), { status: unit.status === 'active' ? 'inactive' : 'active' });
+  }
+
+  async restore(id) {
+    const unit = await repo.findByIdIncludingDeleted(Number(id));
+    if (!unit) throw { statusCode: 404, message: 'Unité introuvable' };
+    if (!unit.deleted_at) throw { statusCode: 400, message: "Cette unité n'est pas supprimée" };
+    return repo.restore(Number(id));
+  }
+
+  async reorder(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw { statusCode: 400, message: 'Liste de réordonnancement invalide' };
+    }
+    await repo.reorder(items);
+    return repo.findAll_noPage();
+  }
 }
 
 module.exports = new UnitService();

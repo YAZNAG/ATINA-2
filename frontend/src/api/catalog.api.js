@@ -25,7 +25,10 @@ export const getSubCategoriesList = (categoryId) =>
 
 export const getBrandsList = () => api.get(`${c}/brands`, { params: { all: true } });
 export const getUnitsList = () => api.get(`${c}/units`, { params: { all: true } });
-export const getPackagingTypesList = () => api.get(`${c}/packaging-types`, { params: { all: true } });
+export const getPackagingTypesList = (unitId) =>
+  api.get(`${c}/packaging-types`, {
+    params: { all: true, ...(unitId != null && unitId !== '' ? { unit_id: unitId } : {}) },
+  });
 export const getArticleTypesList = () => api.get(`${c}/article-types`, { params: { all: true } });
 export const getArticleStatusesList = () => api.get(`${c}/article-statuses`, { params: { all: true } });
 export const getConservationTypesList = () => api.get(`${c}/conservation-types`, { params: { all: true } });
@@ -62,6 +65,9 @@ export const getUnit = (id) => api.get(`${c}/units/${id}`);
 export const createUnit = (data) => api.post(`${c}/units`, data);
 export const updateUnit = (id, data) => api.put(`${c}/units/${id}`, data);
 export const deleteUnit = (id) => api.delete(`${c}/units/${id}`);
+export const toggleUnitStatus = (id) => api.patch(`${c}/units/${id}/toggle-status`);
+export const restoreUnit = (id) => api.patch(`${c}/units/${id}/restore`);
+export const reorderUnits = (items) => api.patch(`${c}/units/reorder`, { items });
 
 export const getPackagingTypes = (params) => api.get(`${c}/packaging-types`, { params });
 export const getPackagingType = (id) => api.get(`${c}/packaging-types/${id}`);
@@ -152,4 +158,7 @@ export const toggleCategoryStatus = (id) => api.patch(`${c}/categories/${id}/tog
 export const restoreCategory = (id) => api.patch(`${c}/categories/${id}/restore`);
 export const restoreFamily = (id) => api.patch(`${c}/families/${id}/restore`);
 export const restoreSubCategory = (id) => api.patch(`${c}/sub-categories/${id}/restore`);
+
+export const toggleArticleStatus = (id) => api.patch(`${c}/articles/${id}/toggle-status`);
+export const restoreArticle = (id) => api.patch(`${c}/articles/${id}/restore`);
 

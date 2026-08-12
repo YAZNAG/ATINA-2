@@ -40,6 +40,27 @@ class UnitController {
       return response.success(res, null, 'Unité supprimée');
     } catch (err) { next(err); }
   }
+
+  async toggleStatus(req, res, next) {
+    try {
+      const data = await service.toggleStatus(req.params.id);
+      return response.success(res, data, 'Statut mis à jour');
+    } catch (err) { next(err); }
+  }
+
+  async restore(req, res, next) {
+    try {
+      const data = await service.restore(req.params.id);
+      return response.success(res, data, 'Unité restaurée');
+    } catch (err) { next(err); }
+  }
+
+  async reorder(req, res, next) {
+    try {
+      const data = await service.reorder(req.body.items);
+      return response.success(res, data, 'Ordre mis à jour');
+    } catch (err) { next(err); }
+  }
 }
 
 module.exports = new UnitController();

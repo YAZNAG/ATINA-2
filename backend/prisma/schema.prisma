@@ -286,6 +286,10 @@ model Unit {
   updated_at      DateTime        @updatedAt
   deleted_at      DateTime?
   packaging_types PackagingType[]
+  sort_order Int @default(0)
+
+  articles_purchase Article[] @relation("ArticleUnitPurchase")
+  articles_sale     Article[] @relation("ArticleUnitSale")
 
   @@map("units")
 }
@@ -302,6 +306,8 @@ model PackagingType {
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
   unit       Unit?     @relation(fields: [unit_id], references: [id])
+
+  articles   Article[]
 
   @@map("packaging_types")
 }
@@ -386,8 +392,8 @@ model Article {
   price                Decimal           @db.Decimal(12, 2)
   sku_code             String            @unique @db.VarChar(100)
   sku_uuid             String?           @unique @db.Uuid
-  unit_purchase        String            @default("unit") @db.VarChar(20)
-  unit_sale            String            @default("unit") @db.VarChar(20)
+  unit_purchase        String            @default("unit") @db.VarChar(20)   // gardé temporairement
+  unit_sale            String            @default("unit") @db.VarChar(20)   // gardé temporairement
   vat_rate             Decimal           @default(20) @db.Decimal(5, 2)
   volume_ml            Int?
   weight_g             Int?
@@ -395,6 +401,11 @@ model Article {
   article_type_id      Int?
   conservation_type_id Int?
   tax_id               Int?
+
+  unit_purchase_id     Int?
+  unit_sale_id         Int?
+  packaging_type_id    Int?
+
   images               ArticleImage[]
   article_status       ArticleStatus?    @relation(fields: [article_status_id], references: [id])
   article_type         ArticleType?      @relation(fields: [article_type_id], references: [id])
@@ -406,7 +417,11 @@ model Article {
   sub_category         SubCategory?      @relation(fields: [sub_category_id], references: [id])
   tax                  Tax?              @relation(fields: [tax_id], references: [id])
   wishlist_items       Wishlist[]
-  reviews ArticleReview[]
+  reviews              ArticleReview[]
+
+  unit_purchase_ref    Unit?             @relation("ArticleUnitPurchase", fields: [unit_purchase_id], references: [id])
+  unit_sale_ref        Unit?             @relation("ArticleUnitSale", fields: [unit_sale_id], references: [id])
+  packaging_type       PackagingType?    @relation(fields: [packaging_type_id], references: [id])
 
   @@map("articles")
 }
@@ -1438,7 +1453,7 @@ model PointsRule {
   created_at       DateTime       @default(now()) @db.Timestamptz(6)
   node             Node?          @relation(fields: [node_id], references: [id])
   rule_type        PointsRuleType @relation(fields: [rule_type_id], references: [id])
-  reward_type      RewardType?    @relation(fields: [reward_type_id], references: [id])
+  reward_type RewardType? @relation(fields: [reward_type_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@map("points_rules")
 }

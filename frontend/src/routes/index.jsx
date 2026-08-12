@@ -24,7 +24,7 @@ import ReferentialListPage from '../pages/catalog/ReferentialListPage';
 import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
 import ArticleList from '../pages/catalog/ArticleList';
 import ArticleForm from '../pages/catalog/ArticleForm';
-import ArticleDetailPage from '../pages/catalog/ArticleDetailPage';
+//import ArticleDetailPage from '../pages/catalog/ArticleDetailPage';
 import CatalogTaxonomyPage from '../pages/catalog/CatalogTaxonomyPage';
 import CatalogRefPage from '../pages/catalog/CatalogRefPage';
 import SkusPage from '../pages/catalog/SkusPage';
@@ -91,10 +91,14 @@ import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
 import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
 import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
 import NodeConfigPage from '../pages/orders/NodeConfigPage';
+//dashboard v2
 import BrandsPage from '../pages/MasterDataProduit/BrandsPage';
 import GeographyPage from '../pages/MasterDataGeography/Geograhy/Geographypage';
 import GeographyHub from '../pages/MasterDataGeography/Geograhy/GeographyHub';
 import CatalogHierarchy from '../pages/MasterDataProduit/hierarchy/hierarchyPage';
+import ArticlePage from '../pages/MasterDataProduit/produits/ArticlesPage';
+import UnitsPage from '../pages/reference/UnitsPage';
+import ArticleDetailPage from '../pages/MasterDataProduit/produits/ArticleDetailPage'; 
 
 
 export default function AppRoutes() {
@@ -171,10 +175,10 @@ export default function AppRoutes() {
           <Route path="/catalog/ref/:entitySlug" element={<ReferentialListPage />} />
           <Route path="/catalog/taxonomy" element={<CatalogTaxonomyPage />} />
           <Route path="/catalog/refs" element={<CatalogRefPage />} />
-          <Route path="/catalog/articles" element={<ArticleList />} />
+          <Route path="/catalog/articles" element={<ArticlePage />} />
           <Route path="/catalog/articles/new" element={<ArticleForm />} />
           <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
-          <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
+          {/*<Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />*/}
           <Route path="/catalog/skus" element={<SkusPage />} />
           <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
@@ -193,6 +197,9 @@ export default function AppRoutes() {
           <Route path="/nodes/:id" element={<NodeDetailPage />} />
           <Route path="/nodes/new" element={<NodeForm />} />
           <Route path="/nodes/:id/edit" element={<NodeForm />} />
+          {/* Units */}
+          <Route path="/reference/units" element={<UnitsPage />} />
+          <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
           {/* Warehouse */}
           <Route path="/warehouse" element={<WarehousePage />} />
           <Route path="/warehouse/zones" element={<ZonesPage />} />

@@ -20,4 +20,10 @@ router.post('/',                      perm('stock.manage'), ctrl.upsert.bind(ctr
 router.put('/:id',                    perm('stock.manage'), ctrl.update.bind(ctrl));
 router.delete('/:id',                 perm('stock.manage'), ctrl.remove.bind(ctrl));
 
+router.get('/by-node/:node_id',       perm('stock.view'),   ctrl.byNode.bind(ctrl));
+router.get('/by-sku/:sku_id',         perm('stock.view'),   ctrl.bySku.bind(ctrl));
+router.get('/estimated-delivery',     perm('stock.view'),   ctrl.estimatedDelivery.bind(ctrl));
+router.get('/',                       perm('stock.view'),   ctrl.list.bind(ctrl));
+router.get('/:id',                    perm('stock.view'),   ctrl.getById.bind(ctrl));
+
 module.exports = router;

@@ -68,6 +68,9 @@ export const releaseBackorder       = (data)     => api.post(`${s}/selling-rules
 export const getEstimatedDelivery   = (params)   => api.get(`${s}/selling-rules/estimated-delivery`, { params });
 export const bulkSaveSellingRules   = (rows)     => api.post(`${s}/selling-rules/bulk-save`, rows);
 
+export const getStockLevelsBySku  = (sku_id) => api.get(`${s}/levels/by-sku/${sku_id}`);
+export const getSellingRulesBySku = (sku_id) => api.get(`${s}/selling-rules/by-sku/${sku_id}`);
+
 // ——— Reorder Rules ———
 export const getReorderRules        = (params)   => api.get(`${s}/reorder-rules`, { params });
 export const getReorderRulesByNode  = (node_id)  => api.get(`${s}/reorder-rules/by-node/${node_id}`);

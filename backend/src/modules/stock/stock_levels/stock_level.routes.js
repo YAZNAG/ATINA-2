@@ -23,5 +23,8 @@ router.post('/count',           perm('stock.manage'), ctrl.count.bind(ctrl));
 router.post('/adjust',          perm('stock.manage'), ctrl.adjust.bind(ctrl));
 router.post('/recalculate',     perm('stock.manage'), ctrl.recalculate.bind(ctrl));
 router.post('/move',            perm('stock.manage'), ctrl.applyMove.bind(ctrl));
-
+router.get('/',                 perm('stock.view'),   ctrl.list.bind(ctrl));
+router.get('/by-node/:node_id', perm('stock.view'),   ctrl.byNode.bind(ctrl));
+router.get('/by-sku/:sku_id',   perm('stock.view'),   ctrl.bySku.bind(ctrl));
+router.get('/:id',              perm('stock.view'),   ctrl.getById.bind(ctrl));
 module.exports = router;

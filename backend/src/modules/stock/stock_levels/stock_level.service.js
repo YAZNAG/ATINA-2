@@ -24,6 +24,11 @@ class StockLevelService {
     return level;
   }
 
+  async getAllBySku(sku_id) {
+  if (!sku_id) throw { statusCode: 400, message: 'sku_id requis' };
+  return repo.findAllBySku(sku_id);
+}
+
   // ─── Business operations ─────────────────────────────────────────────────────
 
   async receipt(body) {

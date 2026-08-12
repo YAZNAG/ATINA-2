@@ -69,6 +69,11 @@ class SellingRuleController {
     try { return response.success(res, await service.releaseBackorder(req.body), 'Backorder libéré'); }
     catch (e) { next(e); }
   }
+
+  async bySku(req, res, next) {
+  try { return res.json({ success: true, data: await service.getAllBySku(req.params.sku_id) }); }
+  catch (e) { next(e); }
+}
 }
 
 module.exports = new SellingRuleController();

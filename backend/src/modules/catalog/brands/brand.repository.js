@@ -1,7 +1,5 @@
 const prisma = require('../../../config/database');
 
-// BASE_WHERE n'est plus une constante fixe : la présence des soft-deleted
-// dans le résultat dépend maintenant du filtre `status` demandé.
 const buildWhere = ({ search, status }) => {
   const where = {
     ...(search && {

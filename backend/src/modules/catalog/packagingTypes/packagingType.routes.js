@@ -12,5 +12,6 @@ router.post('/', perm('packaging_types.create'), createValidator, ctrl.store.bin
 router.get('/:id', perm('packaging_types.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('packaging_types.update'), updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('packaging_types.delete'), ctrl.destroy.bind(ctrl));
+router.patch('/:id/restore', perm('packaging_types.delete'), ctrl.restore.bind(ctrl));
 
 module.exports = router;

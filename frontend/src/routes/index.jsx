@@ -92,13 +92,15 @@ import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
 import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
 import NodeConfigPage from '../pages/orders/NodeConfigPage';
 //dashboard v2
-import BrandsPage from '../pages/MasterDataProduit/BrandsPage';
+import BrandsPage from '../pages/MasterDataProduit/brands/BrandsPage';
+import BrandDetailPage from '../pages/MasterDataProduit/brands/BrandDetailPage';
 import GeographyPage from '../pages/MasterDataGeography/Geograhy/Geographypage';
 import GeographyHub from '../pages/MasterDataGeography/Geograhy/GeographyHub';
 import CatalogHierarchy from '../pages/MasterDataProduit/hierarchy/hierarchyPage';
 import ArticlePage from '../pages/MasterDataProduit/produits/ArticlesPage';
 import UnitsPage from '../pages/reference/UnitsPage';
 import ArticleDetailPage from '../pages/MasterDataProduit/produits/ArticleDetailPage'; 
+import UnitDetailPage from '../pages/reference/UnitDetailPage';
 
 
 export default function AppRoutes() {
@@ -184,6 +186,7 @@ export default function AppRoutes() {
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
           <Route path="/catalog/brands" element={<BrandsPage />} />
+          <Route path="/brands/:id" element={<BrandDetailPage />} />
           {/* Geography */}
           {/* <Route path="/geo" element={<GeoPage />} /> */}
           <Route path="/geo/regions" element={<RegionsPage />} />
@@ -200,6 +203,7 @@ export default function AppRoutes() {
           {/* Units */}
           <Route path="/reference/units" element={<UnitsPage />} />
           <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
+          <Route path="/reference/units/:id" element={<UnitDetailPage />} />
           {/* Warehouse */}
           <Route path="/warehouse" element={<WarehousePage />} />
           <Route path="/warehouse/zones" element={<ZonesPage />} />

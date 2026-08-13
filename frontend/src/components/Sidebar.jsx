@@ -17,6 +17,7 @@ const ICONS = {
   catalog: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
   masterDataProduit: 'M4 6h16M4 6a2 2 0 012-2h12a2 2 0 012 2M4 6v12a2 2 0 002 2h12a2 2 0 002-2V6M9 10h6M9 14h6',
   masterDataGeo: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 2',
+  offres: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   settings: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
   geo: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 2',
   warehouse: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
@@ -49,6 +50,12 @@ const navItems = [
   label: 'Référence', key: 'reference', group: true, icon: ICONS.reference,
   children: [
     { label: 'Unités', path: '/reference/units', exact: true, anyPermissions: ['units.view'] },
+  ],
+  },
+  {
+  label: 'Offres', key: 'offres', group: true, icon: ICONS.offres,
+  children: [
+    { label: 'Flash sales', path: '', exact: true, anyPermissions: ['units.view'] },
   ],
   },
   {
@@ -89,14 +96,14 @@ const navItems = [
       { label: 'Attribution permissions', path: '/access/role-permissions',  permission: 'permissions.assign' },
     ],
   },
-  {
+  /*{
     label: 'Catalogue', key: 'catalog', group: true, icon: ICONS.catalog,
     children: [
       { label: 'Articles', path: '/catalog/articles', permission: 'articles.view' },
       { label: 'SKU', path: '/catalog/skus', permission: 'skus.view' },
       { label: 'Images SKU', path: '/catalog/sku-images', permission: 'sku_images.view' },
     ],
-  },
+  },*/
   {
     label: 'Paramétrage Catalogue', key: 'catalogRef', group: true, icon: ICONS.settings,
     children: [
@@ -265,7 +272,7 @@ export default function Sidebar() {
   const { hasPermission, user } = useAuth();
   const [openGroups, setOpenGroups] = useState({
     commandesRef: false, pickingCfgRef: false, staffRef: false, clientsRef: false, accessRef: false,
-    catalog: false, masterDataProduit: false, masterDataGeo: false,reference: false, catalogRef: false,
+    catalog: false, masterDataProduit: false, masterDataGeo: false,reference: false, offres: false, catalogRef: false,
     warehouse: false, warehouseRef: false,
     geo: false, nodes: false, nodeRef: false,
     stockOps: false, stockRef: false,
@@ -326,11 +333,14 @@ export default function Sidebar() {
     if (pathname.startsWith('/customers')) open('clientsRef');
     if (['/users', '/access', '/roles', '/permissions'].some(p => pathname.startsWith(p))) open('accessRef');
     if (['/catalog', '/catalog/articles', '/catalog/skus', '/catalog/sku-images'].some((p) => pathname.startsWith(p)) && !pathname.startsWith('/catalog/ref')) open('catalog');
+    //v2
     if (pathname.startsWith('/brands')) open('masterDataProduit');
     if (pathname.startsWith('/geo')) open('masterDataGeo');
     if(pathname.startsWith('/reference/units')) open('reference');
     if (pathname.startsWith('/catalog/ref') || pathname.startsWith('/catalog/taxonomy') || pathname.startsWith('/catalog/refs')) open('catalogRef');
     if (pathname.startsWith('/nodes')) open('nodes');
+    if (pathname.startsWith('/reference')) open('offres');
+    //-----------
     if (pathname.startsWith('/node-types')) open('nodeRef');
     if (pathname.startsWith('/warehouse') && !pathname.startsWith('/warehouse/zones') && !pathname.startsWith('/warehouse/levels')) open('warehouse');
     if (pathname.startsWith('/warehouse/zones') || pathname.startsWith('/warehouse/levels')) { open('warehouseRef'); open('nodeRef'); }

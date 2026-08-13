@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, ImageOff, Loader2, Package, Tag, Warehouse, ClipboardList, Star,
+  ArrowLeft, ImageOff, Loader2, Package, Tag, Warehouse, ClipboardList, Star, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import api from '../../../api/axios';
-import { getArticle } from '../../../api/catalog.api';
+import { getArticle, getArticleImages } from '../../../api/catalog.api';
 import { getStockLevelsBySku, getSellingRulesBySku } from '../../../api/stock.api';
 
 const API_ORIGIN = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
@@ -40,6 +40,11 @@ export default function ArticleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
 
+  // ——— Images (toutes, pas seulement la principale — endpoint dédié sans limite) ———
+  const [images, setImages] = useState([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(null); // null = fermée, sinon index dans `images`
+
   const [stockLevels, setStockLevels] = useState([]);
   const [stockLoading, setStockLoading] = useState(false);
   const [sellingRules, setSellingRules] = useState([]);
@@ -57,7 +62,19 @@ export default function ArticleDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { fetchArticle(); }, [fetchArticle]);
+  const fetchImages = useCallback(async () => {
+    setImagesLoading(true);
+    try {
+      const { data } = await getArticleImages(id);
+      setImages(data.data || data || []);
+    } catch {
+      setImages([]);
+    } finally {
+      setImagesLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { fetchArticle(); fetchImages(); }, [fetchArticle, fetchImages]);
 
   useEffect(() => {
     if (activeTab !== 'stock' || !article?.sku_uuid) return;
@@ -77,6 +94,18 @@ export default function ArticleDetailPage() {
       .finally(() => setSellingLoading(false));
   }, [activeTab, article?.sku_uuid]);
 
+  // ——— Lightbox : navigation clavier ———
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      if (e.key === 'ArrowRight') setLightboxIndex((i) => (i + 1) % images.length);
+      if (e.key === 'ArrowLeft') setLightboxIndex((i) => (i - 1 + images.length) % images.length);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxIndex, images.length]);
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -95,7 +124,7 @@ export default function ArticleDetailPage() {
     );
   }
 
-  const mainImage = toWebPath(article.images?.[0]?.image_path);
+  const mainImage = toWebPath((images.find((i) => i.is_main) || images[0])?.image_path);
 
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
@@ -178,26 +207,40 @@ export default function ArticleDetailPage() {
             <InfoRow label="Conservation" value={article.conservation_type?.name_fr} />
           </div>
 
-          {(article.images?.length > 0) && (
-            <div className="rounded-xl border border-neutral-200 bg-white p-4 lg:col-span-2">
-              <h3 className="mb-2 text-sm font-semibold text-neutral-800">Images</h3>
+          {/* ——— Images : toutes, cliquables pour zoomer ——— */}
+          <div className="rounded-xl border border-neutral-200 bg-white p-4 lg:col-span-2">
+            <h3 className="mb-2 text-sm font-semibold text-neutral-800">Images</h3>
+            {imagesLoading ? (
+              <div className="flex h-20 items-center justify-center">
+                <Loader2 size={16} className="animate-spin text-neutral-400" />
+              </div>
+            ) : images.length === 0 ? (
+              <p className="text-sm text-neutral-400">Aucune image pour cet article.</p>
+            ) : (
               <div className="flex flex-wrap gap-3">
-                {article.images.map((img, idx) => {
+                {images.map((img, idx) => {
                   const url = toWebPath(img.image_path);
                   return (
-                    <div key={idx} className="relative h-20 w-20 overflow-hidden rounded-lg border border-neutral-200">
-                      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : (
+                    <button
+                      key={img.id ?? idx}
+                      type="button"
+                      onClick={() => setLightboxIndex(idx)}
+                      className="group relative h-20 w-20 overflow-hidden rounded-lg border border-neutral-200 transition hover:ring-2 hover:ring-[#E10600]/40"
+                    >
+                      {url ? (
+                        <img src={url} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+                      ) : (
                         <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-300"><ImageOff size={16} /></div>
                       )}
                       {img.is_main && (
                         <span className="absolute left-1 top-1 rounded-full bg-[#E10600] p-1 text-white"><Star size={10} fill="currentColor" /></span>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -271,6 +314,54 @@ export default function ArticleDetailPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* ——— Lightbox plein écran ——— */}
+      {lightboxIndex !== null && images[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            onClick={() => setLightboxIndex(null)}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+            title="Fermer (Échap)"
+          >
+            <X size={22} />
+          </button>
+
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i - 1 + images.length) % images.length); }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+                title="Précédente (←)"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i + 1) % images.length); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+                title="Suivante (→)"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
+
+          <img
+            src={toWebPath(images[lightboxIndex].image_path)}
+            alt=""
+            className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white">
+              {lightboxIndex + 1} / {images.length}
+            </div>
           )}
         </div>
       )}

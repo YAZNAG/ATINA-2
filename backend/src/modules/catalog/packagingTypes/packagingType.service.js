@@ -38,6 +38,12 @@ class PackagingTypeService {
     if (!item) throw { statusCode: 404, message: 'Conditionnement introuvable' };
     await repo.softDelete(Number(id));
   }
+  async restore(id) {
+    const item = await repo.findByIdIncludingDeleted(Number(id));
+    if (!item) throw { statusCode: 404, message: 'Conditionnement introuvable' };
+    if (!item.deleted_at) throw { statusCode: 400, message: "Ce conditionnement n'est pas supprimé" };
+    return repo.restore(Number(id));
+  }
 }
 
 module.exports = new PackagingTypeService();

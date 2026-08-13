@@ -25,7 +25,13 @@ const findAll = async ({ search, status, page = 1, limit = 20 }) => {
   const limitNum = Number(limit);
   const skip = (pageNum - 1) * limitNum;
   const [data, total] = await Promise.all([
-    prisma.unit.findMany({ where, skip, take: limitNum, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] }),
+    prisma.unit.findMany({
+      where,
+      skip,
+      take: limitNum,
+      include: { _count: { select: { packaging_types: { where: { deleted_at: null } } } } },
+      orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
+    }),
     prisma.unit.count({ where }),
   ]);
   return { data, total };
@@ -34,7 +40,11 @@ const findAll = async ({ search, status, page = 1, limit = 20 }) => {
 const findAll_noPage = () =>
   prisma.unit.findMany({ where: { ...BASE_WHERE, status: 'active' }, orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }] });
 
-const findById = (id) => prisma.unit.findFirst({ where: { id, ...BASE_WHERE } });
+const findById = (id) =>
+  prisma.unit.findFirst({
+    where: { id, ...BASE_WHERE },
+    include: { _count: { select: { packaging_types: { where: { deleted_at: null } } } } },
+  });
 const findByIdIncludingDeleted = (id) => prisma.unit.findUnique({ where: { id } });
 
 const findByCode = (code, excludeId) =>

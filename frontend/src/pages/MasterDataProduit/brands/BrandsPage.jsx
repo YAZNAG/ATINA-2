@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Pencil, Trash2, X, Search, ImageOff, Upload, Loader2, Lock, Power, PowerOff,
+  Plus, Pencil, Trash2, X, Search, ImageOff, Upload, Loader2, Lock, Power, PowerOff, Eye,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext'; 
+import { useAuth } from '../../../context/AuthContext'; 
 import {
   getBrands,
   createBrand,
   updateBrand,
   deleteBrand,
-} from '../../api/catalog.api'; 
+} from '../../../api/catalog.api'; 
 
 const PAGE_SIZE = 20;
 
@@ -51,6 +52,7 @@ function StatusBadge({ brand }) {
 }
 
 export default function BrandsPage() {
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canView = hasPermission('brands.view');
   const canCreate = hasPermission('brands.create');
@@ -117,6 +119,11 @@ export default function BrandsPage() {
   useEffect(() => {
     setPage(1);
   }, [search, status]);
+
+  // ——— Navigation vers le détail ———
+  const goToDetail = (brand) => {
+    navigate(`/brands/${brand.id}`);
+  };
 
   // ——— Ouverture drawer ———
   const openCreate = () => {
@@ -313,19 +320,19 @@ export default function BrandsPage() {
               <th className="px-4 py-3 font-medium">Nom (AR)</th>
               <th className="px-4 py-3 font-medium">Code</th>
               <th className="px-4 py-3 font-medium">Statut</th>
-              {canManage && <th className="px-4 py-3 font-medium text-right">Actions</th>}
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
               <tr>
-                <td colSpan={canManage ? 6 : 5} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={6} className="px-4 py-12 text-center text-neutral-400">
                   <Loader2 size={20} className="mx-auto animate-spin" />
                 </td>
               </tr>
             ) : brands.length === 0 ? (
               <tr>
-                <td colSpan={canManage ? 6 : 5} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={6} className="px-4 py-12 text-center text-neutral-400">
                   Aucune marque trouvée.
                 </td>
               </tr>
@@ -343,7 +350,14 @@ export default function BrandsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium text-neutral-800">{b.name_fr}</td>
+                    <td className="px-4 py-3 font-medium text-neutral-800">
+                      <button
+                        onClick={() => goToDetail(b)}
+                        className="text-left hover:text-[#E10600] hover:underline"
+                      >
+                        {b.name_fr}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-neutral-600" dir="rtl">
                       {b.name_ar}
                     </td>
@@ -351,10 +365,17 @@ export default function BrandsPage() {
                     <td className="px-4 py-3">
                       <StatusBadge brand={b} />
                     </td>
-                    {canManage && (
-                      <td className="px-4 py-3">
-                        {!isDeleted && (
-                          <div className="flex items-center justify-end gap-1">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => goToDetail(b)}
+                          className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+                          title="Voir le détail"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {!isDeleted && canManage && (
+                          <>
                             {canUpdate && (
                               <button
                                 onClick={() => toggleStatus(b)}
@@ -393,10 +414,10 @@ export default function BrandsPage() {
                                 <Trash2 size={16} />
                               </button>
                             )}
-                          </div>
+                          </>
                         )}
-                      </td>
-                    )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })

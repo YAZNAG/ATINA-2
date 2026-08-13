@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff, RotateCcw, ArrowUp, ArrowDown, GripVertical,
+  Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff, RotateCcw, ArrowUp, ArrowDown, GripVertical, Eye, Package,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   getUnits, createUnit, updateUnit, deleteUnit,
   toggleUnitStatus, restoreUnit, reorderUnits,
+  getPackagingTypes, updatePackagingType,
 } from '../../api/catalog.api';
 
 const PAGE_SIZE = 20;
@@ -48,13 +50,48 @@ function StatusBadge({ unit }) {
   );
 }
 
+/** Pill pour un type de conditionnement sélectionné (lié en édition, ou en attente en création), avec bouton de retrait. */
+function PtPillRemovable({ pt, removing, onRemove, canRemove }) {
+  const isDeleted = Boolean(pt.deleted_at);
+  const isActive = pt.status === 'active' && !isDeleted;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full py-1.5 pl-3 pr-1.5 text-xs font-medium ${
+        isDeleted
+          ? 'bg-neutral-100 text-neutral-400 line-through'
+          : isActive
+          ? 'border border-[#E10600] bg-[#E10600] text-white'
+          : 'border border-neutral-200 text-neutral-600'
+      }`}
+    >
+      {pt.name_fr}
+      {canRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={removing}
+          title="Retirer"
+          className={`flex items-center justify-center rounded-full p-0.5 transition ${
+            isActive ? 'hover:bg-white/20' : 'hover:bg-neutral-200'
+          } disabled:opacity-50`}
+        >
+          {removing ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+        </button>
+      )}
+    </span>
+  );
+}
+
 export default function UnitsPage() {
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canView = hasPermission('units.view');
   const canCreate = hasPermission('units.create');
   const canUpdate = hasPermission('units.update');
   const canDelete = hasPermission('units.delete');
   const canManage = canCreate || canUpdate || canDelete;
+  const canViewPT = hasPermission('packaging_types.view');
+  const canUpdatePT = hasPermission('packaging_types.update');
 
   // ——— Liste ———
   const [units, setUnits] = useState([]);
@@ -75,6 +112,22 @@ export default function UnitsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+
+  // ——— Types de conditionnement liés ———
+  // En édition : reflète l'état serveur (chaque ajout/retrait est persisté immédiatement).
+  // En création : liste locale "en attente", liée à la nouvelle unité seulement après la création.
+  const [linkedPT, setLinkedPT] = useState([]);
+  const [loadingLinkedPT, setLoadingLinkedPT] = useState(false);
+  const [removingPTId, setRemovingPTId] = useState(null);
+  const [availablePT, setAvailablePT] = useState([]);
+  const [loadingAvailablePT, setLoadingAvailablePT] = useState(false);
+  const [selectedPTId, setSelectedPTId] = useState('');
+  const [addingPT, setAddingPT] = useState(false);
+
+  // Droit de gérer les types de conditionnement dans le drawer courant
+  const canManagePT = editingId ? canUpdatePT : canCreate;
+  // Types encore proposables au select (non déjà sélectionnés/liés)
+  const selectablePT = availablePT.filter((pt) => !linkedPT.some((l) => l.id === pt.id));
 
   // ——— Suppression ———
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -116,12 +169,43 @@ export default function UnitsPage() {
     setPage(1);
   }, [search, status]);
 
+  // ——— Chargement types de conditionnement liés à l'unité en édition ———
+  const fetchLinkedPT = useCallback(async (unitId) => {
+    if (!canViewPT || !unitId) return;
+    setLoadingLinkedPT(true);
+    try {
+      const { data } = await getPackagingTypes({ unit_id: unitId, limit: 100 });
+      setLinkedPT(data.data || []);
+    } catch (err) {
+      setLinkedPT([]);
+    } finally {
+      setLoadingLinkedPT(false);
+    }
+  }, [canViewPT]);
+
+  // ——— Chargement de tous les types de conditionnement disponibles (catalogue complet) ———
+  const fetchAvailablePT = useCallback(async () => {
+    if (!canViewPT) return;
+    setLoadingAvailablePT(true);
+    try {
+      const { data } = await getPackagingTypes({ limit: 200 });
+      setAvailablePT((data.data || []).filter((pt) => !pt.deleted_at));
+    } catch (err) {
+      setAvailablePT([]);
+    } finally {
+      setLoadingAvailablePT(false);
+    }
+  }, [canViewPT]);
+
   // ——— Ouverture drawer ———
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormErrors({});
+    setLinkedPT([]);
+    setSelectedPTId('');
     setDrawerOpen(true);
+    fetchAvailablePT();
   };
 
   const openEdit = (unit) => {
@@ -135,7 +219,10 @@ export default function UnitsPage() {
       status: unit.status || 'active',
     });
     setFormErrors({});
+    setSelectedPTId('');
     setDrawerOpen(true);
+    fetchLinkedPT(unit.id);
+    fetchAvailablePT();
   };
 
   const closeDrawer = () => {
@@ -171,8 +258,20 @@ export default function UnitsPage() {
         await updateUnit(editingId, payload);
         showToast('success', 'Unité mise à jour');
       } else {
-        await createUnit(payload);
+        const { data } = await createUnit(payload);
+        const newUnit = data?.data;
         showToast('success', 'Unité créée');
+
+        // Lier les types de conditionnement sélectionnés pendant la création
+        if (newUnit?.id && linkedPT.length > 0) {
+          try {
+            await Promise.all(
+              linkedPT.map((pt) => updatePackagingType(pt.id, { unit_id: newUnit.id }))
+            );
+          } catch (linkErr) {
+            showToast('error', "Unité créée, mais certains types de conditionnement n'ont pas pu être liés");
+          }
+        }
       }
       setDrawerOpen(false);
       fetchUnits();
@@ -260,6 +359,50 @@ export default function UnitsPage() {
     }
   };
 
+  // ——— Ajout d'un type de conditionnement (édition : persisté immédiatement ; création : en attente) ———
+  const addPT = async () => {
+    if (!selectedPTId) return;
+    const pt = availablePT.find((p) => p.id === Number(selectedPTId));
+    if (!pt) return;
+
+    if (editingId) {
+      setAddingPT(true);
+      try {
+        await updatePackagingType(pt.id, { unit_id: editingId });
+        showToast('success', 'Type de conditionnement ajouté');
+        setSelectedPTId('');
+        fetchLinkedPT(editingId);
+        fetchAvailablePT();
+      } catch (err) {
+        showToast('error', err?.response?.data?.message || "Erreur lors de l'ajout du type de conditionnement");
+      } finally {
+        setAddingPT(false);
+      }
+    } else {
+      setLinkedPT((prev) => [...prev, pt]);
+      setSelectedPTId('');
+    }
+  };
+
+  // ——— Retrait d'un type de conditionnement (édition : persisté immédiatement ; création : retiré de la sélection) ———
+  const removePT = async (pt) => {
+    if (editingId) {
+      setRemovingPTId(pt.id);
+      try {
+        await updatePackagingType(pt.id, { unit_id: null });
+        showToast('success', 'Type de conditionnement retiré');
+        fetchLinkedPT(editingId);
+        fetchAvailablePT();
+      } catch (err) {
+        showToast('error', err?.response?.data?.message || 'Erreur lors du retrait du type de conditionnement');
+      } finally {
+        setRemovingPTId(null);
+      }
+    } else {
+      setLinkedPT((prev) => prev.filter((p) => p.id !== pt.id));
+    }
+  };
+
   if (!canView) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-neutral-400">
@@ -269,7 +412,7 @@ export default function UnitsPage() {
     );
   }
 
-  const colCount = canManage ? (canReorder ? 8 : 7) : (canReorder ? 7 : 6);
+  const colCount = canReorder ? 8 : 7;
 
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
@@ -340,7 +483,7 @@ export default function UnitsPage() {
               <th className="px-4 py-3 font-medium">Abrév. (AR)</th>
               <th className="px-4 py-3 font-medium">Code</th>
               <th className="px-4 py-3 font-medium">Statut</th>
-              {canManage && <th className="px-4 py-3 font-medium text-right">Actions</th>}
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
@@ -360,9 +503,13 @@ export default function UnitsPage() {
               units.map((u, index) => {
                 const isDeleted = Boolean(u.deleted_at);
                 return (
-                  <tr key={u.id} className={`transition hover:bg-neutral-50 ${isDeleted ? 'opacity-60' : ''}`}>
+                  <tr
+                    key={u.id}
+                    onClick={() => navigate(`/reference/units/${u.id}`)}
+                    className={`cursor-pointer transition hover:bg-neutral-50 ${isDeleted ? 'opacity-60' : ''}`}
+                  >
                     {canReorder && (
-                      <td className="px-2 py-3">
+                      <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                         {!isDeleted && (
                           <div className="flex flex-col items-center">
                             <button
@@ -396,10 +543,17 @@ export default function UnitsPage() {
                     <td className="px-4 py-3">
                       <StatusBadge unit={u} />
                     </td>
-                    {canManage && (
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {isDeleted ? (
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => navigate(`/reference/units/${u.id}`)}
+                          className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+                          title="Voir le détail"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {canManage && (
+                          isDeleted ? (
                             canDelete && (
                               <button
                                 onClick={() => handleRestore(u)}
@@ -443,10 +597,10 @@ export default function UnitsPage() {
                                 </button>
                               )}
                             </>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                          )
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -539,6 +693,80 @@ export default function UnitsPage() {
                   <option value="inactive">Inactif</option>
                 </select>
               </Field>
+
+              {/* Types de conditionnement — ajout / retrait, disponible en création ET en édition */}
+              {canViewPT && (
+                <div className="mt-2 rounded-lg border border-neutral-200">
+                  <div className="flex items-center gap-1.5 border-b border-neutral-100 bg-neutral-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    <Package size={13} />
+                    Types de conditionnement
+                    {!editingId && (
+                      <span className="ml-auto lowercase font-normal normal-case text-[10px] text-neutral-400">
+                        liés après la création
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 p-3">
+                    {loadingLinkedPT ? (
+                      <div className="flex justify-center py-3">
+                        <Loader2 size={16} className="animate-spin text-neutral-400" />
+                      </div>
+                    ) : linkedPT.length === 0 ? (
+                      <p className="text-center text-xs text-neutral-400">
+                        Aucun type de conditionnement {editingId ? 'pour cette unité' : 'sélectionné'}.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {linkedPT.map((pt) => (
+                          <PtPillRemovable
+                            key={pt.id}
+                            pt={pt}
+                            removing={removingPTId === pt.id}
+                            onRemove={() => removePT(pt)}
+                            canRemove={canManagePT}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {canManagePT && (
+                      <div className="border-t border-neutral-100 pt-3">
+                        <div className="flex gap-2">
+                          <select
+                            value={selectedPTId}
+                            onChange={(e) => setSelectedPTId(e.target.value)}
+                            disabled={loadingAvailablePT || selectablePT.length === 0}
+                            className="flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs outline-none transition focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15 disabled:opacity-50"
+                          >
+                            <option value="">
+                              {loadingAvailablePT
+                                ? 'Chargement…'
+                                : selectablePT.length === 0
+                                ? 'Aucun type disponible'
+                                : 'Sélectionner un type…'}
+                            </option>
+                            {selectablePT.map((pt) => (
+                              <option key={pt.id} value={pt.id}>
+                                {pt.name_fr}{pt.unit_id ? ' (déjà lié à une autre unité)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={addPT}
+                            disabled={!selectedPTId || addingPT}
+                            className="flex items-center gap-1 rounded-lg bg-[#E10600] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#c00500] disabled:opacity-50"
+                          >
+                            {addingPT ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                            Ajouter
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-neutral-100 px-5 py-4">

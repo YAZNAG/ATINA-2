@@ -29,6 +29,7 @@ export const getPackagingTypesList = (unitId) =>
   api.get(`${c}/packaging-types`, {
     params: { all: true, ...(unitId != null && unitId !== '' ? { unit_id: unitId } : {}) },
   });
+export const restorePackagingType = (id) => api.patch(`${c}/packaging-types/${id}/restore`);
 export const getArticleTypesList = () => api.get(`${c}/article-types`, { params: { all: true } });
 export const getArticleStatusesList = () => api.get(`${c}/article-statuses`, { params: { all: true } });
 export const getConservationTypesList = () => api.get(`${c}/conservation-types`, { params: { all: true } });

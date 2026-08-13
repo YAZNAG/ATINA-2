@@ -3,20 +3,26 @@ const prisma = require('../../../config/database');
 const BASE_WHERE = { deleted_at: null };
 const INCLUDE = { unit: true };
 
-const buildWhere = ({ search, status }) => ({
-  ...BASE_WHERE,
-  ...(status && { status }),
-  ...(search && {
-    OR: [
-      { name_fr: { contains: search, mode: 'insensitive' } },
-      { name_ar: { contains: search, mode: 'insensitive' } },
-      { code: { contains: search, mode: 'insensitive' } },
-    ],
-  }),
-});
+const buildWhere = ({ search, status, unit_id }) => {
+  const base =
+    status === 'deleted'
+      ? { deleted_at: { not: null } }
+      : { deleted_at: null, ...(status && status !== 'all' && { status }) };
+  return {
+    ...base,
+    ...(unit_id && { unit_id: Number(unit_id) }),
+    ...(search && {
+      OR: [
+        { name_fr: { contains: search, mode: 'insensitive' } },
+        { name_ar: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+};
 
-const findAll = async ({ search, status, page = 1, limit = 20 }) => {
-  const where = buildWhere({ search, status });
+const findAll = async ({ search, status, unit_id, page = 1, limit = 20 }) => {
+  const where = buildWhere({ search, status, unit_id });
   const pageNum = Number(page);
   const limitNum = Number(limit);
   const skip = (pageNum - 1) * limitNum;
@@ -39,10 +45,15 @@ const findAll_noPage = ({ unit_id } = {}) =>
   });
 
 const findById = (id) => prisma.packagingType.findFirst({ where: { id, ...BASE_WHERE }, include: INCLUDE });
+const findByIdIncludingDeleted = (id) => prisma.packagingType.findUnique({ where: { id }, include: INCLUDE });
 const findByCode = (code, excludeId) =>
   prisma.packagingType.findFirst({ where: { code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
 const create = (data) => prisma.packagingType.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.packagingType.update({ where: { id }, data, include: INCLUDE });
 const softDelete = (id) => prisma.packagingType.update({ where: { id }, data: { deleted_at: new Date() } });
+const restore = (id) => prisma.packagingType.update({ where: { id }, data: { deleted_at: null }, include: INCLUDE });
 
-module.exports = { findAll, findAll_noPage, findById, findByCode, create, update, softDelete };
+module.exports = {
+  findAll, findAll_noPage, findById, findByIdIncludingDeleted, findByCode,
+  create, update, softDelete, restore,
+};

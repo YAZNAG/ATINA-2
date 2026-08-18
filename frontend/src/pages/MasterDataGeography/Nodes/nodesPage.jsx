@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Search, Loader2, Lock, Power, PowerOff, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Search, Loader2, Lock, Power, PowerOff, MapPin, Eye } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { getNodes, updateNode, deleteNode, getRegions, getActiveNodeTypes } from '../../../api/locationNode.api';
 import { useCascadeGeo } from './useCascadeGeo';
@@ -32,6 +33,7 @@ function StatusBadge({ item }) {
 }
 
 export default function NodesPage() {
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canView = hasPermission('nodes.view');
   const canCreate = hasPermission('nodes.create');
@@ -72,22 +74,20 @@ export default function NodesPage() {
   };
 
   useEffect(() => {
-  if (!canView) return;
-  (async () => {
-    try {
-      const [typesRes, regionsRes] = await Promise.all([
-        getActiveNodeTypes(),
-        getRegions({ limit: 500, is_active: true }),
-      ]);
-      console.log('typesRes:', typesRes.data);
-      console.log('regionsRes:', regionsRes.data);
-      setNodeTypes(typesRes.data.data || typesRes.data || []);
-      setAllRegions(regionsRes.data.data || regionsRes.data || []);
-    } catch (err) {
-      console.error('Erreur chargement filtres:', err?.response?.data || err);
-    }
-  })();
-}, [canView]);
+    if (!canView) return;
+    (async () => {
+      try {
+        const [typesRes, regionsRes] = await Promise.all([
+          getActiveNodeTypes(),
+          getRegions({ limit: 500, is_active: true }),
+        ]);
+        setNodeTypes(typesRes.data.data || typesRes.data || []);
+        setAllRegions(regionsRes.data.data || regionsRes.data || []);
+      } catch (err) {
+        console.error('Erreur chargement filtres:', err?.response?.data || err);
+      }
+    })();
+  }, [canView]);
 
   const fetchNodes = useCallback(async () => {
     if (!canView) return;
@@ -257,6 +257,10 @@ export default function NodesPage() {
                       <td className="px-4 py-3"><StatusBadge item={item} /></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-0.5">
+                          <button onClick={() => navigate(`/nodes/${item.id}`)} title="Voir le détail"
+                            className="rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800">
+                            <Eye size={14} />
+                          </button>
                           {!isDeleted && canUpdate && (
                             <button onClick={() => toggleActive(item)} disabled={togglingId === item.id}
                               title={item.is_active ? 'Désactiver' : 'Activer'}

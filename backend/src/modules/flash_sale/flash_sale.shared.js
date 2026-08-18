@@ -98,6 +98,12 @@ function formatPromo(fs) {
     scopeName    = fs.brand?.name_fr ?? null;
   }
 
+  const now = new Date();
+  let statusLabel = 'inactive';
+  if (fs.is_deleted) statusLabel = 'deleted';
+  else if (fs.is_active && new Date(fs.ends_at) < now) statusLabel = 'expired';
+  else if (fs.is_active) statusLabel = 'active';
+
   return {
     id:               fs.id,
     scope_type:       scopeType,
@@ -125,6 +131,8 @@ function formatPromo(fs) {
     starts_at:        fs.starts_at,
     ends_at:          fs.ends_at,
     is_active:        fs.is_active,
+    is_deleted:       fs.is_deleted,
+    status:           statusLabel,
   };
 }
 

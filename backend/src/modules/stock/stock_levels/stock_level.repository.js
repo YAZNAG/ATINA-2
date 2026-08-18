@@ -331,6 +331,7 @@ const applyMove = async (node_id, sku_id, qty_delta, move_type_id, reference, me
 
 module.exports = {
   getOrCreate, findById, findOne, findByNode, findWithFilters,
+  findAllBySku,
   applyReceipt, reserveForOrder, completePicking, cancelReservation,
   updateIncoming, confirmCODDelivered, confirmCODCollected, updateLastCountedAt,
   adminAdjust, recalculate, applyMove,

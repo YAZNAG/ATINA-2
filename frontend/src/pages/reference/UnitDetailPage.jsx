@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, Lock, Package, AlertTriangle,
+  ArrowLeft, Loader2, Lock, Package, AlertTriangle, Ruler, Hash, Type,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -9,40 +9,29 @@ import {
   getPackagingTypes,
 } from '../../api/catalog.api';
 
-function UnitStatusBadge({ status, deleted_at }) {
+function StatusBadge({ status, deleted_at }) {
   if (deleted_at) {
-    return <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600">Supprimé</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600">
+        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+        Supprimé
+      </span>
+    );
   }
   if (status === 'active') {
-    return <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Actif</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Actif
+      </span>
+    );
   }
-  return <span className="inline-flex rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">Inactif</span>;
-}
-
-function PtStatusBadge({ status, deleted_at }) {
-  if (deleted_at) {
-    return <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600">Supprimé</span>;
-  }
-  if (status === 'active') {
-    return <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Actif</span>;
-  }
-  return <span className="inline-flex rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">Inactif</span>;
-}
-
-function Field({ label, error, children }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium text-neutral-700">{label}</span>
-      {children}
-      {error && <span className="mt-1 block text-xs text-[#E10600]">{error}</span>}
-    </label>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-500">
+      <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />
+      Inactif
+    </span>
   );
-}
-
-function inputClass(error) {
-  return `w-full rounded-lg border px-3 py-2 text-sm outline-none transition focus:ring-2 ${
-    error ? 'border-[#E10600] focus:ring-[#E10600]/15' : 'border-neutral-200 focus:border-[#E10600] focus:ring-[#E10600]/15'
-  }`;
 }
 
 export default function UnitDetailPage() {
@@ -146,9 +135,17 @@ export default function UnitDetailPage() {
       </button>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">{unit.name_fr}</h1>
-          <p className="mt-1 text-sm text-neutral-500">Détail de l'unité de mesure.</p>
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#E10600]/10">
+            <Ruler size={24} className="text-[#E10600]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="font-poppins text-2xl font-semibold text-neutral-900">{unit.name_fr}</h1>
+              <StatusBadge status={unit.status} deleted_at={unit.deleted_at} />
+            </div>
+            <p className="mt-1 text-sm text-neutral-500">Détail de l'unité de mesure.</p>
+          </div>
         </div>
       </div>
 
@@ -160,37 +157,32 @@ export default function UnitDetailPage() {
       )}
 
       {/* Informations */}
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-poppins text-base font-semibold text-neutral-900">Général</h2>
-            <UnitStatusBadge status={unit.status} deleted_at={unit.deleted_at} />
-          </div>
-          <InfoItem label="Nom (FR)" value={unit.name_fr} />
-          <InfoItem label="Nom (AR)" value={unit.name_ar} dir="rtl" />
-          <InfoItem label="Code" value={unit.code} mono />
+      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="border-b border-neutral-100 px-5 py-4">
+          <h2 className="font-poppins text-base font-semibold text-neutral-900">Informations générales</h2>
         </div>
-
-        <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <h2 className="mb-2 font-poppins text-base font-semibold text-neutral-900">Informations complémentaires</h2>
-          <InfoItem label="Abréviation (FR)" value={unit.short_name_fr || '—'} />
-          <InfoItem label="Abréviation (AR)" value={unit.short_name_ar || '—'} dir="rtl" />
-          <InfoItem label="Ordre" value={unit.sort_order ?? '—'} />
-          <InfoItem label="Types de conditionnement" value={packagingTypes.length} />
+        <div className="grid grid-cols-1 divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <div className="space-y-4 px-5 py-5">
+            <InfoRow icon={Type} label="Nom (FR)" value={unit.name_fr} />
+            <InfoRow icon={Type} label="Nom (AR)" value={unit.name_ar} dir="rtl" />
+          </div>
+          <div className="space-y-4 px-5 py-5">
+            <InfoRow icon={Hash} label="Code" value={unit.code} mono />
+            <InfoRow
+              icon={Type}
+              label="Abréviations"
+              value={`${unit.short_name_fr || '—'} · ${unit.short_name_ar || '—'}`}
+            />
+          </div>
         </div>
       </div>
 
       {/* Affichage des types de conditionnement — consultation seule */}
       {canViewPT && (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Package size={18} className="text-neutral-400" />
-              <h2 className="font-poppins text-base font-semibold text-neutral-900">Types de conditionnement</h2>
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
-                {packagingTypes.length}
-              </span>
-            </div>
+          <div className="flex items-center gap-2 border-b border-neutral-100 px-5 py-4">
+            <Package size={18} className="text-neutral-400" />
+            <h2 className="font-poppins text-base font-semibold text-neutral-900">Types de conditionnement</h2>
           </div>
 
           <div className="overflow-x-auto">
@@ -219,9 +211,9 @@ export default function UnitDetailPage() {
                 </tr>
               ) : (
                 packagingTypes.map((pt) => {
-                  const isDeleted = Boolean(pt.deleted_at);
+                  const ptDeleted = Boolean(pt.deleted_at);
                   return (
-                    <tr key={pt.id} className={`transition hover:bg-neutral-50 ${isDeleted ? 'opacity-60' : ''}`}>
+                    <tr key={pt.id} className={`transition hover:bg-neutral-50 ${ptDeleted ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3 font-medium text-neutral-800">{pt.name_fr}</td>
                       <td className="px-4 py-3 text-neutral-600" dir="rtl">{pt.name_ar}</td>
                       <td className="px-4 py-3 font-mono text-xs text-neutral-500">{pt.code}</td>
@@ -229,7 +221,7 @@ export default function UnitDetailPage() {
                         {pt.quantity} {unit.short_name_fr || unit.code}
                       </td>
                       <td className="px-4 py-3">
-                        <PtStatusBadge status={pt.status} deleted_at={pt.deleted_at} />
+                        <StatusBadge status={pt.status} deleted_at={pt.deleted_at} />
                       </td>
                     </tr>
                   );
@@ -245,12 +237,18 @@ export default function UnitDetailPage() {
   );
 }
 
-function InfoItem({ label, value, dir, mono }) {
+function InfoRow({ icon: Icon, label, value, dir, mono }) {
   return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
-      <p className={`mt-1 text-sm text-neutral-800 ${mono ? 'font-mono' : ''}`} dir={dir}>{value}</p>
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-50 text-neutral-400">
+        <Icon size={15} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
+        <p className={`mt-0.5 truncate text-sm text-neutral-800 ${mono ? 'font-mono' : ''}`} dir={dir}>
+          {value}
+        </p>
+      </div>
     </div>
   );
 }
-

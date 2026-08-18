@@ -38,7 +38,7 @@ import NodeTypesPage from '../pages/location/NodeTypesPage';
 import NodeForm from '../pages/location/NodeForm';
 import NodesPage from '../pages/MasterDataGeography/Nodes/nodesPage';
 //import NodesPage from '../pages/location/NodesPage';
-import NodeDetailPage from '../pages/location/NodeDetailPage';
+//import NodeDetailPage from '../pages/location/NodeDetailPage';
 import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
 import CustomerList from '../pages/customers/CustomerList';
@@ -101,7 +101,8 @@ import ArticlePage from '../pages/MasterDataProduit/produits/ArticlesPage';
 import UnitsPage from '../pages/reference/UnitsPage';
 import ArticleDetailPage from '../pages/MasterDataProduit/produits/ArticleDetailPage'; 
 import UnitDetailPage from '../pages/reference/UnitDetailPage';
-
+import NodeDetailPage from '../pages/MasterDataGeography/Nodes/NodeDetailPage';
+import PromotionsPage from '../pages/offres/flasheSales/PromotionsPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -204,6 +205,8 @@ export default function AppRoutes() {
           <Route path="/reference/units" element={<UnitsPage />} />
           <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
           <Route path="/reference/units/:id" element={<UnitDetailPage />} />
+          {/* Offres */}
+          <Route path="offres/promotions" element={<PromotionsPage />} />
           {/* Warehouse */}
           <Route path="/warehouse" element={<WarehousePage />} />
           <Route path="/warehouse/zones" element={<ZonesPage />} />

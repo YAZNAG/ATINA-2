@@ -4,17 +4,40 @@ const {
 } = require('../flash_sale/flash_sale.shared');
 const { notifyFlashSaleCreated } = require('../../utils/notify');
 
+async function deactivateExpired() {
+  await prisma.flashSale.updateMany({
+    where: { is_active: true, is_deleted: false, ends_at: { lt: new Date() } },
+    data: { is_active: false },
+  });
+}
+
 async function getAll(query = {}) {
-  const where = { is_deleted: false };
+  await deactivateExpired();
+
+  const where = {};
+
+  if (query.status === 'deleted') {
+    where.is_deleted = true;
+  } else {
+    where.is_deleted = false;
+    if (query.status === 'active')   where.is_active = true;
+    if (query.status === 'inactive') where.is_active = false;
+  }
 
   if (query.node_id)   where.node_id = query.node_id;
-  if (query.is_active !== undefined) {
-    where.is_active = query.is_active === 'true' || query.is_active === true;
-  }
   if (query.scope_type === 'sku')      where.sku_id      = { not: null };
   if (query.scope_type === 'pack')     where.pack_id     = { not: null };
   if (query.scope_type === 'category') where.category_id = { not: null };
   if (query.scope_type === 'brand')    where.brand_id     = { not: null };
+
+  if (query.search) {
+    where.OR = [
+      { name_fr: { contains: query.search, mode: 'insensitive' } },
+      { name_ar: { contains: query.search, mode: 'insensitive' } },
+      { sku: { article: { name_fr: { contains: query.search, mode: 'insensitive' } } } },
+      { sku: { article: { sku_code: { contains: query.search, mode: 'insensitive' } } } },
+    ];
+  }
 
   const page  = Math.max(1, parseInt(query.page  ?? '1', 10));
   const limit = Math.max(1, parseInt(query.limit ?? '20', 10));
@@ -36,8 +59,9 @@ async function getAll(query = {}) {
 }
 
 async function getById(id) {
+  await deactivateExpired();
   const fs = await prisma.flashSale.findFirst({
-    where: { id, is_deleted: false },
+    where: { id },
     include: FLASH_INCLUDE,
   });
   if (!fs) throw { statusCode: 404, message: 'Promotion introuvable' };

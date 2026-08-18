@@ -12,13 +12,6 @@ const findWithFilters = async ({
   if (category_id) articleWhere.category_id = category_id;
   if (sku_id)      articleWhere.sku_uuid = sku_id;
 
-  const findAllBySku = (sku_id) =>
-  prisma.sellingRule.findMany({
-    where: { sku_id },
-    include: { node: { select: { id: true, code: true, name_fr: true, is_active: true } } },
-    orderBy: { node: { name_fr: 'asc' } },
-  });
-
   const articles = await prisma.article.findMany({
     where: articleWhere,
     include: {
@@ -92,6 +85,13 @@ const findWithFilters = async ({
 
   return rows;
 };
+
+const findAllBySku = (sku_id) =>
+  prisma.sellingRule.findMany({
+    where: { sku_id },
+    include: { node: { select: { id: true, code: true, name_fr: true, is_active: true } } },
+    orderBy: { node: { name_fr: 'asc' } },
+  });
 
 const findByNode = (node_id) => findWithFilters({ node_id });
 
@@ -215,6 +215,7 @@ const bulkSave = (rows) =>
 
 module.exports = {
   findWithFilters, findByNode, findById, findOne,
+  findAllBySku,
   upsert, update, remove, bulkSave,
   canSellSKU, reserveBackorder, releaseBackorder, calculateEstimatedDelivery,
 };

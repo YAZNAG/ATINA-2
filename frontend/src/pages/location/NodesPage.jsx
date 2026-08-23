@@ -116,7 +116,7 @@ function StepBar({ step, nodeId }) {
 
 const EMPTY_NODE = {
   code: '', name_fr: '', name_ar: '', node_type_id: '',
-  region_id: '', province_id: '', city_id: '',
+  region_id: '', city_id: '',
   address_line1: '', quartier: '', postal_code: '',
   lat: '', lng: '', phone: '',
   timezone: 'Africa/Casablanca',
@@ -146,7 +146,6 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
   // Lookups
   const [nodeTypes, setNodeTypes] = useState([]);
   const [regions, setRegions] = useState([]);
-  const [provinces, setProvinces] = useState([]);
   const [cities, setCities] = useState([]);
   const [saving, setSaving] = useState(false);
 
@@ -162,7 +161,7 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
     })();
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!editNode) { setInfo({ ...EMPTY_NODE }); setHours({ ...DEFAULT_HOURS }); return; }
     setInfo({
       code:              editNode.code          ?? '',
@@ -170,7 +169,6 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
       name_ar:           editNode.name_ar       ?? '',
       node_type_id:      editNode.node_type_id  ?? '',
       region_id:         editNode.region_id     ?? '',
-      province_id:       editNode.province_id   ?? '',
       city_id:           editNode.city_id       ?? '',
       address_line1:     editNode.address_line1 ?? '',
       quartier:          editNode.quartier       ?? '',
@@ -185,18 +183,14 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
     });
     setHours(parseHours(editNode.opening_hours_json));
     setSavedNode(editNode);
-    loadDep(editNode.region_id, editNode.province_id);
+    loadDep(editNode.region_id);
     loadSlots(editNode.id);
   }, [editNode]);
 
-  const loadDep = async (regionId, provinceId) => {
+  const loadDep = async (regionId) => {
     try {
-      const [pRes, cRes] = await Promise.all([
-        api.getProvinces({ region_id: regionId || undefined, limit: 500 }),
-        api.getCities({ province_id: provinceId || undefined, limit: 500 }),
-      ]);
-      setProvinces(pRes.data.data ?? []);
-      setCities(cRes.data.data ?? []);
+      const res = await api.getCities({ region_id: regionId || undefined, limit: 500 });
+      setCities(res.data.data ?? []);
     } catch {}
   };
 
@@ -210,13 +204,12 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
 
   // ── step 1/2 save ────────────────────────────────────────────────────────────
 
-  const validateInfo = () => {
+    const validateInfo = () => {
     const required = [
       { value: info.code?.trim(), label: 'Code' },
       { value: info.name_fr?.trim(), label: 'Nom (Français)' },
       { value: info.node_type_id, label: 'Type de nœud' },
       { value: info.region_id, label: 'Région' },
-      { value: info.province_id, label: 'Province' },
       { value: info.city_id, label: 'Ville' },
     ];
 
@@ -380,43 +373,28 @@ function NodeDrawer({ editNode, onClose, onSaved }) {
                 </select>
               </Fld>
 
-              <div className="border-t border-gray-100 pt-4">
+                            <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Localisation</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Fld label="Région" req>
                     <select className={sel} value={info.region_id}
                       onChange={async (e) => {
                         const v = e.target.value;
-                        setInfo((f) => ({ ...f, region_id: v, province_id: '', city_id: '' }));
-                        setProvinces([]); setCities([]);
+                        setInfo((f) => ({ ...f, region_id: v, city_id: '' }));
+                        setCities([]);
                         if (v) {
-                          const res = await api.getProvinces({ region_id: v, limit: 500 });
-                          setProvinces(res.data.data ?? []);
+                          const res = await api.getCities({ region_id: v, limit: 500 });
+                          setCities(res.data.data ?? []);
                         }
                       }} required>
                       <option value="">Région…</option>
                       {regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
                     </select>
                   </Fld>
-                  <Fld label="Province" req>
-                    <select className={sel} value={info.province_id}
-                      onChange={async (e) => {
-                        const v = e.target.value;
-                        setInfo((f) => ({ ...f, province_id: v, city_id: '' }));
-                        setCities([]);
-                        if (v) {
-                          const res = await api.getCities({ province_id: v, limit: 500 });
-                          setCities(res.data.data ?? []);
-                        }
-                      }} required disabled={!info.region_id}>
-                      <option value="">Province…</option>
-                      {provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
-                    </select>
-                  </Fld>
                   <Fld label="Ville" req>
                     <select className={sel} value={info.city_id}
                       onChange={(e) => setInfo((f) => ({ ...f, city_id: e.target.value }))}
-                      required disabled={!info.province_id}>
+                      required disabled={!info.region_id}>
                       <option value="">Ville…</option>
                       {cities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
                     </select>

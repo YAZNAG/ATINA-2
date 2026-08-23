@@ -7,12 +7,6 @@ export const createRegion = (data) => api.post('/regions', data);
 export const updateRegion = (id, data) => api.put(`/regions/${id}`, data);
 export const deleteRegion = (id) => api.delete(`/regions/${id}`);
 
-export const getProvinces = (params) => api.get('/provinces', { params });
-export const getProvince = (id) => api.get(`/provinces/${id}`);
-export const createProvince = (data) => api.post('/provinces', data);
-export const updateProvince = (id, data) => api.put(`/provinces/${id}`, data);
-export const deleteProvince = (id) => api.delete(`/provinces/${id}`);
-
 export const getCities = (params) => api.get('/cities', { params });
 export const getCity = (id) => api.get(`/cities/${id}`);
 export const createCity = (data) => api.post('/cities', data);

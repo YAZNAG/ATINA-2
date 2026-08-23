@@ -1,17 +1,9 @@
 const repo = require('./family.repository');
-const { persistFamilyFiles, removeFamilyMediaFolder } = require('../../../services/familyMedia.service');
-
-const emptyToNull = (v) => (v === '' || v === undefined ? null : v);
 
 const pickFamilyPayload = (body) => ({
   name_fr: body.name_fr,
   name_ar: body.name_ar,
   code: body.code,
-  description_fr: emptyToNull(body.description_fr),
-  description_ar: emptyToNull(body.description_ar),
-  status: body.status || 'active',
-  sort_order:
-    body.sort_order !== undefined && body.sort_order !== '' ? Number(body.sort_order) : 0,
 });
 
 class FamilyService {
@@ -27,51 +19,64 @@ class FamilyService {
   }
 
   async getById(id) {
-    const item = await repo.findById(Number(id));
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
     return item;
   }
 
-  async create(body, files) {
+  async create(body) {
     const payload = pickFamilyPayload(body);
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    let row = await repo.create(payload);
-    const paths = persistFamilyFiles(row.id, files, null);
-    if (paths.image_path || paths.icon_path) {
-      row = await repo.update(row.id, paths);
-    }
-    return row;
+    return repo.create(payload);
   }
 
-  async update(id, body, files) {
-    const item = await repo.findById(Number(id));
+  async update(id, body) {
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
     if (body.code) {
-      const exists = await repo.findByCode(body.code, Number(id));
+      const exists = await repo.findByCode(body.code, id);
       if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
     }
     const payload = pickFamilyPayload(body);
-    const paths = persistFamilyFiles(Number(id), files, item);
-    const updateData = { ...payload, ...paths };
-    return repo.update(Number(id), updateData);
+    return repo.update(id, payload);
   }
 
   async delete(id) {
-    const item = await repo.findById(Number(id));
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
-    const catCount = await repo.countCategories(Number(id));
-    if (catCount > 0) throw { statusCode: 400, message: 'Impossible de supprimer : cette famille contient des catégories' };
-    await repo.softDelete(Number(id));
-    removeFamilyMediaFolder(Number(id));
+    const [subCount, articleCount] = await Promise.all([
+      repo.countSubfamilies(id),
+      repo.countArticles(id),
+    ]);
+    if (subCount > 0) {
+      throw { statusCode: 400, message: 'Impossible de supprimer : cette famille contient des sous-familles' };
+    }
+    if (articleCount > 0) {
+      throw { statusCode: 400, message: 'Impossible de supprimer : des articles sont rattachés à cette famille' };
+    }
+    await repo.softDelete(id);
+  }
+
+  async toggleStatus(id) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
+    return repo.update(id, { is_active: !item.is_active });
+  }
+
+  async reorder(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw { statusCode: 400, message: 'Liste "items" requise' };
+    }
+    return repo.reorder(items);
   }
 
   async restore(id) {
-  const item = await repo.findByIdIncludingDeleted(Number(id));
-  if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
-  if (!item.deleted_at) throw { statusCode: 400, message: "Cette famille n'est pas supprimée" };
-  return repo.restore(Number(id));
-}
+    const item = await repo.findByIdIncludingDeleted(id);
+    if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
+    if (!item.deleted_at) throw { statusCode: 400, message: "Cette famille n'est pas supprimée" };
+    return repo.restore(id);
+  }
 }
 
 module.exports = new FamilyService();

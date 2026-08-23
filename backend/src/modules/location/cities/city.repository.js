@@ -1,14 +1,14 @@
 const prisma = require('../../../config/database');
 
 const INCLUDE = {
-  province: {
-    select: { id: true, code: true, name_fr: true, name_ar: true, region: { select: { id: true, name_fr: true } } },
+  region: {
+    select: { id: true, code: true, name_fr: true, name_ar: true },
   },
 };
 
-const buildWhere = ({ search, province_id, is_active, is_deleted }) => ({
+const buildWhere = ({ search, region_id, is_active, is_deleted }) => ({
   ...(is_deleted !== undefined && { is_deleted: is_deleted === 'true' || is_deleted === true }),
-  ...(province_id && { province_id }),
+  ...(region_id && { region_id }),
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
   ...(search && {
     OR: [
@@ -20,8 +20,8 @@ const buildWhere = ({ search, province_id, is_active, is_deleted }) => ({
   }),
 });
 
-const findAll = async ({ search, province_id, is_active, is_deleted, page = 1, limit = 20 }) => {
-  const where = buildWhere({ search, province_id, is_active, is_deleted });
+const findAll = async ({ search, region_id, is_active, is_deleted, page = 1, limit = 20 }) => {
+  const where = buildWhere({ search, region_id, is_active, is_deleted });
   const pageNum = Number(page);
   const limitNum = Number(limit);
   const skip = (pageNum - 1) * limitNum;

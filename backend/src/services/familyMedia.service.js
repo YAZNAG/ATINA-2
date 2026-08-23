@@ -35,6 +35,24 @@ function persistPair(storageFolder, entityId, files, existing) {
   return out;
 }
 
+/** Variante image-seule : pour les entités sans colonne icon_path (Category, SkuSubFamily…) */
+function persistImageOnly(storageFolder, entityId, files, existing) {
+  const id = String(entityId);
+  const baseDir = path.join(process.cwd(), 'storage', 'image', storageFolder, id);
+  const out = {};
+
+  if (files?.image?.[0]?.buffer) {
+    if (existing?.image_path) deleteFile(existing.image_path);
+    fs.mkdirSync(baseDir, { recursive: true });
+    const ext = safeExt(files.image[0].originalname);
+    const filename = `image${ext}`;
+    fs.writeFileSync(path.join(baseDir, filename), files.image[0].buffer);
+    out.image_path = `/storage/image/${storageFolder}/${id}/${filename}`;
+  }
+
+  return out;
+}
+
 function removeFolder(storageFolder, entityId) {
   const dir = path.join(process.cwd(), 'storage', 'image', storageFolder, String(entityId));
   try {
@@ -44,7 +62,7 @@ function removeFolder(storageFolder, entityId) {
   }
 }
 
-/** Famille */
+/** Famille : image + icône */
 function persistFamilyFiles(familyId, files, existing) {
   return persistPair('famille', familyId, files, existing);
 }
@@ -53,18 +71,18 @@ function removeFamilyMediaFolder(familyId) {
   removeFolder('famille', familyId);
 }
 
-/** Catégorie */
+/** Catégorie : image seule (pas d'icon_path dans le modèle) */
 function persistCategoryFiles(categoryId, files, existing) {
-  return persistPair('categorie', categoryId, files, existing);
+  return persistImageOnly('categorie', categoryId, files, existing);
 }
 
 function removeCategoryMediaFolder(categoryId) {
   removeFolder('categorie', categoryId);
 }
 
-/** Sous-catégorie */
+/** Sous-catégorie (legacy) : image seule */
 function persistSubCategoryFiles(subCategoryId, files, existing) {
-  return persistPair('sous-categorie', subCategoryId, files, existing);
+  return persistImageOnly('sous-categorie', subCategoryId, files, existing);
 }
 
 function removeSubCategoryMediaFolder(subCategoryId) {

@@ -6,7 +6,7 @@ const N = (v) => Number(v ?? 0);
 
 const findWithFilters = async ({
   node_id, sku_id, category_id,
-  backorderable, limit_reached, out_of_stock,
+  backorderable, limit_reached, out_of_stock, sellable,
 } = {}) => {
   const articleWhere = { is_active: true, is_deleted: false, sku_uuid: { not: null } };
   if (category_id) articleWhere.category_id = category_id;
@@ -44,10 +44,15 @@ const findWithFilters = async ({
     .map((a) => {
       const level = levelsMap[a.sku_uuid] ?? null;
       const rule  = rulesMap[a.sku_uuid]  ?? null;
+      const price = N(rule?.price);
+      const is_sellable = rule?.is_sellable ?? true;
       return {
         rule_id:              rule?.id ?? null,
         node_id:              node_id ?? rule?.node_id ?? null,
         sku_id:               a.sku_uuid,
+        is_sellable,
+        price,
+        is_vendable:          Boolean(is_sellable && price > 0),
         is_backorderable:     rule?.is_backorderable    ?? true,
         backorder_limit:      N(rule?.backorder_limit),
         backordered_quantity: N(rule?.backordered_quantity),
@@ -76,7 +81,8 @@ const findWithFilters = async ({
       };
     });
 
-  // Boolean filters
+  if (sellable === 'true' || sellable === true)   rows = rows.filter((r) => r.is_vendable);
+  if (sellable === 'false' || sellable === false)  rows = rows.filter((r) => !r.is_vendable);
   if (backorderable === 'true'  || backorderable === true)  rows = rows.filter((r) => r.is_backorderable);
   if (backorderable === 'false' || backorderable === false) rows = rows.filter((r) => !r.is_backorderable);
   if (out_of_stock  === 'true'  || out_of_stock === true)  rows = rows.filter((r) => r.qty_available <= 0);
@@ -94,10 +100,7 @@ const findAllBySku = (sku_id) =>
   });
 
 const findByNode = (node_id) => findWithFilters({ node_id });
-
-const findById = (id) =>
-  prisma.sellingRule.findUnique({ where: { id } });
-
+const findById = (id) => prisma.sellingRule.findUnique({ where: { id } });
 const findOne = (node_id, sku_id) =>
   prisma.sellingRule.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
 
@@ -110,11 +113,8 @@ const upsert = (node_id, sku_id, data) =>
     create: { node_id, sku_id, ...data },
   });
 
-const update = (id, data) =>
-  prisma.sellingRule.update({ where: { id }, data });
-
-const remove = (id) =>
-  prisma.sellingRule.delete({ where: { id } });
+const update = (id, data) => prisma.sellingRule.update({ where: { id }, data });
+const remove = (id) => prisma.sellingRule.delete({ where: { id } });
 
 // ─── Business logic ───────────────────────────────────────────────────────────
 
@@ -127,12 +127,23 @@ const canSellSKU = async (node_id, sku_id, requested_qty) => {
   const qty_available  = N(level?.qty_available);
   const qty_backordered = N(rule?.backordered_quantity);
   const restock_days    = rule?.estimated_restock_days ?? 1;
+  const price           = N(rule?.price);
+  const is_sellable     = rule?.is_sellable ?? true;
 
   const estimatedDate = () => {
     const d = new Date();
     d.setDate(d.getDate() + restock_days);
     return d;
   };
+
+  if (!rule || !is_sellable || price <= 0) {
+    return {
+      allowed: false, mode: 'BLOCKED',
+      available_qty: qty_available, backorder_qty: qty_backordered,
+      estimated_restock_days: restock_days, estimated_available_date: null,
+      reason: 'not_sellable',
+    };
+  }
 
   if (qty_available >= requested_qty) {
     return {
@@ -143,7 +154,7 @@ const canSellSKU = async (node_id, sku_id, requested_qty) => {
     };
   }
 
-  if (!rule || !rule.is_backorderable) {
+  if (!rule.is_backorderable) {
     return {
       allowed: false, mode: 'BLOCKED',
       available_qty: qty_available, backorder_qty: qty_backordered,
@@ -200,8 +211,10 @@ const calculateEstimatedDelivery = async (node_id, sku_id) => {
 
 const bulkSave = (rows) =>
   prisma.$transaction(
-    rows.map(({ node_id, sku_id, is_backorderable, backorder_limit, estimated_restock_days }) => {
+    rows.map(({ node_id, sku_id, is_sellable, price, is_backorderable, backorder_limit, estimated_restock_days }) => {
       const data = {};
+      if (is_sellable !== undefined)         data.is_sellable         = Boolean(is_sellable);
+      if (price !== undefined)               data.price               = Number(price);
       if (is_backorderable !== undefined)    data.is_backorderable    = Boolean(is_backorderable);
       if (backorder_limit !== undefined)     data.backorder_limit     = Number(backorder_limit);
       if (estimated_restock_days !== undefined) data.estimated_restock_days = parseInt(estimated_restock_days, 10);

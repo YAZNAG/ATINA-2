@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, ImageOff, Upload, Loader2, Lock, Power, PowerOff, RotateCcw,
+  ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -8,8 +9,9 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  toggleCategoryStatus,
   restoreCategory,
-  getFamiliesList,
+  reorderCategories,
 } from '../../../api/catalog.api';
 
 const PAGE_SIZE = 20;
@@ -18,10 +20,8 @@ const EMPTY_FORM = {
   name_fr: '',
   name_ar: '',
   code: '',
-  family_id: '',
-  description_fr: '',
-  description_ar: '',
-  status: 'active',
+  gpc_code: '',
+  is_active: true,
 };
 
 const STATUS_OPTIONS = [
@@ -39,7 +39,7 @@ function StatusBadge({ category }) {
       </span>
     );
   }
-  if (category.status === 'active') {
+  if (category.is_active) {
     return (
       <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
         Actif
@@ -63,7 +63,6 @@ export default function CategoriesPage() {
 
   // ——— Liste ———
   const [categories, setCategories] = useState([]);
-  const [families, setFamilies] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: PAGE_SIZE, pages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -71,6 +70,7 @@ export default function CategoriesPage() {
   const [page, setPage] = useState(1);
   const [togglingId, setTogglingId] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
+  const [movingId, setMovingId] = useState(null);
 
   // ——— Drawer création / édition ———
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -78,12 +78,9 @@ export default function CategoriesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [iconFile, setIconFile] = useState(null);
-  const [iconPreview, setIconPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const imageInputRef = useRef(null);
-  const iconInputRef = useRef(null);
 
   // ——— Suppression ———
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -97,12 +94,8 @@ export default function CategoriesPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // ——— Familles (pour le select du formulaire) ———
-  useEffect(() => {
-    getFamiliesList()
-      .then(({ data }) => setFamilies(data.data || []))
-      .catch(() => setFamilies([]));
-  }, []);
+  // ——— Le réordonnancement n'a de sens que sur la vue non filtrée ———
+  const reorderEnabled = !search && !status;
 
   // ——— Chargement liste ———
   const fetchCategories = useCallback(async () => {
@@ -139,8 +132,6 @@ export default function CategoriesPage() {
     setForm(EMPTY_FORM);
     setImageFile(null);
     setImagePreview(null);
-    setIconFile(null);
-    setIconPreview(null);
     setFormErrors({});
     setDrawerOpen(true);
   };
@@ -151,15 +142,11 @@ export default function CategoriesPage() {
       name_fr: category.name_fr || '',
       name_ar: category.name_ar || '',
       code: category.code || '',
-      family_id: category.family_id || '',
-      description_fr: category.description_fr || '',
-      description_ar: category.description_ar || '',
-      status: category.status || 'active',
+      gpc_code: category.gpc_code || '',
+      is_active: category.is_active ?? true,
     });
     setImageFile(null);
-    setImagePreview(category.image_path || null);
-    setIconFile(null);
-    setIconPreview(category.icon_path || null);
+    setImagePreview(category.image_url || null);
     setFormErrors({});
     setDrawerOpen(true);
   };
@@ -181,19 +168,11 @@ export default function CategoriesPage() {
     setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleIconChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIconFile(file);
-    setIconPreview(URL.createObjectURL(file));
-  };
-
   const validateForm = () => {
     const errs = {};
     if (!form.name_fr.trim()) errs.name_fr = 'Nom français requis';
     if (!form.name_ar.trim()) errs.name_ar = 'Nom arabe requis';
     if (!form.code.trim()) errs.code = 'Code requis';
-    if (!form.family_id) errs.family_id = 'Famille requise';
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -205,11 +184,10 @@ export default function CategoriesPage() {
     setSaving(true);
     try {
       let payload;
-      if (imageFile || iconFile) {
+      if (imageFile) {
         payload = new FormData();
         Object.entries(form).forEach(([k, v]) => payload.append(k, v ?? ''));
-        if (imageFile) payload.append('image', imageFile);
-        if (iconFile) payload.append('icon', iconFile);
+        payload.append('image', imageFile);
       } else {
         payload = form;
       }
@@ -236,16 +214,36 @@ export default function CategoriesPage() {
 
   // ——— Activer / désactiver ———
   const toggleStatus = async (category) => {
-    const newStatus = category.status === 'active' ? 'inactive' : 'active';
     setTogglingId(category.id);
     try {
-      await updateCategory(category.id, { status: newStatus });
-      showToast('success', newStatus === 'active' ? 'Catégorie activée' : 'Catégorie désactivée');
+      await toggleCategoryStatus(category.id);
+      showToast('success', !category.is_active ? 'Catégorie activée' : 'Catégorie désactivée');
       fetchCategories();
     } catch (err) {
       showToast('error', err?.response?.data?.message || 'Erreur lors du changement de statut');
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // ——— Réordonnancement (swap sort_order avec le voisin, atomique côté backend) ———
+  const moveCategory = async (index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const current = categories[index];
+    const target = categories[targetIndex];
+    setMovingId(current.id);
+    try {
+      await reorderCategories([
+        { id: current.id, sort_order: target.sort_order ?? 0 },
+        { id: target.id, sort_order: current.sort_order ?? 0 },
+      ]);
+      fetchCategories();
+    } catch (err) {
+      showToast('error', err?.response?.data?.message || 'Erreur lors du réordonnancement');
+    } finally {
+      setMovingId(null);
     }
   };
 
@@ -309,7 +307,9 @@ export default function CategoriesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Catégories</h1>
-          <p className="mt-1 text-sm text-neutral-500">Gérez les catégories de la hiérarchie produit.</p>
+          <p className="mt-1 text-sm text-neutral-500">
+            Axe de classification indépendant, sans hiérarchie parente.
+          </p>
         </div>
         {canCreate && (
           <button
@@ -329,7 +329,7 @@ export default function CategoriesPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher (nom, code, description)…"
+            placeholder="Rechercher (nom, code)…"
             className="w-full rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15"
           />
         </div>
@@ -344,6 +344,9 @@ export default function CategoriesPage() {
             </option>
           ))}
         </select>
+        {reorderEnabled && (
+          <span className="text-xs text-neutral-400">Utilisez ↑↓ dans le tableau pour réordonner.</span>
+        )}
       </div>
 
       {/* Tableau */}
@@ -351,13 +354,12 @@ export default function CategoriesPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
             <tr>
+              <th className="px-4 py-3 font-medium">Ordre</th>
               <th className="px-4 py-3 font-medium">Image</th>
-              <th className="px-4 py-3 font-medium">Icône</th>
               <th className="px-4 py-3 font-medium">Nom (FR)</th>
               <th className="px-4 py-3 font-medium">Nom (AR)</th>
               <th className="px-4 py-3 font-medium">Code</th>
-              <th className="px-4 py-3 font-medium">Description</th>
-              <th className="px-4 py-3 font-medium">Famille</th>
+              <th className="px-4 py-3 font-medium">Code GPC</th>
               <th className="px-4 py-3 font-medium">Statut</th>
               {canManage && <th className="px-4 py-3 font-medium text-right">Actions</th>}
             </tr>
@@ -365,33 +367,52 @@ export default function CategoriesPage() {
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
               <tr>
-                <td colSpan={canManage ? 9 : 8} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={canManage ? 8 : 7} className="px-4 py-12 text-center text-neutral-400">
                   <Loader2 size={20} className="mx-auto animate-spin" />
                 </td>
               </tr>
             ) : categories.length === 0 ? (
               <tr>
-                <td colSpan={canManage ? 9 : 8} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={canManage ? 8 : 7} className="px-4 py-12 text-center text-neutral-400">
                   Aucune catégorie trouvée.
                 </td>
               </tr>
             ) : (
-              categories.map((cat) => {
+              categories.map((cat, index) => {
                 const isDeleted = Boolean(cat.deleted_at);
+                const canReorder = canUpdate && !isDeleted && reorderEnabled;
                 return (
                   <tr key={cat.id} className={`transition hover:bg-neutral-50 ${isDeleted ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-3">
-                      {cat.image_path ? (
-                        <img src={cat.image_path} alt={cat.name_fr} className="h-10 w-10 rounded-md object-cover" />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-neutral-100 text-neutral-300">
-                          <ImageOff size={16} />
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <span className="w-6 text-center font-mono text-xs text-neutral-400">
+                          {cat.sort_order ?? 0}
+                        </span>
+                        {canReorder && (
+                          <div className="flex flex-col">
+                            <button
+                              onClick={() => moveCategory(index, 'up')}
+                              disabled={index === 0 || movingId === cat.id}
+                              className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30"
+                              title="Monter"
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              onClick={() => moveCategory(index, 'down')}
+                              disabled={index === categories.length - 1 || movingId === cat.id}
+                              className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30"
+                              title="Descendre"
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
-                      {cat.icon_path ? (
-                        <img src={cat.icon_path} alt={`${cat.name_fr} icône`} className="h-10 w-10 rounded-md object-cover" />
+                      {cat.image_url ? (
+                        <img src={cat.image_url} alt={cat.name_fr} className="h-10 w-10 rounded-md object-cover" />
                       ) : (
                         <div className="flex h-10 w-10 items-center justify-center rounded-md bg-neutral-100 text-neutral-300">
                           <ImageOff size={16} />
@@ -401,15 +422,7 @@ export default function CategoriesPage() {
                     <td className="px-4 py-3 font-medium text-neutral-800">{cat.name_fr}</td>
                     <td className="px-4 py-3 text-neutral-600" dir="rtl">{cat.name_ar}</td>
                     <td className="px-4 py-3 font-mono text-xs text-neutral-500">{cat.code}</td>
-                    <td className="px-4 py-3 max-w-[240px] text-neutral-500">
-                      <p className="truncate" title={cat.description_fr || ''}>
-                        {cat.description_fr || '—'}
-                      </p>
-                      <p className="truncate text-xs text-neutral-400" dir="rtl" title={cat.description_ar || ''}>
-                        {cat.description_ar || '—'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-neutral-600">{cat.family?.name_fr || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-neutral-500">{cat.gpc_code || '—'}</td>
                     <td className="px-4 py-3">
                       <StatusBadge category={cat} />
                     </td>
@@ -438,15 +451,15 @@ export default function CategoriesPage() {
                                   onClick={() => toggleStatus(cat)}
                                   disabled={togglingId === cat.id}
                                   className={`rounded-lg p-2 transition disabled:opacity-50 ${
-                                    cat.status === 'active'
+                                    cat.is_active
                                       ? 'text-emerald-600 hover:bg-emerald-50'
                                       : 'text-neutral-400 hover:bg-neutral-100'
                                   }`}
-                                  title={cat.status === 'active' ? 'Désactiver' : 'Activer'}
+                                  title={cat.is_active ? 'Désactiver' : 'Activer'}
                                 >
                                   {togglingId === cat.id ? (
                                     <Loader2 size={16} className="animate-spin" />
-                                  ) : cat.status === 'active' ? (
+                                  ) : cat.is_active ? (
                                     <Power size={16} />
                                   ) : (
                                     <PowerOff size={16} />
@@ -533,42 +546,23 @@ export default function CategoriesPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto">
             <div className="flex-1 px-5 py-4">
-              {/* Image + Icône */}
-              <div className="mb-4 flex items-center gap-6">
-                <div>
-                  <div className="mb-1.5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
-                    {imagePreview ? (
-                      <img src={imagePreview} alt="image" className="h-full w-full object-cover" />
-                    ) : (
-                      <ImageOff size={20} className="text-neutral-300" />
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
-                  >
-                    <Upload size={12} /> Image
-                  </button>
-                  <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleImageChange} />
+              {/* Image */}
+              <div className="mb-4">
+                <div className="mb-1.5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="image" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageOff size={20} className="text-neutral-300" />
+                  )}
                 </div>
-                <div>
-                  <div className="mb-1.5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
-                    {iconPreview ? (
-                      <img src={iconPreview} alt="icône" className="h-full w-full object-cover" />
-                    ) : (
-                      <ImageOff size={20} className="text-neutral-300" />
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => iconInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
-                  >
-                    <Upload size={12} /> Icône
-                  </button>
-                  <input ref={iconInputRef} type="file" accept="image/*" hidden onChange={handleIconChange} />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
+                >
+                  <Upload size={12} /> Image
+                </button>
+                <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleImageChange} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -597,40 +591,21 @@ export default function CategoriesPage() {
                 />
               </Field>
 
-              <Field label="Famille" error={formErrors.family_id} className="mt-3">
-                <select
-                  value={form.family_id}
-                  onChange={handleFieldChange('family_id')}
-                  className={inputClass(formErrors.family_id)}
-                >
-                  <option value="">— Sélectionner —</option>
-                  {families.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name_fr}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Description (FR)" className="mt-3">
-                <textarea
-                  rows={2}
-                  value={form.description_fr}
-                  onChange={handleFieldChange('description_fr')}
+              <Field label="Code GPC (optionnel)" className="mt-3">
+                <input
+                  value={form.gpc_code}
+                  onChange={handleFieldChange('gpc_code')}
                   className={inputClass()}
-                />
-              </Field>
-
-              <Field label="Description (AR)" className="mt-3">
-                <textarea
-                  dir="rtl"
-                  rows={2}
-                  value={form.description_ar}
-                  onChange={handleFieldChange('description_ar')}
-                  className={inputClass()}
+                  placeholder="Standard GS1"
                 />
               </Field>
 
               <Field label="Statut" className="mt-3">
-                <select value={form.status} onChange={handleFieldChange('status')} className={inputClass()}>
+                <select
+                  value={form.is_active ? 'active' : 'inactive'}
+                  onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.value === 'active' }))}
+                  className={inputClass()}
+                >
                   <option value="active">Actif</option>
                   <option value="inactive">Inactif</option>
                 </select>

@@ -4,10 +4,6 @@ const response = require('../../../utils/response');
 class SkuController {
   async index(req, res, next) {
     try {
-      if (req.query.all === 'true') {
-        const data = await service.getList();
-        return response.success(res, data);
-      }
       const result = await service.getAll(req.query);
       return res.json({ success: true, ...result });
     } catch (err) {
@@ -25,7 +21,15 @@ class SkuController {
 
   async store(req, res, next) {
     try {
-      return response.success(res, await service.create(), 'SKU créé', 201);
+      return response.success(res, await service.create(req.body), 'SKU créé', 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async update(req, res, next) {
+    try {
+      return response.success(res, await service.update(req.params.id, req.body), 'SKU mis à jour');
     } catch (err) {
       next(err);
     }
@@ -38,6 +42,20 @@ class SkuController {
     } catch (err) {
       next(err);
     }
+  }
+
+  async toggleStatus(req, res, next) {
+    try {
+      const row = await service.toggleStatus(req.params.id);
+      response.success(res, row, 'Statut mis à jour');
+    } catch (e) { next(e); }
+  }
+
+  async restore(req, res, next) {
+    try {
+      const row = await service.restore(req.params.id);
+      response.success(res, row, 'SKU restauré');
+    } catch (e) { next(e); }
   }
 }
 

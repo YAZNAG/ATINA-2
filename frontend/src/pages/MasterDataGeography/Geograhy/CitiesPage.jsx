@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../context/AuthContext';
 import { getErrorMessage } from '../../../utils/helpers';
-import { deleteCity, getCities, getProvinces } from '../../../api/locationNode.api';
+import { deleteCity, getCities, getRegions } from '../../../api/locationNode.api';
 import { DeleteButton } from '../../../components/ui/CrudActions';
 
 function descCell(value, max = 56) {
-  if (value == null || String(value).trim() === '') return '�';
+  if (value == null || String(value).trim() === '') return '—';
   const str = String(value);
-  return str.length <= max ? str : `${str.slice(0, max)}�`;
+  return str.length <= max ? str : `${str.slice(0, max)}…`;
 }
 
 export default function CitiesPage({ embedded = false }) {
@@ -17,7 +17,7 @@ export default function CitiesPage({ embedded = false }) {
   const canView = hasPermission('cities.view');
   const canDelete = hasPermission('cities.delete');
   const [rows, setRows] = useState([]);
-  const [provinceMap, setProvinceMap] = useState({});
+  const [regionMap, setRegionMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('all');
 
@@ -31,13 +31,13 @@ export default function CitiesPage({ embedded = false }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cityRes, provinceRes] = await Promise.all([
+      const [cityRes, regionRes] = await Promise.all([
         getCities({ limit: 500, ...buildStatusParams(status) }),
-        getProvinces({ limit: 500 }),
+        getRegions({ limit: 500 }),
       ]);
       setRows(cityRes.data.data || []);
-      const provinces = provinceRes.data.data || [];
-      setProvinceMap(Object.fromEntries(provinces.map((province) => [province.id, province])));
+      const regions = regionRes.data.data || [];
+      setRegionMap(Object.fromEntries(regions.map((region) => [region.id, region])));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -52,7 +52,7 @@ export default function CitiesPage({ embedded = false }) {
   if (!canView) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-neutral-400">
-        <p className="text-sm">Vous n'avez pas acc�s � cette page.</p>
+        <p className="text-sm">Vous n'avez pas accès à cette page.</p>
       </div>
     );
   }
@@ -92,7 +92,7 @@ export default function CitiesPage({ embedded = false }) {
                 <th className="table-th">Code</th>
                 <th className="table-th">Nom FR</th>
                 <th className="table-th">Nom AR</th>
-                <th className="table-th">Province</th>
+                <th className="table-th">Région</th>
                 <th className="table-th">Code postal</th>
                 <th className="table-th">Statut</th>
                 {canDelete && <th className="table-th">Actions</th>}
@@ -102,7 +102,7 @@ export default function CitiesPage({ embedded = false }) {
               {loading ? (
                 <tr>
                   <td colSpan={canDelete ? 7 : 6} className="text-center py-12 text-gray-400 text-sm">
-                    Chargement�
+                    Chargement…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
@@ -114,11 +114,11 @@ export default function CitiesPage({ embedded = false }) {
               ) : (
                 rows.map((city) => (
                   <tr key={city.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="table-td font-mono text-sm">{city.code || '�'}</td>
-                    <td className="table-td">{city.name_fr || '�'}</td>
-                    <td className="table-td" dir="rtl">{city.name_ar || '�'}</td>
-                    <td className="table-td">{provinceMap[city.province_id]?.name_fr || city.province_id || '�'}</td>
-                    <td className="table-td">{city.postal_code || '�'}</td>
+                    <td className="table-td font-mono text-sm">{city.code || '—'}</td>
+                    <td className="table-td">{city.name_fr || '—'}</td>
+                    <td className="table-td" dir="rtl">{city.name_ar || '—'}</td>
+                    <td className="table-td">{regionMap[city.region_id]?.name_fr || city.region_id || '—'}</td>
+                    <td className="table-td">{city.postal_code || '—'}</td>
                     <td className="table-td">
                       {city.is_deleted ? (
                         <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
@@ -138,7 +138,7 @@ export default function CitiesPage({ embedded = false }) {
                               if (!window.confirm(`Supprimer la ville "${city.name_fr}" ?`)) return;
                               try {
                                 await deleteCity(city.id);
-                                toast.success('Ville supprim�e');
+                                toast.success('Ville supprimée');
                                 loadData();
                               } catch (err) {
                                 toast.error(getErrorMessage(err));

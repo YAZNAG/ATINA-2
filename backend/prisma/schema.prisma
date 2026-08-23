@@ -94,14 +94,14 @@ model Picker {
   phone_number  String           @db.VarChar(15)
   name          String           @db.VarChar(150)
   password_hash String
-  email         String?  @db.VarChar(255)
-  avatar_url    String?
-  is_active     Boolean   @default(true)
-  is_deleted    Boolean   @default(false)
-  deleted_at    DateTime? @db.Timestamptz(6)
+  is_active     Boolean          @default(true)
+  is_deleted    Boolean          @default(false)
+  deleted_at    DateTime?        @db.Timestamptz(6)
   created_by    Int?
   created_at    DateTime         @default(now()) @db.Timestamptz(6)
   updated_at    DateTime         @updatedAt @db.Timestamptz(6)
+  avatar_url    String?
+  email         String?          @db.VarChar(255)
   node          Node             @relation(fields: [node_id], references: [id])
   sessions      PickingSession[]
 
@@ -192,68 +192,59 @@ model UserRole {
   @@map("user_roles")
 }
 
-model Family {
-  id             Int        @id @default(autoincrement())
-  name_fr        String
-  name_ar        String
-  code           String     @unique
-  description_fr String?
-  description_ar String?
-  image_path     String?
-  icon_path      String?
-  status         String     @default("active")
-  sort_order     Int        @default(0)
-  created_at     DateTime   @default(now())
-  updated_at     DateTime   @updatedAt
-  deleted_at     DateTime?
-  articles       Article[]
-  categories     Category[]
+model SkuFamily {
+  id          String         @id @default(uuid()) @db.Uuid
+  code        String         @unique @db.VarChar(50)
+  name_fr     String         @db.VarChar(150)
+  name_ar     String         @db.VarChar(150)
+  is_deleted  Boolean        @default(false)
+  deleted_at  DateTime?
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @default(now())
+  is_active   Boolean        @default(true)
+  sort_order  Int            @default(0) @db.SmallInt
+  subfamilies SkuSubFamily[]
+  skus        Sku[]
 
-  @@map("families")
+  @@map("sku_families")
+}
+
+model SkuSubFamily {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String    @unique @db.VarChar(50)
+  name_fr    String    @db.VarChar(150)
+  name_ar    String    @db.VarChar(150)
+  family_id  String    @db.Uuid
+  is_deleted Boolean   @default(false)
+  deleted_at DateTime?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  is_active  Boolean   @default(true)
+  sort_order Int       @default(0) @db.SmallInt
+  family     SkuFamily @relation(fields: [family_id], references: [id])
+  skus       Sku[]
+
+  @@map("sku_subfamilies")
 }
 
 model Category {
-  id             Int           @id @default(autoincrement())
-  family_id      Int
-  name_fr        String
-  name_ar        String
-  code           String        @unique
-  description_fr String?
-  description_ar String?
-  image_path     String?
-  icon_path      String?
-  status         String        @default("active")
-  sort_order     Int           @default(0)
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  deleted_at     DateTime?
-  articles       Article[]
-  family         Family        @relation(fields: [family_id], references: [id])
-  flash_sales    FlashSale[]
-  sub_categories SubCategory[]
+  name_fr      String       @db.VarChar(150)
+  name_ar      String       @db.VarChar(150)
+  code         String       @unique @db.VarChar(50)
+  sort_order   Int          @default(0) @db.SmallInt
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @default(now())
+  deleted_at   DateTime?
+  gpc_code     String?      @db.VarChar(20)
+  image_url    String?
+  is_active    Boolean      @default(true)
+  is_deleted   Boolean      @default(false)
+  id           String       @id @default(uuid()) @db.Uuid
+  flash_sales  FlashSale[]
+  points_rules PointsRule[]
+  skus         Sku[]
 
   @@map("categories")
-}
-
-model SubCategory {
-  id             Int       @id @default(autoincrement())
-  category_id    Int
-  name_fr        String
-  name_ar        String
-  code           String    @unique
-  description_fr String?
-  description_ar String?
-  image_path     String?
-  icon_path      String?
-  status         String    @default("active")
-  sort_order     Int       @default(0)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  deleted_at     DateTime?
-  articles       Article[]
-  category       Category  @relation(fields: [category_id], references: [id])
-
-  @@map("sub_categories")
 }
 
 model Brand {
@@ -268,8 +259,8 @@ model Brand {
   deleted_at     DateTime?
   description_ar String?
   description_fr String?
-  articles       Article[]
   flash_sales    FlashSale[]
+  skus           Sku[]
 
   @@map("brands")
 }
@@ -285,11 +276,10 @@ model Unit {
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
   deleted_at      DateTime?
+  sort_order      Int             @default(0)
   packaging_types PackagingType[]
-  sort_order Int @default(0)
-
-  articles_purchase Article[] @relation("ArticleUnitPurchase")
-  articles_sale     Article[] @relation("ArticleUnitSale")
+  skus_purchase   Sku[]           @relation("SkuUnitPurchase")
+  skus_sale       Sku[]           @relation("SkuUnitSale")
 
   @@map("units")
 }
@@ -306,8 +296,7 @@ model PackagingType {
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
   unit       Unit?     @relation(fields: [unit_id], references: [id])
-
-  articles   Article[]
+  skus       Sku[]
 
   @@map("packaging_types")
 }
@@ -323,38 +312,9 @@ model ConservationType {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
   deleted_at      DateTime?
-  articles        Article[]
+  skus            Sku[]
 
   @@map("conservation_types")
-}
-
-model ArticleType {
-  id             Int       @id @default(autoincrement())
-  name_fr        String
-  name_ar        String
-  code           String    @unique
-  description_fr String?
-  description_ar String?
-  status         String    @default("active")
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  deleted_at     DateTime?
-  articles       Article[]
-
-  @@map("article_types")
-}
-
-model ArticleStatus {
-  id         Int       @id @default(autoincrement())
-  name_fr    String
-  name_ar    String
-  code       String    @unique
-  color      String?
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  articles   Article[]
-
-  @@map("article_statuses")
 }
 
 model Tax {
@@ -367,70 +327,42 @@ model Tax {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
-  articles   Article[]
+  skus       Sku[]
 
   @@map("taxes")
-}
-
-model Article {
-  id                   Int               @id @default(autoincrement())
-  name_fr              String            @db.VarChar(255)
-  name_ar              String            @db.VarChar(255)
-  description_fr       String?
-  description_ar       String?
-  family_id            Int
-  category_id          Int?
-  sub_category_id      Int?
-  brand_id             Int?
-  is_active            Boolean           @default(true)
-  created_at           DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime          @updatedAt @db.Timestamptz(6)
-  deleted_at           DateTime?         @db.Timestamptz(6)
-  coeff                Decimal           @default(1) @db.Decimal(10, 4)
-  ean13                String?           @unique @db.VarChar(13)
-  is_deleted           Boolean           @default(false)
-  price                Decimal           @db.Decimal(12, 2)
-  sku_code             String            @unique @db.VarChar(100)
-  sku_uuid             String?           @unique @db.Uuid
-  unit_purchase        String            @default("unit") @db.VarChar(20)   // gardé temporairement
-  unit_sale            String            @default("unit") @db.VarChar(20)   // gardé temporairement
-  vat_rate             Decimal           @default(20) @db.Decimal(5, 2)
-  volume_ml            Int?
-  weight_g             Int?
-  article_status_id    Int?
-  article_type_id      Int?
-  conservation_type_id Int?
-  tax_id               Int?
-
-  unit_purchase_id     Int?
-  unit_sale_id         Int?
-  packaging_type_id    Int?
-
-  images               ArticleImage[]
-  article_status       ArticleStatus?    @relation(fields: [article_status_id], references: [id])
-  article_type         ArticleType?      @relation(fields: [article_type_id], references: [id])
-  brand                Brand?            @relation(fields: [brand_id], references: [id])
-  category             Category?         @relation(fields: [category_id], references: [id])
-  conservation_type    ConservationType? @relation(fields: [conservation_type_id], references: [id])
-  family               Family            @relation(fields: [family_id], references: [id])
-  catalog_sku          Sku?              @relation("ArticleCatalogSku", fields: [sku_uuid], references: [id])
-  sub_category         SubCategory?      @relation(fields: [sub_category_id], references: [id])
-  tax                  Tax?              @relation(fields: [tax_id], references: [id])
-  wishlist_items       Wishlist[]
-  reviews              ArticleReview[]
-
-  unit_purchase_ref    Unit?             @relation("ArticleUnitPurchase", fields: [unit_purchase_id], references: [id])
-  unit_sale_ref        Unit?             @relation("ArticleUnitSale", fields: [unit_sale_id], references: [id])
-  packaging_type       PackagingType?    @relation(fields: [packaging_type_id], references: [id])
-
-  @@map("articles")
 }
 
 model Sku {
   id                         String               @id @default(uuid()) @db.Uuid
   created_at                 DateTime             @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime             @updatedAt @db.Timestamptz(6)
-  article                    Article?             @relation("ArticleCatalogSku")
+  brand_id                   Int?
+  category_id                String?              @db.Uuid
+  coeff                      Decimal              @default(1) @db.Decimal(10, 4)
+  conservation_type_id       Int?
+  deleted_at                 DateTime?            @db.Timestamptz(6)
+  description_ar             String?
+  description_fr             String?
+  ean13                      String?              @unique @db.VarChar(13)
+  is_active                  Boolean              @default(true)
+  is_deleted                 Boolean              @default(false)
+  name_ar                    String               @db.VarChar(255)
+  name_fr                    String               @db.VarChar(255)
+  packaging_type_id          Int?
+  price                      Decimal              @db.Decimal(12, 2)
+  sku_code                   String               @unique @db.VarChar(100)
+  sku_family_id              String               @db.Uuid
+  sku_subfamily_id           String?              @db.Uuid
+  status                     String               @default("active") @db.VarChar(20)
+  tax_id                     Int?
+  unit_purchase              String               @default("unit") @db.VarChar(20)
+  unit_purchase_id           Int?
+  unit_sale                  String               @default("unit") @db.VarChar(20)
+  unit_sale_id               Int?
+  vat_rate                   Decimal              @default(20) @db.Decimal(5, 2)
+  volume_ml                  Int?
+  weight_g                   Int?
+  reviews                    ArticleReview[]
   cart_items                 CartItem[]
   flash_sales                FlashSale[]
   gamification_prizes        GamificationPrize[]
@@ -441,86 +373,66 @@ model Sku {
   selling_rules              SellingRule[]
   images                     SkuImage[]
   sku_node_locations         SkuNodeLocation[]
+  brand                      Brand?               @relation(fields: [brand_id], references: [id])
+  category                   Category?            @relation(fields: [category_id], references: [id])
+  conservation_type          ConservationType?    @relation(fields: [conservation_type_id], references: [id])
+  packaging_type             PackagingType?       @relation(fields: [packaging_type_id], references: [id])
+  sku_family                 SkuFamily            @relation(fields: [sku_family_id], references: [id])
+  sku_subfamily              SkuSubFamily?        @relation(fields: [sku_subfamily_id], references: [id])
+  tax                        Tax?                 @relation(fields: [tax_id], references: [id])
+  unit_purchase_ref          Unit?                @relation("SkuUnitPurchase", fields: [unit_purchase_id], references: [id])
+  unit_sale_ref              Unit?                @relation("SkuUnitSale", fields: [unit_sale_id], references: [id])
   stock_levels               StockLevel[]
   stock_lots                 StockLot[]
   stock_moves                StockMove[]
   stock_threshold_rules      StockThresholdRule[]
+  wishlist_items             Wishlist[]
 
   @@map("skus")
 }
 
 model SkuImage {
-  id         String   @id @default(uuid()) @db.Uuid
-  sku_id     String   @db.Uuid
+  id         String    @id @default(uuid()) @db.Uuid
+  sku_id     String    @db.Uuid
   url        String
-  alt_fr     String?  @db.VarChar(255)
-  alt_ar     String?  @db.VarChar(255)
-  is_primary Boolean  @default(false)
-  sort_order Int      @default(0) @db.SmallInt
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  sku        Sku      @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+  alt_fr     String?   @db.VarChar(255)
+  alt_ar     String?   @db.VarChar(255)
+  is_primary Boolean   @default(false)
+  sort_order Int       @default(0) @db.SmallInt
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime?
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+  sku        Sku       @relation(fields: [sku_id], references: [id], onDelete: Cascade)
 
   @@map("sku_images")
 }
 
-model ArticleImage {
-  id         Int       @id @default(autoincrement())
-  article_id Int
-  image_path String
-  is_main    Boolean   @default(false)
-  sort_order Int       @default(0)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-  article    Article   @relation(fields: [article_id], references: [id], onDelete: Cascade)
-
-  @@map("article_images")
-}
-
 model Region {
-  id              String     @id @default(uuid()) @db.Uuid
-  code            String     @unique
+  id              String    @id @default(uuid()) @db.Uuid
+  code            String    @unique
   name_fr         String
   name_ar         String
   description_fr  String?
   description_ar  String?
-  is_active       Boolean    @default(true)
-  is_deleted      Boolean    @default(false)
-  created_at      DateTime   @default(now())
-  updated_at      DateTime   @updatedAt
+  is_active       Boolean   @default(true)
+  is_deleted      Boolean   @default(false)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
   created_by      Int?
   deleted_at      DateTime?
   deleted_by      Int?
   updated_by      Int?
+  cities          City[]
   nodes           Node[]
-  provinces       Province[]
-  created_by_user User?      @relation("RegionCreatedBy", fields: [created_by], references: [id])
-  deleted_by_user User?      @relation("RegionDeletedBy", fields: [deleted_by], references: [id])
-  updated_by_user User?      @relation("RegionUpdatedBy", fields: [updated_by], references: [id])
+  created_by_user User?     @relation("RegionCreatedBy", fields: [created_by], references: [id])
+  deleted_by_user User?     @relation("RegionDeletedBy", fields: [deleted_by], references: [id])
+  updated_by_user User?     @relation("RegionUpdatedBy", fields: [updated_by], references: [id])
 
   @@map("regions")
 }
 
-model Province {
-  id         String   @id @default(uuid()) @db.Uuid
-  region_id  String   @db.Uuid
-  code       String   @unique
-  name_fr    String
-  name_ar    String
-  is_active  Boolean  @default(true)
-  is_deleted Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  cities     City[]
-  nodes      Node[]
-  region     Region   @relation(fields: [region_id], references: [id])
-
-  @@map("provinces")
-}
-
 model City {
   id          String   @id @default(uuid()) @db.Uuid
-  province_id String   @db.Uuid
   code        String   @unique
   name_fr     String
   name_ar     String
@@ -529,7 +441,8 @@ model City {
   is_deleted  Boolean  @default(false)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
-  province    Province @relation(fields: [province_id], references: [id])
+  region_id   String   @db.Uuid
+  region      Region   @relation(fields: [region_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   nodes       Node[]
 
   @@map("cities")
@@ -557,7 +470,6 @@ model Node {
   name_ar               String
   node_type_id          String               @db.Uuid
   region_id             String               @db.Uuid
-  province_id           String               @db.Uuid
   city_id               String               @db.Uuid
   address_line1         String?
   quartier              String?
@@ -581,7 +493,6 @@ model Node {
   warehouse_locations   WarehouseLocation[]
   city                  City                 @relation(fields: [city_id], references: [id])
   node_type             NodeType             @relation(fields: [node_type_id], references: [id])
-  province              Province             @relation(fields: [province_id], references: [id])
   region                Region               @relation(fields: [region_id], references: [id])
   order_items           OrderItem[]
   orders                Order[]
@@ -899,13 +810,13 @@ model PointsRuleType {
 }
 
 model RewardType {
-  id                            String           @id @default(uuid()) @db.Uuid
-  code                          String           @unique @db.VarChar(50)
-  name_fr                       String           @db.VarChar(100)
-  name_ar                       String           @db.VarChar(100)
-  referral_configs_as_referee   ReferralConfig[] @relation("RefereeRewardType")
-  referral_configs_as_referrer  ReferralConfig[] @relation("ReferrerRewardType")
-  points_rules                  PointsRule[]      // ← ajouter aussi ça
+  id                           String           @id @default(uuid()) @db.Uuid
+  code                         String           @unique @db.VarChar(50)
+  name_fr                      String           @db.VarChar(100)
+  name_ar                      String           @db.VarChar(100)
+  points_rules                 PointsRule[]
+  referral_configs_as_referee  ReferralConfig[] @relation("RefereeRewardType")
+  referral_configs_as_referrer ReferralConfig[] @relation("ReferrerRewardType")
 
   @@map("reward_types")
 }
@@ -1001,7 +912,9 @@ model Customer {
   user_id               Int?                  @unique
   avatar_url            String?               @db.VarChar(500)
   addresses             Address[]
+  reviews               ArticleReview[]
   cart                  Cart?
+  claims                Claim[]
   coupon_redemptions    CouponRedemption[]
   referred_by           Customer?             @relation("CustomerReferrals", fields: [referred_by_id], references: [id])
   referrals             Customer[]            @relation("CustomerReferrals")
@@ -1009,40 +922,38 @@ model Customer {
   gamification_plays    GamificationPlay[]
   notifications         Notification[]
   orders                Order[]
+  points_transactions   PointsTransaction[]
   promotions            Promotion[]
   referrals_as_referee  Referral[]            @relation("ReferralReferee")
   referrals_as_referrer Referral[]            @relation("ReferralReferrer")
   support_conversations SupportConversation[]
   wallet_transactions   WalletTransaction[]
   wishlist_items        Wishlist[]
-  reviews ArticleReview[]
-  claims Claim[]
-  points_transactions PointsTransaction[]
 
   @@map("customers")
 }
 
 model Address {
-  id              String    @id @default(uuid()) @db.Uuid
-  customer_id     String    @db.Uuid
-  label           String?   @db.VarChar(100)
-  recipient_name  String?   @db.VarChar(150)
-  phone           String?   @db.VarChar(30)
-  street_number   String?   @db.VarChar(20)
-  street_name     String    @db.VarChar(255)
-  quartier        String?   @db.VarChar(100)
-  city            String    @default("Rabat") @db.VarChar(100)
-  postal_code     String?   @db.VarChar(5)
-  lat             Decimal?  @db.Decimal(9, 6)
-  lng             Decimal?  @db.Decimal(9, 6)
-  delivery_notes  String?
-  is_default      Boolean   @default(false)
-  is_deleted      Boolean   @default(false)
-  deleted_at      DateTime? @db.Timestamptz(6)
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
-  customer        Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  orders          Order[]
+  id             String    @id @default(uuid()) @db.Uuid
+  customer_id    String    @db.Uuid
+  label          String?   @db.VarChar(100)
+  street_number  String?   @db.VarChar(20)
+  street_name    String    @db.VarChar(255)
+  quartier       String?   @db.VarChar(100)
+  city           String    @default("Rabat") @db.VarChar(100)
+  postal_code    String?   @db.VarChar(5)
+  lat            Decimal?  @db.Decimal(9, 6)
+  lng            Decimal?  @db.Decimal(9, 6)
+  delivery_notes String?
+  is_default     Boolean   @default(false)
+  is_deleted     Boolean   @default(false)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+  phone          String?   @db.VarChar(30)
+  recipient_name String?   @db.VarChar(150)
+  customer       Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  orders         Order[]
 
   @@map("addresses")
 }
@@ -1071,6 +982,8 @@ model SellingRule {
   id                     String   @id @default(uuid()) @db.Uuid
   node_id                String   @db.Uuid
   sku_id                 String   @db.Uuid
+  is_sellable            Boolean  @default(true)
+  price                  Decimal  @default(0) @db.Decimal(12, 2)
   is_backorderable       Boolean  @default(true)
   backorder_limit        Decimal  @default(0) @db.Decimal(12, 3)
   backordered_quantity   Decimal  @default(0) @db.Decimal(12, 3)
@@ -1133,6 +1046,7 @@ model Order {
   deleted_at            DateTime?             @db.Timestamptz(6)
   created_at            DateTime              @default(now()) @db.Timestamptz(6)
   updated_at            DateTime              @updatedAt @db.Timestamptz(6)
+  claims                Claim[]
   coupon_redemptions    CouponRedemption[]
   gamification_plays    GamificationPlay[]    @relation("GamificationPlayOrder")
   notifications         Notification[]
@@ -1148,13 +1062,12 @@ model Order {
   tour                  Tour?                 @relation(fields: [tour_id], references: [id])
   payments              Payment[]
   picking_sessions      PickingSession[]
+  points_transactions   PointsTransaction[]
   referrals_qualifying  Referral[]
   stock_moves           StockMove[]
   support_conversations SupportConversation[]
   tour_stops            TourStop[]
   wallet_transactions   WalletTransaction[]
-  claims Claim[]
-  points_transactions PointsTransaction[]
 
   @@map("orders")
 }
@@ -1336,10 +1249,10 @@ model Pack {
   created_by     Int
   created_at     DateTime    @default(now()) @db.Timestamptz(6)
   updated_at     DateTime    @updatedAt @db.Timestamptz(6)
+  cart_items     CartItem[]
   flash_sales    FlashSale[]
   order_items    OrderItem[]
   pack_items     PackItem[]
-  cart_items     CartItem[]
   creator        User        @relation(fields: [created_by], references: [id])
   node           Node?       @relation(fields: [node_id], references: [id])
 
@@ -1382,7 +1295,7 @@ model FlashSale {
   discount_type    String      @default("fixed") @db.VarChar(20)
   discount_value   Decimal?    @db.Decimal(12, 2)
   brand_id         Int?
-  category_id      Int?
+  category_id      String?     @db.Uuid
   brand            Brand?      @relation(fields: [brand_id], references: [id])
   category         Category?   @relation(fields: [category_id], references: [id])
   creator          User        @relation(fields: [created_by], references: [id])
@@ -1443,7 +1356,6 @@ model PointsRule {
   rule_type_id     String         @db.Uuid
   node_id          String?        @db.Uuid
   category_id      String?        @db.Uuid
-  reward_type_id   String?        @db.Uuid   
   points_value     Int
   per_mad_spent    Decimal?       @db.Decimal(5, 2)
   min_order_amount Decimal        @default(0) @db.Decimal(12, 2)
@@ -1451,9 +1363,11 @@ model PointsRule {
   valid_to         DateTime?      @db.Timestamptz(6)
   is_active        Boolean        @default(true)
   created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  reward_type_id   String?        @db.Uuid
+  category         Category?      @relation(fields: [category_id], references: [id])
   node             Node?          @relation(fields: [node_id], references: [id])
+  reward_type      RewardType?    @relation(fields: [reward_type_id], references: [id])
   rule_type        PointsRuleType @relation(fields: [rule_type_id], references: [id])
-  reward_type RewardType? @relation(fields: [reward_type_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@map("points_rules")
 }
@@ -1462,14 +1376,13 @@ model PointsTransaction {
   id            String   @id @default(uuid()) @db.Uuid
   customer_id   String   @db.Uuid
   order_id      String?  @db.Uuid
-  type          String   @db.VarChar(20) // 'earn' | 'redeem'
-  points        Int      // positif pour earn, négatif pour redeem
+  type          String   @db.VarChar(20)
+  points        Int
   balance_after Int
   label         String   @db.VarChar(255)
   created_at    DateTime @default(now()) @db.Timestamptz(6)
-
-  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  order    Order?   @relation(fields: [order_id], references: [id])
+  customer      Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order         Order?   @relation(fields: [order_id], references: [id])
 
   @@index([customer_id])
   @@index([created_at(sort: Desc)])
@@ -1736,13 +1649,13 @@ model CartItem {
   id         String   @id @default(uuid()) @db.Uuid
   cart_id    String   @db.Uuid
   sku_id     String   @db.Uuid
-  pack_id    String?  @db.Uuid
   quantity   Int      @default(1)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  pack_id    String?  @db.Uuid
   cart       Cart     @relation(fields: [cart_id], references: [id], onDelete: Cascade)
-  sku        Sku      @relation(fields: [sku_id], references: [id])
   pack       Pack?    @relation(fields: [pack_id], references: [id])
+  sku        Sku      @relation(fields: [sku_id], references: [id])
 
   @@index([cart_id, sku_id])
   @@map("cart_items")
@@ -1751,12 +1664,12 @@ model CartItem {
 model Wishlist {
   id          String   @id @default(uuid()) @db.Uuid
   customer_id String   @db.Uuid
-  article_id  Int
   created_at  DateTime @default(now()) @db.Timestamptz(6)
-  article     Article  @relation(fields: [article_id], references: [id], onDelete: Cascade)
+  sku_id      String   @db.Uuid
   customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  sku         Sku      @relation(fields: [sku_id], references: [id], onDelete: Cascade)
 
-  @@unique([customer_id, article_id])
+  @@unique([customer_id, sku_id])
   @@map("wishlists")
 }
 
@@ -1829,25 +1742,48 @@ model SupportMessage {
 }
 
 model ArticleReview {
-  id          String    @id @default(uuid()) @db.Uuid
-  article_id  Int
-  customer_id String    @db.Uuid
-  rating      Int                              
-  comment     String?   @db.Text
-  is_deleted  Boolean   @default(false)
-  deleted_at  DateTime? @db.Timestamptz(6)
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
-  helpful_voter_ids String[] @default([]) @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
+  customer_id       String    @db.Uuid
+  rating            Int
+  comment           String?
+  is_deleted        Boolean   @default(false)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+  helpful_voter_ids String[]  @default([]) @db.Uuid
+  sku_id            String    @db.Uuid
+  customer          Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  sku               Sku       @relation(fields: [sku_id], references: [id], onDelete: Cascade)
 
-  article  Article  @relation(fields: [article_id],  references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-
-  @@unique([article_id, customer_id])   // un seul avis par client par article
-  @@index([article_id])
+  @@unique([sku_id, customer_id])
+  @@index([sku_id])
   @@map("article_reviews")
 }
 
+model Claim {
+  id             String        @id @default(uuid()) @db.Uuid
+  customer_id    String        @db.Uuid
+  order_id       String        @db.Uuid
+  type           ClaimType
+  status         ClaimStatus   @default(OPEN)
+  description    String
+  admin_note     String?
+  resolved_at    DateTime?     @db.Timestamptz(6)
+  is_deleted     Boolean       @default(false)
+  deleted_at     DateTime?     @db.Timestamptz(6)
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @updatedAt @db.Timestamptz(6)
+  priority       ClaimPriority @default(NORMAL)
+  attachment_url String?       @db.VarChar(500)
+  contact_phone  String?       @db.VarChar(30)
+  customer       Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  order          Order         @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@index([order_id])
+  @@index([status])
+  @@map("claims")
+}
 
 enum ClaimType {
   MISSING_PRODUCT
@@ -1868,30 +1804,4 @@ enum ClaimStatus {
 enum ClaimPriority {
   NORMAL
   URGENT
-}
-
-model Claim {
-  id              String        @id @default(uuid()) @db.Uuid
-  customer_id     String        @db.Uuid
-  order_id        String        @db.Uuid
-  type            ClaimType
-  status          ClaimStatus   @default(OPEN)
-  priority        ClaimPriority @default(NORMAL)
-  description     String        @db.Text
-  admin_note      String?       @db.Text
-  attachment_url  String?       @db.VarChar(500)
-  contact_phone   String?       @db.VarChar(30)
-  resolved_at     DateTime?     @db.Timestamptz(6)
-  is_deleted      Boolean       @default(false)
-  deleted_at      DateTime?     @db.Timestamptz(6)
-  created_at      DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime      @updatedAt @db.Timestamptz(6)
-
-  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  order    Order    @relation(fields: [order_id],    references: [id], onDelete: Cascade)
-
-  @@index([customer_id])
-  @@index([order_id])
-  @@index([status])
-  @@map("claims")
 }

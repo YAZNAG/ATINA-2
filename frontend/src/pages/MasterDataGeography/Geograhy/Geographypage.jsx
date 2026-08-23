@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff,
-  MapPin, Map, Building2, ChevronRight, ArrowLeft,
+  Map, Building2, ChevronRight, ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getRegions, createRegion, updateRegion, deleteRegion, getRegionStats,
-  getProvinces, createProvince, updateProvince, deleteProvince,
   getCities, createCity, updateCity, deleteCity,
 } from '../../../api/locationNode.api';
 
@@ -44,27 +43,13 @@ const LEVELS = {
       { name: 'description_ar', label: 'Description (AR)', type: 'textarea', col: 'full', dir: 'rtl' },
     ],
   },
-  province: {
-    key: 'province',
-    label: 'Province',
-    labelPlural: 'Provinces',
-    icon: MapPin,
-    api: { list: getProvinces, create: createProvince, update: updateProvince, remove: deleteProvince },
-    parentKey: 'region_id',
-    emptyForm: { code: '', name_fr: '', name_ar: '' },
-    fields: [
-      { name: 'code', label: 'Code', required: true, col: 'full' },
-      { name: 'name_fr', label: 'Nom (FR)', required: true, col: 'half' },
-      { name: 'name_ar', label: 'Nom (AR)', required: true, col: 'half', dir: 'rtl' },
-    ],
-  },
   city: {
     key: 'city',
     label: 'Ville',
     labelPlural: 'Villes',
     icon: Building2,
     api: { list: getCities, create: createCity, update: updateCity, remove: deleteCity },
-    parentKey: 'province_id',
+    parentKey: 'region_id',
     emptyForm: { code: '', name_fr: '', name_ar: '', postal_code: '' },
     fields: [
       { name: 'code', label: 'Code', required: true, col: 'half' },
@@ -113,12 +98,6 @@ export default function GeographyPage({ embedded = false }){
       update: hasPermission('regions.update'),
       delete: hasPermission('regions.delete'),
     },
-    province: {
-      view: hasPermission('provinces.view'),
-      create: hasPermission('provinces.create'),
-      update: hasPermission('provinces.update'),
-      delete: hasPermission('provinces.delete'),
-    },
     city: {
       view: hasPermission('cities.view'),
       create: hasPermission('cities.create'),
@@ -131,17 +110,15 @@ export default function GeographyPage({ embedded = false }){
 
   // Listes par niveau
   const [regions, setRegions] = useState([]);
-  const [provinces, setProvinces] = useState([]);
   const [cities, setCities] = useState([]);
-  const [loading, setLoading] = useState({ region: true, province: false, city: false });
-  const [search, setSearch] = useState({ region: '', province: '', city: '' });
-  const [status, setStatus] = useState({ region: '', province: '', city: '' });
+  const [loading, setLoading] = useState({ region: true, city: false });
+  const [search, setSearch] = useState({ region: '', city: '' });
+  const [status, setStatus] = useState({ region: '', city: '' });
 
   // Sélection en cascade
   const [selectedRegion, setSelectedRegion] = useState(null);
-  const [selectedProvince, setSelectedProvince] = useState(null);
 
-  // Drawer création / édition 
+  // Drawer création / édition
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawer, setDrawer] = useState(null); // { level, mode: 'create'|'edit', id, form }
   const [formErrors, setFormErrors] = useState({});
@@ -157,7 +134,7 @@ export default function GeographyPage({ embedded = false }){
   // Bascule statut
   const [togglingId, setTogglingId] = useState(null);
 
-  const [mobileStep, setMobileStep] = useState('region'); 
+  const [mobileStep, setMobileStep] = useState('region');
 
   const [toast, setToast] = useState(null);
   const showToast = (type, message) => {
@@ -183,30 +160,8 @@ export default function GeographyPage({ embedded = false }){
     }
   }, [search.region, status.region, canView]);
 
-  const fetchProvinces = useCallback(async (regionId) => {
-    if (!regionId || !PERMS.province.view) {
-      setProvinces([]);
-      return;
-    }
-    setLoading((l) => ({ ...l, province: true }));
-    try {
-      const statusParams = buildStatusParams(status.province);
-      const { data } = await getProvinces({
-        limit: LIST_LIMIT,
-        region_id: regionId,
-        ...(search.province && { search: search.province }),
-        ...statusParams,
-      });
-      setProvinces(data.data || data || []);
-    } catch (err) {
-      showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des provinces');
-    } finally {
-      setLoading((l) => ({ ...l, province: false }));
-    }
-  }, [search.province, status.province]);
-
-  const fetchCities = useCallback(async (provinceId) => {
-    if (!provinceId || !PERMS.city.view) {
+  const fetchCities = useCallback(async (regionId) => {
+    if (!regionId || !PERMS.city.view) {
       setCities([]);
       return;
     }
@@ -215,7 +170,7 @@ export default function GeographyPage({ embedded = false }){
       const statusParams = buildStatusParams(status.city);
       const { data } = await getCities({
         limit: LIST_LIMIT,
-        province_id: provinceId,
+        region_id: regionId,
         ...(search.city && { search: search.city }),
         ...statusParams,
       });
@@ -233,26 +188,14 @@ export default function GeographyPage({ embedded = false }){
   }, [fetchRegions]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchProvinces(selectedRegion?.id), search.province || status.province ? 350 : 0);
+    const t = setTimeout(() => fetchCities(selectedRegion?.id), search.city || status.city ? 350 : 0);
     return () => clearTimeout(t);
-  }, [fetchProvinces, selectedRegion, status.province]);
-
-  useEffect(() => {
-    const t = setTimeout(() => fetchCities(selectedProvince?.id), search.city || status.city ? 350 : 0);
-    return () => clearTimeout(t);
-  }, [fetchCities, selectedProvince, status.city]);
+  }, [fetchCities, selectedRegion, status.city]);
 
   /* --------------------------- Sélection cascade --------------------------- */
 
   const selectRegion = (region) => {
     setSelectedRegion(region);
-    setSelectedProvince(null);
-    setCities([]);
-    setMobileStep('province');
-  };
-
-  const selectProvince = (province) => {
-    setSelectedProvince(province);
     setMobileStep('city');
   };
 
@@ -301,7 +244,6 @@ export default function GeographyPage({ embedded = false }){
     const cfg = LEVELS[drawer.level];
     const payload = { ...drawer.form };
     if (cfg.parentKey === 'region_id') payload.region_id = selectedRegion.id;
-    if (cfg.parentKey === 'province_id') payload.province_id = selectedProvince.id;
 
     setSaving(true);
     try {
@@ -327,8 +269,7 @@ export default function GeographyPage({ embedded = false }){
 
   const refreshLevel = (level) => {
     if (level === 'region') fetchRegions();
-    if (level === 'province') fetchProvinces(selectedRegion?.id);
-    if (level === 'city') fetchCities(selectedProvince?.id);
+    if (level === 'city') fetchCities(selectedRegion?.id);
   };
 
   // activation / désactivation
@@ -378,11 +319,6 @@ export default function GeographyPage({ embedded = false }){
       setDeleteStatsError(null);
       if (level === 'region' && selectedRegion?.id === item.id) {
         setSelectedRegion(null);
-        setSelectedProvince(null);
-        setCities([]);
-      }
-      if (level === 'province' && selectedProvince?.id === item.id) {
-        setSelectedProvince(null);
         setCities([]);
       }
       refreshLevel(level);
@@ -419,7 +355,7 @@ export default function GeographyPage({ embedded = false }){
         <div className="mb-6">
           <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Géographie</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Régions, provinces et villes de référence...
+            Régions et villes de référence...
           </p>
         </div>
       )}
@@ -428,7 +364,7 @@ export default function GeographyPage({ embedded = false }){
       {/* Fil d'ariane */}
       <div className="mb-4 flex items-center gap-1.5 text-sm text-neutral-500">
         <button
-          onClick={() => { setSelectedRegion(null); setSelectedProvince(null); setCities([]); setMobileStep('region'); }}
+          onClick={() => { setSelectedRegion(null); setCities([]); setMobileStep('region'); }}
           className={`rounded-md px-2 py-1 hover:bg-neutral-100 ${!selectedRegion ? 'font-medium text-neutral-900' : ''}`}
         >
           Régions
@@ -436,24 +372,13 @@ export default function GeographyPage({ embedded = false }){
         {selectedRegion && (
           <>
             <ChevronRight size={14} />
-            <button
-              onClick={() => { setSelectedProvince(null); setMobileStep('province'); }}
-              className={`rounded-md px-2 py-1 hover:bg-neutral-100 ${!selectedProvince ? 'font-medium text-neutral-900' : ''}`}
-            >
-              {selectedRegion.name_fr}
-            </button>
-          </>
-        )}
-        {selectedProvince && (
-          <>
-            <ChevronRight size={14} />
-            <span className="rounded-md px-2 py-1 font-medium text-neutral-900">{selectedProvince.name_fr}</span>
+            <span className="rounded-md px-2 py-1 font-medium text-neutral-900">{selectedRegion.name_fr}</span>
           </>
         )}
       </div>
 
-      {/* 3 colonnes en cascade */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* 2 colonnes en cascade */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Column
           level="region"
           mobileVisible={mobileStep === 'region'}
@@ -480,37 +405,9 @@ export default function GeographyPage({ embedded = false }){
         />
 
         <Column
-          level="province"
-          mobileVisible={mobileStep === 'province'}
-          title={selectedRegion ? `Provinces — ${selectedRegion.name_fr}` : 'Provinces'}
-          icon={MapPin}
-          items={provinces}
-          loading={loading.province}
-          search={search.province}
-          onSearchChange={(v) => setSearch((s) => ({ ...s, province: v }))}
-          status={status.province}
-          onStatusChange={(v) => setStatus((s) => ({ ...s, province: v }))}
-          selectedId={selectedProvince?.id}
-          onSelect={selectProvince}
-          canView={PERMS.province.view}
-          canCreate={PERMS.province.create}
-          canUpdate={PERMS.province.update}
-          canDelete={PERMS.province.delete}
-          togglingId={togglingId}
-          onCreate={() => openCreate('province')}
-          onEdit={(item) => openEdit('province', item)}
-          onDelete={(item) => prepareDeleteTarget({ level: 'province', item })}
-          onToggle={(item) => toggleActive('province', item)}
-          disabled={!selectedRegion}
-          disabledMessage="Sélectionnez une région pour voir ses provinces."
-          onBack={() => setMobileStep('region')}
-          emptyLabel="Aucune province pour cette région."
-        />
-
-        <Column
           level="city"
           mobileVisible={mobileStep === 'city'}
-          title={selectedProvince ? `Villes — ${selectedProvince.name_fr}` : 'Villes'}
+          title={selectedRegion ? `Villes — ${selectedRegion.name_fr}` : 'Villes'}
           icon={Building2}
           items={cities}
           loading={loading.city}
@@ -527,10 +424,10 @@ export default function GeographyPage({ embedded = false }){
           onEdit={(item) => openEdit('city', item)}
           onDelete={(item) => prepareDeleteTarget({ level: 'city', item })}
           onToggle={(item) => toggleActive('city', item)}
-          disabled={!selectedProvince}
-          disabledMessage="Sélectionnez une province pour voir ses villes."
-          onBack={() => setMobileStep('province')}
-          emptyLabel="Aucune ville pour cette province."
+          disabled={!selectedRegion}
+          disabledMessage="Sélectionnez une région pour voir ses villes."
+          onBack={() => setMobileStep('region')}
+          emptyLabel="Aucune ville pour cette région."
           selectable={false}
         />
       </div>
@@ -562,14 +459,9 @@ export default function GeographyPage({ embedded = false }){
           {drawer && drawerCfg && (
             <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto px-5 py-4">
-                {drawer.level === 'province' && (
-                  <p className="mb-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-                    Région parente : <span className="font-medium text-neutral-700">{selectedRegion?.name_fr}</span>
-                  </p>
-                )}
                 {drawer.level === 'city' && (
                   <p className="mb-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-                    Province parente : <span className="font-medium text-neutral-700">{selectedProvince?.name_fr}</span>
+                    Région parente : <span className="font-medium text-neutral-700">{selectedRegion?.name_fr}</span>
                   </p>
                 )}
 
@@ -636,7 +528,7 @@ export default function GeographyPage({ embedded = false }){
               </p>
               {deleteTarget.level === 'region' ? (
                 <div className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
-                  <p className="font-semibold">Pour supprimer cette région, vous devez d'abord supprimer ces provinces et ces villes.</p>
+                  <p className="font-semibold">Pour supprimer cette région, vous devez d'abord supprimer ses villes.</p>
                   {deleteStatsLoading ? (
                     <p className="mt-2">Chargement des dépendances...</p>
                   ) : deleteStatsError ? (
@@ -644,16 +536,10 @@ export default function GeographyPage({ embedded = false }){
                   ) : (
                     deleteStats && (
                       <p className="mt-2">
-                        {deleteStats.province_count} province{deleteStats.province_count > 1 ? 's' : ''}
-                        {' et '}
                         {deleteStats.city_count} ville{deleteStats.city_count > 1 ? 's' : ''}
                       </p>
                     )
                   )}
-                </div>
-              ) : deleteTarget.level === 'province' ? (
-                <div className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
-                  <p className="font-semibold">Pour supprimer cette province, vous devez d'abord supprimer ses villes.</p>
                 </div>
               ) : null}
             </div>
@@ -686,7 +572,7 @@ export default function GeographyPage({ embedded = false }){
 }
 
 /* ------------------------------------------------------------------ */
-/* Colonne générique (Régions / Provinces / Villes)                   */
+/* Colonne générique (Régions / Villes)                               */
 /* ------------------------------------------------------------------ */
 
 function Column({

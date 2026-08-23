@@ -32,9 +32,8 @@ class RegionService {
   async getStats(id) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Région introuvable' };
-    const provinceCount = await repo.countProvinces(id);
     const cityCount = await repo.countCities(id);
-    return { province_count: provinceCount, city_count: cityCount };
+    return { city_count: cityCount };
   }
 
   async create(body, userId) {
@@ -57,9 +56,8 @@ class RegionService {
 
   /**
    * Suppression en cascade : la région est soft-deletée, ainsi que TOUTES ses
-   * provinces et TOUTES les villes de ces provinces, automatiquement.
-   * Seul un lien direct région -> nodes bloque encore la suppression, car un
-   * node actif rattaché à la région correspond à une opération logistique en
+   * villes rattachées directement. Un node actif rattaché à la région bloque
+   * encore la suppression, car il correspond à une opération logistique en
    * cours, pas à de la simple donnée de référence.
    */
   async delete(id, userId) {
@@ -74,8 +72,8 @@ class RegionService {
       };
     }
 
-    const { province_count, city_count } = await repo.softDeleteCascade(id, userId);
-    return { province_count, city_count };
+    const { city_count } = await repo.softDeleteCascade(id, userId);
+    return { city_count };
   }
 }
 

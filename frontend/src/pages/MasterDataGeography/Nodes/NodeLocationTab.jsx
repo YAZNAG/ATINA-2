@@ -6,7 +6,6 @@ import { useCascadeGeo } from './useCascadeGeo';
 export default function NodeLocationTab({ node, canUpdate, onSaved, showToast }) {
   const [form, setForm] = useState({
     region_id: node.region_id || '',
-    province_id: node.province_id || '',
     city_id: node.city_id || '',
     address_line1: node.address_line1 || '',
     quartier: node.quartier || '',
@@ -26,10 +25,8 @@ export default function NodeLocationTab({ node, canUpdate, onSaved, showToast })
       .finally(() => setLoadingRegions(false));
   }, []);
 
-  const { provinces, cities } = useCascadeGeo({
+  const { cities } = useCascadeGeo({
     regionId: form.region_id,
-    provinceId: form.province_id,
-    onProvinceReset: () => setForm((f) => ({ ...f, province_id: '', city_id: '' })),
     onCityReset: () => setForm((f) => ({ ...f, city_id: '' })),
   });
 
@@ -62,16 +59,8 @@ export default function NodeLocationTab({ node, canUpdate, onSaved, showToast })
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-500">Province</label>
-        <select value={form.province_id} onChange={set('province_id')} disabled={!canUpdate || !form.region_id} className={inputClass} required>
-          <option value="">Sélectionner…</option>
-          {provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
-        </select>
-      </div>
-
-      <div>
         <label className="mb-1 block text-xs font-medium text-neutral-500">Ville</label>
-        <select value={form.city_id} onChange={set('city_id')} disabled={!canUpdate || !form.province_id} className={inputClass} required>
+        <select value={form.city_id} onChange={set('city_id')} disabled={!canUpdate || !form.region_id} className={inputClass} required>
           <option value="">Sélectionner…</option>
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
         </select>

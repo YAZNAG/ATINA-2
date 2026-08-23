@@ -3,18 +3,16 @@ const prisma = require('../../../config/database');
 const INCLUDE = {
   node_type: true,
   region: true,
-  province: true,
   city: true,
 };
 
-const buildWhere = ({ search, is_active, is_deleted, node_type_id, region_id, province_id, city_id }) => ({
+const buildWhere = ({ search, is_active, is_deleted, node_type_id, region_id, city_id }) => ({
   ...(is_deleted !== undefined
     ? { is_deleted: is_deleted === 'true' || is_deleted === true }
     : { is_deleted: false }),
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
   ...(node_type_id && { node_type_id }),
   ...(region_id && { region_id }),
-  ...(province_id && { province_id }),
   ...(city_id && { city_id }),
   ...(search && {
     OR: [

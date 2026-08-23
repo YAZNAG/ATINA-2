@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff,
-  Layers, Boxes, Tag, ChevronRight, ArrowLeft, ImageOff, Upload, RotateCcw,
+  Layers, Tag, ChevronRight, ArrowLeft, RotateCcw, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getFamilies, createFamily, updateFamily, deleteFamily, restoreFamily,
-  getCategories, createCategory, updateCategory, deleteCategory, restoreCategory,
-  getSubCategories, createSubCategory, updateSubCategory, deleteSubCategory, restoreSubCategory,
+  toggleFamilyStatus, reorderFamilies,
+  getSubFamilies, createSubFamily, updateSubFamily, deleteSubFamily, restoreSubFamily,
+  toggleSubFamilyStatus, reorderSubFamilies,
 } from '../../../api/catalog.api';
 
 const LIST_LIMIT = 500;
@@ -27,50 +28,33 @@ const LEVELS = {
     label: 'Famille',
     labelPlural: 'Familles',
     icon: Layers,
-    api: { list: getFamilies, create: createFamily, update: updateFamily, remove: deleteFamily, restore: restoreFamily },
+    api: {
+      list: getFamilies, create: createFamily, update: updateFamily, remove: deleteFamily,
+      restore: restoreFamily, toggle: toggleFamilyStatus, reorder: reorderFamilies,
+    },
     parentKey: null,
-    hasMedia: true,
-    emptyForm: { code: '', name_fr: '', name_ar: '', description_fr: '', description_ar: '', status: 'active' },
+    emptyForm: { code: '', name_fr: '', name_ar: '' },
     fields: [
       { name: 'code', label: 'Code', required: true, col: 'full' },
       { name: 'name_fr', label: 'Nom (FR)', required: true, col: 'half' },
       { name: 'name_ar', label: 'Nom (AR)', required: true, col: 'half', dir: 'rtl' },
-      { name: 'description_fr', label: 'Description (FR)', type: 'textarea', col: 'full' },
-      { name: 'description_ar', label: 'Description (AR)', type: 'textarea', col: 'full', dir: 'rtl' },
     ],
   },
-  category: {
-    key: 'category',
-    label: 'Catégorie',
-    labelPlural: 'Catégories',
-    icon: Boxes,
-    api: { list: getCategories, create: createCategory, update: updateCategory, remove: deleteCategory, restore: restoreCategory },
-    parentKey: 'family_id',
-    hasMedia: true,
-    emptyForm: { code: '', name_fr: '', name_ar: '', description_fr: '', description_ar: '', status: 'active' },
-    fields: [
-      { name: 'code', label: 'Code', required: true, col: 'full' },
-      { name: 'name_fr', label: 'Nom (FR)', required: true, col: 'half' },
-      { name: 'name_ar', label: 'Nom (AR)', required: true, col: 'half', dir: 'rtl' },
-      { name: 'description_fr', label: 'Description (FR)', type: 'textarea', col: 'full' },
-      { name: 'description_ar', label: 'Description (AR)', type: 'textarea', col: 'full', dir: 'rtl' },
-    ],
-  },
-  subcategory: {
-    key: 'subcategory',
-    label: 'Sous-catégorie',
-    labelPlural: 'Sous-catégories',
+  subfamily: {
+    key: 'subfamily',
+    label: 'Sous-famille',
+    labelPlural: 'Sous-familles',
     icon: Tag,
-    api: { list: getSubCategories, create: createSubCategory, update: updateSubCategory, remove: deleteSubCategory, restore: restoreSubCategory },
-    parentKey: 'category_id',
-    hasMedia: true,
-    emptyForm: { code: '', name_fr: '', name_ar: '', description_fr: '', description_ar: '', status: 'active' },
+    api: {
+      list: getSubFamilies, create: createSubFamily, update: updateSubFamily, remove: deleteSubFamily,
+      restore: restoreSubFamily, toggle: toggleSubFamilyStatus, reorder: reorderSubFamilies,
+    },
+    parentKey: 'family_id',
+    emptyForm: { code: '', name_fr: '', name_ar: '' },
     fields: [
       { name: 'code', label: 'Code', required: true, col: 'full' },
       { name: 'name_fr', label: 'Nom (FR)', required: true, col: 'half' },
       { name: 'name_ar', label: 'Nom (AR)', required: true, col: 'half', dir: 'rtl' },
-      { name: 'description_fr', label: 'Description (FR)', type: 'textarea', col: 'full' },
-      { name: 'description_ar', label: 'Description (AR)', type: 'textarea', col: 'full', dir: 'rtl' },
     ],
   },
 };
@@ -96,7 +80,7 @@ function StatusDot({ item }) {
   if (item.deleted_at) {
     return <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">Supprimé</span>;
   }
-  if (item.status === 'active') {
+  if (item.is_active) {
     return <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Actif</span>;
   }
   return <span className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-500">Inactif</span>;
@@ -112,47 +96,34 @@ export default function HierarchyCascadePage({ embedded = false }) {
       update: hasPermission('families.update'),
       delete: hasPermission('families.delete'),
     },
-    category: {
-      view: hasPermission('categories.view'),
-      create: hasPermission('categories.create'),
-      update: hasPermission('categories.update'),
-      delete: hasPermission('categories.delete'),
-    },
-    subcategory: {
-      view: hasPermission('sub_categories.view'),
-      create: hasPermission('sub_categories.create'),
-      update: hasPermission('sub_categories.update'),
-      delete: hasPermission('sub_categories.delete'),
+    subfamily: {
+      view: hasPermission('subfamilies.view'),
+      create: hasPermission('subfamilies.create'),
+      update: hasPermission('subfamilies.update'),
+      delete: hasPermission('subfamilies.delete'),
     },
   };
 
   const canView = PERMS.family.view;
 
   const [families, setFamilies] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [subcategories, setSubcategories] = useState([]);
-  const [loading, setLoading] = useState({ family: true, category: false, subcategory: false });
-  const [search, setSearch] = useState({ family: '', category: '', subcategory: '' });
-  const [status, setStatus] = useState({ family: '', category: '', subcategory: '' });
+  const [subfamilies, setSubfamilies] = useState([]);
+  const [loading, setLoading] = useState({ family: true, subfamily: false });
+  const [search, setSearch] = useState({ family: '', subfamily: '' });
+  const [status, setStatus] = useState({ family: '', subfamily: '' });
 
   const [selectedFamily, setSelectedFamily] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawer, setDrawer] = useState(null); // { level, mode, id, form }
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [iconFile, setIconFile] = useState(null);
-  const [iconPreview, setIconPreview] = useState(null);
-  const imageInputRef = useRef(null);
-  const iconInputRef = useRef(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null); // { level, item }
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
+  const [movingId, setMovingId] = useState(null);
 
   const [mobileStep, setMobileStep] = useState('family');
 
@@ -161,6 +132,10 @@ export default function HierarchyCascadePage({ embedded = false }) {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Le réordonnancement n'a de sens que sur la vue non filtrée
+  const familyReorderEnabled = !search.family && !status.family;
+  const subfamilyReorderEnabled = !search.subfamily && !status.subfamily;
 
   const fetchFamilies = useCallback(async () => {
     if (!canView) return;
@@ -179,41 +154,23 @@ export default function HierarchyCascadePage({ embedded = false }) {
     }
   }, [search.family, status.family, canView]);
 
-  const fetchCategories = useCallback(async (familyId) => {
-    if (!familyId || !PERMS.category.view) { setCategories([]); return; }
-    setLoading((l) => ({ ...l, category: true }));
+  const fetchSubfamilies = useCallback(async (familyId) => {
+    if (!familyId || !PERMS.subfamily.view) { setSubfamilies([]); return; }
+    setLoading((l) => ({ ...l, subfamily: true }));
     try {
-      const { data } = await getCategories({
+      const { data } = await getSubFamilies({
         limit: LIST_LIMIT,
         family_id: familyId,
-        ...(search.category && { search: search.category }),
-        ...buildStatusParams(status.category),
+        ...(search.subfamily && { search: search.subfamily }),
+        ...buildStatusParams(status.subfamily),
       });
-      setCategories(data.data || []);
+      setSubfamilies(data.data || []);
     } catch (err) {
-      showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des catégories');
+      showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des sous-familles');
     } finally {
-      setLoading((l) => ({ ...l, category: false }));
+      setLoading((l) => ({ ...l, subfamily: false }));
     }
-  }, [search.category, status.category]);
-
-  const fetchSubcategories = useCallback(async (categoryId) => {
-    if (!categoryId || !PERMS.subcategory.view) { setSubcategories([]); return; }
-    setLoading((l) => ({ ...l, subcategory: true }));
-    try {
-      const { data } = await getSubCategories({
-        limit: LIST_LIMIT,
-        category_id: categoryId,
-        ...(search.subcategory && { search: search.subcategory }),
-        ...buildStatusParams(status.subcategory),
-      });
-      setSubcategories(data.data || []);
-    } catch (err) {
-      showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des sous-catégories');
-    } finally {
-      setLoading((l) => ({ ...l, subcategory: false }));
-    }
-  }, [search.subcategory, status.subcategory]);
+  }, [search.subfamily, status.subfamily]);
 
   useEffect(() => {
     const t = setTimeout(fetchFamilies, search.family || status.family ? 350 : 0);
@@ -221,35 +178,17 @@ export default function HierarchyCascadePage({ embedded = false }) {
   }, [fetchFamilies]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchCategories(selectedFamily?.id), search.category || status.category ? 350 : 0);
+    const t = setTimeout(() => fetchSubfamilies(selectedFamily?.id), search.subfamily || status.subfamily ? 350 : 0);
     return () => clearTimeout(t);
-  }, [fetchCategories, selectedFamily, status.category]);
-
-  useEffect(() => {
-    const t = setTimeout(() => fetchSubcategories(selectedCategory?.id), search.subcategory || status.subcategory ? 350 : 0);
-    return () => clearTimeout(t);
-  }, [fetchSubcategories, selectedCategory, status.subcategory]);
+  }, [fetchSubfamilies, selectedFamily, status.subfamily]);
 
   const selectFamily = (family) => {
     setSelectedFamily(family);
-    setSelectedCategory(null);
-    setSubcategories([]);
-    setMobileStep('category');
-  };
-
-  const selectCategory = (category) => {
-    setSelectedCategory(category);
-    setMobileStep('subcategory');
-  };
-
-  const resetMediaState = () => {
-    setImageFile(null); setImagePreview(null);
-    setIconFile(null); setIconPreview(null);
+    setMobileStep('subfamily');
   };
 
   const openCreate = (level) => {
     setFormErrors({});
-    resetMediaState();
     setDrawer({ level, mode: 'create', id: null, form: { ...LEVELS[level].emptyForm } });
     setDrawerOpen(true);
   };
@@ -259,9 +198,6 @@ export default function HierarchyCascadePage({ embedded = false }) {
     const cfg = LEVELS[level];
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] ?? ''; });
-    form.status = item.status || 'active';
-    setImageFile(null); setImagePreview(item.image_path || null);
-    setIconFile(null); setIconPreview(item.icon_path || null);
     setDrawer({ level, mode: 'edit', id: item.id, form });
     setDrawerOpen(true);
   };
@@ -274,20 +210,6 @@ export default function HierarchyCascadePage({ embedded = false }) {
   const handleFieldChange = (name) => (e) => {
     setDrawer((d) => ({ ...d, form: { ...d.form, [name]: e.target.value } }));
     setFormErrors((errs) => ({ ...errs, [name]: undefined }));
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  };
-
-  const handleIconChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIconFile(file);
-    setIconPreview(URL.createObjectURL(file));
   };
 
   const validate = () => {
@@ -304,8 +226,7 @@ export default function HierarchyCascadePage({ embedded = false }) {
 
   const refreshLevel = (level) => {
     if (level === 'family') fetchFamilies();
-    if (level === 'category') fetchCategories(selectedFamily?.id);
-    if (level === 'subcategory') fetchSubcategories(selectedCategory?.id);
+    if (level === 'subfamily') fetchSubfamilies(selectedFamily?.id);
   };
 
   const handleSubmit = async (e) => {
@@ -315,23 +236,14 @@ export default function HierarchyCascadePage({ embedded = false }) {
     const cfg = LEVELS[drawer.level];
     const form = { ...drawer.form };
     if (cfg.parentKey === 'family_id') form.family_id = selectedFamily.id;
-    if (cfg.parentKey === 'category_id') form.category_id = selectedCategory.id;
 
     setSaving(true);
     try {
-      let payload = form;
-      if (cfg.hasMedia && (imageFile || iconFile)) {
-        payload = new FormData();
-        Object.entries(form).forEach(([k, v]) => payload.append(k, v ?? ''));
-        if (imageFile) payload.append('image', imageFile);
-        if (iconFile) payload.append('icon', iconFile);
-      }
-
       if (drawer.mode === 'edit') {
-        await cfg.api.update(drawer.id, payload);
+        await cfg.api.update(drawer.id, form);
         showToast('success', `${cfg.label} mise à jour`);
       } else {
-        await cfg.api.create(payload);
+        await cfg.api.create(form);
         showToast('success', `${cfg.label} créée`);
       }
       setDrawerOpen(false);
@@ -351,14 +263,34 @@ export default function HierarchyCascadePage({ embedded = false }) {
     const cfg = LEVELS[level];
     setTogglingId(item.id);
     try {
-      const newStatus = item.status === 'active' ? 'inactive' : 'active';
-      await cfg.api.update(item.id, { status: newStatus });
-      showToast('success', newStatus === 'active' ? `${cfg.label} activée` : `${cfg.label} désactivée`);
+      await cfg.api.toggle(item.id);
+      showToast('success', !item.is_active ? `${cfg.label} activée` : `${cfg.label} désactivée`);
       refreshLevel(level);
     } catch (err) {
       showToast('error', err?.response?.data?.message || 'Erreur lors du changement de statut');
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const moveItem = async (level, list, index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+
+    const cfg = LEVELS[level];
+    const current = list[index];
+    const target = list[targetIndex];
+    setMovingId(current.id);
+    try {
+      await cfg.api.reorder([
+        { id: current.id, sort_order: target.sort_order ?? 0 },
+        { id: target.id, sort_order: current.sort_order ?? 0 },
+      ]);
+      refreshLevel(level);
+    } catch (err) {
+      showToast('error', err?.response?.data?.message || 'Erreur lors du réordonnancement');
+    } finally {
+      setMovingId(null);
     }
   };
 
@@ -386,10 +318,7 @@ export default function HierarchyCascadePage({ embedded = false }) {
       showToast('success', `${cfg.label} supprimée`);
       setDeleteTarget(null);
       if (level === 'family' && selectedFamily?.id === item.id) {
-        setSelectedFamily(null); setSelectedCategory(null); setSubcategories([]);
-      }
-      if (level === 'category' && selectedCategory?.id === item.id) {
-        setSelectedCategory(null); setSubcategories([]);
+        setSelectedFamily(null); setSubfamilies([]);
       }
       refreshLevel(level);
     } catch (err) {
@@ -424,14 +353,14 @@ export default function HierarchyCascadePage({ embedded = false }) {
       {!embedded && (
         <div className="mb-6">
           <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Hiérarchie Produit</h1>
-          <p className="mt-1 text-sm text-neutral-500">Familles, catégories et sous-catégories du catalogue.</p>
+          <p className="mt-1 text-sm text-neutral-500">Familles et sous-familles du catalogue.</p>
         </div>
       )}
 
       {/* Fil d'ariane */}
       <div className="mb-4 flex items-center gap-1.5 text-sm text-neutral-500">
         <button
-          onClick={() => { setSelectedFamily(null); setSelectedCategory(null); setSubcategories([]); setMobileStep('family'); }}
+          onClick={() => { setSelectedFamily(null); setSubfamilies([]); setMobileStep('family'); }}
           className={`rounded-md px-2 py-1 hover:bg-neutral-100 ${!selectedFamily ? 'font-medium text-neutral-900' : ''}`}
         >
           Familles
@@ -439,24 +368,13 @@ export default function HierarchyCascadePage({ embedded = false }) {
         {selectedFamily && (
           <>
             <ChevronRight size={14} />
-            <button
-              onClick={() => { setSelectedCategory(null); setMobileStep('category'); }}
-              className={`rounded-md px-2 py-1 hover:bg-neutral-100 ${!selectedCategory ? 'font-medium text-neutral-900' : ''}`}
-            >
-              {selectedFamily.name_fr}
-            </button>
-          </>
-        )}
-        {selectedCategory && (
-          <>
-            <ChevronRight size={14} />
-            <span className="rounded-md px-2 py-1 font-medium text-neutral-900">{selectedCategory.name_fr}</span>
+            <span className="rounded-md px-2 py-1 font-medium text-neutral-900">{selectedFamily.name_fr}</span>
           </>
         )}
       </div>
 
-      {/* 3 colonnes en cascade */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* 2 colonnes en cascade */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Column
           level="family"
           mobileVisible={mobileStep === 'family'}
@@ -476,70 +394,46 @@ export default function HierarchyCascadePage({ embedded = false }) {
           canDelete={PERMS.family.delete}
           togglingId={togglingId}
           restoringId={restoringId}
+          movingId={movingId}
+          reorderEnabled={familyReorderEnabled}
           onCreate={() => openCreate('family')}
           onEdit={(item) => openEdit('family', item)}
           onDelete={(item) => setDeleteTarget({ level: 'family', item })}
           onToggle={(item) => toggleActive('family', item)}
           onRestore={(item) => handleRestore('family', item)}
+          onMove={(index, direction) => moveItem('family', families, index, direction)}
           emptyLabel="Aucune famille."
         />
 
         <Column
-          level="category"
-          mobileVisible={mobileStep === 'category'}
-          title={selectedFamily ? `Catégories — ${selectedFamily.name_fr}` : 'Catégories'}
-          icon={Boxes}
-          items={categories}
-          loading={loading.category}
-          search={search.category}
-          onSearchChange={(v) => setSearch((s) => ({ ...s, category: v }))}
-          status={status.category}
-          onStatusChange={(v) => setStatus((s) => ({ ...s, category: v }))}
-          selectedId={selectedCategory?.id}
-          onSelect={selectCategory}
-          canView={PERMS.category.view}
-          canCreate={PERMS.category.create}
-          canUpdate={PERMS.category.update}
-          canDelete={PERMS.category.delete}
-          togglingId={togglingId}
-          restoringId={restoringId}
-          onCreate={() => openCreate('category')}
-          onEdit={(item) => openEdit('category', item)}
-          onDelete={(item) => setDeleteTarget({ level: 'category', item })}
-          onToggle={(item) => toggleActive('category', item)}
-          onRestore={(item) => handleRestore('category', item)}
-          disabled={!selectedFamily}
-          disabledMessage="Sélectionnez une famille pour voir ses catégories."
-          onBack={() => setMobileStep('family')}
-          emptyLabel="Aucune catégorie pour cette famille."
-        />
-
-        <Column
-          level="subcategory"
-          mobileVisible={mobileStep === 'subcategory'}
-          title={selectedCategory ? `Sous-catégories — ${selectedCategory.name_fr}` : 'Sous-catégories'}
+          level="subfamily"
+          mobileVisible={mobileStep === 'subfamily'}
+          title={selectedFamily ? `Sous-familles — ${selectedFamily.name_fr}` : 'Sous-familles'}
           icon={Tag}
-          items={subcategories}
-          loading={loading.subcategory}
-          search={search.subcategory}
-          onSearchChange={(v) => setSearch((s) => ({ ...s, subcategory: v }))}
-          status={status.subcategory}
-          onStatusChange={(v) => setStatus((s) => ({ ...s, subcategory: v }))}
-          canView={PERMS.subcategory.view}
-          canCreate={PERMS.subcategory.create}
-          canUpdate={PERMS.subcategory.update}
-          canDelete={PERMS.subcategory.delete}
+          items={subfamilies}
+          loading={loading.subfamily}
+          search={search.subfamily}
+          onSearchChange={(v) => setSearch((s) => ({ ...s, subfamily: v }))}
+          status={status.subfamily}
+          onStatusChange={(v) => setStatus((s) => ({ ...s, subfamily: v }))}
+          canView={PERMS.subfamily.view}
+          canCreate={PERMS.subfamily.create}
+          canUpdate={PERMS.subfamily.update}
+          canDelete={PERMS.subfamily.delete}
           togglingId={togglingId}
           restoringId={restoringId}
-          onCreate={() => openCreate('subcategory')}
-          onEdit={(item) => openEdit('subcategory', item)}
-          onDelete={(item) => setDeleteTarget({ level: 'subcategory', item })}
-          onToggle={(item) => toggleActive('subcategory', item)}
-          onRestore={(item) => handleRestore('subcategory', item)}
-          disabled={!selectedCategory}
-          disabledMessage="Sélectionnez une catégorie pour voir ses sous-catégories."
-          onBack={() => setMobileStep('category')}
-          emptyLabel="Aucune sous-catégorie pour cette catégorie."
+          movingId={movingId}
+          reorderEnabled={subfamilyReorderEnabled}
+          onCreate={() => openCreate('subfamily')}
+          onEdit={(item) => openEdit('subfamily', item)}
+          onDelete={(item) => setDeleteTarget({ level: 'subfamily', item })}
+          onToggle={(item) => toggleActive('subfamily', item)}
+          onRestore={(item) => handleRestore('subfamily', item)}
+          onMove={(index, direction) => moveItem('subfamily', subfamilies, index, direction)}
+          disabled={!selectedFamily}
+          disabledMessage="Sélectionnez une famille pour voir ses sous-familles."
+          onBack={() => setMobileStep('family')}
+          emptyLabel="Aucune sous-famille pour cette famille."
           selectable={false}
         />
       </div>
@@ -571,54 +465,10 @@ export default function HierarchyCascadePage({ embedded = false }) {
           {drawer && drawerCfg && (
             <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto px-5 py-4">
-                {drawer.level === 'category' && (
+                {drawer.level === 'subfamily' && (
                   <p className="mb-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
                     Famille parente : <span className="font-medium text-neutral-700">{selectedFamily?.name_fr}</span>
                   </p>
-                )}
-                {drawer.level === 'subcategory' && (
-                  <p className="mb-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-                    Catégorie parente : <span className="font-medium text-neutral-700">{selectedCategory?.name_fr}</span>
-                  </p>
-                )}
-
-                {drawerCfg.hasMedia && (
-                  <div className="mb-4 flex items-center gap-6">
-                    <div>
-                      <div className="mb-1.5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
-                        {imagePreview ? (
-                          <img src={imagePreview} alt="image" className="h-full w-full object-cover" />
-                        ) : (
-                          <ImageOff size={20} className="text-neutral-300" />
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
-                      >
-                        <Upload size={12} /> Image
-                      </button>
-                      <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleImageChange} />
-                    </div>
-                    <div>
-                      <div className="mb-1.5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
-                        {iconPreview ? (
-                          <img src={iconPreview} alt="icône" className="h-full w-full object-cover" />
-                        ) : (
-                          <ImageOff size={20} className="text-neutral-300" />
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => iconInputRef.current?.click()}
-                        className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
-                      >
-                        <Upload size={12} /> Icône
-                      </button>
-                      <input ref={iconInputRef} type="file" accept="image/*" hidden onChange={handleIconChange} />
-                    </div>
-                  </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
@@ -626,32 +476,15 @@ export default function HierarchyCascadePage({ embedded = false }) {
                     const wrapperClass = f.col === 'full' ? 'col-span-2' : 'col-span-1';
                     return (
                       <Field key={f.name} label={f.label} error={formErrors[f.name]} className={wrapperClass}>
-                        {f.type === 'textarea' ? (
-                          <textarea
-                            rows={2}
-                            dir={f.dir}
-                            value={drawer.form[f.name]}
-                            onChange={handleFieldChange(f.name)}
-                            className={inputClass(formErrors[f.name])}
-                          />
-                        ) : (
-                          <input
-                            dir={f.dir}
-                            value={drawer.form[f.name]}
-                            onChange={handleFieldChange(f.name)}
-                            className={inputClass(formErrors[f.name])}
-                          />
-                        )}
+                        <input
+                          dir={f.dir}
+                          value={drawer.form[f.name]}
+                          onChange={handleFieldChange(f.name)}
+                          className={inputClass(formErrors[f.name])}
+                        />
                       </Field>
                     );
                   })}
-
-                  <Field label="Statut" className="col-span-2">
-                    <select value={drawer.form.status} onChange={handleFieldChange('status')} className={inputClass()}>
-                      <option value="active">Actif</option>
-                      <option value="inactive">Inactif</option>
-                    </select>
-                  </Field>
                 </div>
               </div>
 
@@ -713,13 +546,13 @@ export default function HierarchyCascadePage({ embedded = false }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Colonne générique (Familles / Catégories / Sous-catégories)        */
+/* Colonne générique (Familles / Sous-familles)                       */
 /* ------------------------------------------------------------------ */
 
 function Column({
   level, title, icon: Icon, items, loading, search, onSearchChange, status, onStatusChange,
   selectedId, onSelect, canView = true, canCreate, canUpdate, canDelete, togglingId, restoringId,
-  onCreate, onEdit, onDelete, onToggle, onRestore, disabled, disabledMessage,
+  movingId, reorderEnabled, onCreate, onEdit, onDelete, onToggle, onRestore, onMove, disabled, disabledMessage,
   onBack, emptyLabel, mobileVisible = true, selectable = true,
 }) {
   if (!canView) {
@@ -784,6 +617,9 @@ function Column({
               </option>
             ))}
           </select>
+          {reorderEnabled && (
+            <p className="text-[11px] text-neutral-400">Utilisez ↑↓ pour réordonner.</p>
+          )}
         </div>
       )}
 
@@ -802,9 +638,10 @@ function Column({
           </div>
         ) : (
           <ul className="divide-y divide-neutral-100">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const isDeleted = Boolean(item.deleted_at);
               const isSelected = selectable && selectedId === item.id;
+              const canReorder = canUpdate && !isDeleted && reorderEnabled;
               return (
                 <li key={item.id}>
                   <div
@@ -813,16 +650,38 @@ function Column({
                       selectable ? 'cursor-pointer' : ''
                     } ${isSelected ? 'bg-red-50/60' : 'hover:bg-neutral-50'} ${isDeleted ? 'opacity-50' : ''}`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`truncate text-sm ${isSelected ? 'font-semibold text-neutral-900' : 'text-neutral-700'}`}>
-                          {item.name_fr}
-                        </span>
-                        <StatusDot item={item} />
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-400">
-                        <span className="font-mono">{item.code}</span>
-                        <span dir="rtl">{item.name_ar}</span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      {canReorder && (
+                        <div className="flex shrink-0 flex-col" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => onMove(index, 'up')}
+                            disabled={index === 0 || movingId === item.id}
+                            className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30"
+                            title="Monter"
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button
+                            onClick={() => onMove(index, 'down')}
+                            disabled={index === items.length - 1 || movingId === item.id}
+                            className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30"
+                            title="Descendre"
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`truncate text-sm ${isSelected ? 'font-semibold text-neutral-900' : 'text-neutral-700'}`}>
+                            {item.name_fr}
+                          </span>
+                          <StatusDot item={item} />
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-400">
+                          <span className="font-mono">{item.code}</span>
+                          <span dir="rtl">{item.name_ar}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -845,14 +704,14 @@ function Column({
                               <button
                                 onClick={(e) => { e.stopPropagation(); onToggle(item); }}
                                 disabled={togglingId === item.id}
-                                title={item.status === 'active' ? 'Désactiver' : 'Activer'}
+                                title={item.is_active ? 'Désactiver' : 'Activer'}
                                 className={`rounded-md p-1.5 transition disabled:opacity-50 ${
-                                  item.status === 'active' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-neutral-400 hover:bg-neutral-100'
+                                  item.is_active ? 'text-emerald-600 hover:bg-emerald-50' : 'text-neutral-400 hover:bg-neutral-100'
                                 }`}
                               >
                                 {togglingId === item.id ? (
                                   <Loader2 size={14} className="animate-spin" />
-                                ) : item.status === 'active' ? (
+                                ) : item.is_active ? (
                                   <Power size={14} />
                                 ) : (
                                   <PowerOff size={14} />

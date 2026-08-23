@@ -52,13 +52,10 @@ export default function NodesPage() {
   const [status, setStatus] = useState('');
   const [filterNodeType, setFilterNodeType] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
-  const [filterProvince, setFilterProvince] = useState('');
   const [filterCity, setFilterCity] = useState('');
 
-  const { provinces: filterProvinces, cities: filterCities } = useCascadeGeo({
+  const { cities: filterCities } = useCascadeGeo({
     regionId: filterRegion,
-    provinceId: filterProvince,
-    onProvinceReset: () => { setFilterProvince(''); setFilterCity(''); },
     onCityReset: () => setFilterCity(''),
   });
 
@@ -100,7 +97,6 @@ export default function NodesPage() {
         ...buildStatusParams(status),
         ...(filterNodeType && { node_type_id: filterNodeType }),
         ...(filterRegion && { region_id: filterRegion }),
-        ...(filterProvince && { province_id: filterProvince }),
         ...(filterCity && { city_id: filterCity }),
       });
       setRows(data.data || []);
@@ -110,14 +106,14 @@ export default function NodesPage() {
     } finally {
       setLoading(false);
     }
-  }, [canView, page, search, status, filterNodeType, filterRegion, filterProvince, filterCity]);
+  }, [canView, page, search, status, filterNodeType, filterRegion, filterCity]);
 
   useEffect(() => {
     const t = setTimeout(fetchNodes, search ? 350 : 0);
     return () => clearTimeout(t);
   }, [fetchNodes]);
 
-  useEffect(() => { setPage(1); }, [search, status, filterNodeType, filterRegion, filterProvince, filterCity]);
+  useEffect(() => { setPage(1); }, [search, status, filterNodeType, filterRegion, filterCity]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
@@ -204,18 +200,12 @@ export default function NodesPage() {
           {allRegions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
         </select>
 
-        <select value={filterProvince} onChange={(e) => setFilterProvince(e.target.value)} disabled={!filterRegion}
-          className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2 text-sm outline-none transition focus:border-[#E10600] focus:bg-white focus:ring-2 focus:ring-[#E10600]/15 disabled:cursor-not-allowed disabled:opacity-50">
-          <option value="">Toutes les provinces</option>
-          {filterProvinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
-        </select>
-
-        <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterProvince}
+        <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterRegion}
           className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2 text-sm outline-none transition focus:border-[#E10600] focus:bg-white focus:ring-2 focus:ring-[#E10600]/15 disabled:cursor-not-allowed disabled:opacity-50">
           <option value="">Toutes les villes</option>
           {filterCities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
         </select>
-      </div>
+        </div>
 
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <div className="overflow-x-auto">
@@ -250,7 +240,7 @@ export default function NodesPage() {
                         <div className="flex items-center gap-1.5">
                           <MapPin size={13} className="shrink-0 text-neutral-400" />
                           <span className="truncate">
-                            {[item.city?.name_fr, item.province?.name_fr, item.region?.name_fr].filter(Boolean).join(', ') || '—'}
+                            {[item.city?.name_fr, item.region?.name_fr].filter(Boolean).join(', ') || '—'}
                           </span>
                         </div>
                       </td>

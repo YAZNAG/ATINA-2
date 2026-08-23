@@ -11,16 +11,9 @@ const createValidator = [
   body('name_fr').notEmpty().withMessage('Nom français requis'),
   body('name_ar').notEmpty().withMessage('Nom arabe requis'),
   body('code').notEmpty().withMessage('Code requis'),
-  body('family_id')
-    .notEmpty()
-    .withMessage('Famille requise')
-    .bail()
-    .isInt({ min: 1 })
-    .withMessage('Famille invalide'),
-  body('status').optional().isIn(['active', 'inactive']),
+  body('gpc_code').optional().isString(),
+  body('is_active').optional().isBoolean(),
   body('sort_order').optional().isInt({ min: 0 }),
-  body('description_fr').optional().isString(),
-  body('description_ar').optional().isString(),
   validate,
 ];
 
@@ -28,11 +21,9 @@ const updateValidator = [
   body('name_fr').optional().notEmpty(),
   body('name_ar').optional().notEmpty(),
   body('code').optional().notEmpty(),
-  body('family_id').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('Famille invalide'),
-  body('status').optional().isIn(['active', 'inactive']),
+  body('gpc_code').optional().isString(),
+  body('is_active').optional().isBoolean(),
   body('sort_order').optional().isInt({ min: 0 }),
-  body('description_fr').optional().isString(),
-  body('description_ar').optional().isString(),
   validate,
 ];
 

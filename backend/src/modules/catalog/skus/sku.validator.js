@@ -8,9 +8,8 @@ const validate = (req, res, next) => {
 };
 
 const hasTaxonomy = (body) =>
-  (body.family_id != null && body.family_id !== '') ||
-  (body.category_id != null && body.category_id !== '') ||
-  (body.sub_category_id != null && body.sub_category_id !== '');
+  (body.sku_family_id != null && body.sku_family_id !== '') ||
+  (body.sku_subfamily_id != null && body.sku_subfamily_id !== '');
 
 const createValidator = [
   body('sku_code').optional({ nullable: true }).trim(),
@@ -24,7 +23,7 @@ const createValidator = [
   body('name_ar').trim().notEmpty().withMessage('Nom arabe requis'),
   body().custom((_, { req }) => {
     if (!hasTaxonomy(req.body)) {
-      throw new Error('Indiquez une famille, une catégorie ou une sous-catégorie');
+      throw new Error('Indiquez une famille SKU ou une sous-famille');
     }
     return true;
   }),

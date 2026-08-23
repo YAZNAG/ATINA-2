@@ -1,140 +1,103 @@
 const prisma = require('../../../config/database');
 const fileUploadService = require('../../../services/fileUpload.service');
-const { getArticleSkuImagePublicUrl } = require('../../../utils/fileStorage');
-const { setArticleSkuUuid, getArticleSkuUuid } = require('../../../utils/articleSkuLink');
+const { getFilePath } = require('../../../utils/fileStorage');
 
-const ARTICLE_WHERE = { deleted_at: null, is_deleted: false };
+const FOLDER = 'skus';
 
-/** La 1re image (tri `sort_order` croissant puis `id`) est l'image principale. */
-async function syncPrimaryFromSortOrder(skuId) {
-  const rows = await prisma.skuImage.findMany({
-    where: { sku_id: skuId },
-    orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-  });
-  if (!rows.length) return;
-  await prisma.skuImage.updateMany({ where: { sku_id: skuId }, data: { is_primary: false } });
-  await prisma.skuImage.update({ where: { id: rows[0].id }, data: { is_primary: true } });
-}
-
-async function getArticleOrThrow(articleId) {
-  const article = await prisma.article.findFirst({
-    where: { id: Number(articleId), ...ARTICLE_WHERE },
-  });
-  if (!article) throw { statusCode: 404, message: 'Article introuvable' };
-  return article;
-}
-
-async function ensureSkuUuid(articleId) {
-  const article = await getArticleOrThrow(articleId);
-  const existingUuid = article.sku_uuid ?? (await getArticleSkuUuid(prisma, articleId));
-  if (existingUuid) {
-    return { article: { ...article, sku_uuid: existingUuid }, skuId: existingUuid };
-  }
-  const sku = await prisma.sku.create({ data: {} });
-  await setArticleSkuUuid(prisma, article.id, sku.id);
-  const skuId = (await getArticleSkuUuid(prisma, articleId)) ?? sku.id;
-  return { article: { ...article, sku_uuid: skuId }, skuId };
-}
-
-async function resolveSkuUuid(articleId, article) {
-  return article.sku_uuid ?? (await getArticleSkuUuid(prisma, articleId));
-}
-
-class ArticleSkuImageService {
-  async listByArticle(articleId) {
-    const article = await getArticleOrThrow(articleId);
-    const skuUuid = article.sku_uuid ?? (await getArticleSkuUuid(prisma, articleId));
-    if (!skuUuid) return [];
+class SkuImageService {
+  async listBySku(skuId) {
+    const sku = await prisma.sku.findFirst({
+      where: { id: skuId, deleted_at: null, is_deleted: false },
+    });
+    if (!sku) throw { statusCode: 404, message: 'SKU introuvable' };
     return prisma.skuImage.findMany({
-      where: { sku_id: skuUuid },
+      where: { sku_id: skuId, deleted_at: null },
       orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }],
     });
   }
 
-  async addImages(articleId, files) {
-    await ensureSkuUuid(articleId);
-    const skuId =
-      (await getArticleSkuUuid(prisma, articleId)) ?? (await getArticleOrThrow(articleId)).sku_uuid;
-    if (!skuId) {
-      throw { statusCode: 500, message: "Impossible de lier le SKU logistique à l'article" };
-    }
+  async addImages(skuId, files) {
+    const sku = await prisma.sku.findFirst({
+      where: { id: skuId, deleted_at: null, is_deleted: false },
+    });
+    if (!sku) throw { statusCode: 404, message: 'SKU introuvable' };
     if (!files?.images?.length) throw { statusCode: 400, message: 'Aucune image fournie' };
 
     const agg = await prisma.skuImage.aggregate({
-      where: { sku_id: skuId },
+      where: { sku_id: skuId, deleted_at: null },
       _max: { sort_order: true },
     });
-    const nextOrder = (agg._max.sort_order ?? 0) + 1;
+    let nextOrder = (agg._max.sort_order ?? -1) + 1;
 
-    const rows = files.images.map((file, idx) => ({
-      sku_id: skuId,
-      url: getArticleSkuImagePublicUrl(articleId, file.filename),
-      is_primary: false,
-      sort_order: nextOrder + idx,
-    }));
+    const hasPrimary = await prisma.skuImage.count({
+      where: { sku_id: skuId, is_primary: true, deleted_at: null },
+    });
+
+    const rows = files.images.map((file, idx) => {
+      const path = getFilePath(file, FOLDER);
+      return {
+        sku_id: skuId,
+        url: path,
+        is_primary: hasPrimary === 0 && idx === 0,
+        sort_order: nextOrder + idx,
+      };
+    });
 
     await prisma.skuImage.createMany({ data: rows });
-    await syncPrimaryFromSortOrder(skuId);
-    return this.listByArticle(articleId);
+    return this.listBySku(skuId);
   }
 
-  async setPrimary(articleId, imageId) {
-    const article = await getArticleOrThrow(articleId);
-    const skuUuid = await resolveSkuUuid(articleId, article);
-    if (!skuUuid) throw { statusCode: 404, message: 'Aucune image pour cet article' };
-
+  async setPrimary(skuId, imageId) {
     const img = await prisma.skuImage.findFirst({
-      where: { id: String(imageId), sku_id: skuUuid },
+      where: { id: imageId, sku_id: skuId, deleted_at: null },
     });
-    if (!img) throw { statusCode: 404, message: 'Image introuvable pour cet article' };
+    if (!img) throw { statusCode: 404, message: 'Image introuvable pour ce SKU' };
 
-    const all = await prisma.skuImage.findMany({
-      where: { sku_id: skuUuid },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-    const rest = all.filter((x) => x.id !== img.id);
-    const ordered = [img, ...rest];
-    await prisma.$transaction(
-      ordered.map((row, i) =>
-        prisma.skuImage.update({
-          where: { id: row.id },
-          data: { sort_order: i + 1, is_primary: i === 0 },
-        }),
-      ),
-    );
+    await prisma.$transaction([
+      prisma.skuImage.updateMany({
+        where: { sku_id: skuId, deleted_at: null },
+        data: { is_primary: false },
+      }),
+      prisma.skuImage.update({ where: { id: img.id }, data: { is_primary: true } }),
+    ]);
 
     return prisma.skuImage.findFirst({ where: { id: img.id } });
   }
 
-  async updateSortOrder(articleId, imageId, sort_order) {
+  async updateSortOrder(skuId, imageId, sort_order) {
     const order = Number(sort_order);
     if (Number.isNaN(order) || order < 0) {
       throw { statusCode: 400, message: "Ordre d'affichage invalide" };
     }
-    const article = await getArticleOrThrow(articleId);
-    const skuUuid = await resolveSkuUuid(articleId, article);
-    if (!skuUuid) throw { statusCode: 404, message: 'Aucune image' };
-
     const img = await prisma.skuImage.findFirst({
-      where: { id: String(imageId), sku_id: skuUuid },
+      where: { id: imageId, sku_id: skuId, deleted_at: null },
     });
-    if (!img) throw { statusCode: 404, message: 'Image introuvable' };
+    if (!img) throw { statusCode: 404, message: 'Image introuvable pour ce SKU' };
     return prisma.skuImage.update({ where: { id: img.id }, data: { sort_order: order } });
   }
 
-  async deleteImage(articleId, imageId) {
-    const article = await getArticleOrThrow(articleId);
-    const skuUuid = await resolveSkuUuid(articleId, article);
-    if (!skuUuid) throw { statusCode: 404, message: 'Aucune image' };
-
+  async deleteImage(skuId, imageId) {
     const img = await prisma.skuImage.findFirst({
-      where: { id: String(imageId), sku_id: skuUuid },
+      where: { id: imageId, sku_id: skuId, deleted_at: null },
     });
     if (!img) throw { statusCode: 404, message: 'Image introuvable' };
-    if (img.url) fileUploadService.deleteFileByPath(img.url);
-    await prisma.skuImage.delete({ where: { id: img.id } });
-    await syncPrimaryFromSortOrder(skuUuid);
+    fileUploadService.deleteFileByPath(img.url);
+    await prisma.skuImage.update({ where: { id: img.id }, data: { deleted_at: new Date() } });
+  }
+
+  /** Appelé lors de la suppression d'un SKU : fichiers supprimés + suppression logique des lignes image. */
+  async softDeleteAllForSku(skuId) {
+    const imgs = await prisma.skuImage.findMany({
+      where: { sku_id: skuId, deleted_at: null },
+    });
+    for (const img of imgs) {
+      fileUploadService.deleteFileByPath(img.url);
+      await prisma.skuImage.update({
+        where: { id: img.id },
+        data: { deleted_at: new Date() },
+      });
+    }
   }
 }
 
-module.exports = new ArticleSkuImageService();
+module.exports = new SkuImageService();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import * as geo from '../../api/locationNode.api';
@@ -6,11 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-// ── SVG icon shortcuts ────────────────────────────────────────────────────────
-
 const PATH = {
   globe: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 004 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  mapPin: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
   building: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
   plus: 'M12 4v16m8-8H4',
   chevron: 'M9 5l7 7-7 7',
@@ -28,28 +25,16 @@ function Icon({ d, className = 'w-5 h-5' }) {
   );
 }
 
-// ── level config ──────────────────────────────────────────────────────────────
-
 const LEVEL_CFG = {
   regions: {
     label: 'Régions',
     icon: PATH.globe,
     gradient: 'from-red-700 to-red-500',
     bg: 'bg-red-600',
-    childLabel: 'provinces',
+    childLabel: 'villes',
     createPerm: 'regions.create',
     updatePerm: 'regions.update',
     deletePerm: 'regions.delete',
-  },
-  provinces: {
-    label: 'Provinces',
-    icon: PATH.mapPin,
-    gradient: 'from-rose-700 to-rose-500',
-    bg: 'bg-rose-600',
-    childLabel: 'villes',
-    createPerm: 'provinces.create',
-    updatePerm: 'provinces.update',
-    deletePerm: 'provinces.delete',
   },
   cities: {
     label: 'Villes',
@@ -62,8 +47,6 @@ const LEVEL_CFG = {
     deletePerm: 'cities.delete',
   },
 };
-
-// ── helpers ───────────────────────────────────────────────────────────────────
 
 function StatusBadge({ active }) {
   return active ? (
@@ -79,8 +62,6 @@ function StatusBadge({ active }) {
   );
 }
 
-// ── GeoCard ───────────────────────────────────────────────────────────────────
-
 function GeoCard({ level, item, childCount, clickable, onClick, onEdit, onDelete }) {
   const lc = LEVEL_CFG[level];
   const sub = level === 'cities' && item.postal_code ? `CP: ${item.postal_code}` : null;
@@ -88,7 +69,6 @@ function GeoCard({ level, item, childCount, clickable, onClick, onEdit, onDelete
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-red-100 transition-all flex flex-col">
       <div className={`flex-1 p-5 ${clickable ? 'cursor-pointer' : ''}`} onClick={clickable ? onClick : undefined}>
-        {/* Icon + name */}
         <div className="flex items-start gap-4 mb-3">
           <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${lc.gradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
             <Icon d={lc.icon} className="w-7 h-7 text-white" />
@@ -109,15 +89,12 @@ function GeoCard({ level, item, childCount, clickable, onClick, onEdit, onDelete
           </div>
         </div>
 
-        {/* Sub info */}
         {sub && <p className="text-xs text-gray-400 font-medium">{sub}</p>}
 
-        {/* Description */}
         {item.description_fr && (
           <p className="mt-2 text-xs text-gray-400 leading-relaxed line-clamp-2">{item.description_fr}</p>
         )}
 
-        {/* Child count */}
         {childCount != null && clickable && (
           <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-400 font-medium">
             <Icon d={PATH.chevron} className="w-3.5 h-3.5 text-red-300" />
@@ -126,7 +103,6 @@ function GeoCard({ level, item, childCount, clickable, onClick, onEdit, onDelete
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-1.5 px-4 pb-4 pt-3 border-t border-gray-50">
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(item); }}
@@ -146,8 +122,6 @@ function GeoCard({ level, item, childCount, clickable, onClick, onEdit, onDelete
     </div>
   );
 }
-
-// ── DeleteModal ───────────────────────────────────────────────────────────────
 
 function DeleteModal({ item, level, onCancel, onConfirm, loading }) {
   const lc = LEVEL_CFG[level];
@@ -174,8 +148,6 @@ function DeleteModal({ item, level, onCancel, onConfirm, loading }) {
   );
 }
 
-// ── Drawer ────────────────────────────────────────────────────────────────────
-
 const inp = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-gray-300';
 const ta = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-gray-300 resize-none';
 
@@ -192,11 +164,10 @@ function Fld({ label, req, children }) {
 
 const EMPTY = {
   regions: { code: '', name_fr: '', name_ar: '', description_fr: '', description_ar: '', is_active: true },
-  provinces: { code: '', name_fr: '', name_ar: '', is_active: true },
   cities: { code: '', name_fr: '', name_ar: '', postal_code: '', is_active: true },
 };
 
-function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) {
+function GeoDrawer({ level, regionId, editItem, onClose, onSaved }) {
   const isEdit = !!editItem;
   const lc = LEVEL_CFG[level];
 
@@ -212,13 +183,6 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
           name_ar: editItem.name_ar ?? '',
           description_fr: editItem.description_fr ?? '',
           description_ar: editItem.description_ar ?? '',
-          is_active: editItem.is_active ?? true,
-        });
-      } else if (level === 'provinces') {
-        setForm({
-          code: editItem.code ?? '',
-          name_fr: editItem.name_fr ?? '',
-          name_ar: editItem.name_ar ?? '',
           is_active: editItem.is_active ?? true,
         });
       } else {
@@ -242,8 +206,7 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
 
   const buildPayload = () => {
     const p = { ...form };
-    if (level === 'provinces' && regionId) p.region_id = regionId;
-    if (level === 'cities' && provinceId) p.province_id = provinceId;
+    if (level === 'cities' && regionId) p.region_id = regionId;
     return p;
   };
 
@@ -254,8 +217,6 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
       const payload = buildPayload();
       if (level === 'regions') {
         isEdit ? await geo.updateRegion(editItem.id, payload) : await geo.createRegion(payload);
-      } else if (level === 'provinces') {
-        isEdit ? await geo.updateProvince(editItem.id, payload) : await geo.createProvince(payload);
       } else {
         isEdit ? await geo.updateCity(editItem.id, payload) : await geo.createCity(payload);
       }
@@ -268,13 +229,12 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
     }
   };
 
-  const singularLabel = { regions: 'Région', provinces: 'Province', cities: 'Ville' }[level];
+  const singularLabel = { regions: 'Région', cities: 'Ville' }[level];
 
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-30 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 z-40 flex flex-col bg-white shadow-2xl w-full max-w-md">
-        {/* Header */}
         <div className={`flex items-center justify-between px-6 py-5 bg-gradient-to-r ${lc.gradient}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
@@ -292,7 +252,6 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
           </button>
         </div>
 
-        {/* Body */}
         <form id="geo-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Fld label="Code" req>
@@ -347,7 +306,6 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
           )}
         </form>
 
-        {/* Footer */}
         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">
             Annuler
@@ -361,163 +319,90 @@ function GeoDrawer({ level, regionId, provinceId, editItem, onClose, onSaved }) 
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 export default function GeoPage() {
   const { hasPermission } = useAuth();
 
   const location = useLocation();
-  const navigate = useNavigate();
 
-  // Sync level with URL: /geo/regions | /geo/provinces | /geo/cities
-  useEffect(() => {
-    const p = location.pathname;
-    const nextLevel = p.includes('/geo/regions')
-      ? 'regions'
-      : p.includes('/geo/provinces')
-      ? 'provinces'
-      : p.includes('/geo/cities')
-      ? 'cities'
-      : 'regions';
-
-    setLevel(nextLevel);
-
-    // When entering provinces/cities from sidebar, we may not have a selected parent yet.
-    if (nextLevel === 'regions') {
-      setSelectedRegion(null);
-      setSelectedProvince(null);
-    } else if (nextLevel === 'provinces') {
-      setSelectedProvince(null);
-    } else if (nextLevel === 'cities') {
-      setSelectedProvince(null);
-    }
-  }, [location.pathname]);
-
-
-
-  // Navigation
   const [level, setLevel] = useState('regions');
   const [selectedRegion, setSelectedRegion] = useState(null);
-  const [selectedProvince, setSelectedProvince] = useState(null);
 
-  // Data
   const [regions, setRegions] = useState([]);
-  const [provinces, setProvinces] = useState([]);
   const [cities, setCities] = useState([]);
-  const [provCounts, setProvCounts] = useState({}); // province count per region id
-  const [cityCounts, setCityCounts] = useState({}); // city count per province id
+  const [cityCounts, setCityCounts] = useState({}); // city count per region id
   const [loading, setLoading] = useState(false);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
-  // UI state
   const [drawer, setDrawer] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // ── loaders ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const p = location.pathname;
+    const nextLevel = p.includes('/geo/cities') ? 'cities' : 'regions';
+    setLevel(nextLevel);
+    if (nextLevel === 'regions') setSelectedRegion(null);
+  }, [location.pathname]);
 
   const loadRegions = useCallback(async () => {
     setLoading(true);
     try {
-      const [regRes, provRes] = await Promise.all([
+      const [regRes, cityRes] = await Promise.all([
         geo.getRegions({ limit: 500 }),
-        geo.getProvinces({ limit: 500 }),
-      ]);
-      const regs = regRes.data.data ?? [];
-      const provs = provRes.data.data ?? [];
-      setRegions(regs);
-      // Count provinces per region
-      const counts = {};
-      for (const p of provs) {
-        counts[p.region_id] = (counts[p.region_id] ?? 0) + 1;
-      }
-      setProvCounts(counts);
-    } catch (err) { toast.error(getErrorMessage(err)); }
-    finally { setLoading(false); }
-  }, []);
-
-  const loadProvinces = useCallback(async () => {
-    if (!selectedRegion) return;
-    setLoading(true);
-    try {
-      const [provRes, cityRes] = await Promise.all([
-        geo.getProvinces({ limit: 500, region_id: selectedRegion.id }),
         geo.getCities({ limit: 500 }),
       ]);
-      const provs = provRes.data.data ?? [];
+      const regs = regRes.data.data ?? [];
       const cityAll = cityRes.data.data ?? [];
-      setProvinces(provs);
-      // Count cities per province (from full city list)
+      setRegions(regs);
       const counts = {};
       for (const c of cityAll) {
-        counts[c.province_id] = (counts[c.province_id] ?? 0) + 1;
+        counts[c.region_id] = (counts[c.region_id] ?? 0) + 1;
       }
       setCityCounts(counts);
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setLoading(false); }
-  }, [selectedRegion]);
+  }, []);
 
   const loadCities = useCallback(async () => {
-    if (!selectedProvince) return;
+    if (!selectedRegion) return;
     setLoading(true);
     try {
-      const res = await geo.getCities({ limit: 500, province_id: selectedProvince.id });
+      const res = await geo.getCities({ limit: 500, region_id: selectedRegion.id });
       setCities(res.data.data ?? []);
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setLoading(false); }
-  }, [selectedProvince]);
+  }, [selectedRegion]);
 
   useEffect(() => {
     if (level === 'regions') loadRegions();
-    else if (level === 'provinces') loadProvinces();
     else loadCities();
-  }, [level, loadRegions, loadProvinces, loadCities]);
+  }, [level, loadRegions, loadCities]);
 
   const refresh = useCallback(() => {
     if (level === 'regions') loadRegions();
-    else if (level === 'provinces') loadProvinces();
     else loadCities();
-  }, [level, loadRegions, loadProvinces, loadCities]);
-
-  // ── navigation ───────────────────────────────────────────────────────────────
+  }, [level, loadRegions, loadCities]);
 
   const goToRegions = () => {
     setLevel('regions');
     setSelectedRegion(null);
-    setSelectedProvince(null);
-    setSearch(''); setSearchInput(''); setStatusFilter('all');
-  };
-
-  const goToProvinces = () => {
-    setLevel('provinces');
-    setSelectedProvince(null);
     setSearch(''); setSearchInput(''); setStatusFilter('all');
   };
 
   const drillRegion = (r) => {
     setSelectedRegion(r);
-    setLevel('provinces');
-    setSearch(''); setSearchInput(''); setStatusFilter('all');
-  };
-
-  const drillProvince = (p) => {
-    setSelectedProvince(p);
     setLevel('cities');
     setSearch(''); setSearchInput(''); setStatusFilter('all');
   };
-
-  // ── delete ───────────────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
     if (!deleting) return;
     setDeleteLoading(true);
     try {
       if (level === 'regions') await geo.deleteRegion(deleting.id);
-      else if (level === 'provinces') await geo.deleteProvince(deleting.id);
       else await geo.deleteCity(deleting.id);
       toast.success('Supprimé avec succès');
       setDeleting(null);
@@ -529,10 +414,8 @@ export default function GeoPage() {
     }
   };
 
-  // ── derived ──────────────────────────────────────────────────────────────────
-
   const lc = LEVEL_CFG[level];
-  const rows = level === 'regions' ? regions : level === 'provinces' ? provinces : cities;
+  const rows = level === 'regions' ? regions : cities;
   const q = search.toLowerCase();
 
   const filtered = rows.filter((r) => {
@@ -544,7 +427,6 @@ export default function GeoPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modals */}
       {deleting && (
         <DeleteModal
           item={deleting}
@@ -558,21 +440,16 @@ export default function GeoPage() {
         <GeoDrawer
           level={level}
           regionId={selectedRegion?.id}
-          provinceId={selectedProvince?.id}
           editItem={drawer.editItem ?? null}
           onClose={() => setDrawer(null)}
           onSaved={() => { setDrawer(null); refresh(); }}
         />
       )}
 
-      {/* ── Header ── */}
       <div className="bg-white border-b border-gray-100 shadow-sm">
         <div className="px-6 pt-5 pb-4">
-
-          {/* Top row */}
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              {/* Breadcrumb */}
               <nav className="flex items-center gap-2 text-sm mb-2 flex-wrap">
                 <button
                   onClick={goToRegions}
@@ -581,23 +458,11 @@ export default function GeoPage() {
                   Régions
                 </button>
 
-                {(level === 'provinces' || level === 'cities') && selectedRegion && (
-                  <>
-                    <Icon d={PATH.chevron} className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
-                    <button
-                      onClick={goToProvinces}
-                      className={`font-semibold transition-colors max-w-[160px] truncate ${level === 'provinces' ? 'text-rose-600' : 'text-gray-400 hover:text-rose-500'}`}
-                    >
-                      {selectedRegion.name_fr}
-                    </button>
-                  </>
-                )}
-
-                {level === 'cities' && selectedProvince && (
+                {level === 'cities' && selectedRegion && (
                   <>
                     <Icon d={PATH.chevron} className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
                     <span className="font-semibold text-pink-600 max-w-[160px] truncate">
-                      {selectedProvince.name_fr}
+                      {selectedRegion.name_fr}
                     </span>
                   </>
                 )}
@@ -606,8 +471,7 @@ export default function GeoPage() {
               <h1 className="text-2xl font-bold text-gray-900">{lc.label}</h1>
               <p className="text-sm text-gray-400 mt-0.5">
                 {level === 'regions' && 'Niveau supérieur géographique'}
-                {level === 'provinces' && `Provinces de la région « ${selectedRegion?.name_fr} »`}
-                {level === 'cities' && `Villes de la province « ${selectedProvince?.name_fr} »`}
+                {level === 'cities' && `Villes de la région « ${selectedRegion?.name_fr} »`}
               </p>
             </div>
 
@@ -622,22 +486,16 @@ export default function GeoPage() {
             )}
           </div>
 
-          {/* Filter row */}
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Level tabs */}
             <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
               {[
                 { key: 'regions', label: 'Régions', disabled: false },
-                { key: 'provinces', label: 'Provinces', disabled: !selectedRegion },
-                { key: 'cities', label: 'Villes', disabled: !selectedProvince },
+                { key: 'cities', label: 'Villes', disabled: !selectedRegion },
               ].map((tab) => (
                 <button
                   key={tab.key}
                   disabled={tab.disabled}
-                  onClick={() => {
-                    if (tab.key === 'regions') goToRegions();
-                    else if (tab.key === 'provinces') goToProvinces();
-                  }}
+                  onClick={() => { if (tab.key === 'regions') goToRegions(); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     level === tab.key
                       ? 'bg-white text-red-600 shadow-sm'
@@ -651,7 +509,6 @@ export default function GeoPage() {
               ))}
             </div>
 
-            {/* Status pills */}
             <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
               {[{ v: 'all', l: 'Tous' }, { v: 'active', l: 'Actif' }, { v: 'inactive', l: 'Inactif' }].map((opt) => (
                 <button
@@ -666,7 +523,6 @@ export default function GeoPage() {
               ))}
             </div>
 
-            {/* Search */}
             <form
               onSubmit={(e) => { e.preventDefault(); setSearch(searchInput); }}
               className="flex items-center gap-2 flex-1 min-w-0 max-w-sm"
@@ -702,7 +558,6 @@ export default function GeoPage() {
         </div>
       </div>
 
-      {/* ── Stats bar ── */}
       {level === 'regions' && regions.length > 0 && (
         <div className="px-6 pt-4 pb-0">
           <div className="grid grid-cols-3 gap-3">
@@ -720,17 +575,16 @@ export default function GeoPage() {
         </div>
       )}
 
-      {/* ── Content ── */}
       <div className="px-6 py-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <div className={`animate-spin rounded-full h-10 w-10 border-b-2 ${level === 'regions' ? 'border-red-600' : level === 'provinces' ? 'border-rose-600' : 'border-pink-600'}`} />
+            <div className={`animate-spin rounded-full h-10 w-10 border-b-2 ${level === 'regions' ? 'border-red-600' : 'border-pink-600'}`} />
             <p className="text-sm text-gray-400">Chargement…</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${level === 'regions' ? 'bg-red-50 border border-red-100' : level === 'provinces' ? 'bg-rose-50 border border-rose-100' : 'bg-pink-50 border border-pink-100'}`}>
-              <Icon d={lc.icon} className={`w-10 h-10 ${level === 'regions' ? 'text-red-200' : level === 'provinces' ? 'text-rose-200' : 'text-pink-200'}`} />
+            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${level === 'regions' ? 'bg-red-50 border border-red-100' : 'bg-pink-50 border border-pink-100'}`}>
+              <Icon d={lc.icon} className={`w-10 h-10 ${level === 'regions' ? 'text-red-200' : 'text-pink-200'}`} />
             </div>
             <div className="text-center">
               <p className="text-gray-600 font-semibold">Aucun élément</p>
@@ -758,37 +612,25 @@ export default function GeoPage() {
                 key={item.id}
                 level={level}
                 item={item}
-                childCount={
-                  level === 'regions'
-                    ? (provCounts[item.id] ?? 0)
-                    : level === 'provinces'
-                    ? (cityCounts[item.id] ?? 0)
-                    : null
-                }
-                clickable={level !== 'cities'}
-                onClick={() => {
-                  if (level === 'regions') drillRegion(item);
-                  else if (level === 'provinces') drillProvince(item);
-                }}
+                childCount={level === 'regions' ? (cityCounts[item.id] ?? 0) : null}
+                clickable={level === 'regions'}
+                onClick={() => { if (level === 'regions') drillRegion(item); }}
                 onEdit={(it) => setDrawer({ editItem: it })}
                 onDelete={(it) => setDeleting(it)}
               />
             ))}
 
-            {/* Add new card */}
             {hasPermission(lc.createPerm) && (
               <button
                 onClick={() => setDrawer({ editItem: null })}
                 className={`rounded-2xl border-2 border-dashed bg-white transition-all flex flex-col items-center justify-center gap-3 p-8 min-h-[180px] ${
                   level === 'regions'
                     ? 'border-red-200 hover:border-red-400 hover:bg-red-50 text-red-400 hover:text-red-600'
-                    : level === 'provinces'
-                    ? 'border-rose-200 hover:border-rose-400 hover:bg-rose-50 text-rose-400 hover:text-rose-600'
                     : 'border-pink-200 hover:border-pink-400 hover:bg-pink-50 text-pink-400 hover:text-pink-600'
                 }`}
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${level === 'regions' ? 'bg-red-100' : level === 'provinces' ? 'bg-rose-100' : 'bg-pink-100'}`}>
-                  <Icon d={PATH.plus} className={`w-6 h-6 ${level === 'regions' ? 'text-red-500' : level === 'provinces' ? 'text-rose-500' : 'text-pink-500'}`} />
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${level === 'regions' ? 'bg-red-100' : 'bg-pink-100'}`}>
+                  <Icon d={PATH.plus} className={`w-6 h-6 ${level === 'regions' ? 'text-red-500' : 'text-pink-500'}`} />
                 </div>
                 <span className="text-sm font-semibold">Ajouter</span>
               </button>

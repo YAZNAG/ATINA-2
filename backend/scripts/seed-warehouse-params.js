@@ -378,7 +378,7 @@ const NODE_DEFS = [
   {
     code: 'DS-CBA-01',  name_fr: 'Dark Store Casablanca Centre',    name_ar: 'متجر الدار البيضاء المركز',
     node_type_code: 'DARK_STORE',
-    region_code: 'CAS', province_code: 'CBA', city_code: 'CBA-V',
+    region_code: 'CAS', city_code: 'CBA-V',
     address_line1: 'Bd Mohammed V', quartier: 'Centre-ville',
     postal_code: '20000', lat: 33.5898, lng: -7.6031,
     timezone: 'Africa/Casablanca', delivery_radius_km: 5, max_daily_orders: 300,
@@ -386,7 +386,7 @@ const NODE_DEFS = [
   {
     code: 'DS-CBA-02',  name_fr: 'Dark Store Casablanca Ain Sebaâ', name_ar: 'متجر عين السبع الدار البيضاء',
     node_type_code: 'DARK_STORE',
-    region_code: 'CAS', province_code: 'CBA', city_code: 'AIN-V',
+    region_code: 'CAS', city_code: 'AIN-V',
     address_line1: 'Route de Meknès', quartier: 'Aïn Sebaâ',
     postal_code: '20250', lat: 33.6200, lng: -7.5350,
     timezone: 'Africa/Casablanca', delivery_radius_km: 4, max_daily_orders: 250,
@@ -394,7 +394,7 @@ const NODE_DEFS = [
   {
     code: 'DS-RBA-01',  name_fr: 'Dark Store Rabat Agdal',          name_ar: 'متجر أكدال الرباط',
     node_type_code: 'DARK_STORE',
-    region_code: 'RSK', province_code: 'RBA', city_code: 'RBA-V',
+    region_code: 'RSK', city_code: 'RBA-V',
     address_line1: 'Av. Fal Ould Oumeïr', quartier: 'Agdal',
     postal_code: '10000', lat: 33.9716, lng: -6.8498,
     timezone: 'Africa/Casablanca', delivery_radius_km: 5, max_daily_orders: 200,
@@ -402,7 +402,7 @@ const NODE_DEFS = [
   {
     code: 'DS-SAL-01',  name_fr: 'Dark Store Salé Tabriquet',       name_ar: 'متجر التبريقة سلا',
     node_type_code: 'DARK_STORE',
-    region_code: 'RSK', province_code: 'SAL', city_code: 'SAL-V',
+    region_code: 'RSK', city_code: 'SAL-V',
     address_line1: 'Av. Ibn Khaldoun', quartier: 'Tabriquet',
     postal_code: '11000', lat: 34.0390, lng: -6.7980,
     timezone: 'Africa/Casablanca', delivery_radius_km: 4, max_daily_orders: 150,
@@ -410,7 +410,7 @@ const NODE_DEFS = [
   {
     code: 'DS-MAR-01',  name_fr: 'Dark Store Marrakech Guéliz',     name_ar: 'متجر كيليز مراكش',
     node_type_code: 'DARK_STORE',
-    region_code: 'MRS', province_code: 'MAR', city_code: 'MAR-V',
+    region_code: 'MRS', city_code: 'MAR-V',
     address_line1: 'Rue Mohammed El Beqal', quartier: 'Guéliz',
     postal_code: '40000', lat: 31.6295, lng: -7.9811,
     timezone: 'Africa/Casablanca', delivery_radius_km: 5, max_daily_orders: 200,
@@ -418,7 +418,7 @@ const NODE_DEFS = [
   {
     code: 'DS-AGA-01',  name_fr: 'Dark Store Agadir Centre',        name_ar: 'متجر أكادير المركز',
     node_type_code: 'DARK_STORE',
-    region_code: 'SOM', province_code: 'AGA', city_code: 'AGA-V',
+    region_code: 'SOM', city_code: 'AGA-V',
     address_line1: 'Av. Hassan II', quartier: 'Centre',
     postal_code: '80000', lat: 30.4278, lng: -9.5981,
     timezone: 'Africa/Casablanca', delivery_radius_km: 5, max_daily_orders: 150,
@@ -426,7 +426,7 @@ const NODE_DEFS = [
   {
     code: 'DS-FES-01',  name_fr: 'Dark Store Fès Jdid',             name_ar: 'متجر فاس الجديد',
     node_type_code: 'DARK_STORE',
-    region_code: 'FME', province_code: 'FES', city_code: 'FES-V',
+    region_code: 'FME', city_code: 'FES-V',
     address_line1: 'Bd Mohammed V', quartier: 'Fès Jdid',
     postal_code: '30000', lat: 34.0333, lng: -5.0000,
     timezone: 'Africa/Casablanca', delivery_radius_km: 4, max_daily_orders: 120,
@@ -434,7 +434,7 @@ const NODE_DEFS = [
   {
     code: 'HUB-CBA-01', name_fr: 'Hub Casablanca Logistique',       name_ar: 'مركز توزيع الدار البيضاء',
     node_type_code: 'HUB_LIVRAISON',
-    region_code: 'CAS', province_code: 'CBA', city_code: 'CBA-V',
+    region_code: 'CAS', city_code: 'CBA-V',
     address_line1: 'Zone Industrielle Aïn Sebaâ',
     postal_code: '20600', lat: 33.6100, lng: -7.5200,
     timezone: 'Africa/Casablanca', delivery_radius_km: 30, max_daily_orders: 1000,
@@ -621,8 +621,6 @@ async function main() {
   const ntMap = Object.fromEntries(nodeTypeRows.map((t) => [t.code, t.id]));
   const regionRows  = await prisma.region.findMany({ select: { id: true, code: true } });
   const regMap = Object.fromEntries(regionRows.map((r) => [r.code, r.id]));
-  const provRows    = await prisma.province.findMany({ select: { id: true, code: true } });
-  const provMap = Object.fromEntries(provRows.map((p) => [p.code, p.id]));
   const cityRows    = await prisma.city.findMany({ select: { id: true, code: true } });
   const cityMap = Object.fromEntries(cityRows.map((c) => [c.code, c.id]));
 
@@ -630,9 +628,8 @@ async function main() {
   for (const d of NODE_DEFS) {
     const node_type_id = ntMap[d.node_type_code];
     const region_id    = regMap[d.region_code];
-    const province_id  = provMap[d.province_code];
     const city_id      = cityMap[d.city_code];
-    if (!node_type_id || !region_id || !province_id || !city_id) {
+    if (!node_type_id || !region_id || !city_id) {
       console.warn(`\n   ⚠️  Skipping node ${d.code} — référence manquante`);
       nodeSkipped++; continue;
     }
@@ -641,7 +638,7 @@ async function main() {
       update: {},
       create: {
         code: d.code, name_fr: d.name_fr, name_ar: d.name_ar,
-        node_type_id, region_id, province_id, city_id,
+        node_type_id, region_id, city_id,
         address_line1: d.address_line1 ?? null,
         quartier: d.quartier ?? null,
         postal_code: d.postal_code ?? null,

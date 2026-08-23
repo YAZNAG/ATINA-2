@@ -7,7 +7,7 @@ import {
   getSkuLocations, createSkuLocation, updateSkuLocation, deleteSkuLocation,
 } from '../../api/warehouse.api';
 import { getNodes } from '../../api/locationNode.api';
-import { getArticles } from '../../api/catalog.api';
+import { getSkus } from '../../api/catalog.api';
 import { getErrorMessage } from '../../utils/helpers';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -252,6 +252,9 @@ function BulkModal({ nodeId, zones, levels, onClose, onDone }) {
 }
 
 // ── Article Assignment Drawer (view + select modes) ───────────────────────────
+// NOTE: depuis la fusion Article -> Sku, chaque article/SKU n'a plus qu'un seul
+// identifiant : `id`. Il n'y a plus de `sku_uuid` distinct — toutes les
+// références utilisent désormais `art.id` / `a.id`.
 
 function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
   const [assignments, setAssignments] = useState([]);
@@ -264,16 +267,16 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
   const [removingId, setRemovingId]   = useState(null);
 
   // Select-mode state
-  const [checked, setChecked]                   = useState(new Set());
-  const [primarySkuUuids, setPrimarySkuUuids]   = useState(new Set());
-  const [originalChecked, setOriginalChecked]   = useState(new Set());
+  const [checked, setChecked]                 = useState(new Set());
+  const [primarySkuIds, setPrimarySkuIds]     = useState(new Set());
+  const [originalChecked, setOriginalChecked] = useState(new Set());
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [aRes, artRes] = await Promise.all([
         getSkuLocations({ location_id: location.id, limit: 500 }),
-        getArticles({ limit: 1000 }),
+        getSkus({ limit: 1000 }),
       ]);
       setAssignments(aRes.data.data ?? []);
       setAllArticles(artRes.data.data ?? []);
@@ -289,14 +292,14 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
     const newChecked = new Set();
     const newPrimary = new Set();
     for (const art of allArticles) {
-      if (art.sku_uuid && assignedSkuIds.has(art.sku_uuid)) newChecked.add(art.id);
+      if (assignedSkuIds.has(art.id)) newChecked.add(art.id);
     }
     for (const asgn of assignments) {
       if (asgn.is_primary_location) newPrimary.add(asgn.sku_id);
     }
     setChecked(newChecked);
     setOriginalChecked(new Set(newChecked));
-    setPrimarySkuUuids(newPrimary);
+    setPrimarySkuIds(newPrimary);
     setSearch('');
     setMode('select');
   }, [assignments, allArticles]);
@@ -331,12 +334,11 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
   }, [assignments]);
 
   const toggleCheck = useCallback((art) => {
-    if (!art.sku_uuid) return;
     setChecked((prev) => {
       const next = new Set(prev);
       if (next.has(art.id)) {
         next.delete(art.id);
-        setPrimarySkuUuids((p) => { const np = new Set(p); np.delete(art.sku_uuid); return np; });
+        setPrimarySkuIds((p) => { const np = new Set(p); np.delete(art.id); return np; });
       } else {
         next.add(art.id);
       }
@@ -346,21 +348,21 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
 
   const togglePrimarySelect = useCallback((e, art) => {
     e.stopPropagation();
-    if (!art.sku_uuid || !checked.has(art.id)) return;
-    setPrimarySkuUuids((prev) => {
+    if (!checked.has(art.id)) return;
+    setPrimarySkuIds((prev) => {
       const next = new Set(prev);
-      if (next.has(art.sku_uuid)) { next.delete(art.sku_uuid); }
-      else { next.clear(); next.add(art.sku_uuid); }
+      if (next.has(art.id)) { next.delete(art.id); }
+      else { next.clear(); next.add(art.id); }
       return next;
     });
   }, [checked]);
 
   const handleSave = async () => {
-    const toAdd = allArticles.filter((a) => a.sku_uuid && checked.has(a.id) && !originalChecked.has(a.id));
-    const toRemove = allArticles.filter((a) => a.sku_uuid && !checked.has(a.id) && originalChecked.has(a.id));
+    const toAdd = allArticles.filter((a) => checked.has(a.id) && !originalChecked.has(a.id));
+    const toRemove = allArticles.filter((a) => !checked.has(a.id) && originalChecked.has(a.id));
     const toUpdatePrimary = assignments.filter((asgn) => {
-      if (toRemove.some((r) => r.sku_uuid === asgn.sku_id)) return false;
-      return asgn.is_primary_location !== primarySkuUuids.has(asgn.sku_id);
+      if (toRemove.some((r) => r.id === asgn.sku_id)) return false;
+      return asgn.is_primary_location !== primarySkuIds.has(asgn.sku_id);
     });
 
     if (!toAdd.length && !toRemove.length && !toUpdatePrimary.length) {
@@ -372,15 +374,15 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
     try {
       await Promise.all([
         ...toAdd.map((a) => createSkuLocation({
-          sku_id: a.sku_uuid, node_id: nodeId, location_id: location.id,
-          is_primary_location: primarySkuUuids.has(a.sku_uuid), is_active: true,
+          sku_id: a.id, node_id: nodeId, location_id: location.id,
+          is_primary_location: primarySkuIds.has(a.id), is_active: true,
         })),
         ...toRemove.map((a) => {
-          const asgn = assignmentBySku[a.sku_uuid];
+          const asgn = assignmentBySku[a.id];
           return asgn ? deleteSkuLocation(asgn.id) : null;
         }).filter(Boolean),
         ...toUpdatePrimary.map((asgn) =>
-          updateSkuLocation(asgn.id, { is_primary_location: primarySkuUuids.has(asgn.sku_id) })
+          updateSkuLocation(asgn.id, { is_primary_location: primarySkuIds.has(asgn.sku_id) })
         ),
       ]);
       toast.success(`Sauvegardé — +${toAdd.length} ajouté(s), -${toRemove.length} retiré(s)`);
@@ -394,10 +396,10 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
     }
   };
 
-  const toAddCount    = allArticles.filter((a) => a.sku_uuid && checked.has(a.id) && !originalChecked.has(a.id)).length;
-  const toRemoveCount = allArticles.filter((a) => a.sku_uuid && !checked.has(a.id) && originalChecked.has(a.id)).length;
+  const toAddCount    = allArticles.filter((a) => checked.has(a.id) && !originalChecked.has(a.id)).length;
+  const toRemoveCount = allArticles.filter((a) => !checked.has(a.id) && originalChecked.has(a.id)).length;
   const hasChanges    = toAddCount > 0 || toRemoveCount > 0 ||
-    assignments.some((asgn) => asgn.is_primary_location !== primarySkuUuids.has(asgn.sku_id));
+    assignments.some((asgn) => asgn.is_primary_location !== primarySkuIds.has(asgn.sku_id));
 
   const filteredArticles = useMemo(() => {
     if (!search.trim()) return allArticles;
@@ -504,7 +506,7 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">
-                        {art?.name_fr ?? asgn.sku?.sku_code ?? '—'}
+                        {art?.name_fr ?? asgn.sku?.name_fr ?? asgn.sku?.sku_code ?? '—'}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-xs text-gray-400 font-mono">
@@ -607,8 +609,7 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
             <div className="divide-y divide-gray-50">
               {filteredArticles.map((art) => {
                 const isChecked      = checked.has(art.id);
-                const hasSku         = !!art.sku_uuid;
-                const isPrimary      = hasSku && primarySkuUuids.has(art.sku_uuid);
+                const isPrimary      = primarySkuIds.has(art.id);
                 const isNewlyAdded   = isChecked && !originalChecked.has(art.id);
                 const isNewlyRemoved = !isChecked && originalChecked.has(art.id);
 
@@ -616,9 +617,9 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
                   <div
                     key={art.id}
                     onClick={() => toggleCheck(art)}
-                    className={`flex items-center gap-3 px-5 py-3 transition-colors select-none ${
-                      hasSku ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed opacity-40'
-                    } ${isChecked ? 'bg-red-50/70' : ''}`}
+                    className={`flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors select-none ${
+                      isChecked ? 'bg-red-50/70' : ''
+                    }`}
                   >
                     {/* Checkbox */}
                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -641,14 +642,13 @@ function ArticleDrawer({ location, nodeId, onClose, onUpdated }) {
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-xs text-gray-400 font-mono">{art.sku_code}</span>
-                        {!hasSku && <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded font-semibold">Sans SKU</span>}
                         {isNewlyAdded   && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">+ Ajout</span>}
                         {isNewlyRemoved && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">− Retrait</span>}
                       </div>
                     </div>
 
                     {/* Star — only when checked */}
-                    {isChecked && hasSku && (
+                    {isChecked && (
                       <button
                         onClick={(e) => togglePrimarySelect(e, art)}
                         title={isPrimary ? 'Retirer comme principal' : 'Définir comme principal'}

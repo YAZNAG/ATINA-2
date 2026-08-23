@@ -18,7 +18,6 @@ const upload = multer({
   },
 }).fields([
   { name: 'image', maxCount: 1 },
-  { name: 'icon', maxCount: 1 },
 ]);
 
 const router = Router();
@@ -26,6 +25,7 @@ router.use(auth);
 
 router.get('/', perm('categories.view'), ctrl.index.bind(ctrl));
 router.post('/', perm('categories.create'), upload, createValidator, ctrl.store.bind(ctrl));
+router.patch('/reorder', perm('categories.update'), ctrl.reorder.bind(ctrl));
 router.get('/:id', perm('categories.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('categories.update'), upload, updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('categories.delete'), ctrl.destroy.bind(ctrl));

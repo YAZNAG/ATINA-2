@@ -4,8 +4,8 @@ import CategoriesPage from './CategoriesPage';
 import HierarchyCascadePage from './HierarchyCascadePage';
 
 const TABS = [
-  { key: 'hierarchy', label: 'Hiérarchie', icon: GitBranch },
   { key: 'categories', label: 'Catégories', icon: Tags },
+  { key: 'hierarchy', label: 'Hiérarchie', icon: GitBranch },
 ];
 
 export default function CatalogHierarchy() {
@@ -39,8 +39,8 @@ export default function CatalogHierarchy() {
       </div>
 
       <div className="p-6">
-        {tab === 'hierarchy' && <HierarchyCascadePage />}
         {tab === 'categories' && <CategoriesPage />}
+        {tab === 'hierarchy' && <HierarchyCascadePage />}
       </div>
     </div>
   );

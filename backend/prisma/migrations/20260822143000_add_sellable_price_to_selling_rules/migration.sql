@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "selling_rules" ADD COLUMN "is_sellable" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "price" DECIMAL(12,2) NOT NULL DEFAULT 0;

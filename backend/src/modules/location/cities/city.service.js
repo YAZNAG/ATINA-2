@@ -16,10 +16,10 @@ class CityService {
   }
 
   async create(data) {
-    const province = await prisma.province.findFirst({
-      where: { id: data.province_id, is_deleted: false, is_active: true },
+    const region = await prisma.region.findFirst({
+      where: { id: data.region_id, is_deleted: false, is_active: true },
     });
-    if (!province) throw { statusCode: 400, message: 'Province invalide ou inactive' };
+    if (!region) throw { statusCode: 400, message: 'Région invalide ou inactive' };
     const exists = await repo.findByCode(data.code);
     if (exists) throw { statusCode: 409, message: 'Ce code ville existe déjà' };
     return repo.create(data);
@@ -28,11 +28,11 @@ class CityService {
   async update(id, data) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Ville introuvable' };
-    if (data.province_id) {
-      const province = await prisma.province.findFirst({
-        where: { id: data.province_id, is_deleted: false, is_active: true },
+    if (data.region_id) {
+      const region = await prisma.region.findFirst({
+        where: { id: data.region_id, is_deleted: false, is_active: true },
       });
-      if (!province) throw { statusCode: 400, message: 'Province invalide ou inactive' };
+      if (!region) throw { statusCode: 400, message: 'Région invalide ou inactive' };
     }
     if (data.code) {
       const exists = await repo.findByCode(data.code, id);

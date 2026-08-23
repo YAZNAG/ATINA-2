@@ -90,7 +90,7 @@ function StepBar({ step, nodeId }) {
 
 const EMPTY_NODE = {
   code: '', name_fr: '', name_ar: '', node_type_id: '',
-  region_id: '', province_id: '', city_id: '',
+  region_id: '', city_id: '',
   lat: '', lng: '', delivery_radius_km: '', max_daily_orders: '', is_active: true,
 };
 
@@ -113,10 +113,8 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
   const [saving, setSaving] = useState(false);
   const [savingConfig, setSavingConfig] = useState({});
 
-  const { provinces, cities } = useCascadeGeo({
+    const { cities } = useCascadeGeo({
     regionId: info.region_id,
-    provinceId: info.province_id,
-    onProvinceReset: () => setInfo((f) => ({ ...f, province_id: '', city_id: '' })),
     onCityReset: () => setInfo((f) => ({ ...f, city_id: '' })),
   });
 
@@ -133,7 +131,7 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
     })();
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!editNode) { setInfo({ ...EMPTY_NODE }); setHours({ ...DEFAULT_HOURS }); setSavedNode(null); setConfigDefinitions([]); setConfigValues({}); return; }
     setInfo({
       code: editNode.code ?? '',
@@ -141,7 +139,6 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
       name_ar: editNode.name_ar ?? '',
       node_type_id: editNode.node_type_id ?? '',
       region_id: editNode.region_id ?? '',
-      province_id: editNode.province_id ?? '',
       city_id: editNode.city_id ?? '',
       lat: editNode.lat ?? '',
       lng: editNode.lng ?? '',
@@ -232,7 +229,6 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
         ...info,
         opening_hours_json: hours,
         region_id: info.region_id || null,
-        province_id: info.province_id || null,
         city_id: info.city_id || null,
         lat: info.lat !== '' ? parseFloat(info.lat) : undefined,
         lng: info.lng !== '' ? parseFloat(info.lng) : undefined,
@@ -260,13 +256,12 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
     }
   };
 
-  const validateInfo = () => {
+    const validateInfo = () => {
     const required = [
       { value: info.code?.trim(), label: 'Code' },
       { value: info.name_fr?.trim(), label: 'Nom (Français)' },
       { value: info.node_type_id, label: 'Type de nœud' },
       { value: info.region_id, label: 'Région' },
-      { value: info.province_id, label: 'Province' },
       { value: info.city_id, label: 'Ville' },
     ];
 
@@ -386,28 +381,20 @@ export default function NodeDrawer({ editNode, onClose, onSaved, showToast }) {
                 </select>
               </Fld>
 
-              <div className="border-t border-gray-100 pt-4">
+                            <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Localisation</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Fld label="Région">
                     <select className={sel} value={info.region_id}
-                      onChange={(e) => setInfo((f) => ({ ...f, region_id: e.target.value, province_id: '', city_id: '' }))}>
+                      onChange={(e) => setInfo((f) => ({ ...f, region_id: e.target.value, city_id: '' }))}>
                       <option value="">Région…</option>
                       {regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
-                    </select>
-                  </Fld>
-                  <Fld label="Province">
-                    <select className={sel} value={info.province_id}
-                      onChange={(e) => setInfo((f) => ({ ...f, province_id: e.target.value, city_id: '' }))}
-                      disabled={!info.region_id}>
-                      <option value="">Province…</option>
-                      {provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
                     </select>
                   </Fld>
                   <Fld label="Ville">
                     <select className={sel} value={info.city_id}
                       onChange={(e) => setInfo((f) => ({ ...f, city_id: e.target.value }))}
-                      disabled={!info.province_id}>
+                      disabled={!info.region_id}>
                       <option value="">Ville…</option>
                       {cities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
                     </select>

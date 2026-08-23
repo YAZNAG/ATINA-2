@@ -7,10 +7,8 @@ const pickCategoryPayload = (body) => ({
   name_fr: body.name_fr,
   name_ar: body.name_ar,
   code: body.code,
-  family_id: Number(body.family_id),
-  description_fr: emptyToNull(body.description_fr),
-  description_ar: emptyToNull(body.description_ar),
-  status: body.status || 'active',
+  gpc_code: emptyToNull(body.gpc_code),
+  is_active: body.is_active !== undefined ? body.is_active === true || body.is_active === 'true' : true,
   sort_order:
     body.sort_order !== undefined && body.sort_order !== '' ? Number(body.sort_order) : 0,
 });
@@ -23,12 +21,12 @@ class CategoryService {
     return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  async getList(family_id) {
-    return repo.findAll_noPage(family_id);
+  async getList() {
+    return repo.findAll_noPage();
   }
 
   async getById(id) {
-    const item = await repo.findById(Number(id));
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
     return item;
   }
@@ -38,48 +36,59 @@ class CategoryService {
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
     let row = await repo.create(payload);
+    // persistCategoryFiles renvoyait { image_path, icon_path } avant ;
+    // le modèle n'a plus qu'image_url — adapte selon ta fonction de service réelle.
     const paths = persistCategoryFiles(row.id, files, null);
-    if (paths.image_path || paths.icon_path) {
-      row = await repo.update(row.id, paths);
+    if (paths.image_path) {
+      row = await repo.update(row.id, { image_url: paths.image_path });
     }
     return row;
   }
 
   async update(id, body, files) {
-    const item = await repo.findById(Number(id));
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
     if (body.code) {
-      const exists = await repo.findByCode(body.code, Number(id));
+      const exists = await repo.findByCode(body.code, id);
       if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
     }
-    const payload = pickCategoryPayload({ ...body, family_id: body.family_id ?? item.family_id });
-    const paths = persistCategoryFiles(Number(id), files, item);
-    return repo.update(Number(id), { ...payload, ...paths });
+    const payload = pickCategoryPayload(body);
+    const paths = persistCategoryFiles(id, files, item);
+    const updateData = { ...payload };
+    if (paths.image_path) updateData.image_url = paths.image_path;
+    return repo.update(id, updateData);
   }
 
   async delete(id) {
-    const item = await repo.findById(Number(id));
+    const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
-    const subCount = await repo.countSubCategories(Number(id));
-    if (subCount > 0) {
-      throw { statusCode: 400, message: 'Impossible de supprimer : cette catégorie contient des sous-catégories' };
+    const articleCount = await repo.countArticles(id);
+    if (articleCount > 0) {
+      throw { statusCode: 400, message: 'Impossible de supprimer : des articles sont encore rattachés à cette catégorie' };
     }
-    await repo.softDelete(Number(id));
-    removeCategoryMediaFolder(Number(id));
+    await repo.softDelete(id);
+    removeCategoryMediaFolder(id);
   }
 
   async toggleStatus(id) {
-  const item = await repo.findById(Number(id));
-  if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
-  return repo.update(Number(id), { status: item.status === 'active' ? 'inactive' : 'active' });
-}
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
+    return repo.update(id, { is_active: !item.is_active });
+  }
 
-async restore(id) {
-  const item = await repo.findByIdIncludingDeleted(Number(id));
-  if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
-  if (!item.deleted_at) throw { statusCode: 400, message: "Cette catégorie n'est pas supprimée" };
-  return repo.restore(Number(id));
-}
+  async restore(id) {
+    const item = await repo.findByIdIncludingDeleted(id);
+    if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
+    if (!item.deleted_at) throw { statusCode: 400, message: "Cette catégorie n'est pas supprimée" };
+    return repo.restore(id);
+  }
+
+      async reorder(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw { statusCode: 400, message: 'Liste "items" requise' };
+    }
+    return repo.reorder(items);
+  }
 }
 
 module.exports = new CategoryService();

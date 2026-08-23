@@ -2,8 +2,6 @@ const repo   = require('./selling_rule.repository');
 const prisma = require('../../../config/database');
 
 class SellingRuleService {
-  // ─── Queries ────────────────────────────────────────────────────────────────
-
   async getWithFilters(params) {
     const { node_id } = params;
     if (node_id) {
@@ -25,18 +23,22 @@ class SellingRuleService {
   }
 
   async getAllBySku(sku_id) {
-  if (!sku_id) throw { statusCode: 400, message: 'sku_id requis' };
-  return repo.findAllBySku(sku_id);
-}
+    if (!sku_id) throw { statusCode: 400, message: 'sku_id requis' };
+    return repo.findAllBySku(sku_id);
+  }
 
-  // ─── CRUD ────────────────────────────────────────────────────────────────────
-
-  async upsert(body) {
-    const { node_id, sku_id, is_backorderable, backorder_limit, estimated_restock_days } = body;
-    if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
-    if (!sku_id)  throw { statusCode: 400, message: 'sku_id requis' };
-
+  buildData(body) {
+    const { is_sellable, price, is_backorderable, backorder_limit, estimated_restock_days } = body;
     const data = {};
+
+    if (is_sellable !== undefined) data.is_sellable = Boolean(is_sellable);
+
+    if (price !== undefined) {
+      const v = Number(price);
+      if (isNaN(v) || v < 0) throw { statusCode: 400, message: 'price doit être >= 0' };
+      data.price = v;
+    }
+
     if (is_backorderable !== undefined) data.is_backorderable = Boolean(is_backorderable);
 
     if (backorder_limit !== undefined) {
@@ -50,27 +52,19 @@ class SellingRuleService {
       data.estimated_restock_days = v;
     }
 
-    return repo.upsert(node_id, sku_id, data);
+    return data;
+  }
+
+  async upsert(body) {
+    const { node_id, sku_id } = body;
+    if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
+    if (!sku_id)  throw { statusCode: 400, message: 'sku_id requis' };
+    return repo.upsert(node_id, sku_id, this.buildData(body));
   }
 
   async updateById(id, body) {
     await this.getById(id);
-    const { is_backorderable, backorder_limit, estimated_restock_days } = body;
-    const data = {};
-
-    if (is_backorderable !== undefined) data.is_backorderable = Boolean(is_backorderable);
-    if (backorder_limit !== undefined) {
-      const v = Number(backorder_limit);
-      if (isNaN(v) || v < 0) throw { statusCode: 400, message: 'backorder_limit doit être >= 0' };
-      data.backorder_limit = v;
-    }
-    if (estimated_restock_days !== undefined) {
-      const v = parseInt(estimated_restock_days, 10);
-      if (isNaN(v) || v < 0) throw { statusCode: 400, message: 'estimated_restock_days doit être >= 0' };
-      data.estimated_restock_days = v;
-    }
-
-    return repo.update(id, data);
+    return repo.update(id, this.buildData(body));
   }
 
   async remove(id) {
@@ -83,27 +77,29 @@ class SellingRuleService {
       throw { statusCode: 400, message: 'rows doit être un tableau non vide' };
 
     const validated = rows.map((row, i) => {
-      const { node_id, sku_id, is_backorderable, backorder_limit, estimated_restock_days } = row;
+      const { node_id, sku_id, is_sellable, price, is_backorderable, backorder_limit, estimated_restock_days } = row;
       if (!node_id) throw { statusCode: 400, message: `Ligne ${i + 1} : node_id requis` };
       if (!sku_id)  throw { statusCode: 400, message: `Ligne ${i + 1} : sku_id requis` };
 
+      const p  = Number(price ?? 0);
       const bl = Number(backorder_limit ?? 0);
       const rd = parseInt(estimated_restock_days ?? 1, 10);
+      if (isNaN(p)  || p < 0)  throw { statusCode: 400, message: `Ligne ${i + 1} : price >= 0` };
       if (isNaN(bl) || bl < 0) throw { statusCode: 400, message: `Ligne ${i + 1} : backorder_limit >= 0` };
       if (isNaN(rd) || rd < 0) throw { statusCode: 400, message: `Ligne ${i + 1} : estimated_restock_days >= 0` };
 
       return {
         node_id, sku_id,
-        is_backorderable:      is_backorderable !== undefined ? Boolean(is_backorderable) : true,
-        backorder_limit:       bl,
+        is_sellable:            is_sellable !== undefined ? Boolean(is_sellable) : true,
+        price:                  p,
+        is_backorderable:       is_backorderable !== undefined ? Boolean(is_backorderable) : true,
+        backorder_limit:        bl,
         estimated_restock_days: rd,
       };
     });
 
     return repo.bulkSave(validated);
   }
-
-  // ─── Business logic ──────────────────────────────────────────────────────────
 
   async canSell(body) {
     const { node_id, sku_id, qty } = body;

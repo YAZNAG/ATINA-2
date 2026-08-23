@@ -34,41 +34,19 @@ const findByCode = (code, excludeId) =>
 const create = (data) => prisma.region.create({ data });
 const update = (id, data) => prisma.region.update({ where: { id }, data });
 
-const countProvinces = (regionId) =>
-  prisma.province.count({ where: { region_id: regionId, is_deleted: false } });
-
 const countCities = (regionId) =>
-  prisma.city.count({
-    where: { is_deleted: false, province: { region_id: regionId, is_deleted: false } },
-  });
+  prisma.city.count({ where: { region_id: regionId, is_deleted: false } });
 
-// ⚠️ Adapte le nom du champ FK sur Node si ce n'est pas region_id chez toi
 const countNodes = (regionId) =>
   prisma.node.count({ where: { region_id: regionId, is_deleted: false } });
 
 /**
- * Soft-delete en cascade : région -> ses provinces -> les villes de ces provinces.
- * Tout dans une transaction Prisma pour éviter un état intermédiaire incohérent
- * (ex: villes supprimées mais province qui reste active).
+ * Soft-delete en cascade : région -> ses villes directement rattachées.
+ * Transaction Prisma pour éviter un état intermédiaire incohérent.
  */
 const softDeleteCascade = async (regionId, userId) => {
   return prisma.$transaction(async (tx) => {
-    const provinces = await tx.province.findMany({
-      where: { region_id: regionId, is_deleted: false },
-      select: { id: true },
-    });
-    const provinceIds = provinces.map((p) => p.id);
-
-    let cityCount = 0;
-    if (provinceIds.length > 0) {
-      const cityResult = await tx.city.updateMany({
-        where: { province_id: { in: provinceIds }, is_deleted: false },
-        data: { is_deleted: true, is_active: false },
-      });
-      cityCount = cityResult.count;
-    }
-
-    const provinceResult = await tx.province.updateMany({
+    const cityResult = await tx.city.updateMany({
       where: { region_id: regionId, is_deleted: false },
       data: { is_deleted: true, is_active: false },
     });
@@ -83,7 +61,7 @@ const softDeleteCascade = async (regionId, userId) => {
       },
     });
 
-    return { province_count: provinceResult.count, city_count: cityCount };
+    return { city_count: cityResult.count };
   });
 };
 
@@ -93,7 +71,6 @@ module.exports = {
   findByCode,
   create,
   update,
-  countProvinces,
   countCities,
   countNodes,
   softDeleteCascade,

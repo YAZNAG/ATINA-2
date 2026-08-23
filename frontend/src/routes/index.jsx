@@ -27,12 +27,11 @@ import ArticleForm from '../pages/catalog/ArticleForm';
 //import ArticleDetailPage from '../pages/catalog/ArticleDetailPage';
 import CatalogTaxonomyPage from '../pages/catalog/CatalogTaxonomyPage';
 import CatalogRefPage from '../pages/catalog/CatalogRefPage';
-import SkusPage from '../pages/catalog/SkusPage';
+//import SkusPage from '../pages/catalog/SkusPage';
 import SkuImagesPage from '../pages/catalog/SkuImagesPage';
 import SkuImageFormPage from '../pages/catalog/SkuImageFormPage';
 import GeoPage from '../pages/location/GeoPage';
 import RegionsPage from '../pages/MasterDataGeography/Geograhy/RegionsPage';
-import ProvincesPage from '../pages/MasterDataGeography/Geograhy/ProvincesPage';
 import CitiesPage from '../pages/MasterDataGeography/Geograhy/CitiesPage';
 import NodeTypesPage from '../pages/location/NodeTypesPage';
 import NodeForm from '../pages/location/NodeForm';
@@ -94,15 +93,14 @@ import NodeConfigPage from '../pages/orders/NodeConfigPage';
 //dashboard v2
 import BrandsPage from '../pages/MasterDataProduit/brands/BrandsPage';
 import BrandDetailPage from '../pages/MasterDataProduit/brands/BrandDetailPage';
-import GeographyPage from '../pages/MasterDataGeography/Geograhy/Geographypage';
 import GeographyHub from '../pages/MasterDataGeography/Geograhy/GeographyHub';
 import CatalogHierarchy from '../pages/MasterDataProduit/hierarchy/hierarchyPage';
-import ArticlePage from '../pages/MasterDataProduit/produits/ArticlesPage';
 import UnitsPage from '../pages/reference/UnitsPage';
-import ArticleDetailPage from '../pages/MasterDataProduit/produits/ArticleDetailPage'; 
 import UnitDetailPage from '../pages/reference/UnitDetailPage';
 import NodeDetailPage from '../pages/MasterDataGeography/Nodes/NodeDetailPage';
 import PromotionsPage from '../pages/offres/flasheSales/PromotionsPage';
+import SkusPage from '../pages/MasterDataProduit/produits/SkusPage';
+import SkuDetailPage from '../pages/MasterDataProduit/produits/SkuDetailPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -178,11 +176,9 @@ export default function AppRoutes() {
           <Route path="/catalog/ref/:entitySlug" element={<ReferentialListPage />} />
           <Route path="/catalog/taxonomy" element={<CatalogTaxonomyPage />} />
           <Route path="/catalog/refs" element={<CatalogRefPage />} />
-          <Route path="/catalog/articles" element={<ArticlePage />} />
           <Route path="/catalog/articles/new" element={<ArticleForm />} />
           <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
           {/*<Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />*/}
-          <Route path="/catalog/skus" element={<SkusPage />} />
           <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
           <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
@@ -191,7 +187,6 @@ export default function AppRoutes() {
           {/* Geography */}
           {/* <Route path="/geo" element={<GeoPage />} /> */}
           <Route path="/geo/regions" element={<RegionsPage />} />
-          <Route path="/geo/provinces" element={<ProvincesPage />} />
           <Route path="/geo/cities" element={<CitiesPage />} />
           <Route path="/geo" element={<GeographyHub />} />
           {/* Node paramétrage */}
@@ -203,7 +198,6 @@ export default function AppRoutes() {
           <Route path="/nodes/:id/edit" element={<NodeForm />} />
           {/* Units */}
           <Route path="/reference/units" element={<UnitsPage />} />
-          <Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />
           <Route path="/reference/units/:id" element={<UnitDetailPage />} />
           {/* Offres */}
           <Route path="offres/promotions" element={<PromotionsPage />} />
@@ -244,6 +238,8 @@ export default function AppRoutes() {
 
           {/* <Route path="/geo" element={<GeoPage />} /> */}
           <Route path="/catalog/hierarchy" element={<CatalogHierarchy />} />
+          <Route path="/catalog/skus" element={<SkusPage/>} />
+          <Route path="/catalog/skus/:id" element={<SkuDetailPage/>} />
           
         </Route>
       </Route>

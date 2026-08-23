@@ -59,7 +59,7 @@ export const applyStockMove      = (data)    => api.post(`${s}/levels/move`, dat
 export const getSellingRules        = (params)   => api.get(`${s}/selling-rules`, { params });
 export const getSellingRulesByNode  = (node_id)  => api.get(`${s}/selling-rules/by-node/${node_id}`);
 export const getSellingRuleById     = (id)       => api.get(`${s}/selling-rules/${id}`);
-export const upsertSellingRule      = (data)     => api.post(`${s}/selling-rules`, data);
+export const upsertSellingRule = (payload) => api.post(`${s}/selling-rules`, payload);
 export const updateSellingRule      = (id, data) => api.put(`${s}/selling-rules/${id}`, data);
 export const deleteSellingRule      = (id)       => api.delete(`${s}/selling-rules/${id}`);
 export const canSellSKU             = (data)     => api.post(`${s}/selling-rules/can-sell`, data);

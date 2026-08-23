@@ -11,7 +11,6 @@ import {
   getNode,
   getNodeSlots,
   getActiveNodeTypes,
-  getProvinces,
   getRegions,
   updateNode,
   updateSlot,
@@ -19,7 +18,7 @@ import {
 import { AddIcon, DeleteButton, EditButton } from '../../components/ui/CrudActions';
 
 const initNode = {
-  code: '', name_fr: '', name_ar: '', node_type_id: '', region_id: '', province_id: '', city_id: '',
+  code: '', name_fr: '', name_ar: '', node_type_id: '', region_id: '', city_id: '',
   address_line1: '', quartier: '', postal_code: '', lat: '', lng: '', phone: '',
   timezone: 'Africa/Casablanca', delivery_radius_km: '', max_daily_orders: '', opening_hours_json: '',
   is_active: true,
@@ -34,7 +33,6 @@ export default function NodeForm() {
   const [node, setNode] = useState(initNode);
   const [nodeTypes, setNodeTypes] = useState([]);
   const [regions, setRegions] = useState([]);
-  const [provinces, setProvinces] = useState([]);
   const [cities, setCities] = useState([]);
   const [slots, setSlots] = useState([]);
   const [slotForm, setSlotForm] = useState(initSlot);
@@ -45,12 +43,8 @@ export default function NodeForm() {
     setRegions(regRes.data.data || []);
   };
 
-  const loadDependent = async (regionId, provinceId) => {
-    const [p, c] = await Promise.all([
-      getProvinces({ region_id: regionId || undefined, limit: 200 }),
-      getCities({ province_id: provinceId || undefined, limit: 200 }),
-    ]);
-    setProvinces(p.data.data || []);
+  const loadDependent = async (regionId) => {
+    const c = await getCities({ region_id: regionId || undefined, limit: 200 });
     setCities(c.data.data || []);
   };
 
@@ -75,7 +69,7 @@ export default function NodeForm() {
             max_daily_orders: row.max_daily_orders ?? '',
             opening_hours_json: row.opening_hours_json ? JSON.stringify(row.opening_hours_json, null, 2) : '',
           });
-          await loadDependent(row.region_id, row.province_id);
+          await loadDependent(row.region_id);
           await loadSlots(id);
         }
       } catch (err) { toast.error(getErrorMessage(err)); }
@@ -117,13 +111,10 @@ export default function NodeForm() {
             <select className="form-select" value={node.node_type_id} onChange={(e) => setNode({ ...node, node_type_id: e.target.value })} required>
               <option value="">Type node</option>{nodeTypes.map((t) => <option key={t.id} value={t.id}>{t.icon ? `${t.icon} ` : ''}{t.name_fr}</option>)}
             </select>
-            <select className="form-select" value={node.region_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, region_id: v, province_id: '', city_id: '' }); await loadDependent(v, null); }} required>
+            <select className="form-select" value={node.region_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, region_id: v, city_id: '' }); await loadDependent(v); }} required>
               <option value="">Région</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
             </select>
-            <select className="form-select" value={node.province_id} onChange={async (e) => { const v = e.target.value; setNode({ ...node, province_id: v, city_id: '' }); await loadDependent(node.region_id, v); }} required>
-              <option value="">Province</option>{provinces.map((p) => <option key={p.id} value={p.id}>{p.name_fr}</option>)}
-            </select>
-            <select className="form-select" value={node.city_id} onChange={(e) => setNode({ ...node, city_id: e.target.value })} required>
+            <select className="form-select" value={node.city_id} onChange={(e) => setNode({ ...node, city_id: e.target.value })} required disabled={!node.region_id}>
               <option value="">Ville</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name_fr}</option>)}
             </select>
             <input className="form-input" placeholder="Rue" value={node.address_line1} onChange={(e) => setNode({ ...node, address_line1: e.target.value })} />

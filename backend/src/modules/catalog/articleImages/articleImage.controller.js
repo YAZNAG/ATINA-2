@@ -1,10 +1,10 @@
 const service = require('./articleImage.service');
 const response = require('../../../utils/response');
 
-class ArticleImageController {
+class SkuImageController {
   async index(req, res, next) {
     try {
-      const data = await service.listByArticle(req.params.articleId);
+      const data = await service.listBySku(req.params.skuId);
       return response.success(res, data);
     } catch (err) {
       next(err);
@@ -13,16 +13,16 @@ class ArticleImageController {
 
   async addImages(req, res, next) {
     try {
-      const data = await service.addImages(req.params.articleId, req.files);
+      const data = await service.addImages(req.params.skuId, req.files);
       return response.success(res, data, 'Images ajoutées', 201);
     } catch (err) {
       next(err);
     }
   }
 
-  async setMain(req, res, next) {
+  async setPrimary(req, res, next) {
     try {
-      const data = await service.setMain(req.params.articleId, req.params.imageId);
+      const data = await service.setPrimary(req.params.skuId, req.params.imageId);
       return response.success(res, data, 'Image principale mise à jour');
     } catch (err) {
       next(err);
@@ -32,7 +32,7 @@ class ArticleImageController {
   async updateSort(req, res, next) {
     try {
       const data = await service.updateSortOrder(
-        req.params.articleId,
+        req.params.skuId,
         req.params.imageId,
         req.body.sort_order,
       );
@@ -44,7 +44,7 @@ class ArticleImageController {
 
   async destroy(req, res, next) {
     try {
-      await service.deleteImage(req.params.articleId, req.params.imageId);
+      await service.deleteImage(req.params.skuId, req.params.imageId);
       return response.success(res, null, 'Image supprimée');
     } catch (err) {
       next(err);
@@ -52,4 +52,4 @@ class ArticleImageController {
   }
 }
 
-module.exports = new ArticleImageController();
+module.exports = new SkuImageController();

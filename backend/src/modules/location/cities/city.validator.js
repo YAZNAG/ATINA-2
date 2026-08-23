@@ -8,7 +8,7 @@ const validate = (req, res, next) => {
 };
 
 const createValidator = [
-  body('province_id').isUUID().withMessage('Province invalide'),
+  body('region_id').isUUID().withMessage('Région invalide'),
   body('code').notEmpty().withMessage('Code requis'),
   body('name_fr').notEmpty().withMessage('Nom FR requis'),
   body('name_ar').notEmpty().withMessage('Nom AR requis'),
@@ -18,7 +18,7 @@ const createValidator = [
 ];
 
 const updateValidator = [
-  body('province_id').optional().isUUID(),
+  body('region_id').optional().isUUID(),
   body('code').optional().notEmpty(),
   body('name_fr').optional().notEmpty(),
   body('name_ar').optional().notEmpty(),

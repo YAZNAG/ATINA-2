@@ -4,7 +4,7 @@ const response = require('../../../utils/response');
 class CategoryController {
   async index(req, res, next) {
     try {
-      if (req.query.all === 'true') return response.success(res, await service.getList(req.query.family_id));
+      if (req.query.all === 'true') return response.success(res, await service.getList());
       const result = await service.getAll(req.query);
       return res.json({ success: true, ...result });
     } catch (err) { next(err); }
@@ -21,19 +21,26 @@ class CategoryController {
   async destroy(req, res, next) {
     try { await service.delete(req.params.id); return response.success(res, null, 'Catégorie supprimée'); } catch (err) { next(err); }
   }
-async toggleStatus(req, res, next) {
-  try {
-    const row = await service.toggleStatus(req.params.id);
-    response.success(res, row, 'Statut mis à jour');
-  } catch (e) { next(e); }
-}
-
-async restore(req, res, next) {
-  try {
-    const row = await service.restore(req.params.id);
-    response.success(res, row, 'Catégorie restaurée');
-  } catch (e) { next(e); }
-}
+  async toggleStatus(req, res, next) {
+    try {
+      const row = await service.toggleStatus(req.params.id);
+      response.success(res, row, 'Statut mis à jour');
+    } catch (e) { next(e); }
+  }
+  async restore(req, res, next) {
+    try {
+      const row = await service.restore(req.params.id);
+      response.success(res, row, 'Catégorie restaurée');
+    } catch (e) { next(e); }
+  }
+    async reorder(req, res, next) {
+    try {
+      const { items } = req.body; // [{ id, sort_order }, ...]
+      const rows = await service.reorder(items);
+      response.success(res, rows, 'Ordre mis à jour');
+    } catch (e) { next(e); }
+  }
+  
 }
 
 module.exports = new CategoryController();

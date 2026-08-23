@@ -7,22 +7,12 @@ import NodeInfoTab from './NodeInfoTab';
 import NodeLocationTab from './NodeLocationTab';
 import NodeHoursTab from './NodeHoursTab';
 import NodeSlotsTab from './NodeSlotsTab';
-import NodeAppConfigTab from './NodeAppConfigTab';
-import NodeDriversTab from './NodeDriversTab';
-import NodePickersTab from './NodePickersTab';
-import NodeSellingRulesTab from './NodeSellingRulesTab';
-import NodeStockLevelsTab from './NodeStockLevelsTab';
 
 const TABS = [
   { key: 'info', label: 'Informations' },
   { key: 'location', label: 'Localisation' },
   { key: 'hours', label: 'Horaires' },
   { key: 'slots', label: 'Créneaux' },
-  { key: 'appconfig', label: 'Configuration' },
-  { key: 'drivers', label: 'Livreurs' },
-  { key: 'pickers', label: 'Pickers' },
-  { key: 'selling-rules', label: 'Règles de vente' },
-  { key: 'stock', label: 'Stock' },
 ];
 
 function StatusBadge({ item }) {
@@ -191,21 +181,6 @@ export default function NodeDetailPage() {
         )}
         {tab === 'slots' && (
           <NodeSlotsTab nodeId={node.id} canUpdate={canUpdate && !isDeleted} showToast={showToast} />
-        )}
-        {tab === 'appconfig' && (
-          <NodeAppConfigTab nodeId={node.id} />
-        )}
-        {tab === 'drivers' && (
-          <NodeDriversTab nodeId={node.id} />
-        )}
-        {tab === 'pickers' && (
-          <NodePickersTab nodeId={node.id} />
-        )}
-        {tab === 'selling-rules' && (
-          <NodeSellingRulesTab nodeId={node.id} />
-        )}
-        {tab === 'stock' && (
-          <NodeStockLevelsTab nodeId={node.id} />
         )}
       </div>
 

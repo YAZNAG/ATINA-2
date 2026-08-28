@@ -28,6 +28,13 @@ class AdminPacksController {
     try { await service.remove(req.params.id); return response.success(res, null, 'Pack supprimé'); }
     catch (err) { next(err); }
   }
+
+  async duplicate(req, res, next) {
+    try {
+      const duplicated = await service.duplicateToNode(req.params.id, req.body.node_id, req.user.id);
+      return response.success(res, duplicated, 'Pack dupliqué', 201);
+    } catch (err) { next(err); }
+  }
 }
 
 module.exports = new AdminPacksController();

@@ -20,7 +20,7 @@ function normalizeItems(items) {
 async function fetchSkuPrices(skuIds) {
   const skus = await prisma.sku.findMany({
     where:  { id: { in: skuIds } },
-    select: { id: true, article: { select: { price: true, vat_rate: true, tax: { select: { rate: true } } } } },
+    select: { id: true, price: true, vat_rate: true, tax: { select: { rate: true } } },
   });
 
   const foundIds = new Set(skus.map(s => s.id));
@@ -31,9 +31,9 @@ async function fetchSkuPrices(skuIds) {
 
   const map = {};
   skus.forEach(s => {
-    const price = Number(s.article?.price ?? 0);
+    const price = Number(s.price ?? 0);
     if (price <= 0) throw { statusCode: 400, message: `SKU ${s.id} : prix invalide ou article sans prix` };
-    const vatRate = Number(s.article?.tax?.rate ?? s.article?.vat_rate ?? 20);
+    const vatRate = Number(s.tax?.rate ?? s.vat_rate ?? 20);
     map[s.id] = { price, vatRate };
   });
   return map;
@@ -73,9 +73,11 @@ async function create(body, createdBy) {
     node_id, name_fr, name_ar, description_fr, description_ar,
     discount_type, discount_value, total_price,
     valid_from, valid_to, items, image_url,
+    max_pack_qty, is_backorderable,
   } = body;
 
   if (!name_fr) throw { statusCode: 400, message: 'Nom (fr) requis' };
+  if (!node_id) throw { statusCode: 400, message: 'Nœud requis' };
   if (valid_from && valid_to && new Date(valid_to) <= new Date(valid_from)) {
     throw { statusCode: 400, message: 'La date de fin doit être après la date de début' };
   }
@@ -87,7 +89,7 @@ const itemsForCalc = normItems.map(it => {
   const { price, vatRate } = skuPrices[it.sku_id] ?? { price: 0, vatRate: 20 };
   return {
     qty: it.qty,
-    sku: { article: { price, vat_rate: vatRate } },
+    sku: { price, vat_rate: vatRate },
     unit_price_in_pack: price,
   };
 });
@@ -97,7 +99,7 @@ const itemsForCalc = normItems.map(it => {
 
   const pack = await prisma.pack.create({
     data: {
-      node_id:        node_id ?? null,
+      node_id,
       name_fr,
       name_ar:        name_ar ?? name_fr,
       description_fr: description_fr ?? null,
@@ -108,6 +110,8 @@ const itemsForCalc = normItems.map(it => {
       discount_pct:   discountPct,
       valid_from:     valid_from ? new Date(valid_from) : null,
       valid_to:       valid_to   ? new Date(valid_to)   : null,
+      max_pack_qty:      max_pack_qty != null ? Number(max_pack_qty) : null,
+      is_backorderable:  !!is_backorderable,
       created_by:     createdBy,
       pack_items: {
   create: normItems.map((it, idx) => ({
@@ -137,10 +141,12 @@ async function update(id, body) {
   if (body.name_ar        !== undefined) data.name_ar        = body.name_ar;
   if (body.description_fr !== undefined) data.description_fr = body.description_fr;
   if (body.description_ar !== undefined) data.description_ar = body.description_ar;
-  if (body.node_id        !== undefined) data.node_id        = body.node_id;
+
   if (body.is_active      !== undefined) data.is_active      = !!body.is_active;
   if (body.valid_from     !== undefined) data.valid_from     = body.valid_from ? new Date(body.valid_from) : null;
   if (body.valid_to       !== undefined) data.valid_to       = body.valid_to   ? new Date(body.valid_to)   : null;
+  if (body.max_pack_qty   !== undefined) data.max_pack_qty   = body.max_pack_qty != null ? Number(body.max_pack_qty) : null;
+  if (body.is_backorderable !== undefined) data.is_backorderable = !!body.is_backorderable;
 
   let itemsChanged = false;
   let normItems = existing.pack_items.map(it => ({ sku_id: it.sku_id, qty: Number(it.qty) }));
@@ -156,7 +162,7 @@ const itemsForCalc = normItems.map(it => {
   const { price, vatRate } = skuPrices[it.sku_id] ?? { price: 0, vatRate: 20 };
   return {
     qty: it.qty,
-    sku: { article: { price, vat_rate: vatRate } },
+    sku: { price, vat_rate: vatRate },
     unit_price_in_pack: price,
   };
 });
@@ -202,4 +208,59 @@ async function remove(id) {
   return { id };
 }
 
-module.exports = { getAll, getById, create, update, remove };
+
+async function duplicateToNode(id, targetNodeId, createdBy) {
+  if (!targetNodeId) throw { statusCode: 400, message: 'Nœud cible requis' };
+
+  const source = await getPackWithItems(id);
+  if (!source) throw { statusCode: 404, message: 'Pack introuvable' };
+  if (source.node_id === targetNodeId) {
+    throw { statusCode: 400, message: 'Le pack est déjà rattaché à ce nœud' };
+  }
+
+  const normItems = source.pack_items.map(it => ({ sku_id: it.sku_id, qty: Number(it.qty) }));
+  const skuPrices = await fetchSkuPrices(normItems.map(i => i.sku_id));
+  const itemsForCalc = normItems.map(it => {
+    const { price, vatRate } = skuPrices[it.sku_id] ?? { price: 0, vatRate: 20 };
+    return { qty: it.qty, sku: { price, vat_rate: vatRate }, unit_price_in_pack: price };
+  });
+
+  const existingPct = Number(source.discount_pct ?? 0);
+  const { originalPrice, finalPrice, discountPct } = computePackPrices(itemsForCalc, {
+    discount_type:  existingPct > 0 ? 'percentage' : undefined,
+    discount_value: existingPct > 0 ? existingPct   : undefined,
+    total_price:    existingPct > 0 ? undefined : Number(source.total_price),
+  });
+
+  const pack = await prisma.pack.create({
+    data: {
+      node_id:        targetNodeId,
+      name_fr:        source.name_fr,
+      name_ar:        source.name_ar,
+      description_fr: source.description_fr,
+      description_ar: source.description_ar,
+      image_url:      source.image_url,
+      total_price:    finalPrice,
+      original_price: originalPrice,
+      discount_pct:   discountPct,
+      valid_from:     source.valid_from,
+      valid_to:       source.valid_to,
+      max_pack_qty:      source.max_pack_qty ?? null,
+      is_backorderable:  source.is_backorderable ?? false,
+      created_by:     createdBy,
+      pack_items: {
+        create: normItems.map((it, idx) => ({
+          sku_id:             it.sku_id,
+          qty:                it.qty,
+          unit_price_in_pack: skuPrices[it.sku_id]?.price ?? 0,
+          sort_order:         idx,
+        })),
+      },
+    },
+    include: PACK_INCLUDE,
+  });
+
+  return formatPack(pack);
+}
+
+module.exports = { getAll, getById, create, update, remove, duplicateToNode };

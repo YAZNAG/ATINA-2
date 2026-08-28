@@ -1,4 +1,4 @@
-const { body, validationResult } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const response = require('../../../utils/response');
 
 const validate = (req, res, next) => {
@@ -29,4 +29,29 @@ const updateValidator = [
   validate,
 ];
 
-module.exports = { createValidator, updateValidator };
+// Exception ponctuelle : soit is_closed=true (aucun horaire requis),
+// soit is_closed absent/false et slot_start/slot_end obligatoires.
+const exceptionValidator = [
+  body('specific_date').isISO8601().withMessage('Date invalide (format YYYY-MM-DD)'),
+  body('is_closed').optional().isBoolean(),
+  body('slot_start')
+    .if(body('is_closed').not().equals('true'))
+    .matches(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .withMessage('Heure début invalide'),
+  body('slot_end')
+    .if(body('is_closed').not().equals('true'))
+    .matches(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .withMessage('Heure fin invalide'),
+  body('name_fr').optional().notEmpty(),
+  body('name_ar').optional().notEmpty(),
+  body('max_orders').optional().isInt({ min: 0 }),
+  validate,
+];
+
+const calendarQueryValidator = [
+  query('year').isInt({ min: 2020, max: 2100 }).withMessage('Année invalide'),
+  query('month').isInt({ min: 1, max: 12 }).withMessage('Mois invalide'),
+  validate,
+];
+
+module.exports = { createValidator, updateValidator, exceptionValidator, calendarQueryValidator };

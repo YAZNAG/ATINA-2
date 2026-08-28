@@ -25,80 +25,87 @@ const findAllBySku = (sku_id) =>
 const findOne = (node_id, sku_id) =>
   prisma.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
 
-// Returns article-joined rows with level + threshold data, supports filters
+// Returns sku-joined rows with level + threshold data, supports filters.
+// Le modèle Article n'existe plus : le catalogue produit vit entièrement dans Sku.
 const findWithFilters = async ({
-  node_id, sku_id, category_id,
+  node_id, sku_id, category_id, sku_family_id,   // ← ajoute sku_family_id
   out_of_stock, low_stock, backordered, has_incoming, has_cod,
 } = {}) => {
-  const articleWhere = { is_active: true, is_deleted: false, sku_uuid: { not: null } };
-  if (category_id) articleWhere.category_id = category_id;
-  if (sku_id)      articleWhere.sku_uuid = sku_id;
+  const levelWhere = {};
+  if (node_id) levelWhere.node_id = node_id;
+  if (sku_id)  levelWhere.sku_id  = sku_id;
 
-  const articles = await prisma.article.findMany({
-    where: articleWhere,
+  const skuWhere = { is_active: true, is_deleted: false };
+  if (category_id)   skuWhere.category_id   = category_id;   // axe Category (plat)
+  if (sku_family_id) skuWhere.sku_family_id = sku_family_id; // axe SkuFamily
+  levelWhere.sku = skuWhere;
+
+  // Exclut les lignes "stub" créées par upsert (reserve/incoming/count/...)
+  // sur un couple (node, sku) qui n'a jamais eu de réception, ajustement ou comptage réel.
+  levelWhere.NOT = {
+    AND: [
+      { qty_physical: 0 },
+      { qty_reserved: 0 },
+      { qty_available: 0 },
+      { qty_backordered: 0 },
+      { qty_incoming: 0 },
+      { qty_floating_cod: 0 },
+      { last_move_id: null },
+      { last_counted_at: null },
+    ],
+  };
+
+  const levels = await prisma.stockLevel.findMany({
+    where: levelWhere,
     include: {
-      catalog_sku: { include: { images: { where: { is_primary: true }, take: 1 } } },
-      images:       { where: { is_main: true }, take: 1 },
-      family:       { select: { id: true, name_fr: true, code: true } },
-      category:     { select: { id: true, name_fr: true, code: true } },
-      sub_category: { select: { id: true, name_fr: true, code: true } },
+      sku: {
+        include: {
+          images:        { where: { is_primary: true }, take: 1 },
+          sku_family:    { select: { id: true, name_fr: true, code: true } },
+          sku_subfamily: { select: { id: true, name_fr: true, code: true } },
+          category:      { select: { id: true, name_fr: true, code: true } },
+        },
+      },
     },
-    orderBy: { name_fr: 'asc' },
+    orderBy: { sku: { name_fr: 'asc' } },
   });
 
-  const skuIds = articles.map((a) => a.sku_uuid).filter(Boolean);
-  if (!skuIds.length) return [];
+  if (!levels.length) return [];
 
-  const levelWhere = { sku_id: { in: skuIds } };
-  if (node_id) levelWhere.node_id = node_id;
+  const skuIds = [...new Set(levels.map((l) => l.sku_id))];
+  const rules = await prisma.stockThresholdRule.findMany({
+    where: { sku_id: { in: skuIds }, ...(node_id ? { node_id } : {}) },
+  });
+  const rulesMap = Object.fromEntries(rules.map((r) => [`${r.node_id}_${r.sku_id}`, r]));
 
-  const [levels, rules] = await Promise.all([
-    prisma.stockLevel.findMany({ where: levelWhere }),
-    prisma.stockThresholdRule.findMany({ where: levelWhere }),
-  ]);
+  let rows = levels.map((level) => ({
+    id:               level.id,
+    node_id:          level.node_id,
+    sku_id:           level.sku_id,
+    qty_physical:     N(level.qty_physical),
+    qty_reserved:     N(level.qty_reserved),
+    qty_available:    N(level.qty_available),
+    qty_backordered:  N(level.qty_backordered),
+    qty_incoming:     N(level.qty_incoming),
+    qty_floating_cod: N(level.qty_floating_cod),
+    last_move_id:     level.last_move_id,
+    last_counted_at:  level.last_counted_at,
+    updated_at:       level.updated_at,
+    has_record:       true,
+    sku: {
+      id:         level.sku.id,
+      sku_code:   level.sku.sku_code,
+      ean13:      level.sku.ean13,
+      name_fr:    level.sku.name_fr,
+      name_ar:    level.sku.name_ar,
+      family:     level.sku.sku_family,
+      category:   level.sku.category,
+      sub_family: level.sku.sku_subfamily,
+      images:     level.sku.images,
+    },
+    threshold_rule: rulesMap[`${level.node_id}_${level.sku_id}`] ?? null,
+  }));
 
-  const levelsMap = Object.fromEntries(levels.map((l) => [l.sku_id, l]));
-  const rulesMap  = Object.fromEntries(rules.map((r)  => [r.sku_id, r]));
-
-  let rows = articles
-    .filter((a) => a.catalog_sku)
-    .map((a) => {
-      const level = levelsMap[a.sku_uuid] ?? null;
-      const rule  = rulesMap[a.sku_uuid]  ?? null;
-      return {
-        id:               level?.id ?? null,
-        node_id:          node_id ?? level?.node_id ?? null,
-        sku_id:           a.sku_uuid,
-        qty_physical:     N(level?.qty_physical),
-        qty_reserved:     N(level?.qty_reserved),
-        qty_available:    N(level?.qty_available),
-        qty_backordered:  N(level?.qty_backordered),
-        qty_incoming:     N(level?.qty_incoming),
-        qty_floating_cod: N(level?.qty_floating_cod),
-        last_move_id:     level?.last_move_id  ?? null,
-        last_counted_at:  level?.last_counted_at ?? null,
-        updated_at:       level?.updated_at ?? null,
-        has_record:       level !== null,
-        sku: {
-          id:     a.catalog_sku.id,
-          images: a.catalog_sku.images,
-          article: {
-            id:           a.id,
-            sku_code:     a.sku_code,
-            ean13:        a.ean13,
-            name_fr:      a.name_fr,
-            name_ar:      a.name_ar,
-            family:       a.family,
-            category:     a.category,
-            sub_category: a.sub_category,
-            images:       a.images,
-          },
-        },
-        threshold_rule: rule,
-      };
-    });
-
-  // Level-based boolean filters
   if (out_of_stock === 'true' || out_of_stock === true)
     rows = rows.filter((r) => r.qty_available <= 0);
   if (low_stock === 'true' || low_stock === true)
@@ -329,10 +336,29 @@ const applyMove = async (node_id, sku_id, qty_delta, move_type_id, reference, me
     return { move, level };
   });
 
+  // Liste les mouvements de stock pour un node et/ou un sku 
+const findMoves = ({ node_id, sku_id, limit = 200 } = {}) => {
+  const where = {};
+  if (node_id) where.node_id = node_id;
+  if (sku_id)  where.sku_id  = sku_id;
+
+  return prisma.stockMove.findMany({
+    where,
+    include: {
+      move_type: { select: { id: true, name_fr: true, code: true, color: true } },
+      operator:  { select: { id: true, full_name: true } },
+    },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+  });
+};
+
+
+
 module.exports = {
   getOrCreate, findById, findOne, findByNode, findWithFilters,
   findAllBySku,
   applyReceipt, reserveForOrder, completePicking, cancelReservation,
   updateIncoming, confirmCODDelivered, confirmCODCollected, updateLastCountedAt,
-  adminAdjust, recalculate, applyMove,
+  adminAdjust, recalculate, applyMove,findMoves
 };

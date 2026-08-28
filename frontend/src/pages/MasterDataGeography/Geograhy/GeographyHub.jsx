@@ -3,7 +3,7 @@ import GeographyPage from './Geographypage';
 export default function GeographyHub() {
   return (
     <div className="min-h-screen bg-neutral-50">
-      <div className="border-b border-neutral-200 bg-white px-6 pt-6">
+      <div className="border-b border-neutral-200  px-6 pt-6">
         <h1 className="font-poppins text-2xl font-semibold text-neutral-900">
           Région & Ville
         </h1>

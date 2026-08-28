@@ -6,8 +6,9 @@ const perm = require('../../../middlewares/permission.middleware');
 const router = Router();
 router.use(auth);
 
-// GET 
+// GET
 router.get('/',                 perm('stock.view'),   ctrl.list.bind(ctrl));
+router.get('/moves',            perm('stock.view'),   ctrl.listMoves.bind(ctrl));
 router.get('/by-node/:node_id', perm('stock.view'),   ctrl.byNode.bind(ctrl));
 router.get('/by-sku/:sku_id',   perm('stock.view'),   ctrl.bySku.bind(ctrl));
 router.get('/:id',              perm('stock.view'),   ctrl.getById.bind(ctrl));

@@ -30,3 +30,7 @@ export const getNodeSlots = (nodeId) => api.get(`/nodes/${nodeId}/slots`);
 export const createNodeSlot = (nodeId, data) => api.post(`/nodes/${nodeId}/slots`, data);
 export const updateSlot = (slotId, data) => api.put(`/slots/${slotId}`, data);
 export const deleteSlot = (slotId) => api.delete(`/slots/${slotId}`);
+export const getNodeSlotsCalendar = (nodeId, year, month) =>
+  api.get(`/nodes/${nodeId}/slots/calendar`, { params: { year, month } });
+export const createSlotException = (nodeId, data) =>
+  api.post(`/nodes/${nodeId}/slots/exceptions`, data);

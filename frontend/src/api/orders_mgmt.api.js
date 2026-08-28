@@ -12,3 +12,5 @@ export const getOrderHistory      = (id)            => api.get(`${b}/${id}/histo
 export const getOrderPickers      = (id)            => api.get(`${b}/${id}/pickers`);
 export const assignOrderPicker    = (id, picker_id) => api.post(`${b}/${id}/assign-picker`, { picker_id });
 export const confirmOrderPickup   = (id, data)      => api.patch(`${b}/${id}/confirm-pickup`, data ?? {});
+export const updateOrderSlot = (id, slot_id) =>
+  api.patch(`${b}/${id}/slot`, { slot_id });

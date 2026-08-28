@@ -552,7 +552,8 @@ export default function SkusPage() {
               <th className="px-4 py-3 font-medium">Nom</th>
               <th className="px-4 py-3 font-medium">SKU</th>
               <th className="px-4 py-3 font-medium">Prix</th>
-              <th className="px-4 py-3 font-medium">Hiérarchie</th>
+              <th className="px-4 py-3 font-medium">Famille</th>
+              <th className="px-4 py-3 font-medium">Catégorie</th>
               <th className="px-4 py-3 font-medium">Marque</th>
               <th className="px-4 py-3 font-medium">Statut</th>
               {canManage && <th className="px-4 py-3 font-medium text-right">Actions</th>}
@@ -560,9 +561,9 @@ export default function SkusPage() {
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
-              <tr><td colSpan={canManage ? 8 : 7} className="px-4 py-12 text-center text-neutral-400"><Loader2 size={20} className="mx-auto animate-spin" /></td></tr>
+              <tr><td colSpan={canManage ? 9 : 8} className="px-4 py-12 text-center text-neutral-400"><Loader2 size={20} className="mx-auto animate-spin" /></td></tr>
             ) : skus.length === 0 ? (
-              <tr><td colSpan={canManage ? 8 : 7} className="px-4 py-12 text-center text-neutral-400">Aucun SKU trouvé.</td></tr>
+              <tr><td colSpan={canManage ? 9 : 8} className="px-4 py-12 text-center text-neutral-400">Aucun SKU trouvé.</td></tr>
             ) : (
               skus.map((s) => {
                 const isDeleted = Boolean(s.deleted_at || s.is_deleted);
@@ -595,7 +596,10 @@ export default function SkusPage() {
                     </td>
                     <td className="px-4 py-3 text-neutral-700">{Number(s.price).toFixed(2)} DH</td>
                     <td className="px-4 py-3 text-xs text-neutral-500">
-                      {[s.sku_family?.name_fr, s.sku_subfamily?.name_fr, s.category?.name_fr].filter(Boolean).join(' › ') || '—'}
+                      {[s.sku_family?.name_fr, s.sku_subfamily?.name_fr].filter(Boolean).join(' › ') || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-neutral-500">
+                      {s.category?.name_fr || '—'}
                     </td>
                     <td className="px-4 py-3 text-neutral-600">{s.brand?.name_fr || '—'}</td>
                     <td className="px-4 py-3"><StatusBadge sku={s} /></td>

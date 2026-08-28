@@ -75,11 +75,45 @@ const getSellingRules = (node_id, sku_ids) =>
   prisma.sellingRule.findMany({ where: { node_id, sku_id: { in: sku_ids } } });
 
 // ── Lookup statuses ───────────────────────────────────────────────────────────
-const getOrderStatusByCode     = (code) => prisma.orderStatus.findFirst({ where: { code } });
-const getOrderItemStatusByCode = (code) => prisma.orderItemStatus.findFirst({ where: { code } });
-const getPaymentStatusByCode   = (code) => prisma.paymentStatus.findFirst({ where: { code } });
+const getOrderStatusByCode     = (code) =>
+  prisma.orderStatus.findFirst({
+    where: {
+      code: {
+        equals: code,
+        mode: 'insensitive',
+      },
+    },
+  });
+const getOrderItemStatusByCode = (code) =>
+  prisma.orderItemStatus.findFirst({
+    where: {
+      code: {
+        equals: code,
+        mode: 'insensitive',
+      },
+    },
+  });
+
+const getPaymentStatusByCode   = (code) =>
+  prisma.paymentStatus.findFirst({
+    where: {
+      code: {
+        equals: code,
+        mode: 'insensitive',
+      },
+    },
+  });
 const getPaymentMethod         = (id)   => prisma.paymentMethod.findUnique({ where: { id } });
-const getPaymentMethodByCode   = (code) => prisma.paymentMethod.findFirst({ where: { code, is_active: true } });
+const getPaymentMethodByCode = (code) =>
+  prisma.paymentMethod.findFirst({
+    where: {
+      code: {
+        equals: code,
+        mode: 'insensitive',
+      },
+      is_active: true,
+    },
+  });
 const getAllPaymentMethods      = ()     => prisma.paymentMethod.findMany({ where: { is_active: true }, orderBy: { code: 'asc' } });
 const getAllOrderStatuses       = ()     => prisma.orderStatus.findMany({ orderBy: { sort_order: 'asc' } });
 const getAllPaymentStatuses     = ()     => prisma.paymentStatus.findMany({ orderBy: { code: 'asc' } });
@@ -150,16 +184,19 @@ const searchArticles = (search, limit = 20) => {
       { ean13:    { contains: s, mode: 'insensitive' } },
     ];
   }
-  return prisma.article.findMany({
+  return prisma.sku.findMany({
     where,
     take: Number(limit),
     orderBy: { name_fr: 'asc' },
     select: {
-  id: true, name_fr: true, name_ar: true,
-  sku_code: true, sku_uuid: true,
-  price: true, vat_rate: true,
-  tax: { select: { rate: true } },  
-},
+      id: true,
+      name_fr: true,
+      name_ar: true,
+      sku_code: true,
+      price: true,
+      vat_rate: true,
+      tax: { select: { rate: true } },
+    },
   });
 };
 

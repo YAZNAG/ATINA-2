@@ -7,7 +7,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/stats', perm('stock.view'), ctrl.stats.bind(ctrl));
-router.get('/',      perm('stock.view'), ctrl.list.bind(ctrl));
 router.get('/:id',   perm('stock.view'), ctrl.getById.bind(ctrl));
+router.get('/',      perm('stock.view'), ctrl.list.bind(ctrl));
 
 module.exports = router;

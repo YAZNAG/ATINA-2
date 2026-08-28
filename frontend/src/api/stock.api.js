@@ -92,6 +92,7 @@ export const seedStockOperations = ()     => api.post(`${s}/operations/seed`);
 export const getStockMoves      = (params) => api.get(`${s}/moves`, { params });
 export const getStockMoveById   = (id)     => api.get(`${s}/moves/${id}`);
 export const getStockMoveStats  = (node_id) => api.get(`${s}/moves/stats`, { params: { node_id } });
+export const getStockMovesPaginated = (params) => api.get(`${s}/moves`, { params });
 
 // ——— Stock Lots ———
 export const getStockLots       = (params) => api.get(`${s}/lots`, { params });

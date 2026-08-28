@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Loader2, Clock } from 'lucide-react';
+import { Plus, Trash2, Loader2, Clock, CalendarDays } from 'lucide-react';
 import { getNodeSlots, createNodeSlot, updateSlot, deleteSlot } from '../../../api/locationNode.api';
 
 const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -25,7 +25,10 @@ export default function NodeSlotsTab({ nodeId, canUpdate, showToast }) {
     setLoading(true);
     try {
       const { data } = await getNodeSlots(nodeId);
-      setSlots(data.data || data || []);
+      const all = data.data || data || [];
+      // Ce tab gère uniquement le template récurrent (day_of_week).
+      // Les exceptions ponctuelles (specific_date) se gèrent depuis le calendrier.
+      setSlots(all.filter((s) => s.specific_date == null));
     } catch (err) {
       showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des créneaux');
     } finally {
@@ -88,6 +91,14 @@ export default function NodeSlotsTab({ nodeId, canUpdate, showToast }) {
 
   return (
     <div>
+      <div className="mb-4 flex items-start gap-2 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+        <CalendarDays size={14} className="mt-0.5 shrink-0" />
+        <span>
+          Cette liste ne montre que le planning récurrent (même horaire chaque semaine). Pour fermer un jour précis
+          ou ajouter un créneau exceptionnel à une date donnée, utilise le calendrier des créneaux de livraison.
+        </span>
+      </div>
+
       {canUpdate && (
         <form onSubmit={handleAdd} className="mb-5 space-y-2 rounded-lg border border-dashed border-neutral-200 p-3">
           <div className="flex flex-wrap gap-2">
@@ -132,7 +143,7 @@ export default function NodeSlotsTab({ nodeId, canUpdate, showToast }) {
       {loading ? (
         <div className="py-10 text-center"><Loader2 size={20} className="mx-auto animate-spin text-neutral-400" /></div>
       ) : slots.length === 0 ? (
-        <p className="py-10 text-center text-sm text-neutral-400">Aucun créneau configuré.</p>
+        <p className="py-10 text-center text-sm text-neutral-400">Aucun créneau récurrent configuré.</p>
       ) : (
         <div className="space-y-2">
           {slots.map((slot) => (

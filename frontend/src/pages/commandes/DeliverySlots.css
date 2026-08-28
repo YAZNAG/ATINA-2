@@ -1,0 +1,410 @@
+.dsp-page {
+  color: #1a1a1a;
+  padding: 24px 32px;
+  min-height: 100%;
+}
+
+.dsp-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.dsp-header h1 {
+  font-weight: 600;
+  font-size: 22px;
+  margin: 0;
+}
+
+.dsp-updated {
+  font-size: 12px;
+  color: #8a8a8f;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dsp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8a8a8f;
+  display: inline-block;
+}
+
+.dsp-dot-green {
+  background: #17a35a;
+}
+
+.dsp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dsp-node-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e5e5e8;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.dsp-node-select select {
+  border: none;
+  font-weight: 500;
+  font-size: 14px;
+  background: transparent;
+  outline: none;
+}
+
+.dsp-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 600;
+}
+
+.dsp-month-nav button {
+  border: 1px solid #e5e5e8;
+  background: #fff;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  color: #1a1a1a;
+}
+
+.dsp-month-label {
+  min-width: 130px;
+  text-align: center;
+}
+
+.dsp-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #6b6b70;
+}
+
+.dsp-legend label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.dsp-legend input[type='checkbox'] {
+  accent-color: #e10600;
+}
+
+.dsp-calendar {
+  background: #fff;
+  border: 1px solid #e5e5e8;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: opacity 0.15s ease;
+}
+
+.dsp-calendar-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.dsp-calendar-header-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid #e5e5e8;
+}
+
+.dsp-weekday-header {
+  padding: 10px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8a8a8f;
+}
+
+.dsp-week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid #eeeef0;
+}
+
+.dsp-week-row:last-child {
+  border-bottom: none;
+}
+
+.dsp-day-cell {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: 92px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid #eeeef0;
+  background: #f6f7f8;
+  transition: background 0.1s ease;
+}
+
+.dsp-day-cell:hover {
+  background: #fafafa;
+}
+
+.dsp-day-cell:last-child {
+  border-right: none;
+}
+
+.dsp-day-cell-empty {
+  cursor: default;
+  background: #fbfbfc;
+}
+
+.dsp-day-today {
+  background: #eff1f3;
+}
+
+.dsp-day-has-slots {
+  background: #fdf2f1;
+}
+
+.dsp-day-closed {
+  background: #f2f2f4;
+}
+
+.dsp-day-dimmed {
+  opacity: 0.35;
+}
+
+.dsp-day-number {
+  font-weight: 600;
+  font-size: 14px;
+  color: #99a1af;
+}
+
+.dsp-day-has-slots .dsp-day-number {
+  color: #b80500;
+}
+
+.dsp-slot-badge {
+  align-self: flex-start;
+  background: #e10600;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+.dsp-slot-times {
+  font-size: 11px;
+  color: #b3413d;
+  line-height: 1.4;
+}
+
+.dsp-closed-label {
+  font-size: 11px;
+  color: #8a8a8f;
+  font-weight: 500;
+}
+
+.dsp-no-slot {
+  font-size: 12px;
+  color: #c4c4c8;
+}
+
+/* Modal */
+
+.dsp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 22, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dsp-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 420px;
+  max-width: 92vw;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.dsp-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid #eeeef0;
+}
+
+.dsp-modal-header h3 {
+  font-weight: 600;
+  margin: 0 0 2px;
+  text-transform: capitalize;
+  font-size: 16px;
+}
+
+.dsp-modal-subtitle {
+  font-size: 12px;
+  color: #8a8a8f;
+}
+
+.dsp-icon-btn {
+  all: unset;
+  cursor: pointer;
+  color: #8a8a8f;
+  font-size: 14px;
+}
+
+.dsp-modal-body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dsp-existing-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dsp-empty-hint {
+  font-size: 13px;
+  color: #8a8a8f;
+  margin: 0;
+}
+
+.dsp-slot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f7f7f8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.dsp-slot-row-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.dsp-slot-row-actions button {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a4a4f;
+}
+
+.dsp-slot-row-actions .dsp-danger {
+  color: #e10600;
+}
+
+.dsp-slot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #eeeef0;
+  padding-top: 14px;
+}
+
+.dsp-mode-toggle {
+  display: flex;
+  border: 1px solid #e5e5e8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dsp-mode-toggle button {
+  all: unset;
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #6b6b70;
+}
+
+.dsp-mode-toggle button.active {
+  background: #e10600;
+  color: #fff;
+}
+
+.dsp-time-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+.dsp-time-inputs label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #6b6b70;
+}
+
+.dsp-time-inputs input {
+  border: 1px solid #e5e5e8;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.dsp-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dsp-primary-btn {
+  background: #e10600;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dsp-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dsp-secondary-btn {
+  background: #fff;
+  border: 1px solid #e5e5e8;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dsp-close-day-btn {
+  background: none;
+  border: 1px dashed #d0d0d4;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: #6b6b70;
+  cursor: pointer;
+}

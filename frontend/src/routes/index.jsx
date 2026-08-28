@@ -40,7 +40,7 @@ import NodesPage from '../pages/MasterDataGeography/Nodes/nodesPage';
 //import NodeDetailPage from '../pages/location/NodeDetailPage';
 import P0TablesHub from '../pages/p0/P0TablesHub';
 import P0TablePage from '../pages/p0/P0TablePage';
-import CustomerList from '../pages/customers/CustomerList';
+//import CustomerList from '../pages/customers/CustomerList';
 import CustomerDetail from '../pages/customers/CustomerDetail';
 import CustomerForm from '../pages/customers/CustomerForm';
 import CustomerAddressesPage from '../pages/customers/CustomerAddressesPage';
@@ -53,10 +53,10 @@ import InventoryTypesPage from '../pages/stock/InventoryTypesPage';
 import InventoryStatusesPage from '../pages/stock/InventoryStatusesPage';
 import InventoryGapTypesPage from '../pages/stock/InventoryGapTypesPage';
 import StockThresholdsPage from '../pages/stock/StockThresholdsPage';
-import StockLevelsPage from '../pages/stock/StockLevelsPage';
+//import StockLevelsPage from '../pages/stock/StockLevelsPage';
 import SellingRulesPage from '../pages/stock/SellingRulesPage';
-import ReorderRulesPage from '../pages/stock/ReorderRulesPage';
-import StockMovesPage from '../pages/stock/StockMovesPage';
+//import ReorderRulesPage from '../pages/stock/ReorderRulesPage';
+//import StockMovesPage from '../pages/stock/StockMovesPage';
 import StockLotsPage from '../pages/stock/StockLotsPage';
 import DeliveryTypesPage from '../pages/delivery/DeliveryTypesPage';
 import DeliveryLookupPage from '../pages/delivery/DeliveryLookupPage';
@@ -73,7 +73,7 @@ import PaymentMethodsRefPage from '../pages/payment/PaymentMethodsRefPage';
 import WalletTxnTypesPage from '../pages/wallet/WalletTxnTypesPage';
 import CheckoutPage     from '../pages/checkout/CheckoutPage';
 import CheckoutTestPage from '../pages/checkout/CheckoutTestPage';
-import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
+//import OrdersListPage from '../pages/orders_mgmt/OrdersListPage';
 import PickingSessionsPage from '../pages/picking/PickingSessionsPage';
 import PickingSessionDetailPage from '../pages/picking/PickingSessionDetailPage';
 import PickersPage from '../pages/staff/PickersPage';
@@ -88,7 +88,7 @@ import RolePermissionsPage from '../pages/access/RolePermissionsPage';
 import OrderStatusesPage from '../pages/orders/OrderStatusesPage';
 import OrderItemStatusesPage from '../pages/orders/OrderItemStatusesPage';
 import OrderSlotStatusesPage from '../pages/orders/OrderSlotStatusesPage';
-import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
+//import DeliverySlotsPage from '../pages/orders/DeliverySlotsPage';
 import NodeConfigPage from '../pages/orders/NodeConfigPage';
 //dashboard v2
 import BrandsPage from '../pages/MasterDataProduit/brands/BrandsPage';
@@ -101,6 +101,13 @@ import NodeDetailPage from '../pages/MasterDataGeography/Nodes/NodeDetailPage';
 import PromotionsPage from '../pages/offres/flasheSales/PromotionsPage';
 import SkusPage from '../pages/MasterDataProduit/produits/SkusPage';
 import SkuDetailPage from '../pages/MasterDataProduit/produits/SkuDetailPage';
+import StockLevelsPage from '../pages/inventaire/stockLevelPage';
+import StockMovePage from '../pages/inventaire/stockMovePage';
+import ReorderRulesPage from '../pages/inventaire/ReorderRulesPage';
+import OrdersPage from '../pages/commandes/OrdersPage';
+import DeliverySlotsPage from '../pages/commandes/DeliverySlotsPage';
+import CustomersPage from '../pages/clients/customersPage';
+import PacksPage from '../pages/offres/packs/PacksPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -144,7 +151,7 @@ export default function AppRoutes() {
           <Route path="/delivery/tours"            element={<ToursListPage />} />
           <Route path="/delivery/tours/new"        element={<TourNewPage />} />
           <Route path="/delivery/tours/:id"        element={<TourDetailPage />} />
-          <Route path="/orders-mgmt"              element={<OrdersListPage />} />
+          {/*<Route path="/orders-mgmt"              element={<OrdersListPage />} />*/}
           <Route path="/picking/sessions"         element={<PickingSessionsPage />} />
           <Route path="/picking/sessions/:id"     element={<PickingSessionDetailPage />} />
           <Route path="/picking/statuses"          element={<PickingStatusesPage />} />
@@ -158,7 +165,7 @@ export default function AppRoutes() {
           <Route path="/access/role-permissions"  element={<RolePermissionsPage />} />
           <Route path="/p0/tables" element={<P0TablesHub />} />
           <Route path="/p0/tables/:sql" element={<P0TablePage />} />
-          <Route path="/customers" element={<CustomerList />} />
+          {/*<Route path="/customers" element={<CustomerList />} />*/}
           <Route path="/customers/new" element={<CustomerForm />} />
           <Route path="/customers/:id/edit" element={<CustomerForm />} />
           <Route path="/customers/:id/addresses" element={<CustomerAddressesPage />} />
@@ -212,10 +219,10 @@ export default function AppRoutes() {
           <Route path="/stock/inventory-statuses"  element={<InventoryStatusesPage />} />
           <Route path="/stock/inventory-gap-types" element={<InventoryGapTypesPage />} />
           <Route path="/stock/thresholds"          element={<StockThresholdsPage />} />
-          <Route path="/stock/levels"              element={<StockLevelsPage />} />
+          {/* <Route path="/stock/levels"              element={<StockLevelsPage />} />*/} 
           <Route path="/stock/selling-rules"       element={<SellingRulesPage />} />
-          <Route path="/stock/reorder-rules"       element={<ReorderRulesPage />} />
-          <Route path="/stock/moves"               element={<StockMovesPage />} />
+          {/*<Route path="/stock/reorder-rules"       element={<ReorderRulesPage />} />*/}
+          {/*<Route path="/stock/moves"               element={<StockMovesPage />} />*/}
           <Route path="/stock/lots"                element={<StockLotsPage />} />
           {/* Delivery */}
           <Route path="/delivery/types"            element={<DeliveryTypesPage />} />
@@ -233,13 +240,19 @@ export default function AppRoutes() {
           <Route path="/orders/statuses"            element={<OrderStatusesPage />} />
           <Route path="/orders/item-statuses"       element={<OrderItemStatusesPage />} />
           <Route path="/orders/slot-statuses"       element={<OrderSlotStatusesPage />} />
-          <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
           <Route path="/orders/node-config"         element={<NodeConfigPage />} />
 
           {/* <Route path="/geo" element={<GeoPage />} /> */}
           <Route path="/catalog/hierarchy" element={<CatalogHierarchy />} />
           <Route path="/catalog/skus" element={<SkusPage/>} />
           <Route path="/catalog/skus/:id" element={<SkuDetailPage/>} />
+          <Route path="/stock/levels" element={<StockLevelsPage/>} />
+          <Route path="/stock/moves" element={<StockMovePage/>} />
+          <Route path="/stock/reorder-rules" element={<ReorderRulesPage/>} />
+          <Route path="/orders-mgmt" element={<OrdersPage/>} />
+          <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
+          <Route path="/customers"      element={<CustomersPage />} />
+          <Route path="/offres/packs"      element={<PacksPage />} />
           
         </Route>
       </Route>

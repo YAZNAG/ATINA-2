@@ -1,6 +1,7 @@
 const svc  = require('./checkout.service');
 const repo = require('./checkout.repository');
 const resp = require('../../utils/response');
+const { PICKUP_LIKE_CODES } = svc;
 
 class CheckoutController {
 
@@ -58,7 +59,7 @@ class CheckoutController {
     try {
       const { address_id, cart_items = [], date, delivery_type_code } = req.body;
 
-      if (delivery_type_code === 'pickup') {
+      if (PICKUP_LIKE_CODES.includes(delivery_type_code)) {
         const result = await svc.findPickupNodes(cart_items, date);
         return resp.success(res, result);
       }

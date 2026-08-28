@@ -296,11 +296,14 @@ export default function NodesPage() {
 
       {drawer && (
         <NodeDrawer
-          editNode={drawer.editNode}
-          onClose={() => setDrawer(null)}
-          onSaved={() => { setDrawer(null); fetchNodes(); }}
-          showToast={showToast}
-        />
+  editNode={drawer.editNode}
+  onClose={() => setDrawer(null)}
+  onSaved={() => {
+    setDrawer(null);
+    fetchNodes();
+  }}
+  showToast={showToast}
+/>
       )}
 
       {deleteTarget && (

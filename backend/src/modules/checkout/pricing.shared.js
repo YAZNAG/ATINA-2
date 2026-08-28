@@ -13,21 +13,20 @@ async function resolveSkuPrice(node_id, sku_id) {
     where:  { id: sku_id },
     select: {
       id: true,
-      article: {
-        select: {
-          id: true, name_fr: true, price: true, vat_rate: true,
-          category_id: true, brand_id: true,
-          tax: { select: { rate: true } },
-        },
-      },
+      name_fr: true,
+      price: true,
+      vat_rate: true,
+      category_id: true,
+      brand_id: true,
+      tax: { select: { rate: true } },
     },
   });
-  if (!sku?.article) throw { statusCode: 404, message: `SKU introuvable: ${sku_id}` };
+  if (!sku) throw { statusCode: 404, message: `SKU introuvable: ${sku_id}` };
 
-  const a = sku.article;
+  const a = sku; // plus de sku.article — tout est directement sur sku
   const vatRate = Number(a.tax?.rate ?? a.vat_rate ?? 20);
   const priceHt = Number(a.price ?? 0);
-  const basePriceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
+  const basePriceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100;
 
   const flashSales = await getActiveFlashSales();
   const discount = resolveArticleDiscount(

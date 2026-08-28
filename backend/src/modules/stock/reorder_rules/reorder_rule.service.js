@@ -107,13 +107,15 @@ class ReorderRuleService {
       throw { statusCode: 400, message: 'rows doit être un tableau non vide' };
 
     const validated = rows.map((row, i) => {
-      const { node_id, sku_id, costing_method_id } = row;
-      if (!node_id)           throw { statusCode: 400, message: `Ligne ${i + 1} : node_id requis` };
-      if (!sku_id)            throw { statusCode: 400, message: `Ligne ${i + 1} : sku_id requis` };
-      if (!costing_method_id) throw { statusCode: 400, message: `Ligne ${i + 1} : costing_method_id requis` };
+      // L'import CSV en masse envoie sku_code au lieu de sku_id — les deux sont
+      // acceptés ici, la résolution sku_code -> sku_id se fait dans le repository.
+      const { node_id, sku_id, sku_code, costing_method_id } = row;
+      if (!node_id)                throw { statusCode: 400, message: `Ligne ${i + 1} : node_id requis` };
+      if (!sku_id && !sku_code)    throw { statusCode: 400, message: `Ligne ${i + 1} : sku_id ou sku_code requis` };
+      if (!costing_method_id)      throw { statusCode: 400, message: `Ligne ${i + 1} : costing_method_id requis` };
 
-      const data = this._validate(row, false);
-      return { node_id, sku_id, costing_method_id, ...data };
+      const data = this._validate({ ...row, sku_id: sku_id || 'pending' }, false);
+      return { node_id, sku_id, sku_code, costing_method_id, ...data };
     });
 
     return repo.bulkSave(validated);

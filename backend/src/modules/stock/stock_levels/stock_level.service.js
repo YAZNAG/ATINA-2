@@ -123,6 +123,12 @@ class StockLevelService {
     if (isNaN(delta) || delta === 0) throw { statusCode: 400, message: 'qty_delta doit être non nul' };
     return repo.applyMove(node_id, sku_id, delta, move_type_id, reference, metadata);
   }
+
+  async getMoves(params) {
+  const { node_id, sku_id } = params;
+  if (!node_id && !sku_id) throw { statusCode: 400, message: 'node_id ou sku_id requis' };
+  return repo.findMoves(params);
+}
 }
 
 module.exports = new StockLevelService();

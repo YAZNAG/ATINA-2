@@ -37,6 +37,7 @@ model User {
   regions_updated            Region[]              @relation("RegionUpdatedBy")
   assigned_conversations     SupportConversation[] @relation("SupportAgentConversations")
   user_roles                 UserRole[]
+  stock_moves_operated       StockMove[]           @relation("StockMoveOperator")
 
   @@map("users")
 }
@@ -515,22 +516,27 @@ model Node {
 }
 
 model DeliverySlot {
-  id               String   @id @default(uuid()) @db.Uuid
-  node_id          String   @db.Uuid
-  name_fr          String
-  name_ar          String
-  day_of_week      Int
-  slot_start       String
-  slot_end         String
+  id               String    @id @default(uuid()) @db.Uuid
+  node_id          String    @db.Uuid
+  name_fr          String?
+  name_ar          String?
+  day_of_week      Int?
+  specific_date    DateTime? @db.Date
+  slot_start       String?
+  slot_end         String?
   max_orders       Int?
-  is_active        Boolean  @default(true)
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-  node             Node     @relation(fields: [node_id], references: [id], onDelete: Cascade)
-  orders_confirmed Order[]  @relation("OrderConfirmedSlot")
+  is_closed        Boolean   @default(false)
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  node             Node      @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  orders_confirmed Order[]   @relation("OrderConfirmedSlot")
 
+  @@index([node_id, day_of_week])
+  @@index([node_id, specific_date])
   @@map("delivery_slots")
 }
+
 
 model StockOperation {
   code    String @id @db.VarChar(10)
@@ -1249,6 +1255,8 @@ model Pack {
   created_by     Int
   created_at     DateTime    @default(now()) @db.Timestamptz(6)
   updated_at     DateTime    @updatedAt @db.Timestamptz(6)
+  max_pack_qty Int?
+  is_backorderable Boolean  @default(false)
   cart_items     CartItem[]
   flash_sales    FlashSale[]
   order_items    OrderItem[]
@@ -1512,7 +1520,7 @@ model StockMove {
   metadata     Json?
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   lot_id       String?   @db.Uuid
-  operator_id  String?   @db.Uuid
+  operator_id  Int?
   order_id     String?   @db.Uuid
   reason       String?
   lot          StockLot? @relation(fields: [lot_id], references: [id])
@@ -1520,6 +1528,7 @@ model StockMove {
   node         Node      @relation(fields: [node_id], references: [id], onDelete: Cascade)
   order        Order?    @relation(fields: [order_id], references: [id])
   sku          Sku       @relation(fields: [sku_id], references: [id], onDelete: Cascade)
+  operator     User?     @relation("StockMoveOperator", fields: [operator_id], references: [id])
 
   @@map("stock_moves")
 }

@@ -14,3 +14,10 @@ export const createAddress     = (customer_id, data)  => api.post(`/customers/${
 export const updateAddress     = (id, data)            => api.put(`/addresses/${id}`, data);
 export const setDefaultAddress = (id)                  => api.patch(`/addresses/${id}/set-default`);
 export const deleteAddress     = (id)                  => api.delete(`/addresses/${id}`);
+
+export const getPointsLedger = (customer_id, params) =>
+  api.get(`/loyalty/customers/${customer_id}/ledger`, { params });
+export const adjustPointsBalance = (customer_id, body) =>
+  api.post(`/loyalty/customers/${customer_id}/adjust`, body);
+
+export const getReferrals = (customer_id) => api.get(`/loyalty/customers/${customer_id}/referrals`);

@@ -21,5 +21,6 @@ router.patch('/:id/cancel',           canUpdate, ctrl.cancel.bind(ctrl));
 router.get('/:id/pickers',            canView,   ctrl.pickersForNode.bind(ctrl));
 router.post('/:id/assign-picker',     canUpdate, ctrl.assignPicker.bind(ctrl));
 router.patch('/:id/confirm-pickup',   canUpdate, ctrl.confirmPickup.bind(ctrl));
+router.patch('/:id/slot', canUpdate, ctrl.updateSlot.bind(ctrl));
 
 module.exports = router;

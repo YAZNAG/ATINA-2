@@ -6,18 +6,20 @@ const PACK_INCLUDE = {
       sku: {
         select: {
           id: true,
-          article: {
-            select: {
-              name_fr: true, name_ar: true, sku_code: true, price: true,
-              unit_sale: true, vat_rate: true,
-              category_id: true,   // ← ajouté, ne casse rien côté formatPack
-              tax: { select: { rate: true } },
-              images: {
-                where:  { is_main: true },
-                select: { image_path: true },
-                take: 1,
-              },
-            },
+          name_fr: true, name_ar: true, sku_code: true, price: true,
+          unit_sale: true, vat_rate: true,
+          category_id: true,
+          tax: { select: { rate: true } },
+          images: {
+            where:  { is_primary: true },
+            select: { url: true },
+            take: 1,
+          },
+          stock_levels: {
+            select: { node_id: true, qty_available: true },
+          },
+          selling_rules: {
+            select: { node_id: true, is_backorderable: true, is_sellable: true },
           },
         },
       },
@@ -28,8 +30,8 @@ const PACK_INCLUDE = {
 
 function computePackPrices(packItems, { discount_type, discount_value, total_price } = {}) {
   const original = packItems.reduce((sum, it) => {
-    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0);
-    const vatRate = Number(it.sku?.article?.tax?.rate ?? it.sku?.article?.vat_rate ?? 20);
+    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.price ?? 0);
+    const vatRate = Number(it.sku?.tax?.rate ?? it.sku?.vat_rate ?? 20);
     const priceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
     const qty = Number(it.qty ?? 1);
     return sum + priceTtc * qty;
@@ -67,23 +69,79 @@ function resolveImageUrl(imagePath) {
   return `${base}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
 }
 
+function resolveComponentAvailability(sku, packNodeId) {
+  const stockRows = sku?.stock_levels ?? [];
+  const ruleRows = sku?.selling_rules ?? [];
+
+  if (packNodeId) {
+    const stock = stockRows.find(s => s.node_id === packNodeId);
+    const rule = ruleRows.find(r => r.node_id === packNodeId);
+    return {
+      qtyAvailable: Number(stock?.qty_available ?? 0),
+      isBackorderable: rule?.is_backorderable ?? false,
+      isSellable: rule?.is_sellable ?? true,
+    };
+  }
+
+  // No node on the pack: aggregate across all nodes.
+  const qtyAvailable = stockRows.reduce((sum, s) => sum + Number(s.qty_available ?? 0), 0);
+  const isBackorderable = ruleRows.some(r => r.is_backorderable);
+  const isSellable = ruleRows.length === 0 || ruleRows.some(r => r.is_sellable);
+  return { qtyAvailable, isBackorderable, isSellable };
+}
+
+function computePackAvailability(packItems, packNodeId, maxPackQty, overrideBackorderable) {
+  if (!packItems.length) {
+    return { assemblableCount: 0, vendableCount: 0, isAvailable: false, effectiveBackorderable: !!overrideBackorderable };
+  }
+
+  let assemblableCount = Infinity;
+  let allBackorderable = true;
+
+  packItems.forEach(it => {
+    const { qtyAvailable, isBackorderable } = resolveComponentAvailability(it.sku, packNodeId);
+    const qtyRequise = Number(it.qty ?? 1);
+    const itemAssemblable = qtyRequise > 0 ? Math.floor(qtyAvailable / qtyRequise) : 0;
+    assemblableCount = Math.min(assemblableCount, itemAssemblable);
+    if (!isBackorderable) allBackorderable = false;
+  });
+
+  assemblableCount = Math.max(0, assemblableCount);
+  const cap = maxPackQty != null ? Number(maxPackQty) : Infinity;
+  const vendableCount = Math.min(assemblableCount, cap);
+  // L'override admin (is_backorderable sur le pack) prime sur les règles SKU.
+  const effectiveBackorderable = overrideBackorderable === true ? true : allBackorderable;
+  const isAvailable = effectiveBackorderable || assemblableCount >= 1;
+
+  return { assemblableCount, vendableCount, isAvailable, effectiveBackorderable };
+}
+
 function formatPack(pack) {
   const items = (pack.pack_items ?? []).map(it => {
-    const vatRate = Number(it.sku?.article?.tax?.rate ?? it.sku?.article?.vat_rate ?? 20);
-    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.article?.price ?? 0);
-    const priceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100; 
+    const vatRate = Number(it.sku?.tax?.rate ?? it.sku?.vat_rate ?? 20);
+    const priceHt = Number(it.unit_price_in_pack ?? it.sku?.price ?? 0);
+    const priceTtc = Math.round(priceHt * (1 + vatRate / 100) * 100) / 100;
+    const qty = Number(it.qty ?? 1);
+
+    const { qtyAvailable } = resolveComponentAvailability(it.sku, pack.node_id);
+    const itemAssemblable = qty > 0 ? Math.max(0, Math.floor(qtyAvailable / qty)) : 0;
 
     return {
       sku_id:     it.sku_id,
-      name_fr:    it.sku?.article?.name_fr,
-      name_ar:    it.sku?.article?.name_ar,
-      sku_code:   it.sku?.article?.sku_code,
-      qty:        Number(it.qty ?? 1),
+      name_fr:    it.sku?.name_fr,
+      name_ar:    it.sku?.name_ar,
+      sku_code:   it.sku?.sku_code,
+      qty,
       unit_price: priceTtc,
-      unit_label: it.sku?.article?.unit_sale ?? null,
-      image_url:  resolveImageUrl(it.sku?.article?.images?.[0]?.image_path),
+      unit_label: it.sku?.unit_sale ?? null,
+      image_url:  resolveImageUrl(it.sku?.images?.[0]?.url),
+      stock_available: qtyAvailable,
+      assemblable:     itemAssemblable,
     };
   });
+
+  const { assemblableCount, vendableCount, isAvailable, effectiveBackorderable } =
+    computePackAvailability(pack.pack_items ?? [], pack.node_id, pack.max_pack_qty, pack.is_backorderable);
 
   return {
     id:             pack.id,
@@ -100,6 +158,12 @@ function formatPack(pack) {
     valid_from:     pack.valid_from,
     valid_to:       pack.valid_to,
     is_active:      pack.is_active,
+    assemblable_count:    assemblableCount,
+    vendable_count:       vendableCount,
+    max_pack_qty:         pack.max_pack_qty ?? null,
+    is_backorderable:     pack.is_backorderable ?? false,
+    effective_backorderable: effectiveBackorderable,
+    is_available:         isAvailable,
     items,
     item_count:     items.length,
   };

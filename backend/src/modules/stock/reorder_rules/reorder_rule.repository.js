@@ -8,22 +8,32 @@ const findWithFilters = async ({
   node_id, sku_id, category_id,
   low_stock, critical_stock, overstock, is_active, supplier_id,
 } = {}) => {
-  const articleWhere = { is_active: true, is_deleted: false, sku_uuid: { not: null } };
-  if (category_id) articleWhere.category_id = Number(category_id);
-  if (sku_id)      articleWhere.sku_uuid = sku_id;
+  const skuWhere = { is_active: true, is_deleted: false };
+  if (category_id) skuWhere.category_id = category_id;
+  if (sku_id)      skuWhere.id = sku_id;
 
-  const articles = await prisma.article.findMany({
-    where: articleWhere,
+
+  let sellingRules = [];
+  if (node_id) {
+    sellingRules = await prisma.sellingRule.findMany({
+      where: { node_id, is_sellable: true, ...(sku_id ? { sku_id } : {}) },
+    });
+    const sellableIds = sellingRules.map((sr) => sr.sku_id);
+    if (!sellableIds.length) return [];
+    skuWhere.id = sku_id ? sku_id : { in: sellableIds };
+  }
+
+  const skus = await prisma.sku.findMany({
+    where: skuWhere,
     include: {
-      catalog_sku: { include: { images: { where: { is_primary: true }, take: 1 } } },
-      images:       { where: { is_main: true }, take: 1 },
-      category:     { select: { id: true, name_fr: true, code: true } },
-      family:       { select: { id: true, name_fr: true, code: true } },
+      images:     { where: { is_primary: true }, take: 1 },
+      category:   { select: { id: true, name_fr: true, code: true } },
+      sku_family: { select: { id: true, name_fr: true, code: true } },
     },
     orderBy: { name_fr: 'asc' },
   });
 
-  const skuIds = articles.map((a) => a.sku_uuid).filter(Boolean);
+  const skuIds = skus.map((s) => s.id);
   if (!skuIds.length) return [];
 
   const levelWhere = { sku_id: { in: skuIds } };
@@ -42,51 +52,52 @@ const findWithFilters = async ({
     }),
   ]);
 
-  const levelsMap = Object.fromEntries(levels.map((l) => [l.sku_id, l]));
-  const rulesMap  = Object.fromEntries(rules.map((r)  => [r.sku_id, r]));
+  const levelsMap  = Object.fromEntries(levels.map((l) => [l.sku_id, l]));
+  const rulesMap   = Object.fromEntries(rules.map((r)  => [r.sku_id, r]));
+  const pricesMap  = Object.fromEntries(sellingRules.map((sr) => [sr.sku_id, sr]));
 
-  let rows = articles
-    .filter((a) => a.catalog_sku)
-    .map((a) => {
-      const level = levelsMap[a.sku_uuid] ?? null;
-      const rule  = rulesMap[a.sku_uuid]  ?? null;
-      return {
-        rule_id:               rule?.id ?? null,
-        node_id:               node_id ?? rule?.node_id ?? null,
-        sku_id:                a.sku_uuid,
-        has_rule:              rule !== null,
-        has_stock_level:       level !== null,
-        is_active:             rule?.is_active ?? true,
-        safety_stock:          N(rule?.safety_stock),
-        reorder_point:         N(rule?.reorder_point),
-        economic_qty:          N(rule?.economic_qty),
-        max_stock:             rule?.max_stock != null ? N(rule.max_stock) : null,
-        lead_time_days:        rule?.lead_time_days ?? 1,
-        costing_method_id:     rule?.costing_method_id ?? null,
-        preferred_supplier_id: rule?.preferred_supplier_id ?? null,
-        costing_method:        rule?.costing_method ?? null,
-        preferred_supplier:    rule?.preferred_supplier ?? null,
-        updated_at:            rule?.updated_at ?? null,
-        qty_available:         N(level?.qty_available),
-        qty_physical:          N(level?.qty_physical),
-        qty_reserved:          N(level?.qty_reserved),
-        qty_incoming:          N(level?.qty_incoming),
-        sku: {
-          id:     a.catalog_sku.id,
-          images: a.catalog_sku.images,
-          article: {
-            id:       a.id,
-            sku_code: a.sku_code,
-            ean13:    a.ean13,
-            name_fr:  a.name_fr,
-            name_ar:  a.name_ar,
-            category: a.category,
-            family:   a.family,
-            images:   a.images,
-          },
+  let rows = skus.map((s) => {
+    const level = levelsMap[s.id] ?? null;
+    const rule  = rulesMap[s.id]  ?? null;
+    const price = pricesMap[s.id] ?? null;
+    return {
+      rule_id:               rule?.id ?? null,
+      node_id:               node_id ?? rule?.node_id ?? null,
+      sku_id:                s.id,
+      has_rule:              rule !== null,
+      has_stock_level:       level !== null,
+      is_active:             rule?.is_active ?? true,
+      safety_stock:          N(rule?.safety_stock),
+      reorder_point:         N(rule?.reorder_point),
+      economic_qty:          N(rule?.economic_qty),
+      max_stock:             rule?.max_stock != null ? N(rule.max_stock) : null,
+      lead_time_days:        rule?.lead_time_days ?? 1,
+      costing_method_id:     rule?.costing_method_id ?? null,
+      preferred_supplier_id: rule?.preferred_supplier_id ?? null,
+      costing_method:        rule?.costing_method ?? null,
+      preferred_supplier:    rule?.preferred_supplier ?? null,
+      updated_at:            rule?.updated_at ?? null,
+      qty_available:         N(level?.qty_available),
+      qty_physical:          N(level?.qty_physical),
+      qty_reserved:          N(level?.qty_reserved),
+      qty_incoming:          N(level?.qty_incoming),
+      price_ttc:             price ? N(price.price) : null,
+      sku: {
+        id:      s.id,
+        images:  s.images,
+        article: {
+          id:       s.id,
+          sku_code: s.sku_code,
+          ean13:    s.ean13,
+          name_fr:  s.name_fr,
+          name_ar:  s.name_ar,
+          category: s.category,
+          family:   s.sku_family,
+          images:   s.images,
         },
-      };
-    });
+      },
+    };
+  });
 
   // Boolean filters
   if (is_active !== undefined) {
@@ -157,9 +168,33 @@ const update = (id, data) =>
 const remove = (id) =>
   prisma.reorderRule.delete({ where: { id } });
 
-const bulkSave = (rows) =>
-  prisma.$transaction(
-    rows.map(({ node_id, sku_id, ...data }) =>
+const bulkSave = async (rows) => {
+  // L'import CSV envoie sku_code plutôt que sku_id — on le résout ici.
+  const codes = rows.filter((r) => !r.sku_id && r.sku_code).map((r) => r.sku_code);
+  let skuByCode = {};
+  if (codes.length) {
+    const skus = await prisma.sku.findMany({
+      where: { sku_code: { in: codes } },
+      select: { id: true, sku_code: true },
+    });
+    skuByCode = Object.fromEntries(skus.map((s) => [s.sku_code, s.id]));
+  }
+
+  const resolved = rows.map(({ node_id, sku_id, sku_code, ...data }) => ({
+    node_id,
+    sku_id: sku_id || skuByCode[sku_code],
+    ...data,
+  }));
+
+  const unresolved = resolved.filter((r) => !r.sku_id);
+  if (unresolved.length) {
+    const err = new Error(`SKU introuvable pour ${unresolved.length} ligne(s)`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return prisma.$transaction(
+    resolved.map(({ node_id, sku_id, ...data }) =>
       prisma.reorderRule.upsert({
         where:  { node_id_sku_id: { node_id, sku_id } },
         update: data,
@@ -167,6 +202,7 @@ const bulkSave = (rows) =>
       })
     )
   );
+};
 
 // ─── Business logic ───────────────────────────────────────────────────────────
 

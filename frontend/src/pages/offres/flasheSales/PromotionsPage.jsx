@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Zap, Tag, Trash2, Pencil, Power, PowerOff, Lock, Search, ImageOff } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { promotionsApi } from '../../../api/promotions.api';
+import { getPromotions, updatePromotion, deletePromotion } from '../../../api/offres.api';
 
 const TABS = [
   { key: 'flash', label: 'Ventes Flash', icon: Zap, scopes: ['sku', 'pack'] },
@@ -48,7 +48,7 @@ export default function PromotionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await promotionsApi.getAll({
+      const { data } = await getPromotions({
         limit: 200,
         ...(status && { status }),
         ...(search && { search }),
@@ -75,7 +75,7 @@ export default function PromotionsPage() {
   async function handleToggleStatus(promo) {
     setTogglingId(promo.id);
     try {
-      await promotionsApi.update(promo.id, { is_active: !promo.is_active });
+      await updatePromotion(promo.id, { is_active: !promo.is_active });
       fetchAll();
     } catch (err) {
       alert(err?.response?.data?.message ?? 'Erreur');
@@ -87,7 +87,7 @@ export default function PromotionsPage() {
   async function handleDelete(promo) {
     if (!confirm(`Supprimer "${promo.name_fr || promo.scope_name}" ?`)) return;
     try {
-      await promotionsApi.remove(promo.id);
+      await deletePromotion(promo.id);
       fetchAll();
     } catch (err) {
       alert(err?.response?.data?.message ?? 'Erreur');

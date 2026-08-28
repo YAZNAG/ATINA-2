@@ -4,16 +4,13 @@ const INCLUDE = {
   node:      { select: { id: true, code: true, name_fr: true } },
   move_type: { select: { id: true, code: true, name_fr: true, name_ar: true, operation: true, color: true } },
   lot:       { select: { id: true, lot_number: true, cost_unit: true, expiry_date: true } },
+  operator:  { select: { id: true, full_name: true } },
+  order:     { select: { id: true } }, // Order has no human-readable reference field — id only for now
   sku: {
     select: {
-      id: true,
-      images: { where: { is_primary: true }, take: 1, select: { url: true } },
-      article: {
-        select: {
-          id: true, name_fr: true, name_ar: true, sku_code: true, ean13: true,
-          category: { select: { id: true, name_fr: true } },
-        },
-      },
+      id: true, sku_code: true, ean13: true, name_fr: true, name_ar: true,
+      images:   { where: { is_primary: true }, take: 1, select: { url: true } },
+      category: { select: { id: true, name_fr: true } },
     },
   },
 };
@@ -59,5 +56,6 @@ const getStats = async (node_id) => {
   ]);
   return { total, today_count, in_count, out_count };
 };
+
 
 module.exports = { findWithFilters, findById, getStats };

@@ -7,23 +7,28 @@ const { notifyOrderReady, notifyInDelivery, notifyDelivered, notifyCancelled } =
 
 // ── Status transition rules ───────────────────────────────────────────────────
 const TRANSITIONS = {
-  pending:        ['confirmed', 'cancelled'],
-  confirmed:      ['picking',   'cancelled'],
-  picking:        ['ready', 'awaiting_stock', 'cancelled'],
-  awaiting_stock: ['picking', 'cancelled'],
-  ready:          ['in_delivery','cancelled'],
-  in_delivery:    ['delivered', 'cancelled', 'returned'],
+  PENDING:             ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED:           ['PICKING', 'CANCELLED'],
+  PICKING:             ['READY', 'CANCELLED'],
+  READY:               ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
+  OUT_FOR_DELIVERY:    ['DELIVERED', 'PARTIALLY_DELIVERED', 'RETURNED', 'CANCELLED'],
+  PARTIALLY_DELIVERED: ['DELIVERED', 'RETURNED'],
 };
 
 const STATUS_LABELS = {
-  confirmed:   'Confirmer',
-  picking:     'Lancer picking',
-  ready:       'Marquer prête',
-  in_delivery: 'Lancer livraison',
-  delivered:   'Marquer livrée',
-  cancelled:   'Annuler',
-  returned:    'Retourner',
+  CONFIRMED:           'Confirmer',
+  PICKING:             'Lancer picking',
+  READY:               'Marquer prête',
+  OUT_FOR_DELIVERY:    'Lancer livraison',
+  DELIVERED:           'Marquer livrée',
+  PARTIALLY_DELIVERED: 'Marquer partiellement livrée',
+  CANCELLED:           'Annuler',
+  RETURNED:            'Retourner',
 };
+
+function normalizeCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
 
 class OrderMgmtService {
   async list(params) {
@@ -42,65 +47,78 @@ class OrderMgmtService {
   async getTransitions(id) {
     const order = await repo.findById(id);
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-    const allowed = TRANSITIONS[order.status.code] ?? [];
+    const allowed = TRANSITIONS[normalizeCode(order.status.code)] ?? [];
     return allowed.map(code => ({ code, label: STATUS_LABELS[code] ?? code }));
   }
 
   async changeStatus(id, new_status_code, changed_by = null) {
-  const order = await repo.findById(id);
-  if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-  if (order.status.is_terminal)
-    throw { statusCode: 422, message: `Statut "${order.status.name_fr}" est terminal — aucune transition possible` };
+    const order = await repo.findById(id);
+    if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+    if (order.status.is_terminal)
+      throw { statusCode: 422, message: `Statut "${order.status.name_fr}" est terminal — aucune transition possible` };
 
-  const deliveryCode = order.delivery_type?.code;
-  let allowed = TRANSITIONS[order.status.code] ?? [];
-  if (deliveryCode === 'pickup') {
-    allowed = allowed.filter(c => c !== 'in_delivery');
-  } else {
-    allowed = allowed.filter(c => c !== 'picked_up');
-  }
-  if (!allowed.includes(new_status_code))
-    throw { statusCode: 422, message: `Transition "${order.status.code}" → "${new_status_code}" non autorisée pour ce type de livraison. Transitions valides: ${allowed.join(', ') || 'aucune'}` };
+    const currentCode = normalizeCode(order.status.code);
+    const nextCode = normalizeCode(new_status_code);
+    const deliveryCode = normalizeCode(order.delivery_type?.code);
+    let allowed = TRANSITIONS[currentCode] ?? [];
 
-  const newStatus = await repo.getStatusByCode(new_status_code);
-  if (!newStatus) throw { statusCode: 404, message: `Statut "${new_status_code}" introuvable en base` };
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const upd = await tx.order.update({ where: { id }, data: { status_id: newStatus.id }, include: repo.DETAIL_INCLUDE });
-    await tx.orderHistory.create({ data: { order_id: id, status_id: newStatus.id, changed_by, note: null } });
-
-    if (new_status_code === 'delivered') {
-      await loyalty.creditPointsOnDelivery(tx, order.customer_id, order, newStatus.id);
+    if (deliveryCode === 'PICKUP') {
+      allowed = allowed.filter(code => code !== 'OUT_FOR_DELIVERY');
+    } else if (currentCode === 'READY') {
+      allowed = allowed.filter(code => code !== 'DELIVERED');
     }
 
-    return upd;
-  });
+    if (!allowed.includes(nextCode))
+      throw {
+        statusCode: 422,
+        message: `Transition "${currentCode}" → "${nextCode}" non autorisée pour ce type de livraison. Transitions valides: ${allowed.join(', ') || 'aucune'}`,
+      };
 
-  if (new_status_code === 'delivered') {
-    setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, id).catch(() => {}));
+    const newStatus = await repo.getStatusByCode(nextCode);
+    if (!newStatus) throw { statusCode: 404, message: `Statut "${nextCode}" introuvable en base` };
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const upd = await tx.order.update({
+        where: { id },
+        data: { status_id: newStatus.id },
+        include: repo.DETAIL_INCLUDE,
+      });
+      await tx.orderHistory.create({
+        data: { order_id: id, status_id: newStatus.id, changed_by, note: null },
+      });
+
+      if (nextCode === 'DELIVERED') {
+        await loyalty.creditPointsOnDelivery(tx, order.customer_id, order, newStatus.id);
+      }
+
+      return upd;
+    });
+
+    if (nextCode === 'DELIVERED') {
+      setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, id).catch(() => {}));
+    }
+
+    const NOTIFY = {
+      READY:            () => notifyOrderReady(order.customer_id, id, order.delivery_type?.code),
+      OUT_FOR_DELIVERY: () => notifyInDelivery(order.customer_id, id),
+      DELIVERED:        () => notifyDelivered(order.customer_id, id),
+    };
+    NOTIFY[nextCode]?.()?.catch(() => {});
+
+    if (nextCode === 'PICKING') {
+      pickingService.createSession(id).catch(err =>
+        console.warn('[picking] Création session auto échouée:', err.message)
+      );
+    }
+
+    return updated;
   }
-
-  const NOTIFY = {
-    ready:       () => notifyOrderReady(order.customer_id, id, order.delivery_type?.code),
-    in_delivery: () => notifyInDelivery(order.customer_id, id),
-    delivered:   () => notifyDelivered(order.customer_id, id),
-  };
-  NOTIFY[new_status_code]?.()?.catch(() => {});
-
-  if (new_status_code === 'picking') {
-    pickingService.createSession(id).catch(err =>
-      console.warn('[picking] Création session auto échouée:', err.message)
-    );
-  }
-
-  return updated;
-}
 
   async cancel(id, reason, changed_by = null) {
     const order = await repo.findById(id);
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
 
-    const result = await this.changeStatus(id, 'cancelled', changed_by);
+    const result = await this.changeStatus(id, 'CANCELLED', changed_by);
 
     // Release reserved stock: qty_reserved-- + qty_available++ (restore availability)
     // Formula: qty_available = qty_physical - qty_reserved → reserved-- → available++ ✓
@@ -148,7 +166,7 @@ class OrderMgmtService {
     // Coupon : décrémenter uses_count seulement si le paiement n'est pas encore confirmé
     if (order.promotion_id) {
       const isPaid = (order.payments ?? []).some(p =>
-        ['collected', 'paid', 'captured'].includes(p.status?.code)
+        ['COLLECTED', 'PAID', 'CAPTURED'].includes(normalizeCode(p.status?.code))
       );
       if (!isPaid) {
         await Promise.all([
@@ -202,12 +220,12 @@ class OrderMgmtService {
       },
     });
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-    if (order.status.code === 'picked_up')
-  throw { statusCode: 422, message: 'Commande déjà clôturée (retrait confirmé)' };
-    if (order.delivery_type?.code !== 'pickup')
+    if (normalizeCode(order.status.code) === 'DELIVERED')
+      throw { statusCode: 422, message: 'Commande déjà clôturée (retrait confirmé)' };
+    if (normalizeCode(order.delivery_type?.code) !== 'PICKUP')
       throw { statusCode: 422, message: 'Cette commande n\'est pas de type retrait magasin (pickup)' };
-    if (order.status.code !== 'ready')
-      throw { statusCode: 422, message: `Statut "${order.status.name_fr}" — retrait impossible (statut requis : ready)` };
+    if (normalizeCode(order.status.code) !== 'READY')
+      throw { statusCode: 422, message: `Statut "${order.status.name_fr}" — retrait impossible (statut requis : READY)` };
     if (payment_collected !== true)
       throw { statusCode: 422, message: 'Confirmation requise : indiquez payment_collected: true après encaissement' };
 
@@ -216,9 +234,9 @@ class OrderMgmtService {
     if (!primaryPayment)
       throw { statusCode: 422, message: 'Aucun paiement enregistré pour cette commande' };
 
-    const isCOD = primaryPayment.payment_method?.code === 'cod';
-    const payCode = primaryPayment.status?.code;
-    if (!['pending', 'collected'].includes(payCode || ''))
+    const isCOD = ['COD', 'CASH'].includes(normalizeCode(primaryPayment.payment_method?.code));
+    const payCode = normalizeCode(primaryPayment.status?.code);
+    if (!['PENDING', 'COLLECTED'].includes(payCode))
       throw { statusCode: 422, message: `Statut paiement incompatible (${payCode}) — impossible de confirmer le retrait` };
 
     for (const item of order.items) {
@@ -233,27 +251,25 @@ class OrderMgmtService {
       }
     }
 
-    const [pickedUpStatus, collectedPayStatus, saleMoveType] = await Promise.all([
-      prisma.orderStatus.findFirst({ where: { code: 'picked_up' } }),
-      prisma.paymentStatus.findFirst({ where: { code: 'collected' } }),
+    const [deliveredStatus, collectedPayStatus, saleMoveType] = await Promise.all([
+      prisma.orderStatus.findFirst({ where: { code: 'DELIVERED' } }),
+      prisma.paymentStatus.findFirst({ where: { code: 'COLLECTED' } }),
       prisma.moveType.findFirst({ where: { code: 'sale' } }).then((m) => m || prisma.moveType.findFirst({ where: { code: 'VENTE' } })),
     ]);
-    if (!pickedUpStatus) throw { statusCode: 500, message: 'Statut "picked_up" introuvable — lancez le seed' };
-    if (!collectedPayStatus) throw { statusCode: 500, message: 'Statut paiement "collected" introuvable' };
+    if (!deliveredStatus) throw { statusCode: 500, message: 'Statut "DELIVERED" introuvable — lancez le seed' };
+    if (!collectedPayStatus) throw { statusCode: 500, message: 'Statut paiement "COLLECTED" introuvable' };
 
     const historyNote = note?.trim() || 'Commande retirée au magasin';
 
     await prisma.$transaction(async (tx) => {
-      if (payCode === 'pending') {
+      if (payCode === 'PENDING') {
         await tx.payment.update({ where: { id: primaryPayment.id }, data: { status_id: collectedPayStatus.id } });
       }
 
       for (const item of order.items) {
         if (!item.sku_id) continue;
         const qty = Number(item.qty);
-        // Formula: qty_available = qty_physical - qty_reserved
-        // At delivery: physical decrements + reservation released → qty_available unchanged
-        // (physical - qty) - (reserved - qty) = physical - reserved = qty_available ✓
+        
         const upd = await tx.stockLevel.updateMany({
           where: {
             node_id: order.node_id,
@@ -283,15 +299,15 @@ class OrderMgmtService {
       await tx.order.update({
         where: { id: order_id },
         data: {
-          status_id: pickedUpStatus.id,
+          status_id: deliveredStatus.id,
           ...(isCOD && !order.cod_collected_at ? { cod_collected_at: new Date() } : {}),
         },
       });
 
       // Credit points using rules engine
-      await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: order_id }, pickedUpStatus.id);
+      await loyalty.creditPointsOnDelivery(tx, order.customer_id, { ...order, id: order_id }, deliveredStatus.id);
       await tx.orderHistory.create({
-        data: { order_id, status_id: pickedUpStatus.id, changed_by, note: historyNote },
+        data: { order_id, status_id: deliveredStatus.id, changed_by, note: historyNote },
       });
     });
 
@@ -311,13 +327,76 @@ class OrderMgmtService {
   }
 
   async meta() {
-    const [statusCounts, nodes, deliveryTypes] = await Promise.all([
-      repo.countByStatus(),
-      repo.getNodes(),
-      repo.getDeliveryTypes(),
-    ]);
-    return { status_counts: statusCounts, nodes, delivery_types: deliveryTypes };
+  const [
+    statusCounts,
+    nodes,
+    deliveryTypes,
+    slots,
+  ] = await Promise.all([
+    repo.countByStatus(),
+    repo.getNodes(),
+    repo.getDeliveryTypes(),
+    repo.getSlots(),
+  ]);
+
+  return {
+    status_counts: statusCounts,
+    nodes,
+    delivery_types: deliveryTypes,
+    slots,
+  };
+}
+
+
+async updateSlot(order_id, slot_id, changed_by = null) {
+  const order = await repo.findById(order_id);
+
+  if (!order) {
+    throw {
+      statusCode: 404,
+      message: 'Commande introuvable',
+    };
   }
+
+  if (order.status?.is_terminal) {
+    throw {
+      statusCode: 422,
+      message: 'Impossible de modifier le créneau d’une commande clôturée',
+    };
+  }
+
+  const slot = await prisma.deliverySlot.findFirst({
+    where: {
+      id: slot_id,
+    },
+    select: {
+      id: true,
+      name_fr: true,
+      slot_start: true,
+      slot_end: true,
+      day_of_week: true,
+    },
+  });
+
+  if (!slot) {
+    throw {
+      statusCode: 404,
+      message: 'Créneau introuvable',
+    };
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: {
+      id: order_id,
+    },
+    data: {
+      confirmed_slot_id: slot_id,
+    },
+    include: repo.DETAIL_INCLUDE,
+  });
+
+  return updatedOrder;
+}
 }
 
 module.exports = new OrderMgmtService();

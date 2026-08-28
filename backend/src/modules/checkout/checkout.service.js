@@ -2,6 +2,10 @@ const prisma = require('../../config/database');
 const repo   = require('./checkout.repository');
 const { resolveItemPrice } = require('./pricing.shared');
 
+// ── Groupes de codes équivalents ──────────────────────────────────────────────
+const HOME_LIKE_CODES   = ['HOME_DELIVERY', 'SCHEDULED'];
+const PICKUP_LIKE_CODES = ['PICKUP', 'IN_STORE'];
+
 // ── City normalizer ───────────────────────────────────────────────────────────
 function normalizeCity(s) {
   if (!s) return '';
@@ -24,10 +28,7 @@ function targetDate(input) {
 }
 
 // ── opening_hours_json parser ─────────────────────────────────────────────────
-// Supports multiple formats:
-//   { "mon": ["08:00", "22:00"] }     (named keys + array)
-//   { "1": { "open": "08:00", "close": "22:00" } }  (numeric keys + object)
-//   { "1": null }                     (explicitly closed)
+
 const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 function isDayOpen(openingHoursJson, dayOfWeek) {
@@ -276,7 +277,7 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
 
   // 5. Delivery fee
   let delivery_fee = 0;
-  if (delivery_type_code !== 'pickup') {
+ if (!PICKUP_LIKE_CODES.includes(delivery_type_code)) {
     delivery_fee = (freeDeliveryThreshold > 0 && subtotal_ttc >= freeDeliveryThreshold)
       ? 0
       : deliveryFeeConfig;
@@ -307,7 +308,8 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
 
   // 7. Total
   const total_ttc = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_deduction).toFixed(2));
-  const cod_amount = payment_method_code === 'cod' ? total_ttc : 0;
+  const normalizedPaymentCode = String(payment_method_code || '').trim().toLowerCase();
+  const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode) ? total_ttc : 0;
 
   return {
     items:          enrichedItems,
@@ -416,7 +418,7 @@ async function getDeliverySlots(params) {
   const checkDate = targetDate(date);
   const dayOfWeek = checkDate.getDay();
 
-  if (deliveryType.code === 'home') {
+  if (HOME_LIKE_CODES.includes(deliveryType.code)) {
     if (!address_id) throw { statusCode: 400, message: 'address_id requis pour livraison à domicile' };
     const result = await findEligibleNodes(address_id, cart_items, checkDate);
 
@@ -443,7 +445,7 @@ async function getDeliverySlots(params) {
     };
   }
 
-  if (deliveryType.code === 'pickup') {
+  if (PICKUP_LIKE_CODES.includes(deliveryType.code)) {
     // If node_id provided → slots for that specific node
     if (node_id) {
       const node = await repo.getNodeById(node_id);
@@ -483,7 +485,7 @@ async function createOrder(payload) {
     wallet_used: walletRequested = 0,
     promo_code = null, 
     // 'confirmed' for customer self-checkout; 'pending' for back-office (default)
-    initial_status_code = 'pending',
+    initial_status_code = 'PENDING',
   } = payload;
 
   // Basic validation
@@ -512,7 +514,7 @@ async function createOrder(payload) {
   let finalNodeId    = node_id || null;
   let needsBackorder = false;
 
-  if (deliveryType.code === 'home') {
+  if (HOME_LIKE_CODES.includes(deliveryType.code)) {
     if (!address_id) throw { statusCode: 400, message: 'address_id requis pour livraison à domicile' };
     if (finalNodeId) {
       const s = await checkStock(finalNodeId, cart_items, { strict: false });
@@ -535,21 +537,40 @@ async function createOrder(payload) {
   // Statuses
   const targetCode = initial_status_code; 
   const [orderStatusRow, activeItem, pendingPayment, reservationMoveType, debitTxnType] = await Promise.all([
-    repo.getOrderStatusByCode(targetCode).then(s => s || repo.getOrderStatusByCode('pending')),
-    repo.getOrderItemStatusByCode('active'),
-    repo.getPaymentStatusByCode('pending'),
+    repo.getOrderStatusByCode(targetCode).then(s => s || repo.getOrderStatusByCode('PENDING')),
+    repo.getOrderItemStatusByCode('PENDING'),
+    repo.getPaymentStatusByCode('PENDING'),
     prisma.moveType.findFirst({ where: { code: { in: ['reservation', 'RESERVATION', 'reserve'] } } }),
     prisma.walletTxnType.findFirst({ where: { code: 'debit_order' } }),
   ]);
   const orderStatus = orderStatusRow;
   if (!orderStatus) throw { statusCode: 500, message: 'Statut commande introuvable — lancez le seed' };
-  if (!activeItem)  throw { statusCode: 500, message: 'Statut ligne "active" introuvable — lancez le seed' };
+  if (!activeItem)  throw { statusCode: 500, message: 'Statut ligne "PENDING" introuvable — lancez le seed' };
 
   // Payment method (accept code or id)
-  let paymentMethodId = payment_method_id || null;
-  if (!paymentMethodId && payment_method_code) {
-    const pm = await repo.getPaymentMethodByCode(payment_method_code);
-    if (pm) paymentMethodId = pm.id;
+  const paymentMethod = payment_method_id
+    ? await repo.getPaymentMethod(payment_method_id)
+    : payment_method_code
+      ? await repo.getPaymentMethodByCode(payment_method_code)
+      : null;
+
+  if (!paymentMethod) {
+    throw {
+      statusCode: 400,
+      message: 'Mode de paiement invalide ou manquant',
+    };
+  }
+
+  const paymentMethodId = paymentMethod.id;
+
+  // Ne jamais créer une commande sans son paiement associé. Avant cette
+  // vérification, un statut PENDING en majuscules rendait pendingPayment null
+  // et le bloc de création était ignoré sans erreur.
+  if (!pendingPayment) {
+    throw {
+      statusCode: 500,
+      message: 'Statut de paiement "PENDING" introuvable — lancez le seed',
+    };
   }
 
   const configs        = await repo.getAppConfigs(finalNodeId);
@@ -599,7 +620,7 @@ async function createOrder(payload) {
 
   // Delivery fee
   let delivery_fee = 0;
-  if (deliveryType.code !== 'pickup') {
+  if (!PICKUP_LIKE_CODES.includes(deliveryType.code)) {
     delivery_fee = (freeDeliveryThreshold > 0 && subtotal_ttc >= freeDeliveryThreshold)
       ? 0 : deliveryFeeConf;
   }
@@ -616,7 +637,10 @@ async function createOrder(payload) {
   const wallet_used = parseFloat(Math.max(0, maxWallet).toFixed(2));
 
   const total_ttc  = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_used).toFixed(2));
-  const cod_amount = (deliveryType.code === 'pickup' || !paymentMethodId) ? total_ttc : total_ttc;
+  const normalizedPaymentCode = String(paymentMethod.code || '').trim().toLowerCase();
+  const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode)
+    ? total_ttc
+    : 0;
 
   // Transaction
   const order = await prisma.$transaction(async (tx) => {
@@ -645,6 +669,12 @@ async function createOrder(payload) {
         delivery_type: true,
         node:         { select: { id: true, name_fr: true, code: true } },
         customer:     { select: { id: true, name: true, phone_number: true } },
+        payments: {
+          include: {
+            payment_method: true,
+            status: true,
+          },
+        },
       },
     });
 
@@ -772,18 +802,16 @@ async function createOrder(payload) {
       }
     }
 
-    // Payment
-    if (paymentMethodId && pendingPayment) {
-      await tx.payment.create({
-        data: {
-          order_id:          newOrder.id,
-          status_id:         pendingPayment.id,
-          payment_method_id: paymentMethodId,
-          amount:            total_ttc,
-          currency:          'MAD',
-        },
-      });
-    }
+    // Payment — obligatoire pour chaque commande.
+    await tx.payment.create({
+      data: {
+        order_id:          newOrder.id,
+        status_id:         pendingPayment.id,
+        payment_method_id: paymentMethodId,
+        amount:            total_ttc,
+        currency:          'MAD',
+      },
+    });
 
     // ── Coupon : enregistrer l'utilisation (traçabilité + limites) ────────────
     if (appliedPromo) {
@@ -802,7 +830,7 @@ async function createOrder(payload) {
     }
 
     // History
-    const histNote = initial_status_code === 'confirmed'
+    const histNote = initial_status_code === 'CONFIRMED'
       ? 'Commande créée et confirmée automatiquement'
       : 'Commande créée depuis le back-office';
     await tx.orderHistory.create({
@@ -813,7 +841,10 @@ async function createOrder(payload) {
   });
 
   // ── Socket.IO — notifier les pickers du node en temps réel ──────────────────
-  if (order.status?.code === 'confirmed' || orderStatus.code === 'confirmed') {
+  if (
+    String(order.status?.code || '').toUpperCase() === 'CONFIRMED' ||
+    String(orderStatus.code || '').toUpperCase() === 'CONFIRMED'
+  ) {
     try {
       const { emitNewOrder } = require('../../socket/picker.socket');
       const itemCount = order.items?.length ?? 0;
@@ -831,4 +862,8 @@ async function createOrder(payload) {
   return order;
 }
 
-module.exports = { getMeta, getAvailableDates, calculate, findEligibleNodes, findPickupNodes, getDeliverySlots, createOrder, checkStock };
+module.exports = {
+  getMeta, getAvailableDates, calculate, findEligibleNodes, findPickupNodes,
+  getDeliverySlots, createOrder, checkStock,
+  HOME_LIKE_CODES, PICKUP_LIKE_CODES,
+};

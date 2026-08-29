@@ -6,13 +6,11 @@ import { getNode, updateNode, deleteNode } from '../../../api/locationNode.api';
 import NodeInfoTab from './NodeInfoTab';
 import NodeLocationTab from './NodeLocationTab';
 import NodeHoursTab from './NodeHoursTab';
-import NodeSlotsTab from './NodeSlotsTab';
 
 const TABS = [
   { key: 'info', label: 'Informations' },
   { key: 'location', label: 'Localisation' },
   { key: 'hours', label: 'Horaires' },
-  { key: 'slots', label: 'Créneaux' },
 ];
 
 function StatusBadge({ item }) {
@@ -178,9 +176,6 @@ export default function NodeDetailPage() {
         )}
         {tab === 'hours' && (
           <NodeHoursTab node={node} canUpdate={canUpdate && !isDeleted} onSaved={fetchNode} showToast={showToast} />
-        )}
-        {tab === 'slots' && (
-          <NodeSlotsTab nodeId={node.id} canUpdate={canUpdate && !isDeleted} showToast={showToast} />
         )}
       </div>
 

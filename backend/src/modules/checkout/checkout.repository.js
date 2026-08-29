@@ -28,14 +28,16 @@ const getDeliveryTypeByCode  = (code) => prisma.deliveryType.findFirst({ where: 
 const getAllDeliveryTypes     = ()     => prisma.deliveryType.findMany({ orderBy: { code: 'asc' } });
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
+// Note : plus d'include delivery_slots ici — les créneaux sont désormais
+// toujours liés à une date précise, donc récupérés séparément via
+// getSlotsForNodeAndDate / getSlotsForNodeInRange selon le contexte.
 const getActiveNodesInCity = () => getAllActiveNodes();
 
 const getAllActiveNodes = () =>
   prisma.node.findMany({
     where: { is_active: true, is_deleted: false },
     include: {
-      city:           { select: { id: true, name_fr: true, name_ar: true } },
-      delivery_slots: { where: { is_active: true }, orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }] },
+      city: { select: { id: true, name_fr: true, name_ar: true } },
     },
     orderBy: { name_fr: 'asc' },
   });
@@ -44,9 +46,23 @@ const getNodeById = (id) =>
   prisma.node.findFirst({
     where: { id, is_active: true, is_deleted: false },
     include: {
-      city:           { select: { id: true, name_fr: true, name_ar: true } },
-      delivery_slots: { where: { is_active: true }, orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }] },
+      city: { select: { id: true, name_fr: true, name_ar: true } },
     },
+  });
+
+// ── Delivery slots (par date précise) ─────────────────────────────────────────
+const getSlotsForNodeAndDate = (node_id, date) =>
+  prisma.deliverySlot.findMany({
+    where: { node_id, specific_date: date, is_active: true },
+    orderBy: { slot_start: 'asc' },
+  });
+
+// Récupère les créneaux actifs sur une plage de dates (pour éviter les requêtes
+// jour par jour dans getAvailableDates)
+const getSlotsForNodeInRange = (node_id, start, end) =>
+  prisma.deliverySlot.findMany({
+    where: { node_id, specific_date: { gte: start, lte: end }, is_active: true },
+    orderBy: [{ specific_date: 'asc' }, { slot_start: 'asc' }],
   });
 
 // ── Slot capacity ─────────────────────────────────────────────────────────────
@@ -76,50 +92,22 @@ const getSellingRules = (node_id, sku_ids) =>
 
 // ── Lookup statuses ───────────────────────────────────────────────────────────
 const getOrderStatusByCode     = (code) =>
-  prisma.orderStatus.findFirst({
-    where: {
-      code: {
-        equals: code,
-        mode: 'insensitive',
-      },
-    },
-  });
+  prisma.orderStatus.findFirst({ where: { code: { equals: code, mode: 'insensitive' } } });
 const getOrderItemStatusByCode = (code) =>
-  prisma.orderItemStatus.findFirst({
-    where: {
-      code: {
-        equals: code,
-        mode: 'insensitive',
-      },
-    },
-  });
+  prisma.orderItemStatus.findFirst({ where: { code: { equals: code, mode: 'insensitive' } } });
 
 const getPaymentStatusByCode   = (code) =>
-  prisma.paymentStatus.findFirst({
-    where: {
-      code: {
-        equals: code,
-        mode: 'insensitive',
-      },
-    },
-  });
+  prisma.paymentStatus.findFirst({ where: { code: { equals: code, mode: 'insensitive' } } });
 const getPaymentMethod         = (id)   => prisma.paymentMethod.findUnique({ where: { id } });
 const getPaymentMethodByCode = (code) =>
   prisma.paymentMethod.findFirst({
-    where: {
-      code: {
-        equals: code,
-        mode: 'insensitive',
-      },
-      is_active: true,
-    },
+    where: { code: { equals: code, mode: 'insensitive' }, is_active: true },
   });
 const getAllPaymentMethods      = ()     => prisma.paymentMethod.findMany({ where: { is_active: true }, orderBy: { code: 'asc' } });
 const getAllOrderStatuses       = ()     => prisma.orderStatus.findMany({ orderBy: { sort_order: 'asc' } });
 const getAllPaymentStatuses     = ()     => prisma.paymentStatus.findMany({ orderBy: { code: 'asc' } });
 
 // ── AppConfigs ────────────────────────────────────────────────────────────────
-// Returns { key: value } map. node_id=null → global configs. node_id → node override.
 const getAppConfigs = async (node_id = null) => {
   const where = node_id
     ? { OR: [{ node_id: null }, { node_id }] }
@@ -127,7 +115,6 @@ const getAppConfigs = async (node_id = null) => {
 
   const rows = await prisma.appConfig.findMany({ where, orderBy: { node_id: 'asc' } });
 
-  // Merge: node config overrides global
   const map = {};
   for (const row of rows) {
     map[row.config_key] = row.config_value;
@@ -205,6 +192,7 @@ module.exports = {
   getAddress, getCustomerAddresses,
   getDeliveryType, getDeliveryTypeByCode, getAllDeliveryTypes,
   getActiveNodesInCity, getAllActiveNodes, getNodeById,
+  getSlotsForNodeAndDate, getSlotsForNodeInRange,
   countOrdersForNodeDay, countOrdersForSlotDay,
   getStockLevels, getSellingRules,
   getOrderStatusByCode, getOrderItemStatusByCode,

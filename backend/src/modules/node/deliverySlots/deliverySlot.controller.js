@@ -2,27 +2,22 @@ const service = require('./deliverySlot.service');
 const response = require('../../../utils/response');
 
 class DeliverySlotController {
-  async listByNode(req, res, next) {
-    try { return response.success(res, await service.getByNode(req.params.id)); } catch (err) { next(err); }
+  async byDate(req, res, next) {
+    try {
+      const { date } = req.query;
+      return response.success(res, await service.getByDate(req.params.id, date));
+    } catch (err) { next(err); }
   }
 
-  async calendar(req, res, next) {
+  async monthOverview(req, res, next) {
     try {
       const { year, month } = req.query;
-      const data = await service.getCalendarForMonth(req.params.id, Number(year), Number(month));
-      return response.success(res, data);
+      return response.success(res, await service.getMonthOverview(req.params.id, Number(year), Number(month)));
     } catch (err) { next(err); }
   }
 
-  async storeByNode(req, res, next) {
+  async store(req, res, next) {
     try { return response.success(res, await service.create(req.params.id, req.body), 'Créneau créé', 201); } catch (err) { next(err); }
-  }
-
-  async storeException(req, res, next) {
-    try {
-      const data = await service.createException(req.params.id, req.body);
-      return response.success(res, data, 'Exception créée', 201);
-    } catch (err) { next(err); }
   }
 
   async update(req, res, next) {

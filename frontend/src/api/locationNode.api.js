@@ -26,11 +26,11 @@ export const createNode = (data) => api.post('/nodes', data);
 export const updateNode = (id, data) => api.put(`/nodes/${id}`, data);
 export const deleteNode = (id) => api.delete(`/nodes/${id}`);
 
-export const getNodeSlots = (nodeId) => api.get(`/nodes/${nodeId}/slots`);
+// Créneaux d'un node pour une date précise — { date: 'YYYY-MM-DD' }
+export const getNodeSlots = (nodeId, date) => api.get(`/nodes/${nodeId}/slots`, { params: { date } });
 export const createNodeSlot = (nodeId, data) => api.post(`/nodes/${nodeId}/slots`, data);
 export const updateSlot = (slotId, data) => api.put(`/slots/${slotId}`, data);
 export const deleteSlot = (slotId) => api.delete(`/slots/${slotId}`);
+// Aperçu calendrier du mois : { counts: { 'YYYY-MM-DD': nombre_de_creneaux } }
 export const getNodeSlotsCalendar = (nodeId, year, month) =>
   api.get(`/nodes/${nodeId}/slots/calendar`, { params: { year, month } });
-export const createSlotException = (nodeId, data) =>
-  api.post(`/nodes/${nodeId}/slots/exceptions`, data);

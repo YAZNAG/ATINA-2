@@ -1,21 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  getNodes,
-  getNodeSlotsCalendar,
-  createNodeSlot,
-  createSlotException,
-  updateSlot,
-  deleteSlot,
-} from '../../api/locationNode.api';
-import SlotFormModal from './SlotFormModal';
+import { getNodes, getNodeSlotsCalendar } from '../../api/locationNode.api';
+import SlotFormPanel from './SlotFormModal';
 import './DeliverySlots.css';
 
 const WEEKDAY_HEADERS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 
 const formatMonthLabel = (date) =>
   date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase());
-
-const formatTime = (t) => (t ? t.slice(0, 5) : '');
 
 // Clé locale AAAA-MM-JJ pour comparer une date au jour courant.
 const toDateKey = (date) => {
@@ -25,13 +16,23 @@ const toDateKey = (date) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+// slot_start/slot_end peuvent arriver en DateTime ISO ou en "HH:MM"
+const formatSlotTime = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, '0')}:${match[2]}` : String(value);
+};
+
 // Construit la grille du mois (semaines commençant le lundi), avec des
 // cases vides avant/après pour aligner les colonnes LUN..DIM.
 const buildMonthGrid = (year, month) => {
   const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  // getUTCDay(): 0=Dim..6=Sam -> on veut 0=Lun..6=Dim
-  const jsDow = firstOfMonth.getUTCDay();
+  const jsDow = firstOfMonth.getUTCDay(); // 0=Dim..6=Sam -> on veut 0=Lun..6=Dim
   const leadingBlanks = (jsDow + 6) % 7;
 
   const cells = [];
@@ -44,6 +45,8 @@ const buildMonthGrid = (year, month) => {
   return weeks;
 };
 
+const MAX_VISIBLE_SLOTS = 2;
+
 export default function DeliverySlotsPage() {
   const [nodes, setNodes] = useState([]);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -51,11 +54,10 @@ export default function DeliverySlotsPage() {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   });
-  const [days, setDays] = useState([]); // depuis getNodeSlotsCalendar
+  const [days, setDays] = useState({}); // { 'YYYY-MM-DD': [{ start, end, is_active }] }
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [filters, setFilters] = useState({ showOpen: true, showClosed: false });
-  const [activeCell, setActiveCell] = useState(null); // dateKey sélectionnée pour la modal
+  const [activeCell, setActiveCell] = useState(null); // dateKey sélectionnée pour le panneau
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
 
@@ -76,7 +78,7 @@ export default function DeliverySlotsPage() {
     getNodeSlotsCalendar(selectedNodeId, cursor.year, cursor.month)
       .then((res) => {
         const data = res.data?.data || res.data;
-        setDays(data.days || []);
+        setDays(data.days || {});
         setLastUpdated(new Date());
       })
       .finally(() => setLoading(false));
@@ -86,12 +88,6 @@ export default function DeliverySlotsPage() {
     loadCalendar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId, cursor.year, cursor.month]);
-
-  const daysByDate = useMemo(() => {
-    const map = {};
-    for (const day of days) map[day.date] = day;
-    return map;
-  }, [days]);
 
   const weeks = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor]);
 
@@ -116,30 +112,7 @@ export default function DeliverySlotsPage() {
     return `${cursor.year}-${mm}-${dd}`;
   };
 
-  const activeDayData = activeCell ? daysByDate[activeCell] : null;
-  const activeDow = activeCell ? new Date(`${activeCell}T00:00:00`).getDay() : null;
-
-  const closeModal = () => setActiveCell(null);
-
-  const handleCreateRecurring = async (payload) => {
-    await createNodeSlot(selectedNodeId, payload);
-    await loadCalendar();
-  };
-
-  const handleCreateException = async (payload) => {
-    await createSlotException(selectedNodeId, payload);
-    await loadCalendar();
-  };
-
-  const handleUpdateSlot = async (id, payload) => {
-    await updateSlot(id, payload);
-    await loadCalendar();
-  };
-
-  const handleDeleteSlot = async (id) => {
-    await deleteSlot(id);
-    await loadCalendar();
-  };
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
 
   return (
     <div className="dsp-page">
@@ -177,25 +150,6 @@ export default function DeliverySlotsPage() {
             ►
           </button>
         </div>
-
-        <div className="dsp-legend">
-          <label>
-            <input
-              type="checkbox"
-              checked={filters.showOpen}
-              onChange={(e) => setFilters((f) => ({ ...f, showOpen: e.target.checked }))}
-            />
-            Créneaux ouverts
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={filters.showClosed}
-              onChange={(e) => setFilters((f) => ({ ...f, showClosed: e.target.checked }))}
-            />
-            Aucun créneau ouvert
-          </label>
-        </div>
       </div>
 
       <div className={`dsp-calendar ${loading ? 'dsp-calendar-loading' : ''}`}>
@@ -213,39 +167,33 @@ export default function DeliverySlotsPage() {
               if (day === null) return <div key={dIdx} className="dsp-day-cell dsp-day-cell-empty" />;
 
               const dateKey = dateKeyFor(day);
-              const dayData = daysByDate[dateKey];
-              const slots = dayData?.slots || [];
-              const isClosed = dayData?.isClosed;
-              const hasSlots = slots.length > 0;
+              const daySlots = days[dateKey] || [];
+              const hasSlots = daySlots.length > 0;
               const isToday = dateKey === todayKey;
-
-              const dimmed =
-                (hasSlots && !filters.showOpen) || ((isClosed || !hasSlots) && !filters.showClosed && isClosed);
+              const visibleSlots = daySlots.slice(0, MAX_VISIBLE_SLOTS);
+              const extraCount = daySlots.length - visibleSlots.length;
 
               return (
                 <button
                   key={dIdx}
-                  className={`dsp-day-cell ${isToday ? 'dsp-day-today' : ''} ${hasSlots ? 'dsp-day-has-slots' : ''} ${
-                    isClosed ? 'dsp-day-closed' : ''
-                  } ${dimmed ? 'dsp-day-dimmed' : ''}`}
+                  className={`dsp-day-cell ${isToday ? 'dsp-day-today' : ''} ${hasSlots ? 'dsp-day-has-slots' : ''}`}
                   onClick={() => setActiveCell(dateKey)}
                 >
                   <span className="dsp-day-number">{day}</span>
+
                   {hasSlots ? (
                     <>
-                      <span className="dsp-slot-badge">
-                        {slots.length} créneau{slots.length > 1 ? 'x' : ''}
-                      </span>
-                      <span className="dsp-slot-times">
-                        {slots
-                          .slice(0, 2)
-                          .map((s) => `${formatTime(s.start)}-${formatTime(s.end)}`)
-                          .join(' · ')}
-                        {slots.length > 2 ? ' ...' : ''}
-                      </span>
+                      {visibleSlots.map((slot, sIdx) => (
+                        <span
+                          key={sIdx}
+                          className={`dsp-slot-badge ${!slot.is_active ? 'dsp-slot-badge-inactive' : ''}`}
+                        >
+                          {formatSlotTime(slot.start)}–{formatSlotTime(slot.end)}
+                          {!slot.is_active && ' · Inactif'}
+                        </span>
+                      ))}
+                      {extraCount > 0 && <span className="dsp-slot-more">+{extraCount}</span>}
                     </>
-                  ) : isClosed ? (
-                    <span className="dsp-closed-label">Fermé</span>
                   ) : (
                     <span className="dsp-no-slot">—</span>
                   )}
@@ -257,16 +205,12 @@ export default function DeliverySlotsPage() {
       </div>
 
       {activeCell && (
-        <SlotFormModal
+        <SlotFormPanel
+          nodeId={selectedNodeId}
+          nodeLabel={selectedNode ? (selectedNode.code || selectedNode.name_fr) : ''}
           dateKey={activeCell}
-          dayOfWeek={activeDow}
-          daySlots={activeDayData?.slots || []}
-          daySource={activeDayData?.source || 'recurring'}
-          onClose={closeModal}
-          onCreateRecurring={handleCreateRecurring}
-          onCreateException={handleCreateException}
-          onUpdateSlot={handleUpdateSlot}
-          onDeleteSlot={handleDeleteSlot}
+          onClose={() => setActiveCell(null)}
+          onChanged={loadCalendar}
         />
       )}
     </div>

@@ -26,10 +26,9 @@ const LIST_INCLUDE = {
   confirmed_slot: {
    select: {
      id: true,
-    name_fr: true,
-    slot_start: true,
-  slot_end: true,
-    day_of_week: true,
+     specific_date: true,
+     slot_start: true,
+     slot_end: true,
    },
  },
  payments: {
@@ -59,7 +58,7 @@ const DETAIL_INCLUDE = {
   status:   true,
   delivery_type: true,
   node:     { select: { id: true, code: true, name_fr: true } },
-  confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, day_of_week: true } },
+  confirmed_slot: { select: { id: true, specific_date: true, slot_start: true, slot_end: true } },
   items: {
     where: { status: { code: { not: 'CANCELLED' } } },
     include: {
@@ -238,23 +237,37 @@ const getNodes = () =>
 const getDeliveryTypes = () =>
   prisma.deliveryType.findMany({ select: { id: true, code: true, name_fr: true }, orderBy: { code: 'asc' } });
 
-const getSlots = () =>
-  prisma.deliverySlot.findMany({
+// Créneaux pour le filtre/dropdown du back-office. Sans node_id ni date,
+// les créneaux étant maintenant liés à une date précise, on se limite aux
+// créneaux à venir (à partir d'aujourd'hui) pour éviter de remonter tout
+// l'historique. Passer node_id et/ou date pour restreindre davantage.
+const getSlots = ({ node_id, date } = {}) => {
+  const where = {};
+  if (node_id) where.node_id = node_id;
+
+  if (date) {
+    where.specific_date = new Date(`${date}T00:00:00.000Z`);
+  } else {
+    const today = new Date();
+    where.specific_date = { gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()) };
+  }
+
+  return prisma.deliverySlot.findMany({
+    where,
     select: {
       id: true,
-      name_fr: true,
+      node_id: true,
+      specific_date: true,
       slot_start: true,
       slot_end: true,
-      day_of_week: true,
+      max_orders: true,
     },
     orderBy: [
-      {
-        day_of_week: 'asc',
-      },
-      {
-        slot_start: 'asc',
-      },
+      { specific_date: 'asc' },
+      { slot_start: 'asc' },
     ],
+    take: 200,
   });
+};
 
 module.exports = { findAll, findById, getStatusByCode, updateStatus, getHistory, addHistory, softDelete, countByStatus, getNodes, getDeliveryTypes, DETAIL_INCLUDE, getSlots,};

@@ -23,6 +23,7 @@ import {
   changeOrderStatus,
   getOrder,
   getOrderHistory,
+  getOrdersMeta,
   getOrderTransitions,
   updateOrderSlot,
 } from '../../api/orders_mgmt.api';
@@ -77,6 +78,26 @@ function formatTime(value) {
     : String(value);
 }
 
+// Clé AAAA-MM-JJ à partir d'une date/DateTime — sert de clé de groupe
+// pour les créneaux (remplace l'ancien groupement par day_of_week).
+function toDateKey(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function formatDateHeading(dateKey) {
+  if (!dateKey || dateKey === 'other') return 'Autre date';
+  const parsed = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateKey;
+  return parsed.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 function getItemName(item) {
   return (
     item.sku?.name_fr ||
@@ -119,53 +140,12 @@ function getAddress(address = {}) {
     .join(', ');
 }
 
-function getDayLabel(day) {
-  const days = {
-    0: 'Dimanche',
-    1: 'Lundi',
-    2: 'Mardi',
-    3: 'Mercredi',
-    4: 'Jeudi',
-    5: 'Vendredi',
-    6: 'Samedi',
-
-    sunday: 'Dimanche',
-    monday: 'Lundi',
-    tuesday: 'Mardi',
-    wednesday: 'Mercredi',
-    thursday: 'Jeudi',
-    friday: 'Vendredi',
-    saturday: 'Samedi',
-
-    dimanche: 'Dimanche',
-    lundi: 'Lundi',
-    mardi: 'Mardi',
-    mercredi: 'Mercredi',
-    jeudi: 'Jeudi',
-    vendredi: 'Vendredi',
-    samedi: 'Samedi',
-  };
-
-  return (
-    days[String(day).toLowerCase()] ||
-    'Autre jour'
-  );
-}
-
+// Libellé d'un créneau : date + plage horaire (plus de name_fr sur le modèle).
 function getSlotLabel(slot) {
   const start = formatTime(slot.slot_start);
   const end = formatTime(slot.slot_end);
-
-  const timeLabel =
-    start && end
-      ? `${start} – ${end}`
-      : '';
-
-  if (slot.name_fr && timeLabel) {
-    return `${slot.name_fr} (${timeLabel})`;
-  }
-
-  return slot.name_fr || timeLabel || 'Créneau';
+  const timeLabel = start && end ? `${start} – ${end}` : '';
+  return timeLabel || 'Créneau';
 }
 
 
@@ -400,6 +380,7 @@ function DetailTab({
 function SlotsTab({
   order,
   slots = [],
+  slotsLoading,
   onConfirmSlot,
   savingSlot,
 }) {
@@ -415,23 +396,32 @@ function SlotsTab({
 
   const groupedSlots = useMemo(() => {
     return slots.reduce((groups, slot) => {
-      const day = slot.day_of_week ?? 'other';
+      const dateKey = toDateKey(slot.specific_date) ?? 'other';
 
-      if (!groups[day]) {
-        groups[day] = [];
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
       }
 
-      groups[day].push(slot);
+      groups[dateKey].push(slot);
 
       return groups;
     }, {});
   }, [slots]);
 
+  if (slotsLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 p-8 text-sm text-gray-500">
+        <Loader2 size={16} className="animate-spin" />
+        Chargement des créneaux…
+      </div>
+    );
+  }
+
   if (!slots.length) {
     return (
       <div className="p-4">
         <EmptyState>
-          Aucun créneau disponible dans la base de données.
+          Aucun créneau disponible pour ce nœud à cette date.
         </EmptyState>
       </div>
     );
@@ -452,20 +442,13 @@ function SlotsTab({
         {order.confirmed_slot ? (
           <>
             <div className="text-lg font-medium text-gray-800">
-              {order.confirmed_slot.name_fr ||
-                'Créneau confirmé'}
+              {getSlotLabel(order.confirmed_slot)}
             </div>
 
-            <div className="mt-1 text-sm text-gray-600">
-              {formatTime(order.confirmed_slot.slot_start)}
-              {' – '}
-              {formatTime(order.confirmed_slot.slot_end)}
-            </div>
-
-            {order.confirmed_slot.day_of_week && (
+            {order.confirmed_slot.specific_date && (
               <div className="mt-1 text-xs text-gray-400">
-                {getDayLabel(
-                  order.confirmed_slot.day_of_week
+                {formatDateHeading(
+                  toDateKey(order.confirmed_slot.specific_date)
                 )}
               </div>
             )}
@@ -477,7 +460,7 @@ function SlotsTab({
         )}
       </div>
 
-      {/* Calendrier basé sur les créneaux de la base */}
+      {/* Calendrier basé sur les créneaux du node/date de la commande */}
       <div className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
@@ -493,10 +476,10 @@ function SlotsTab({
 
         <div className="space-y-5">
           {Object.entries(groupedSlots).map(
-            ([day, daySlots]) => (
-              <div key={day}>
-                <div className="mb-2 text-xs font-medium text-gray-500">
-                  {getDayLabel(day)}
+            ([dateKey, daySlots]) => (
+              <div key={dateKey}>
+                <div className="mb-2 text-xs font-medium capitalize text-gray-500">
+                  {formatDateHeading(dateKey)}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -761,7 +744,6 @@ const TABS = [
 
 export default function OrderDetailDrawer({
   orderId,
-  slots = [],
   onClose,
   onChanged,
 }) {
@@ -770,6 +752,9 @@ export default function OrderDetailDrawer({
   const [order, setOrder] = useState(null);
   const [transitions, setTransitions] = useState([]);
   const [history, setHistory] = useState([]);
+
+  const [slots, setSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -826,6 +811,25 @@ export default function OrderDetailDrawer({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Créneaux scopés au node/date de la commande — chargés une fois l'ordre
+  // connu, plutôt que de dépendre d'une liste globale passée en prop.
+  useEffect(() => {
+    if (!order?.node?.id) return;
+
+    const dateKey =
+      toDateKey(order.confirmed_slot?.specific_date) ||
+      toDateKey(order.created_at);
+
+    setSlotsLoading(true);
+    getOrdersMeta({ node_id: order.node.id, date: dateKey || undefined })
+      .then((res) => {
+        const meta = unwrap(res);
+        setSlots(meta?.slots || []);
+      })
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false));
+  }, [order?.node?.id, order?.confirmed_slot?.specific_date, order?.created_at]);
 
   async function handleChangeStatus(transition) {
     if (!transition?.code) return;
@@ -1011,6 +1015,7 @@ export default function OrderDetailDrawer({
                 <SlotsTab
                   order={order}
                   slots={slots}
+                  slotsLoading={slotsLoading}
                   onConfirmSlot={handleConfirmSlot}
                   savingSlot={savingSlot}
                 />

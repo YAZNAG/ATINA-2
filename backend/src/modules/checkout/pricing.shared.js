@@ -42,10 +42,6 @@ async function resolveSkuPrice(node_id, sku_id) {
   };
 }
 
-// ── Prix d'une ligne SKU appartenant à un pack ───────────────────────────────
-// Le panier envoie UNE ligne par SKU du pack (pas une ligne par pack) — on
-// redistribue le prix total du pack proportionnellement, exactement comme
-// l'affichage panier (voir customer_cart.service.getActivePackRatios).
 async function resolvePackItemPrice(node_id, pack_id, sku_id) {
   if (!sku_id) throw { statusCode: 400, message: `pack_id ${pack_id}: sku_id requis pour un item de pack` };
 

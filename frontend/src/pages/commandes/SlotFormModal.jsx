@@ -1,36 +1,60 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getNodeSlots, createNodeSlot, updateSlot, deleteSlot } from '../../api/locationNode.api';
 import './DeliverySlots.css';
 
-const DOW_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-
-
-export default function SlotFormModal({
-  dateKey,
-  dayOfWeek,
-  daySlots,
-  daySource,
-  onClose,
-  onCreateRecurring,
-  onCreateException,
-  onUpdateSlot,
-  onDeleteSlot,
-}) {
-  const [mode, setMode] = useState('exception'); // 'exception' | 'recurring'
+export default function SlotFormPanel({ nodeId, nodeLabel, dateKey, onClose, onChanged }) {
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('11:00');
-  const [editingId, setEditingId] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [maxOrders, setMaxOrders] = useState('20');
 
   const prettyDate = new Date(`${dateKey}T00:00:00`).toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    year: 'numeric',
   });
 
-  const resetForm = () => {
-    setStart('09:00');
-    setEnd('11:00');
-    setEditingId(null);
+  const load = () => {
+    setLoading(true);
+    getNodeSlots(nodeId, dateKey)
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setSlots(data.slots || []);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, dateKey]);
+
+  const notifyChanged = () => {
+    onChanged?.();
+    load();
+  };
+
+  const handleToggle = async (slot) => {
+    setBusy(true);
+    try {
+      await updateSlot(slot.id, { is_active: !slot.is_active });
+      notifyChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (slot) => {
+    setBusy(true);
+    try {
+      await deleteSlot(slot.id);
+      notifyChanged();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -38,37 +62,19 @@ export default function SlotFormModal({
     if (start >= end) return;
     setBusy(true);
     try {
-      if (editingId) {
-        await onUpdateSlot(editingId, { slot_start: start, slot_end: end });
-      } else if (mode === 'recurring') {
-        await onCreateRecurring({ day_of_week: dayOfWeek, slot_start: start, slot_end: end });
-      } else {
-        await onCreateException({
-          specific_date: dateKey,
-          slot_start: start,
-          slot_end: end,
-          is_closed: false,
-        });
-      }
-      resetForm();
+      await createNodeSlot(nodeId, {
+        specific_date: dateKey,
+        slot_start: start,
+        slot_end: end,
+        max_orders: Number(maxOrders),
+      });
+      setStart('09:00');
+      setEnd('11:00');
+      setMaxOrders('20');
+      notifyChanged();
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleCloseDay = async () => {
-    setBusy(true);
-    try {
-      await onCreateException({ specific_date: dateKey, is_closed: true });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const startEdit = (slot) => {
-    setEditingId(slot.id);
-    setStart(slot.start);
-    setEnd(slot.end);
   };
 
   return (
@@ -78,7 +84,7 @@ export default function SlotFormModal({
           <div>
             <h3>{prettyDate}</h3>
             <span className="dsp-modal-subtitle">
-              {daySource === 'exception' ? 'Exception ponctuelle' : `Récurrent (${DOW_LABELS[dayOfWeek]})`}
+              {nodeLabel ? `Nœud ${nodeLabel}` : 'Nœud'} — {slots.length} créneau{slots.length !== 1 ? 'x' : ''} ouvert{slots.length !== 1 ? 's' : ''}
             </span>
           </div>
           <button className="dsp-icon-btn" onClick={onClose} aria-label="Fermer">
@@ -87,71 +93,80 @@ export default function SlotFormModal({
         </div>
 
         <div className="dsp-modal-body">
+          <div className="dsp-section-label">Créneaux du jour</div>
+
           <div className="dsp-existing-slots">
-            {daySlots.length === 0 && <p className="dsp-empty-hint">Aucun créneau ce jour.</p>}
-            {daySlots.map((slot) => (
-              <div key={slot.id} className="dsp-slot-row">
-                <span>
-                  {slot.start} – {slot.end}
-                </span>
-                <div className="dsp-slot-row-actions">
-                  <button type="button" onClick={() => startEdit(slot)}>
-                    Modifier
-                  </button>
-                  <button type="button" className="dsp-danger" onClick={() => onDeleteSlot(slot.id)}>
-                    Supprimer
-                  </button>
+            {loading && <p className="dsp-empty-hint">Chargement…</p>}
+            {!loading && slots.length === 0 && <p className="dsp-empty-hint">Aucun créneau ce jour.</p>}
+            {slots.map((slot) => {
+              const pct = slot.max_orders ? Math.min(100, (slot.reservations / slot.max_orders) * 100) : 0;
+              return (
+                <div key={slot.id} className="dsp-slot-card">
+                  <div className="dsp-slot-card-top">
+                    <span className="dsp-slot-time">
+                      {slot.start} à {slot.end}
+                    </span>
+                    <div className="dsp-slot-card-actions">
+                      <label className="dsp-toggle">
+                        <input
+                          type="checkbox"
+                          checked={slot.is_active}
+                          disabled={busy}
+                          onChange={() => handleToggle(slot)}
+                        />
+                        <span className="dsp-toggle-track" />
+                      </label>
+                      <button
+                        type="button"
+                        className="dsp-icon-btn dsp-danger"
+                        disabled={busy}
+                        onClick={() => handleDelete(slot)}
+                        aria-label="Supprimer"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                  <div className="dsp-slot-card-meta">
+                    Capacité {slot.max_orders} · Réservations <strong>{slot.reservations}</strong>
+                  </div>
+                  <div className="dsp-progress-track">
+                    <div className="dsp-progress-fill" style={{ width: `${pct}%` }} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <form onSubmit={handleSubmit} className="dsp-slot-form">
-            {!editingId && (
-              <div className="dsp-mode-toggle">
-                <button
-                  type="button"
-                  className={mode === 'exception' ? 'active' : ''}
-                  onClick={() => setMode('exception')}
-                >
-                  Ce jour uniquement
-                </button>
-                <button
-                  type="button"
-                  className={mode === 'recurring' ? 'active' : ''}
-                  onClick={() => setMode('recurring')}
-                >
-                  Tous les {DOW_LABELS[dayOfWeek]}
-                </button>
-              </div>
-            )}
+          <div className="dsp-section-label">Ajouter un créneau</div>
 
+          <form onSubmit={handleSubmit} className="dsp-slot-form">
             <div className="dsp-time-inputs">
               <label>
-                Début
                 <input type="time" value={start} onChange={(e) => setStart(e.target.value)} required />
               </label>
+              <span className="dsp-time-sep">à</span>
               <label>
-                Fin
                 <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} required />
               </label>
             </div>
 
-            <div className="dsp-modal-actions">
-              {editingId && (
-                <button type="button" onClick={resetForm} className="dsp-secondary-btn">
-                  Annuler
-                </button>
-              )}
-              <button type="submit" className="dsp-primary-btn" disabled={busy}>
-                {editingId ? 'Enregistrer' : 'Ajouter le créneau'}
-              </button>
-            </div>
-          </form>
+            <label className="dsp-max-orders-field">
+              Capacité max :
+              <input
+                type="number"
+                min="0"
+                value={maxOrders}
+                onChange={(e) => setMaxOrders(e.target.value)}
+                required
+              />
+              commandes
+            </label>
 
-          <button type="button" className="dsp-close-day-btn" onClick={handleCloseDay} disabled={busy}>
-            Marquer ce jour comme fermé (aucun créneau)
-          </button>
+            <button type="submit" className="dsp-primary-btn dsp-primary-btn-full" disabled={busy}>
+              + Ajouter le créneau
+            </button>
+          </form>
         </div>
       </div>
     </div>

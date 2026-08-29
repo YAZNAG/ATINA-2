@@ -15,17 +15,20 @@ class DeliverySlotService {
   }
 
   async create(data) {
-    const { node_id, name_fr, name_ar, day_of_week, slot_start, slot_end, max_orders, is_active } = data;
-    if (!node_id)                      throw { statusCode: 400, message: 'node_id requis' };
-    if (!name_fr?.trim())              throw { statusCode: 400, message: 'Nom (FR) requis' };
-    if (!name_ar?.trim())              throw { statusCode: 400, message: 'Nom (AR) requis' };
-    if (day_of_week === undefined)     throw { statusCode: 400, message: 'Jour de la semaine requis' };
-    if (!slot_start?.trim())           throw { statusCode: 400, message: 'Heure de début requise' };
-    if (!slot_end?.trim())             throw { statusCode: 400, message: 'Heure de fin requise' };
+    const { node_id, specific_date, slot_start, slot_end, max_orders, is_active } = data;
+    if (!node_id)              throw { statusCode: 400, message: 'node_id requis' };
+    if (!specific_date)        throw { statusCode: 400, message: 'Date requise (YYYY-MM-DD)' };
+    if (!slot_start?.trim())   throw { statusCode: 400, message: 'Heure de début requise' };
+    if (!slot_end?.trim())     throw { statusCode: 400, message: 'Heure de fin requise' };
+    if (max_orders === undefined || max_orders === null || max_orders === '')
+      throw { statusCode: 400, message: 'Capacité max requise' };
+
     return repo.create({
-      node_id, name_fr: name_fr.trim(), name_ar: name_ar.trim(),
-      day_of_week: parseInt(day_of_week), slot_start, slot_end,
-      max_orders: max_orders ? parseInt(max_orders) : null,
+      node_id,
+      specific_date: new Date(`${specific_date}T00:00:00.000Z`),
+      slot_start,
+      slot_end,
+      max_orders: parseInt(max_orders),
       is_active: is_active !== false && is_active !== 'false',
     });
   }
@@ -33,13 +36,11 @@ class DeliverySlotService {
   async update(id, data) {
     if (!await repo.findById(id)) throw { statusCode: 404, message: 'Créneau introuvable' };
     const p = {};
-    if (data.name_fr !== undefined)    p.name_fr = data.name_fr.trim();
-    if (data.name_ar !== undefined)    p.name_ar = data.name_ar.trim();
-    if (data.day_of_week !== undefined) p.day_of_week = parseInt(data.day_of_week);
-    if (data.slot_start !== undefined) p.slot_start = data.slot_start;
-    if (data.slot_end !== undefined)   p.slot_end   = data.slot_end;
-    if (data.max_orders !== undefined) p.max_orders = data.max_orders ? parseInt(data.max_orders) : null;
-    if (data.is_active !== undefined)  p.is_active  = data.is_active === true || data.is_active === 'true';
+    if (data.specific_date !== undefined) p.specific_date = new Date(`${data.specific_date}T00:00:00.000Z`);
+    if (data.slot_start !== undefined)    p.slot_start = data.slot_start;
+    if (data.slot_end !== undefined)      p.slot_end   = data.slot_end;
+    if (data.max_orders !== undefined)    p.max_orders = data.max_orders ? parseInt(data.max_orders) : null;
+    if (data.is_active !== undefined)     p.is_active  = data.is_active === true || data.is_active === 'true';
     return repo.update(id, p);
   }
 

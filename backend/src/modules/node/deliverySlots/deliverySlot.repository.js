@@ -1,26 +1,18 @@
 const prisma = require('../../../config/database');
 
-const findByNode = (nodeId) =>
+const findByNodeAndDate = (nodeId, date) =>
   prisma.deliverySlot.findMany({
-    where: { node_id: nodeId },
-    orderBy: [{ day_of_week: 'asc' }, { specific_date: 'asc' }, { slot_start: 'asc' }],
+    where: { node_id: nodeId, specific_date: date },
+    orderBy: { slot_start: 'asc' },
+    include: { _count: { select: { orders_confirmed: true } } },
   });
 
-// Créneaux récurrents (template hebdomadaire) d'un node
-const findRecurringByNode = (nodeId) =>
+// Aperçu calendrier : créneaux du mois avec horaires + statut actif/inactif
+const findMonthOverview = (nodeId, start, end) =>
   prisma.deliverySlot.findMany({
-    where: { node_id: nodeId, specific_date: null },
-    orderBy: [{ day_of_week: 'asc' }, { slot_start: 'asc' }],
-  });
-
-// Exceptions ponctuelles d'un node dans une plage de dates [start, end]
-const findExceptionsByNodeAndRange = (nodeId, start, end) =>
-  prisma.deliverySlot.findMany({
-    where: {
-      node_id: nodeId,
-      specific_date: { gte: start, lte: end },
-    },
-    orderBy: [{ specific_date: 'asc' }, { slot_start: 'asc' }],
+    where: { node_id: nodeId, specific_date: { gte: start, lte: end } },
+    select: { specific_date: true, slot_start: true, slot_end: true, is_active: true },
+    orderBy: { slot_start: 'asc' },
   });
 
 const findById = (id) => prisma.deliverySlot.findUnique({ where: { id } });
@@ -28,12 +20,4 @@ const create = (data) => prisma.deliverySlot.create({ data });
 const update = (id, data) => prisma.deliverySlot.update({ where: { id }, data });
 const remove = (id) => prisma.deliverySlot.delete({ where: { id } });
 
-module.exports = {
-  findByNode,
-  findRecurringByNode,
-  findExceptionsByNodeAndRange,
-  findById,
-  create,
-  update,
-  remove,
-};
+module.exports = { findByNodeAndDate, findMonthOverview, findById, create, update, remove };

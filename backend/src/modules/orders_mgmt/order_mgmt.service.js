@@ -269,7 +269,7 @@ class OrderMgmtService {
       for (const item of order.items) {
         if (!item.sku_id) continue;
         const qty = Number(item.qty);
-        
+
         const upd = await tx.stockLevel.updateMany({
           where: {
             node_id: order.node_id,
@@ -326,77 +326,78 @@ class OrderMgmtService {
     });
   }
 
-  async meta() {
-  const [
-    statusCounts,
-    nodes,
-    deliveryTypes,
-    slots,
-  ] = await Promise.all([
-    repo.countByStatus(),
-    repo.getNodes(),
-    repo.getDeliveryTypes(),
-    repo.getSlots(),
-  ]);
+  // node_id/date optionnels : passés depuis le front pour restreindre le
+  // dropdown de créneaux au node/jour de la commande en cours d'édition.
+  async meta({ node_id, date } = {}) {
+    const [
+      statusCounts,
+      nodes,
+      deliveryTypes,
+      slots,
+    ] = await Promise.all([
+      repo.countByStatus(),
+      repo.getNodes(),
+      repo.getDeliveryTypes(),
+      repo.getSlots({ node_id, date }),
+    ]);
 
-  return {
-    status_counts: statusCounts,
-    nodes,
-    delivery_types: deliveryTypes,
-    slots,
-  };
-}
-
-
-async updateSlot(order_id, slot_id, changed_by = null) {
-  const order = await repo.findById(order_id);
-
-  if (!order) {
-    throw {
-      statusCode: 404,
-      message: 'Commande introuvable',
+    return {
+      status_counts: statusCounts,
+      nodes,
+      delivery_types: deliveryTypes,
+      slots,
     };
   }
 
-  if (order.status?.is_terminal) {
-    throw {
-      statusCode: 422,
-      message: 'Impossible de modifier le créneau d’une commande clôturée',
-    };
+  async updateSlot(order_id, slot_id, changed_by = null) {
+    const order = await repo.findById(order_id);
+
+    if (!order) {
+      throw {
+        statusCode: 404,
+        message: 'Commande introuvable',
+      };
+    }
+
+    if (order.status?.is_terminal) {
+      throw {
+        statusCode: 422,
+        message: 'Impossible de modifier le créneau d’une commande clôturée',
+      };
+    }
+
+    const slot = await prisma.deliverySlot.findFirst({
+      where: {
+        id: slot_id,
+      },
+      select: {
+        id: true,
+        node_id: true,
+        specific_date: true,
+        slot_start: true,
+        slot_end: true,
+      },
+    });
+
+    if (!slot) {
+      throw {
+        statusCode: 404,
+        message: 'Créneau introuvable',
+      };
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: {
+        id: order_id,
+      },
+      data: {
+        confirmed_slot_id: slot_id,
+      },
+      include: repo.DETAIL_INCLUDE,
+    });
+
+    return updatedOrder;
   }
-
-  const slot = await prisma.deliverySlot.findFirst({
-    where: {
-      id: slot_id,
-    },
-    select: {
-      id: true,
-      name_fr: true,
-      slot_start: true,
-      slot_end: true,
-      day_of_week: true,
-    },
-  });
-
-  if (!slot) {
-    throw {
-      statusCode: 404,
-      message: 'Créneau introuvable',
-    };
-  }
-
-  const updatedOrder = await prisma.order.update({
-    where: {
-      id: order_id,
-    },
-    data: {
-      confirmed_slot_id: slot_id,
-    },
-    include: repo.DETAIL_INCLUDE,
-  });
-
-  return updatedOrder;
-}
 }
 
 module.exports = new OrderMgmtService();

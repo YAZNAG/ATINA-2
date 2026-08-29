@@ -96,6 +96,15 @@ function formatTime(value) {
     : String(value);
 }
 
+// specific_date arrive en ISO complet (DateTime @db.Date) — on n'en garde
+// que la partie date pour l'affichage court dans le dropdown.
+function formatShortDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+}
+
 function formatSlot(order) {
   const slot = order.confirmed_slot ?? order;
 
@@ -105,6 +114,16 @@ function formatSlot(order) {
   if (!start || !end) return null;
 
   return `${start}–${end}`;
+}
+
+// Libellé du dropdown filtre créneau : date courte + plage horaire,
+// puisque les créneaux n'ont plus de nom (name_fr a été supprimé).
+function formatSlotOption(slot) {
+  const start = formatTime(slot.slot_start);
+  const end = formatTime(slot.slot_end);
+  const dateLabel = formatShortDate(slot.specific_date);
+  const timeLabel = start && end ? `${start} – ${end}` : '';
+  return [dateLabel, timeLabel].filter(Boolean).join(' · ') || 'Créneau';
 }
 
 
@@ -258,9 +277,16 @@ export default function OrdersPage() {
   // Chargement des métadonnées
   // ---------------------------------------------------------------------------
 
+  // Les créneaux sont maintenant liés à une date précise : on scope le
+  // dropdown au nœud/jour actuellement filtrés pour éviter une liste
+  // interminable (le backend se limite sinon aux créneaux à venir, tous
+  // nœuds confondus, borné à 200).
   const loadMeta = useCallback(async () => {
     try {
-      const response = await getOrdersMeta();
+      const response = await getOrdersMeta({
+        node_id: nodeId || undefined,
+        date: date || undefined,
+      });
       const meta = response.data.data;
 
       setStatusCounts(meta.status_counts ?? []);
@@ -272,7 +298,7 @@ export default function OrdersPage() {
           'Erreur lors du chargement des métadonnées'
       );
     }
-  }, []);
+  }, [nodeId, date]);
 
   // ---------------------------------------------------------------------------
   // Chargement des commandes
@@ -593,40 +619,24 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                {slots.map((slot) => {
-                  const start = formatTime(
-                    slot.slot_start
-                  );
-
-                  const end = formatTime(
-                    slot.slot_end
-                  );
-
-                  const timeLabel =
-                    start && end
-                      ? ` (${start} – ${end})`
-                      : '';
-
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      onClick={() => {
-                        setSlotFilter(slot.id);
-                        setOpenFilter(null);
-                        goToPage(1);
-                      }}
-                      className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                        slotFilter === slot.id
-                          ? 'bg-red-50 text-red-600'
-                          : 'text-gray-700'
-                      }`}
-                    >
-                      {slot.name_fr || 'Créneau'}
-                      {timeLabel}
-                    </button>
-                  );
-                })}
+                {slots.map((slot) => (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() => {
+                      setSlotFilter(slot.id);
+                      setOpenFilter(null);
+                      goToPage(1);
+                    }}
+                    className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                      slotFilter === slot.id
+                        ? 'bg-red-50 text-red-600'
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    {formatSlotOption(slot)}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1052,7 +1062,6 @@ export default function OrdersPage() {
       {/* Drawer de détail */}
       <OrderDetailDrawer
         orderId={selectedOrderId}
-        slots={slots}
         onClose={() => setSelectedOrderId(null)}
         onChanged={async () => {
           await Promise.all([

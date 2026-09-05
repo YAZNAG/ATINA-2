@@ -97,7 +97,7 @@ INSERT INTO stock_operations (code, name_fr) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO move_types (id, code, operation, name_fr, name_ar, color)
-SELECT gen_random_uuid(), v.code, v.operation::"StockOperation", v.name_fr, v.name_ar, v.color
+SELECT gen_random_uuid(), v.code, v.operation, v.name_fr, v.name_ar, v.color
 FROM (VALUES
   ('reservation',        'NEUTRAL', 'Réservation commande',   'حجز الطلبية',  '#6366F1'),
   ('reservation_cancel', 'NEUTRAL', 'Annulation réservation', 'إلغاء الحجز',  '#9CA3AF'),

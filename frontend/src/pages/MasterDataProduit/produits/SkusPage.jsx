@@ -352,7 +352,6 @@ export default function SkusPage() {
     if (!form.name_ar.trim()) errs.name_ar = 'Nom arabe requis';
     if (!form.sku_code.trim()) errs.sku_code = 'Code SKU requis';
     if (!form.sku_family_id) errs.sku_family_id = 'Famille SKU requise';
-    if (form.price === '' || form.price === null || Number.isNaN(Number(form.price))) errs.price = 'Prix requis';
     setFormErrors(errs);
 
     const errorKeys = Object.keys(errs);
@@ -551,7 +550,6 @@ export default function SkusPage() {
               <th className="px-4 py-3 font-medium">Image</th>
               <th className="px-4 py-3 font-medium">Nom</th>
               <th className="px-4 py-3 font-medium">SKU</th>
-              <th className="px-4 py-3 font-medium">Prix</th>
               <th className="px-4 py-3 font-medium">Famille</th>
               <th className="px-4 py-3 font-medium">Catégorie</th>
               <th className="px-4 py-3 font-medium">Marque</th>
@@ -594,7 +592,6 @@ export default function SkusPage() {
                       <p>{s.sku_code}</p>
                       {s.ean13 && <p className="text-neutral-400">{s.ean13}</p>}
                     </td>
-                    <td className="px-4 py-3 text-neutral-700">{Number(s.price).toFixed(2)} DH</td>
                     <td className="px-4 py-3 text-xs text-neutral-500">
                       {[s.sku_family?.name_fr, s.sku_subfamily?.name_fr].filter(Boolean).join(' › ') || '—'}
                     </td>
@@ -855,9 +852,9 @@ export default function SkusPage() {
               {activeTab === 'pricing' && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Prix (DH)" error={formErrors.price}>
-                      <input type="number" step="0.01" min="0" value={form.price} onChange={handleFieldChange('price')} className={inputClass(formErrors.price)} />
-                    </Field>
+                    <div className="col-span-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+                      Le prix se définit par node dans l'onglet « Règles de vente » de la fiche SKU (aucun prix global).
+                    </div>
                     <Field label="Taxe">
                       <select value={form.tax_id} onChange={handleFieldChange('tax_id')} className={inputClass()}>
                         <option value="">— Aucune —</option>

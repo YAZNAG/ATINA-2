@@ -48,5 +48,7 @@ const findByCode = (code, excludeId) =>
 const create = (data) => prisma.brand.create({ data });
 const update = (id, data) => prisma.brand.update({ where: { id }, data });
 const softDelete = (id) => prisma.brand.update({ where: { id }, data: { deleted_at: new Date() } });
+/** Nombre de SKU non supprimés rattachés à la marque. */
+const countSkus = (id) => prisma.sku.count({ where: { brand_id: id, deleted_at: null, is_deleted: false } });
 
-module.exports = { findAll, findAll_noPage, findById, findByCode, create, update, softDelete };
+module.exports = { findAll, findAll_noPage, findById, findByCode, create, update, softDelete, countSkus };

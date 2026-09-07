@@ -197,7 +197,6 @@ export default function SkuDetailPage() {
           <div className="rounded-xl border border-neutral-200 bg-white p-4">
             <h3 className="mb-2 text-sm font-semibold text-neutral-800">Général</h3>
             <InfoRow label="Nom (AR)" value={<span dir="rtl">{sku.name_ar}</span>} />
-            <InfoRow label="Prix" value={`${Number(sku.price).toFixed(2)} DH`} />
             <InfoRow label="Taxe" value={sku.tax ? `${sku.tax.name_fr} (${sku.tax.rate}%)` : null} />
             <InfoRow label="Statut" value={sku.is_active ? 'Actif' : 'Inactif'} />
           </div>

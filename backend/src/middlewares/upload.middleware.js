@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const ALLOWED_TYPES = ['.jpg', '.jpeg', '.png', '.webp'];
-const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB (spec ATINA WF-11)
 
 const createStorage = (folder) => {
   const uploadDir = path.join(process.cwd(), 'uploads', folder);

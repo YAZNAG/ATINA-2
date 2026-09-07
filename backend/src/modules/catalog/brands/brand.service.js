@@ -94,6 +94,14 @@ class BrandService {
   async delete(id) {
     const item = await repo.findById(Number(id));
     if (!item) throw { statusCode: 404, message: 'Marque introuvable' };
+    // US-022 / WF-12 : suppression refusée tant que des SKU sont rattachés (ON DELETE RESTRICT).
+    const skuCount = await repo.countSkus(Number(id));
+    if (skuCount > 0) {
+      throw {
+        statusCode: 400,
+        message: `Impossible de supprimer : ${skuCount} produit(s) utilisent cette marque. Désactivez-la à la place.`,
+      };
+    }
     if (item.logo) {
       const { deleteFile } = require('../../../utils/fileStorage');
       deleteFile(item.logo);

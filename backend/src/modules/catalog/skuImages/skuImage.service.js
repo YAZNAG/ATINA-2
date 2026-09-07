@@ -90,6 +90,14 @@ class SkuImageService {
     if (!item) throw { statusCode: 404, message: 'Image SKU introuvable' };
     await repo.remove(id);
   }
+
+  /** Soft-delete de toutes les images d'un SKU (appelé lors de la suppression du SKU). */
+  async softDeleteAllForSku(skuId) {
+    return prisma.skuImage.updateMany({
+      where: { sku_id: skuId, deleted_at: null },
+      data: { deleted_at: new Date(), is_primary: false },
+    });
+  }
 }
 
 module.exports = new SkuImageService();

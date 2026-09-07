@@ -59,11 +59,11 @@ class SkuService {
     if (mapped.sku_family_id == null) {
       throw { statusCode: 400, message: 'Famille SKU requise (ou sous-famille pour la déduire)' };
     }
-    if (mapped.price === undefined || mapped.price === null || Number.isNaN(Number(mapped.price))) {
-      throw { statusCode: 400, message: 'Prix requis' };
+    // Pas de prix global (US-114) : le prix se gère par node dans selling_rules.
+    if (mapped.price !== undefined && mapped.price !== null) {
+      const priceNum = Number(mapped.price);
+      if (Number.isNaN(priceNum) || priceNum < 0) throw { statusCode: 400, message: 'Le prix doit être positif ou nul' };
     }
-    const priceNum = Number(mapped.price);
-    if (priceNum < 0) throw { statusCode: 400, message: 'Le prix doit être positif ou nul' };
 
     if (mapped.tax_id != null) {
       const tax = await prisma.tax.findUnique({ where: { id: mapped.tax_id }, select: { rate: true } });
@@ -116,6 +116,17 @@ class SkuService {
   async delete(id) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
+    // US-028 : suppression refusée si le SKU est référencé par un pack ou une offre.
+    const { packs, flashSales } = await repo.countUsages(id);
+    if (packs > 0 || flashSales > 0) {
+      const parts = [];
+      if (packs > 0) parts.push(`${packs} pack(s)`);
+      if (flashSales > 0) parts.push(`${flashSales} offre(s) flash`);
+      throw {
+        statusCode: 400,
+        message: `SKU utilisé : ${parts.join(' et ')} y font référence. Désactivez-le à la place.`,
+      };
+    }
     await skuImageService.softDeleteAllForSku(id);
     await repo.softDelete(id);
   }

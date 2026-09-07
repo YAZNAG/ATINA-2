@@ -1,6 +1,8 @@
 const prisma = require('../../../config/database');
 const repo = require('./skuImage.repository');
 
+const MAX_IMAGES_PER_SKU = 5;
+
 const emptyToNull = (v) => (v === '' || v === undefined ? null : v);
 
 const pickPayload = (body) => ({
@@ -29,6 +31,10 @@ class SkuImageService {
   async create(body) {
     const data = pickPayload(body);
     if (!data.url?.trim()) throw { statusCode: 422, message: 'URL requise' };
+    const activeCount = await prisma.skuImage.count({ where: { sku_id: data.sku_id, deleted_at: null } });
+    if (activeCount >= MAX_IMAGES_PER_SKU) {
+      throw { statusCode: 422, message: `Maximum ${MAX_IMAGES_PER_SKU} images par SKU` };
+    }
 
     return prisma.$transaction(async (tx) => {
       if (data.is_primary) {

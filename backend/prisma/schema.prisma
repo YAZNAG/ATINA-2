@@ -350,7 +350,7 @@ model Sku {
   name_ar                    String               @db.VarChar(255)
   name_fr                    String               @db.VarChar(255)
   packaging_type_id          Int?
-  price                      Decimal              @db.Decimal(12, 2)
+  price                      Decimal?             @db.Decimal(12, 2)
   sku_code                   String               @unique @db.VarChar(100)
   sku_family_id              String               @db.Uuid
   sku_subfamily_id           String?              @db.Uuid

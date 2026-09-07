@@ -91,6 +91,15 @@ const create = async (data) => {
 const update = async (id, data) => {
   return prisma.sku.update({ where: { id }, data, include: INCLUDE });
 };
+/** Références actives au SKU : lignes de packs non supprimés et flash sales non supprimées. */
+const countUsages = async (id) => {
+  const [packs, flashSales] = await Promise.all([
+    prisma.packItem.count({ where: { sku_id: id, pack: { is_deleted: false } } }),
+    prisma.flashSale.count({ where: { sku_id: id, is_deleted: false } }),
+  ]);
+  return { packs, flashSales };
+};
+
 const softDelete = async (id) => {
   return prisma.sku.update({
     where: { id },
@@ -107,6 +116,7 @@ module.exports = {
   create,
   update,
   softDelete,
+  countUsages,
   restore,
   INCLUDE,
 };

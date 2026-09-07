@@ -27,7 +27,7 @@ const createValidator = [
     }
     return true;
   }),
-  body('price').exists().withMessage('Prix requis').isFloat({ min: 0 }).withMessage('Prix invalide (≥ 0)'),
+  body('price').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Prix invalide (≥ 0)'),
   validate,
 ];
 

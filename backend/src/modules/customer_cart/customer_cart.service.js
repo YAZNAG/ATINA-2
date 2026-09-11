@@ -341,6 +341,15 @@ class CustomerCartService {
   }
 
   // Recommander
+  /**
+   * Ré-ajoute au panier les articles d'une commande passée :
+   *  - produits seuls → lignes produit ;
+   *  - packs : ré-ajout du PACK (via le pack_id de la ligne d'en-tête, nombre de packs = qty
+   *    de l'en-tête) et non de ses composants ; anciennes commandes sans en-tête : nombre de
+   *    packs déduit de la recette ;
+   *  - lignes d'échange de points et lots gagnés (0 MAD) : jamais ré-ajoutées (récompenses) ;
+   *  - produit inactif ou pack indisponible : ignoré (liste renvoyée dans reorder.skipped).
+   */
   async reorderFromOrder(customerId, orderId, mode = 'merge', opts = {}) {
     if (!['merge', 'replace'].includes(mode)) {
       throw { statusCode: 400, message: 'Mode invalide (merge ou replace)' };
@@ -351,42 +360,83 @@ class CustomerCartService {
       where:   { id: orderId, customer_id: customerId, is_deleted: false },
       include: {
         items: {
-          select: { sku_id: true, qty: true, sku: { select: { is_active: true, is_deleted: true } } },
+          select: {
+            id: true, sku_id: true, pack_id: true, parent_item_id: true, qty: true,
+            is_points_exchange: true, game_play_id: true,
+            sku:  { select: { name_fr: true, is_active: true, is_deleted: true } },
+            pack: { select: { name_fr: true } },
+          },
         },
       },
     });
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
 
-    const availableItems = (order.items ?? []).filter((i) => i.sku_id && i.sku && i.sku.is_active && !i.sku.is_deleted);
-    if (availableItems.length === 0) {
-      throw { statusCode: 400, message: 'Aucun article de cette commande n\'est disponible' };
+    const all = order.items ?? [];
+    const rewardHeaderIds = new Set(all.filter((i) => i.is_points_exchange || i.game_play_id).map((i) => i.id));
+    const lines = all.filter((i) => !i.is_points_exchange && !i.game_play_id
+      && !(i.parent_item_id && rewardHeaderIds.has(i.parent_item_id)));
+
+    // Packs : en-têtes (pack_id, sku_id NULL) ; composants (parent_item_id) ignorés.
+    const packCounts = new Map();
+    const packNames = {};
+    for (const h of lines.filter((i) => i.pack_id && !i.sku_id)) {
+      packCounts.set(h.pack_id, (packCounts.get(h.pack_id) || 0) + Math.max(1, Math.round(Number(h.qty))));
+      packNames[h.pack_id] = h.pack?.name_fr;
+    }
+    // Anciennes commandes : composants porteurs du pack_id sans ligne d'en-tête.
+    const legacy = lines.filter((i) => i.pack_id && i.sku_id && !i.parent_item_id && !packCounts.has(i.pack_id));
+    for (const packId of [...new Set(legacy.map((i) => i.pack_id))]) {
+      const recipe = await getPackWithItems(packId).catch(() => null);
+      const comps = legacy.filter((i) => i.pack_id === packId).map((i) => ({ sku_id: i.sku_id, quantity: Number(i.qty) }));
+      packCounts.set(packId, Math.max(1, bundleCount(comps, recipe?.pack_items)));
+      packNames[packId] = legacy.find((i) => i.pack_id === packId)?.pack?.name_fr;
+    }
+
+    const skipped = [];
+    const products = [];
+    for (const i of lines) {
+      if (!i.sku_id || i.pack_id || i.parent_item_id) continue;
+      if (!i.sku || !i.sku.is_active || i.sku.is_deleted) { skipped.push(i.sku?.name_fr || 'Produit indisponible'); continue; }
+      products.push(i);
+    }
+    if (!products.length && !packCounts.size) {
+      throw { statusCode: 400, message: "Aucun article de cette commande n'est disponible" };
     }
 
     const cart = await this._getOrCreate(customerId);
-
     if (mode === 'replace') {
       await prisma.cartItem.deleteMany({ where: { cart_id: cart.id } });
     }
 
-    for (const item of availableItems) {
+    let addedItems = 0;
+    for (const item of products) {
       const qty = Math.max(1, Math.round(Number(item.qty)));
       const existing = await prisma.cartItem.findFirst({
         where: { cart_id: cart.id, sku_id: item.sku_id, pack_id: null },
       });
-
       if (existing) {
-        await prisma.cartItem.update({
-          where: { id: existing.id },
-          data:  { quantity: existing.quantity + qty },
-        });
+        await prisma.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
       } else {
-        await prisma.cartItem.create({
-          data: { cart_id: cart.id, sku_id: item.sku_id, pack_id: null, quantity: qty },
-        });
+        await prisma.cartItem.create({ data: { cart_id: cart.id, sku_id: item.sku_id, pack_id: null, quantity: qty } });
       }
+      addedItems += 1;
     }
 
-    return this.getCart(customerId, opts);
+    let addedPacks = 0;
+    for (const [packId, count] of packCounts) {
+      try {
+        await this.addPack(customerId, packId, count, opts);
+        addedPacks += count;
+      } catch (e) {
+        skipped.push(`${packNames[packId] || 'Pack'} (${e?.message || 'indisponible'})`);
+      }
+    }
+    if (!addedItems && !addedPacks) {
+      throw { statusCode: 409, message: `Aucun article de cette commande n'a pu être ajouté : ${skipped.join(' ; ')}` };
+    }
+
+    const updated = await this.getCart(customerId, opts);
+    return { ...updated, reorder: { added_items: addedItems, added_packs: addedPacks, skipped } };
   }
 }
 

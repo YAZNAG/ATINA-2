@@ -2,6 +2,12 @@ const prisma = require('../config/database');
 
 // Template library (extend as needed)
 const TEMPLATES = {
+  game_unlocked: {
+    title: 'Un jeu vous attend !',
+    body: (data) => `Votre commande vous donne droit à une partie${data.game ? ` de « ${data.game} »` : ''}. Tentez votre chance dans Jeux.`,
+    title_ar: 'لعبة في انتظارك!',
+    body_ar: (data) => `طلبك يمنحك فرصة للعب${data.game_ar ? ` « ${data.game_ar} »` : ''}. جرّب حظك في قسم الألعاب.`,
+  },
   order_confirmed: {
     title: 'Commande confirmée',
     body: (data) => `Votre commande a été confirmée. Référence: ${data.ref}`,
@@ -169,7 +175,19 @@ async function notify({ customer_id, order_id, event_code, data = {}, channel_co
 const notifyOrderConfirmed = (customer_id, order_id, ref)       => notify({ customer_id, order_id, event_code: 'order_confirmed', data: { ref } });
 const notifyOrderReady     = (customer_id, order_id, delivery)  => notify({ customer_id, order_id, event_code: 'order_ready', data: { delivery } });
 const notifyInDelivery     = (customer_id, order_id)            => notify({ customer_id, order_id, event_code: 'order_in_delivery' });
-const notifyDelivered      = (customer_id, order_id, points=0)  => notify({ customer_id, order_id, event_code: 'order_delivered', data: { points } });
+const notifyDelivered = async (customer_id, order_id, points = 0) => {
+  const res = await notify({ customer_id, order_id, event_code: 'order_delivered', data: { points } });
+  // Jeux débloqués par cette livraison (WF #9 / #36) : « votre tour vous attend ».
+  try {
+    // eslint-disable-next-line global-require
+    const { gamesUnlockedByOrder } = require('../modules/customer_games/customer_games.service');
+    const games = await gamesUnlockedByOrder(order_id);
+    if (games.length) {
+      await notify({ customer_id, order_id, event_code: 'game_unlocked', data: { game: games[0].name_fr, game_ar: games[0].name_ar, count: games.length } });
+    }
+  } catch (e) { console.warn('[notify] game_unlocked :', e?.message ?? e); }
+  return res;
+};
 const notifyCancelled      = (customer_id, order_id, reason)    => notify({ customer_id, order_id, event_code: 'order_cancelled', data: { reason } });
 const notifyWalletCredited = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_credited', data: { amount, balance } });
 const notifyWalletDebited  = (customer_id, amount, balance)     => notify({ customer_id, event_code: 'wallet_debited', data: { amount, balance } });

@@ -1,6 +1,7 @@
 const prisma = require('../../config/database');
 const { toPublicUrl } = require('../../utils/fileStorage');
 const walletService = require('../wallet/wallet.service');
+const { audit } = require('../../utils/audit');
 
 const PAID_STATUS_CODES = ['paid', 'collected'];
 const COD_METHOD_CODES  = ['COD', 'CASH'];
@@ -22,6 +23,83 @@ const SKU_SELECT = {
 };
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+const round3 = (n) => Math.round(Number(n) * 1000) / 1000;
+
+// ── Stock : la réservation suit le SKU réellement livré (US-108 / WF #28) ───
+/**
+ * Libère la réservation d'une ligne (part en rupture d'abord, puis la réservation).
+ * Aucune écriture stock_moves : le physique ne bouge qu'à la livraison.
+ */
+async function releaseLineStock(tx, { node_id, sku_id, qty, qty_backordered = 0, order_item_id }) {
+  if (!sku_id || !(Number(qty) > 0)) return { reserved_released: 0, backorder_released: 0 };
+  const qb = Math.min(Number(qty), Number(qty_backordered || 0));
+  const resPart = Math.max(0, Number(qty) - qb);
+  await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${node_id}::uuid AND sku_id = ${sku_id}::uuid FOR UPDATE`;
+  const level = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
+  let released = 0;
+  if (level) {
+    const oldRes = Number(level.qty_reserved);
+    const newRes = Math.max(0, oldRes - resPart);
+    released = oldRes - newRes;
+    const data = {
+      qty_reserved: round3(newRes),
+      qty_available: round3(Number(level.qty_available) + released),
+      qty_backordered: round3(Math.max(0, Number(level.qty_backordered) - qb)),
+    };
+    await tx.stockLevel.update({ where: { id: level.id }, data });
+    await audit(null, {
+      action: 'CUSTOMER_SUBSTITUTION', resource: 'stock_levels', resource_id: level.id,
+      old_values: { qty_reserved: oldRes, qty_available: Number(level.qty_available), qty_backordered: Number(level.qty_backordered) },
+      new_values: { ...data, sku_id, order_item_id, motif: 'Réservation libérée (produit remplacé ou refusé)' },
+    }, tx);
+  }
+  if (qb > 0) {
+    const rule = await tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
+    if (rule) {
+      await tx.sellingRule.update({
+        where: { id: rule.id },
+        data: { backordered_quantity: round3(Math.max(0, Number(rule.backordered_quantity) - qb)) },
+      });
+    }
+  }
+  return { reserved_released: round3(released), backorder_released: round3(qb) };
+}
+
+/**
+ * Réserve le produit de remplacement : le disponible est réservé, le reste passe en
+ * rupture (le préparateur a déjà prélevé l'article : la substitution n'est jamais bloquée).
+ */
+async function reserveSubstituteStock(tx, { node_id, sku_id, qty, order_item_id }) {
+  await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${node_id}::uuid AND sku_id = ${sku_id}::uuid FOR UPDATE`;
+  const level = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
+  const avail = level ? Math.max(0, Number(level.qty_available)) : 0;
+  const reserved = Math.min(Number(qty), avail);
+  const backordered = round3(Number(qty) - reserved);
+  if (level) {
+    await tx.stockLevel.update({
+      where: { id: level.id },
+      data: { qty_reserved: { increment: reserved }, qty_available: { decrement: reserved }, qty_backordered: { increment: backordered } },
+    });
+  } else if (backordered > 0) {
+    await tx.stockLevel.create({ data: { node_id, sku_id, qty_backordered: backordered } });
+  }
+  if (backordered > 0) {
+    const rule = await tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
+    if (rule) await tx.sellingRule.update({ where: { id: rule.id }, data: { backordered_quantity: { increment: backordered } } });
+  }
+  await audit(null, {
+    action: 'CUSTOMER_SUBSTITUTION', resource: 'stock_levels', resource_id: level?.id ?? null,
+    old_values: level ? { qty_reserved: Number(level.qty_reserved), qty_available: Number(level.qty_available) } : null,
+    new_values: { sku_id, order_item_id, reserved, backordered, motif: 'Réservation du produit de remplacement accepté par le client' },
+  }, tx);
+  return { reserved, backordered };
+}
+
+/** Recalcul des montants et du paiement à encaisser (même règle que le back-office). */
+async function recalcOrder(tx, orderId) {
+  const svc = require('../orders_mgmt/order_mgmt.service');
+  return svc._recalc(tx, orderId);
+}
 
 /** Prix TTC d'un SKU sur un node : règle de vente, sinon skus.price (HT) + TVA, sinon null. */
 function skuNodePrice(sku, nodeId) {
@@ -164,24 +242,37 @@ class CustomerSubstitutionService {
           throw { statusCode: 409, message: 'Cette substitution a déjà été traitée' };
         }
 
+        // Stock : la réservation de l'ancien SKU est libérée et le produit de remplacement
+        // est réservé (auparavant le sku_id changeait en place sans toucher au stock).
+        const oi = item.order_item;
+        await releaseLineStock(tx, {
+          node_id: oi.node_id, sku_id: oi.sku_id, qty: Number(oi.qty),
+          qty_backordered: Number(oi.qty_backordered || 0), order_item_id: oi.id,
+        });
+        const subRes = await reserveSubstituteStock(tx, {
+          node_id: oi.node_id, sku_id: item.substitute_sku_id, qty: Number(oi.qty), order_item_id: oi.id,
+        });
+
+        // La ligne garde son identité (la tâche de picking « substituted » la référence) :
+        // elle porte désormais le SKU livré, au prix facturé, avec sa propre part en rupture.
         await tx.orderItem.update({
           where: { id: item.order_item_id },
           data: {
             sku_id:          item.substitute_sku_id,
             status_id:       orderItemStatus.id,
             unit_price_sold: chargedUnitPrice,
+            qty_backordered: subRes.backordered,
+            vat_rate:        vatRate,
           },
         });
+        const totals = await recalcOrder(tx, item.order_item.order.id);
+        await audit(null, {
+          action: 'CUSTOMER_SUBSTITUTION', resource: 'order_items', resource_id: item.order_item_id,
+          old_values: { sku_id: oi.sku_id, unit_price_sold: originalPrice, total_ttc: totals.old_total_ttc },
+          new_values: { sku_id: item.substitute_sku_id, unit_price_sold: chargedUnitPrice, total_ttc: totals.total_ttc, response: 'accepted' },
+        }, tx);
 
         if (diffTotal > 0) {
-          await tx.order.update({
-            where: { id: item.order_item.order.id },
-            data: {
-              subtotal_ht: { decrement: diffHt },
-              total_ttc:   { decrement: diffTotal },
-            },
-          });
-
           if (paidOnline) {
             await walletService.refundWallet(
               {
@@ -213,8 +304,20 @@ class CustomerSubstitutionService {
 
         await tx.orderItem.update({
           where: { id: item.order_item_id },
-          data: { status_id: orderItemStatus.id },
+          data: { status_id: orderItemStatus.id, qty_backordered: 0 },
         });
+        // Produit refusé : la ligne est annulée, sa réservation est libérée et le montant recalculé.
+        const oi = item.order_item;
+        await releaseLineStock(tx, {
+          node_id: oi.node_id, sku_id: oi.sku_id, qty: Number(oi.qty),
+          qty_backordered: Number(oi.qty_backordered || 0), order_item_id: oi.id,
+        });
+        const totals = await recalcOrder(tx, oi.order.id);
+        await audit(null, {
+          action: 'CUSTOMER_SUBSTITUTION', resource: 'order_items', resource_id: oi.id,
+          old_values: { status: 'substituted', total_ttc: totals.old_total_ttc },
+          new_values: { status: 'cancelled', total_ttc: totals.total_ttc, response: 'refused' },
+        }, tx);
       });
     }
 

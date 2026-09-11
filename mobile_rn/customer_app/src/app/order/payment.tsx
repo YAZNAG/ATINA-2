@@ -26,6 +26,7 @@ import { ProfileService } from '../../services/profile.service';
 import { CartService } from '../../services/cart.service';
 import { CouponsService } from '../../services/coupons.service';
 import { useCartActions } from '../../context/CartContext';
+import { RewardsCart, useRewardsCart } from '../../store/rewardsCartStore';
 
 const RED = '#E10600';
 
@@ -78,8 +79,11 @@ export default function PaymentScreen() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMsg,    setCouponMsg]    = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const { applyCart } = useCartActions();
+  // Lignes d'échange de points et lots gagnés (panier local, écrits à la confirmation seulement)
+  const rewards = useRewardsCart();
 
   const cartItems: CartItem[] = params.cart_items ? JSON.parse(params.cart_items) : [];
+  const rewardsError = calculation?.exchange?.error || calculation?.claims?.error || null;
   const total      = calculation?.total_ttc ?? 0;
   const isCard     = selected?.code.toLowerCase() === 'card';
   const walletUsed = (isCard && useWallet) ? Math.min(walletBalance, total) : 0;
@@ -96,6 +100,7 @@ export default function PaymentScreen() {
       cart_items:         cartItems,
       promo_code:         promoCode ?? undefined,
       wallet_used:        walletAmount && walletAmount > 0 ? walletAmount : undefined,
+      ...RewardsCart.payload(),
     })
       .then(c => {
       console.log('[runCalculate] réponse ←', JSON.stringify(c, null, 2));
@@ -141,6 +146,7 @@ export default function PaymentScreen() {
         node_id:            params.node_id,
         delivery_type_code: params.delivery_type_code,
         cart_items:         cartItems,
+        ...RewardsCart.payload(),
       })
         .then(async c => {
           setCalculation(c);
@@ -212,7 +218,9 @@ export default function PaymentScreen() {
         payment_method_code: selected.code,
         wallet_used:         walletUsed > 0 ? walletUsed : undefined,
         promo_code:          appliedCode ?? undefined,
+        ...RewardsCart.payload(),
       });
+      RewardsCart.clear();
       const cart = await CartService.clearCart();
       applyCart(cart);
       router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
@@ -397,6 +405,36 @@ export default function PaymentScreen() {
                     </Text>
                   </View>
                 )}
+                {/* Produits échangés contre des points (0 DH, débités à la confirmation) */}
+                {rewards.exchange.length > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Produits échangés ({rewards.exchange.reduce((s, l) => s + l.qty, 0)})
+                    </Text>
+                    <Text style={[styles.summaryValue, { color: '#F59E0B' }]}>
+                      {(calculation.exchange?.points_total ?? RewardsCart.pointsTotal()).toLocaleString('fr-FR')} pts
+                    </Text>
+                  </View>
+                )}
+                {rewards.exchange.length > 0 && calculation.exchange?.projected_balance != null && !calculation.exchange?.error && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Solde de points après commande</Text>
+                    <Text style={styles.summaryValue}>{calculation.exchange.projected_balance.toLocaleString('fr-FR')} pts</Text>
+                  </View>
+                )}
+                {/* Lots gagnés réclamés (0 DH) */}
+                {rewards.claims.map((c) => (
+                  <View key={c.play_id} style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel} numberOfLines={1}>Lot offert : {c.name_fr}</Text>
+                    <Text style={[styles.summaryValue, { color: '#16A34A' }]}>Offert</Text>
+                  </View>
+                ))}
+                {!!calculation.exchange?.error && (
+                  <Text style={[styles.couponMsg, styles.couponMsgError]}>{calculation.exchange.error}</Text>
+                )}
+                {!!calculation.claims?.error && (
+                  <Text style={[styles.couponMsg, styles.couponMsgError]}>{calculation.claims.error}</Text>
+                )}
               </View>
             </>
           )}
@@ -414,9 +452,9 @@ export default function PaymentScreen() {
             </Text>
           </View>
           <TouchableOpacity
-            style={[styles.btnConfirm, (!selected || confirming || !!calcError) && styles.btnDisabled]}
+            style={[styles.btnConfirm, (!selected || confirming || !!calcError || !!rewardsError) && styles.btnDisabled]}
             onPress={handleConfirm}
-            disabled={!selected || confirming || !!calcError}
+            disabled={!selected || confirming || !!calcError || !!rewardsError}
             activeOpacity={0.85}
           >
             {confirming

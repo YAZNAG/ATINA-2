@@ -189,6 +189,18 @@ if (error) {
           </TouchableOpacity>
         </View>
 
+        {/* ── Échange de points contre des produits (WF #19) ── */}
+        <TouchableOpacity style={styles.exchangeLink} onPress={() => router.push('/rewards/exchange' as any)} activeOpacity={0.85}>
+          <View style={[styles.stepIcon, { backgroundColor: '#FEF3C7' }]}>
+            <Feather name="repeat" size={18} color="#B45309" />
+          </View>
+          <View style={styles.stepText}>
+            <Text style={styles.stepTitle}>Échanger mes points contre des produits</Text>
+            <Text style={styles.stepDesc}>Choisissez des produits du catalogue d'échange : ils sont offerts dans votre prochaine commande.</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#C5C5C5" />
+        </TouchableOpacity>
+
         {/* ── Comment ça marche ── */}
         <Text style={styles.sectionTitle}>Comment ça marche ?</Text>
 
@@ -311,6 +323,10 @@ const styles = StyleSheet.create({
   redeemBtnText: { color: RED, fontSize: 15, fontWeight: '700' },
 
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a', marginTop: 28, marginBottom: 12 },
+  exchangeLink: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB',
+    borderRadius: 16, padding: 16, marginTop: 16, borderWidth: 1, borderColor: '#FEF3C7',
+  },
 
   stepCard: {
     flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff',

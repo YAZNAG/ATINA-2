@@ -458,8 +458,10 @@ function minimumCheck(settings, paidSubtotal) {
 }
 
 // ── CALCULATE — server-side cart total ───────────────────────────────────────
-async function calculate({ node_id, delivery_type_code, cart_items, payment_method_code, wallet_used = 0, customer_id, promo_code = null, soft_minimum = false }) {
-  if (!cart_items?.length) throw { statusCode: 400, message: 'Panier vide' };
+async function calculate({ node_id, delivery_type_code, cart_items = [], payment_method_code, wallet_used = 0, customer_id, promo_code = null, soft_minimum = false, exchange_items = [], claim_play_ids = [] }) {
+  const hasRewards = (Array.isArray(exchange_items) && exchange_items.length > 0) || (Array.isArray(claim_play_ids) && claim_play_ids.length > 0);
+  if (!cart_items?.length && !hasRewards) throw { statusCode: 400, message: 'Panier vide' };
+  cart_items = cart_items || [];
   if (!node_id)            throw { statusCode: 400, message: 'node_id requis' };
 
   const settings = await getNodeOrderSettings(node_id);
@@ -503,6 +505,18 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
   const normalizedPaymentCode = String(payment_method_code || '').trim().toLowerCase();
   const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode) ? total_ttc : 0;
 
+  // Lignes d'échange de points et lots réclamés : aperçu non bloquant (rien n'est écrit, WF #19 A).
+  let exchange = null;
+  let claims = null;
+  if (customer_id && hasRewards) {
+    const { previewExchange } = require('../points_exchange/points_exchange.customer');
+    const { previewClaims } = require('../gamification/gamification.claims');
+    [exchange, claims] = await Promise.all([
+      previewExchange({ customer_id, node_id, exchange_items }),
+      previewClaims({ customer_id, node_id, claim_play_ids }),
+    ]);
+  }
+
   return {
     items: totals.priced.map(({ item, qty, priced, components }) => ({
       sku_id:         item._header ? null : (item.sku_id || null),
@@ -536,6 +550,18 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
     currency:       'MAD',
     ...minimum,
     slot_selection_enabled: settings.slot_selection_enabled,
+    // Échange de points (0 MAD, exclu du minimum) et lots gagnés à réclamer (0 MAD)
+    exchange: exchange && {
+      lines: exchange.lines.map((l) => ({ sku_id: l.sku_id, name_fr: l.name_fr, qty: l.qty, points_cost: l.points_cost, points_spent: l.points_spent, unit_price_ttc: 0 })),
+      points_total: exchange.points_total,
+      points_balance: exchange.points_balance,
+      projected_balance: exchange.projected_balance,
+      error: exchange.error,
+    },
+    claims: claims && {
+      lines: claims.lines.map((l) => ({ play_id: l.play_id, type: l.type, sku_id: l.sku_id, pack_id: l.pack_id, name_fr: l.name_fr, expires_at: l.expires_at, unit_price_ttc: 0 })),
+      error: claims.error,
+    },
   };
 }
 
@@ -704,20 +730,29 @@ async function createOrder(payload, ctx = {}) {
   const source = ctx.source === 'backoffice' ? 'backoffice' : 'customer';
   const strict = source === 'backoffice';
   const req = ctx.req || null;
+  let { cart_items } = payload;
   const {
     customer_id, address_id,
     delivery_type_id, delivery_type_code,
     node_id, selected_slot_id,
     slot_preference_ids = [],
     payment_method_id, payment_method_code,
-    cart_items, notes, date,
+    notes, date,
     wallet_used: walletRequested = 0,
     promo_code = null,
     initial_status_code = 'pending',
+    exchange_items = [],
+    claim_play_ids = [],
   } = payload;
+  // Lignes d'échange de points (WF #19) et lots gagnés à réclamer (WF #9) : hors cart_items.
+  const { normalizeExchangeItems } = require('../points_exchange/points_exchange.customer');
+  const { normalizePlayIds } = require('../gamification/gamification.claims');
+  const exchangeReq = normalizeExchangeItems(exchange_items);
+  const claimReq = normalizePlayIds(claim_play_ids);
+  cart_items = cart_items || [];
 
   if (!customer_id)        throw { statusCode: 400, message: 'customer_id requis' };
-  if (!cart_items?.length) throw { statusCode: 400, message: 'Panier vide — cart_items requis' };
+  if (!cart_items.length && !exchangeReq.length && !claimReq.length) throw { statusCode: 400, message: 'Panier vide — cart_items requis' };
 
   for (const [i, item] of cart_items.entries()) {
     if (!item.sku_id && !item.pack_id) throw { statusCode: 400, message: `cart_items[${i}]: sku_id ou pack_id requis` };
@@ -1000,6 +1035,110 @@ async function createOrder(payload, ctx = {}) {
       if (item.sku_id) await reserve(line, item.sku_id, qty, null);
     }
 
+    // ── Échange de points (WF #19 B) : contrôles rejoués À LA CONFIRMATION, puis écriture ──
+    // Lignes à 0 MAD (is_points_exchange, points_spent figé), stock réservé, UNE transaction
+    // sku_exchange au grand-livre, orders.points_redeemed renseigné. Exclues du minimum.
+    const rewardsLock = async (sku_id, qty, label) => {
+      await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${finalNodeId}::uuid AND sku_id = ${sku_id}::uuid FOR UPDATE`;
+      const level = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id } } });
+      const avail = level ? Math.max(0, Number(level.qty_available)) : 0;
+      if (avail < qty) throw { statusCode: 409, message: `Stock insuffisant pour « ${label} » (disponible ${avail}, demandé ${qty}).` };
+    };
+    let exchangeApplied = null;
+    if (exchangeReq.length) {
+      const { validateExchangeItems } = require('../points_exchange/points_exchange.customer');
+      const { recordPointsTxn } = require('../loyalty/points-ledger.util');
+      const plan = await validateExchangeItems(tx, { customer_id, node_id: finalNodeId, exchange_items: exchangeReq, checkStock: false });
+      const exLines = [];
+      for (const l of plan.lines) {
+        skuNames[l.sku_id] = skuNames[l.sku_id] || l.name_fr;
+        await rewardsLock(l.sku_id, l.qty, `${l.name_fr} (échange de points)`);
+        const line = await tx.orderItem.create({
+          data: {
+            order_id: newOrder.id, sku_id: l.sku_id, pack_id: null, status_id: activeItem.id,
+            qty: l.qty, unit_price_sold: 0, discount_amount: 0, vat_rate: l.vat_rate, node_id: finalNodeId,
+            is_points_exchange: true, points_spent: l.points_spent,
+          },
+        });
+        lineCount += 1;
+        await reserve(line, l.sku_id, l.qty, null);
+        exLines.push({ item_id: line.id, sku_id: l.sku_id, qty: l.qty, points_cost: l.points_cost, points_spent: l.points_spent });
+      }
+      const ref = newOrder.id.slice(0, 8).toUpperCase();
+      const { txn, points_balance } = await recordPointsTxn(tx, {
+        customer_id, amount: -plan.points_total, type: 'sku_exchange',
+        reason: `Échange de points — commande ${ref}`, order_id: newOrder.id,
+      });
+      await tx.order.update({ where: { id: newOrder.id }, data: { points_redeemed: plan.points_total } });
+      exchangeApplied = { points_redeemed: plan.points_total, points_balance, points_txn_id: txn.id, lines: exLines };
+      await audit(req, {
+        action: 'POINTS_EXCHANGE', resource: 'orders', resource_id: newOrder.id,
+        old_values: { points_balance: points_balance + plan.points_total },
+        new_values: exchangeApplied,
+      }, tx);
+    }
+
+    // ── Lots gagnés free_sku / free_pack (WF #9) : lignes à 0 MAD portant game_play_id ──
+    let claimsApplied = null;
+    if (claimReq.length) {
+      const { validateClaims, markClaimed } = require('../gamification/gamification.claims');
+      const { resolveSkuPrice } = require('./pricing.shared');
+      const now = new Date();
+      const plan = await validateClaims(tx, { customer_id, node_id: finalNodeId, claim_play_ids: claimReq, now });
+      claimsApplied = [];
+      for (const c of plan) {
+        await markClaimed(tx, { play_id: c.play_id, customer_id, now });
+        if (c.type === 'free_sku') {
+          const p = await resolveSkuPrice(finalNodeId, c.sku_id);
+          skuNames[c.sku_id] = skuNames[c.sku_id] || p.name_fr;
+          await rewardsLock(c.sku_id, 1, `${p.name_fr} (lot gagné)`);
+          const line = await tx.orderItem.create({
+            data: {
+              order_id: newOrder.id, sku_id: c.sku_id, pack_id: null, status_id: activeItem.id,
+              qty: 1, unit_price_sold: 0, discount_amount: 0, vat_rate: p.vat_rate, node_id: finalNodeId,
+              game_play_id: c.play_id,
+            },
+          });
+          lineCount += 1;
+          await reserve(line, c.sku_id, 1, null);
+          claimsApplied.push({ play_id: c.play_id, type: c.type, item_id: line.id, sku_id: c.sku_id });
+        } else {
+          const pack = await tx.pack.findUnique({ where: { id: c.pack_id }, include: { pack_items: { orderBy: { sort_order: 'asc' } } } });
+          if (!pack?.pack_items?.length) throw { statusCode: 422, message: `Le pack « ${c.name_fr} » n'a aucun composant` };
+          if (pack.node_id && pack.node_id !== finalNodeId) throw { statusCode: 422, message: `Le pack « ${c.name_fr} » n'est pas proposé sur ce magasin` };
+          const header = await tx.orderItem.create({
+            data: {
+              order_id: newOrder.id, sku_id: null, pack_id: pack.id, status_id: activeItem.id,
+              qty: 1, unit_price_sold: 0, discount_amount: 0, vat_rate: 20, node_id: finalNodeId,
+              game_play_id: c.play_id,
+            },
+          });
+          lineCount += 1;
+          for (const it of pack.pack_items) {
+            const p = await resolveSkuPrice(finalNodeId, it.sku_id);
+            const q = Number(it.qty || 1);
+            skuNames[it.sku_id] = skuNames[it.sku_id] || p.name_fr;
+            await rewardsLock(it.sku_id, q, `${p.name_fr} (pack gagné « ${pack.name_fr} »)`);
+            const comp = await tx.orderItem.create({
+              data: {
+                order_id: newOrder.id, sku_id: it.sku_id, pack_id: null, parent_item_id: header.id, status_id: activeItem.id,
+                qty: q, unit_price_sold: 0, discount_amount: 0, vat_rate: p.vat_rate, node_id: finalNodeId,
+              },
+            });
+            lineCount += 1;
+            await reserve(comp, it.sku_id, q, pack);
+          }
+          // Le pack offert sort du plafond commercial comme un pack vendu (rendu à l'annulation, bloc 4).
+          await tx.$executeRaw`UPDATE packs SET sold_count = sold_count + 1, updated_at = now() WHERE id = ${pack.id}::uuid`;
+          claimsApplied.push({ play_id: c.play_id, type: c.type, item_id: header.id, pack_id: pack.id });
+        }
+      }
+      await audit(req, {
+        action: 'CLAIM_GAME_PRIZE', resource: 'orders', resource_id: newOrder.id,
+        old_values: { claimed_at: null }, new_values: { claimed_at: now, claims: claimsApplied },
+      }, tx);
+    }
+
     // Plafond commercial des packs (WF #27 étape 4d) : sold_count += nb de packs
     const { adjustPackSoldCount } = require('../pack/pack.shared');
     const packSold = {};
@@ -1096,6 +1235,8 @@ async function createOrder(payload, ctx = {}) {
         packs_sold_count: packSold,
         flash_sales: flashApplied,
         promotion: appliedPromo ? { id: appliedPromo.id, code: appliedPromo.code, discount_amount } : null,
+        points_exchange: exchangeApplied,
+        game_prizes: claimsApplied,
         reservations,
         confirmed_slot_id: slot?.id || null,
         slot_warning: slotWarning,

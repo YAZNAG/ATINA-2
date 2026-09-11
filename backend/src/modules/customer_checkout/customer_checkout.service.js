@@ -44,7 +44,10 @@ async function resolveCartItems(cart_items) {
   const eanMap  = Object.fromEntries(skus.filter(s => s.ean13).map(s => [s.ean13, s]));
   const codeMap = Object.fromEntries(skus.map(s => [s.sku_code, s]));
 
-  return cart_items.map(item => {
+  // Les drapeaux « échange de points » / « lot gagné » ne sont jamais acceptés depuis
+  // cart_items (lignes payées) : ils passent par exchange_items / claim_play_ids,
+  // contrôlés côté serveur à la confirmation.
+  return cart_items.map(({ is_points_exchange, points_spent, game_play_id, ...item }) => {
     const identifier = String(item.sku_code || item.sku_id || '');
     const sku = idMap[identifier] ?? eanMap[identifier] ?? codeMap[identifier];
     return { ...item, sku_id: sku?.id ?? item.sku_id ?? null };
@@ -160,7 +163,13 @@ async function getDeliverySlots(params) {
   return checkoutSvc.getDeliverySlots({ ...rest, cart_items: resolved });
 }
 
-// Create order 
+// Create order
+/**
+ * Payload app : cart_items (lignes payées : produits, packs, ventes flash)
+ *   + exchange_items: [{ sku_id, qty }]  → lignes « échange de points » (WF #19)
+ *   + claim_play_ids: [play_id]          → lots gagnés free_sku / free_pack (WF #9)
+ * Les deux derniers ne sont écrits qu'à la confirmation (checkout.createOrder).
+ */
 async function createOrder(customerId, payload) {
   const { cart_items, slot_id, ...rest } = payload;
   const resolved = await resolveCartItems(cart_items || []);

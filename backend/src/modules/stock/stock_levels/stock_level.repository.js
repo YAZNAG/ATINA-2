@@ -28,7 +28,7 @@ const findOne = (node_id, sku_id) =>
 // Returns sku-joined rows with level + threshold data, supports filters.
 // Le modèle Article n'existe plus : le catalogue produit vit entièrement dans Sku.
 const findWithFilters = async ({
-  node_id, sku_id, category_id, sku_family_id,   // ← ajoute sku_family_id
+  node_id, sku_id, category_id, sku_family_id, brand_id,
   out_of_stock, low_stock, backordered, has_incoming, has_cod,
 } = {}) => {
   const levelWhere = {};
@@ -38,6 +38,7 @@ const findWithFilters = async ({
   const skuWhere = { is_active: true, is_deleted: false };
   if (category_id)   skuWhere.category_id   = category_id;   // axe Category (plat)
   if (sku_family_id) skuWhere.sku_family_id = sku_family_id; // axe SkuFamily
+  if (brand_id)      skuWhere.brand_id      = Number(brand_id);
   levelWhere.sku = skuWhere;
 
   // Exclut les lignes "stub" créées par upsert (reserve/incoming/count/...)
@@ -64,6 +65,7 @@ const findWithFilters = async ({
           sku_family:    { select: { id: true, name_fr: true, code: true } },
           sku_subfamily: { select: { id: true, name_fr: true, code: true } },
           category:      { select: { id: true, name_fr: true, code: true } },
+          brand:         { select: { id: true, name_fr: true } },
         },
       },
     },
@@ -277,7 +279,9 @@ const updateLastCountedAt = async (node_id, sku_id) => {
 };
 
 // Admin manual adjustment — sets qty_physical directly (creates correction move)
-const adminAdjust = async (node_id, sku_id, new_qty_physical, move_type_id, reference) =>
+// US-043 : l'ajustement trace l'opérateur, le motif et l'avant/après ; il ne touche pas
+// last_counted_at (réservé aux comptages physiques).
+const adminAdjust = async (node_id, sku_id, new_qty_physical, move_type_id, reference, { operator_id = null, reason = null } = {}) =>
   prisma.$transaction(async (tx) => {
     const cur = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id, sku_id } } });
     const old_phys  = N(cur?.qty_physical);
@@ -285,15 +289,27 @@ const adminAdjust = async (node_id, sku_id, new_qty_physical, move_type_id, refe
     const qty_delta = new_qty_physical - old_phys;
     const new_avail = avail(new_qty_physical, reserved);
 
+    let typeId = move_type_id ?? null;
+    if (!typeId) {
+      const mt = await tx.moveType.findUnique({ where: { code: qty_delta >= 0 ? 'adjustment_in' : 'adjustment_out' }, select: { id: true } });
+      typeId = mt?.id ?? null;
+    }
+
     const move = await tx.stockMove.create({
-      data: { node_id, sku_id, move_type_id: move_type_id ?? null, qty_delta, reference: reference ?? 'Ajustement manuel' },
+      data: {
+        node_id, sku_id, move_type_id: typeId, qty_delta,
+        reference: (reference ?? 'Ajustement manuel').slice(0, 100),
+        reason: reason ?? reference ?? null,
+        operator_id,
+        metadata: { source: 'manual_adjustment', qty_physical_before: old_phys, qty_physical_after: new_qty_physical },
+      },
     });
     const level = await tx.stockLevel.upsert({
       where:  { node_id_sku_id: { node_id, sku_id } },
-      update: { qty_physical: new_qty_physical, qty_available: new_avail, last_move_id: move.id, last_counted_at: new Date(), updated_at: new Date() },
-      create: { node_id, sku_id, qty_physical: new_qty_physical, qty_available: new_avail, last_counted_at: new Date(), last_move_id: move.id },
+      update: { qty_physical: new_qty_physical, qty_available: new_avail, last_move_id: move.id, updated_at: new Date() },
+      create: { node_id, sku_id, qty_physical: new_qty_physical, qty_available: new_avail, last_move_id: move.id },
     });
-    return { move, level, qty_delta };
+    return { move, level, qty_delta, qty_physical_before: old_phys };
   });
 
 // Recalculate qty_available = max(0, qty_physical - qty_reserved) for all levels

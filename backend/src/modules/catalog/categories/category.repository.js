@@ -53,7 +53,7 @@ const findByCode = (code, excludeId) =>
   prisma.category.findFirst({ where: { code, ...BASE_WHERE, ...(excludeId && { NOT: { id: excludeId } }) } });
 
 const countArticles = (catId) =>
-  prisma.article.count({ where: { category_id: catId, is_deleted: false } });
+  prisma.sku.count({ where: { category_id: catId, is_deleted: false } });
 
 const create = (data) => prisma.category.create({ data });
 const update = (id, data) => prisma.category.update({ where: { id }, data });

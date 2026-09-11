@@ -107,4 +107,11 @@ router.use('/support', supportRoutes);
 router.use('/reviews', reviewsRoutes);
 router.use('/claims', claimsRoutes);
 
+// ── Conformité classeur Excel (sept. 2026) ──
+router.use('/points-exchange', require('../modules/points_exchange/points_exchange.routes'));
+router.use('/stock-counts',    require('../modules/stock_counts/stock_counts.routes'));
+router.use('/purchasing',      require('../modules/purchasing/purchasing.routes'));
+router.use('/quality-checks',  require('../modules/quality/quality.routes'));
+router.use('/gamification',    require('../modules/gamification/gamification.routes'));
+
 module.exports = router;

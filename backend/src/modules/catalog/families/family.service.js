@@ -53,7 +53,7 @@ class FamilyService {
       throw { statusCode: 400, message: 'Impossible de supprimer : cette famille contient des sous-familles' };
     }
     if (articleCount > 0) {
-      throw { statusCode: 400, message: 'Impossible de supprimer : des articles sont rattachés à cette famille' };
+      throw { statusCode: 400, message: `Impossible de supprimer : ${articleCount} produit(s) sont rattachés à cette famille` };
     }
     await repo.softDelete(id);
   }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Download, Eye, Filter, RefreshCw, UserCog } from 'lucide-react';
 import OrderDetailDrawer from '../commandes/OrderDetailDrawer';
@@ -25,8 +25,18 @@ export default function SessionsListTab({ mode, onOpen }) {
   const canReassign = ['picking.update', 'picking.reassign', 'dashboard.view'].some((c) => hasPermission(c));
 
   const empty = isHistory ? EMPTY_HISTORY : EMPTY_ACTIVE;
-  const [draft, setDraft] = useState(empty);
-  const [filters, setFilters] = useState(empty);
+  const [searchParams] = useSearchParams();
+  const fromUrl = useMemo(() => {
+    const init = { ...empty };
+    const nodeParam = searchParams.get('node_id');
+    const statusParam = searchParams.get('status');
+    if (nodeParam && 'node_id' in init) init.node_id = nodeParam;
+    if (statusParam && 'status_code' in init) init.status_code = statusParam;
+    return init;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [draft, setDraft] = useState(fromUrl);
+  const [filters, setFilters] = useState(fromUrl);
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });

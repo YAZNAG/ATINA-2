@@ -1,3 +1,4 @@
+const { audit } = require('../../../utils/audit');
 const repo   = require('./stock_level.repository');
 const prisma = require('../../../config/database');
 
@@ -101,13 +102,26 @@ class StockLevelService {
     return repo.updateLastCountedAt(node_id, sku_id);
   }
 
-  async adjust(body) {
+  async adjust(body, req = null) {
     const { node_id, sku_id, qty_physical, move_type_id, reference } = body;
+    const reason = String(body.reason ?? reference ?? '').trim();
     if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
     if (!sku_id)  throw { statusCode: 400, message: 'sku_id requis' };
+    if (!reason)  throw { statusCode: 400, message: "Le motif de l'ajustement est obligatoire" };
     const qty = Number(qty_physical);
     if (isNaN(qty) || qty < 0) throw { statusCode: 400, message: 'qty_physical doit être >= 0' };
-    return repo.adminAdjust(node_id, sku_id, qty, move_type_id, reference);
+    const result = await repo.adminAdjust(node_id, sku_id, qty, move_type_id, reference || reason, {
+      operator_id: req?.user?.id ?? null,
+      reason,
+    });
+    await audit(req, {
+      action: 'ADJUST',
+      resource: 'stock_levels',
+      resource_id: `${node_id}:${sku_id}`,
+      old_values: { qty_physical: result.qty_physical_before },
+      new_values: { qty_physical: qty, qty_delta: result.qty_delta, reason, move_id: result.move.id },
+    });
+    return result;
   }
 
   async recalculate(body) {

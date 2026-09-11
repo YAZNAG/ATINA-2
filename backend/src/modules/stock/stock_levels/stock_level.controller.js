@@ -61,7 +61,7 @@ class StockLevelController {
   }
 
   async adjust(req, res, next) {
-    try { return response.success(res, await service.adjust(req.body), 'Stock ajusté'); }
+    try { return response.success(res, await service.adjust(req.body, req), 'Stock ajusté'); }
     catch (e) { next(e); }
   }
 

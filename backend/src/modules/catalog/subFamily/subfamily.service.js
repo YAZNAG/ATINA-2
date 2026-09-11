@@ -54,7 +54,7 @@ class SubfamilyService {
     if (!item) throw { statusCode: 404, message: 'Sous-famille introuvable' };
     const articleCount = await repo.countArticles(id);
     if (articleCount > 0) {
-      throw { statusCode: 400, message: 'Impossible de supprimer : des articles sont rattachés à cette sous-famille' };
+      throw { statusCode: 400, message: `Impossible de supprimer : ${articleCount} produit(s) sont rattachés à cette sous-famille` };
     }
     await repo.softDelete(id);
   }

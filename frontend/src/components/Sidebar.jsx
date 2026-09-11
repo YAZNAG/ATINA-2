@@ -26,6 +26,29 @@ const ICONS = {
   wallet: 'M3 7a2 2 0 012-2h11a2 2 0 012 2v1h1a2 2 0 012 2v6a2 2 0 01-2 2h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm13 6h4M16 11v4',
   tables: 'M4 7h16M4 12h16M4 17h10',
   access: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  chart: 'M3 3v18h18M7 15l4-4 3 3 5-6',
+  calendar: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  quality: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  tag: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
+  hierarchy: 'M4 6h6M4 12h10M4 18h14M14 6h6',
+  price: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  ruler: 'M4 7l3-3 13 13-3 3L4 7zm4 1l2 2m1-5l2 2m1 3l2 2',
+  store: 'M3 9l1-5h16l1 5M3 9h18M3 9v11h18V9M9 20v-6h6v6',
+  moves: 'M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4',
+  refresh: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  box: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  supplier: 'M8 7h8m-8 4h8m-8 4h5M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z',
+  po: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  ticket: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z',
+  gift: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7',
+  exchange: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+  star: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+  share: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
+  percent: 'M19 5L5 19M6.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm11 11a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
+  users: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+  sliders: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+  log: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
   chevron: 'M19 9l-7 7-7-7',
   logout: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
 };
@@ -33,182 +56,161 @@ const ICONS = {
 const ANY = ['dashboard.view'];
 
 /*
- * Ordre des modules : du quotidien opérationnel vers le paramétrage.
- * Chaque section = un titre + des groupes dépliables (ou un lien simple).
- * Tous les chemins existants sont conservés ; les groupes en doublon
- * de l'ancienne version (Inventaire / Suivi de stock, Commandes / Commandes & Livraison,
- * Paramétrage Entrepôt / Paramétrage Noeuds, Config Commandes / Node) ont été fusionnés.
+ * Structure = classeur « Atina Suivi 3108 », feuille UX : une section par « Section »
+ * du classeur, une entrée par sous-module (les onglets sont dans chaque page).
+ * Les écrans propres à l'application sont rangés dans la section métier la plus proche.
  */
 const SECTIONS = [
   {
-    title: null,
+    title: 'Reporting / Supervision',
     items: [
-      { label: 'Tableau de bord', path: '/dashboard', exact: true, permission: 'dashboard.view', icon: ICONS.dashboard },
+      { label: 'KPI Overview',            path: '/dashboard',                   exact: true, anyPermissions: ['reporting.view', 'dashboard.view'], icon: ICONS.dashboard },
+      { label: 'Distribution Stock',      path: '/reporting/stock-distribution', anyPermissions: ['reporting.view', 'dashboard.view'], icon: ICONS.chart },
     ],
   },
   {
-    title: 'Opérations',
+    title: 'Commandes & Livraison',
     items: [
+      { label: 'Commandes',               path: '/orders-mgmt',                 anyPermissions: ['orders.view', ...ANY], icon: ICONS.orders },
+      { label: 'Créneaux de livraison',   path: '/orders/delivery-slots',       exact: true, anyPermissions: ['delivery_slots.view', ...ANY], icon: ICONS.calendar },
       {
-        label: 'Commandes', key: 'orders', icon: ICONS.orders,
+        label: 'Tournées & Livreurs', key: 'tours', icon: ICONS.delivery,
         children: [
-          { label: 'Toutes les commandes',   path: '/orders-mgmt',            anyPermissions: ['orders.view', ...ANY] },
-          { label: 'Nouveau checkout',       path: '/checkout/new',           anyPermissions: ['orders.create', ...ANY] },
-          { label: 'Créneaux de livraison',  path: '/orders/delivery-slots',  exact: true, anyPermissions: ['delivery_slots.view', ...ANY] },
-        ],
-      },
-      {
-        label: 'Picking', key: 'picking', icon: ICONS.picking,
-        children: [
-          { label: 'Sessions de picking',    path: '/picking/sessions',       anyPermissions: ['picking.read', ...ANY] },
-        ],
-      },
-      {
-        label: 'Livraison & Retrait', key: 'delivery', icon: ICONS.delivery,
-        children: [
-          { label: 'Commandes prêtes',       path: '/delivery/ready-orders',  anyPermissions: ANY },
-          { label: 'Tournées de livraison',  path: '/delivery/tours',         anyPermissions: ANY },
-          { label: 'Retraits en magasin',    path: '/pickup/orders',          anyPermissions: ANY },
-        ],
-      },
-      {
-        label: 'Clients', key: 'customers', icon: ICONS.customers,
-        children: [
-          { label: 'Annuaire clients',       path: '/customers',              anyPermissions: ['customers.view', ...ANY] },
-        ],
-      },
-      {
-        label: 'Staff opérationnel', key: 'staff', icon: ICONS.staff,
-        children: [
-          { label: 'Pickers',                path: '/staff/pickers',          anyPermissions: ['pickers.read', ...ANY] },
-          { label: 'Livreurs',               path: '/staff/drivers',          anyPermissions: ['drivers.read', ...ANY] },
+          { label: 'Tournées',            path: '/delivery/tours',              anyPermissions: ANY },
+          { label: 'Commandes prêtes',    path: '/delivery/ready-orders',       anyPermissions: ANY },
+          { label: 'Retraits en magasin', path: '/pickup/orders',               anyPermissions: ANY },
         ],
       },
     ],
   },
   {
-    title: 'Catalogue',
+    title: 'Préparation & Qualité',
     items: [
+      { label: 'Préparation (Picking)',   path: '/picking/sessions',            anyPermissions: ['picking.read', ...ANY], icon: ICONS.picking },
+      { label: 'Contrôles Qualité',       path: '/quality/checks',              anyPermissions: ['quality_checks.view', 'quality_checks.create'], icon: ICONS.quality },
+    ],
+  },
+  {
+    title: 'Master Data Produit',
+    items: [
+      { label: 'Produits (SKUs)',         path: '/catalog/skus',                permission: 'skus.view', icon: ICONS.products },
+      { label: 'Marques',                 path: '/catalog/brands',              permission: 'brands.view', icon: ICONS.tag },
+      { label: 'Hiérarchie Produit',      path: '/catalog/hierarchy',           anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'], icon: ICONS.hierarchy },
+      { label: 'Vendabilité & prix par node', path: '/stock/selling-rules',     anyPermissions: ['stock.manage', 'stock.view', ...ANY], icon: ICONS.price },
+    ],
+  },
+  {
+    title: 'Référence',
+    items: [
+      { label: 'Unités',                  path: '/reference/units',             exact: true, anyPermissions: ['units.view'], icon: ICONS.ruler },
+    ],
+  },
+  {
+    title: 'Master Data Géographie',
+    items: [
+      { label: 'Nœuds (Nodes)',           path: '/nodes',                       anyPermissions: ['nodes.view', ...ANY], icon: ICONS.store },
+      { label: 'Région & Ville',          path: '/geo',                         exact: true, anyPermissions: ['regions.view', 'cities.view', ...ANY], icon: ICONS.geo },
+    ],
+  },
+  {
+    title: 'Inventaire',
+    items: [
+      { label: 'Niveaux de stock',        path: '/stock/levels',                anyPermissions: ['stock.manage', 'stock.view', ...ANY], icon: ICONS.stock },
+      { label: 'Mouvements Stock',        path: '/stock/moves',                 anyPermissions: ['stock.manage', 'stock.view', ...ANY], icon: ICONS.moves },
+      { label: 'Paramètres Stock (Réappro)', path: '/stock/reorder-rules',      anyPermissions: ['stock.manage', 'stock.view', ...ANY], icon: ICONS.refresh },
+      { label: 'Comptage / Inventaire physique', path: '/stock/counts',         anyPermissions: ['stock_counts.view', 'stock_counts.manage'], icon: ICONS.clipboard },
       {
-        label: 'Master Data Produit', key: 'products', icon: ICONS.products,
+        label: 'Lots & seuils', key: 'stockExtra', icon: ICONS.box,
         children: [
-          { label: 'Produits (SKUs)',        path: '/catalog/skus',           permission: 'skus.view' },
-          { label: 'Marques',                path: '/catalog/brands',         permission: 'brands.view' },
-          { label: 'Hiérarchie produit',     path: '/catalog/hierarchy',      anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
-          { label: 'Unités',                 path: '/reference/units',        exact: true, anyPermissions: ['units.view'] },
-        ],
-      },
-      {
-        label: 'Offres commerciales', key: 'offers', icon: ICONS.offers,
-        children: [
-          { label: 'Packs / Bundles',        path: '/offres/packs',           anyPermissions: ['packs.view', ...ANY] },
-          { label: 'Promotions',             path: '/offres/promotions',      anyPermissions: ANY },
+          { label: 'Lots de stock',       path: '/stock/lots',                  anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
+          { label: 'Seuils de stock',     path: '/stock/thresholds',            anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
         ],
       },
     ],
   },
   {
-    title: 'Stock & Entrepôt',
+    title: 'Achats & Fournisseurs',
     items: [
+      { label: 'Fournisseurs',            path: '/purchasing/suppliers',        anyPermissions: ['suppliers.view'], icon: ICONS.supplier },
+      { label: 'Bons de commande',        path: '/purchasing/purchase-orders',  anyPermissions: ['purchase_orders.view'], icon: ICONS.po },
+    ],
+  },
+  {
+    title: 'Offres',
+    items: [
+      { label: 'Packs / Bundles',         path: '/offres/packs',                anyPermissions: ['packs.view', ...ANY], icon: ICONS.box },
+      { label: 'Flash Sales',             path: '/offres/flash-sales',          anyPermissions: ['flash_sales.view', 'flash_sales.manage', ...ANY], icon: ICONS.offers },
+      { label: 'Codes Promo',             path: '/offres/codes-promo',          anyPermissions: ['coupons.view', 'coupons.manage', ...ANY], icon: ICONS.ticket },
+      { label: 'Gamification',            path: '/offres/gamification',         anyPermissions: ['games.view', 'games.manage'], icon: ICONS.gift },
+      { label: 'Point Exchange',          path: '/offres/points-exchange',      anyPermissions: ['points_exchange.view', 'points_exchange.manage'], icon: ICONS.exchange },
+      { label: 'Configuration des points', path: '/offres/points',              anyPermissions: ['points_rules.view', 'points_rules.manage', 'points_ledger.view'], icon: ICONS.star },
+      { label: 'Parrainage',              path: '/offres/parrainage',           anyPermissions: ['referrals.view', 'referrals.manage'], icon: ICONS.share },
+      { label: 'Autres promotions',       path: '/offres/promotions',           anyPermissions: ['flash_sales.view', 'flash_sales.manage', ...ANY], icon: ICONS.percent },
+    ],
+  },
+  {
+    title: 'Clients',
+    items: [
+      { label: 'Annuaire Clients',        path: '/customers',                   anyPermissions: ['customers.view', ...ANY], icon: ICONS.customers },
+    ],
+  },
+  {
+    title: 'Utilisateurs Internes',
+    items: [
+      { label: 'Pickers',                 path: '/staff/pickers',               anyPermissions: ['pickers.read', ...ANY], icon: ICONS.staff },
+      { label: 'Drivers',                 path: '/staff/drivers',               anyPermissions: ['drivers.read', ...ANY], icon: ICONS.delivery },
+    ],
+  },
+  {
+    title: 'Entrepôt',
+    items: [
+      { label: 'Emplacements & Mapping',  path: '/warehouse',                   exact: true, permission: 'warehouse.view', icon: ICONS.warehouse },
       {
-        label: 'Suivi de stock', key: 'stock', icon: ICONS.stock,
+        label: 'Structure entrepôt', key: 'warehouseRef', icon: ICONS.gear,
         children: [
-          { label: 'Niveaux de stock',       path: '/stock/levels',           anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-          { label: 'Mouvements de stock',    path: '/stock/moves',            anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-          { label: 'Lots de stock',          path: '/stock/lots',             anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-          { label: 'Règles de vente',        path: '/stock/selling-rules',    anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-          { label: 'Règles de réapprovisionnement', path: '/stock/reorder-rules', anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-        ],
-      },
-      {
-        label: 'Entrepôt', key: 'warehouse', icon: ICONS.warehouse,
-        children: [
-          { label: 'Emplacements & SKU',     path: '/warehouse',              exact: true, permission: 'warehouse.view' },
-          { label: 'Zones de stockage',      path: '/warehouse/zones',        anyPermissions: ['warehouse.manage', ...ANY] },
-          { label: 'Niveaux de rayonnage',   path: '/warehouse/levels',       anyPermissions: ['warehouse.manage', ...ANY] },
-        ],
-      },
-      {
-        label: 'Géographie & Nodes', key: 'geo', icon: ICONS.geo,
-        children: [
-          { label: 'Régions & Villes',       path: '/geo',                    exact: true, anyPermissions: ['regions.view', 'provinces.view', 'cities.view', ...ANY] },
-          { label: 'Nodes (dark stores)',    path: '/nodes',                  anyPermissions: ['nodes.view', ...ANY] },
-          { label: 'Types de nodes',         path: '/node-types',             anyPermissions: ['node_types.view', ...ANY] },
+          { label: 'Zones de stockage',   path: '/warehouse/zones',             anyPermissions: ['warehouse.manage', ...ANY] },
+          { label: 'Niveaux de rayonnage', path: '/warehouse/levels',           anyPermissions: ['warehouse.manage', ...ANY] },
         ],
       },
     ],
   },
   {
-    title: 'Paramétrage',
+    title: 'Admin / Configuration',
     items: [
       {
-        label: 'Catalogue', key: 'cfgCatalog', icon: ICONS.gear,
+        label: 'Rôles & Permissions', key: 'access', icon: ICONS.access,
         children: [
-          { label: 'Taxonomie',              path: '/catalog/taxonomy',       anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'] },
-          { label: 'Références',             path: '/catalog/refs',           anyPermissions: ['brands.view', 'units.view', 'article_types.view', 'article_statuses.view', 'taxes.view', 'packaging_types.view', 'conservation_types.view'] },
+          { label: 'Rôles',                    path: '/access/roles',            permission: 'roles.view' },
+          { label: 'Permissions',              path: '/access/permissions',      permission: 'permissions.view' },
+          { label: 'Permissions par rôle',     path: '/access/role-permissions', permission: 'permissions.assign' },
         ],
       },
+      { label: 'Comptes Back-Office',     path: '/users',                       permission: 'users.view', icon: ICONS.users },
+      { label: 'App Configs & Paiement',  path: '/admin/settings',              anyPermissions: ['app_configs.view', 'app_configs.manage'], icon: ICONS.sliders },
+      { label: 'Log & Audit',             path: '/admin/audit',                 anyPermissions: ['audit_logs.view', 'notifications.view'], icon: ICONS.log },
       {
-        label: 'Stock', key: 'cfgStock', icon: ICONS.gear,
+        label: 'Lookups', key: 'lookups', icon: ICONS.gear,
         children: [
+          { label: 'Configuration par node', path: '/orders/node-config',        anyPermissions: ANY },
+          { label: 'Statuts commande',       path: '/orders/statuses',           anyPermissions: ANY },
+          { label: 'Statuts ligne commande', path: '/orders/item-statuses',      anyPermissions: ANY },
+          { label: 'Statuts créneaux',       path: '/orders/slot-statuses',      anyPermissions: ANY },
+          { label: 'Statuts picking',        path: '/picking/statuses',          anyPermissions: ANY },
+          { label: 'Statuts articles picking', path: '/picking/item-statuses',   anyPermissions: ANY },
+          { label: 'Types de livraison',     path: '/delivery/types',            anyPermissions: ANY },
+          { label: 'Statuts paiement',       path: '/payment/statuses',          anyPermissions: ANY },
+          { label: 'Méthodes de paiement',   path: '/payment/methods',           anyPermissions: ANY },
           { label: 'Types de mouvement',     path: '/stock/move-types',          anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
           { label: 'Statuts de stock',       path: '/stock/stock-statuses',      anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
           { label: "Types d'inventaire",     path: '/stock/inventory-types',     anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
           { label: 'Statuts inventaire',     path: '/stock/inventory-statuses',  anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
           { label: "Types d'écarts",         path: '/stock/inventory-gap-types', anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
-          { label: 'Seuils de stock',        path: '/stock/thresholds',          anyPermissions: ['stock.manage', 'stock.view', ...ANY] },
+          { label: 'Types de nodes',         path: '/node-types',                anyPermissions: ['node_types.view', ...ANY] },
+          { label: 'Références catalogue',   path: '/catalog/refs',              anyPermissions: ['brands.view', 'units.view', 'taxes.view', 'packaging_types.view', 'conservation_types.view'] },
+          { label: 'Types de transactions wallet', path: '/wallet/txn-types',    anyPermissions: ANY },
         ],
       },
-      {
-        label: 'Commandes', key: 'cfgOrders', icon: ICONS.gear,
-        children: [
-          { label: 'Statuts commande',       path: '/orders/statuses',        anyPermissions: ANY },
-          { label: 'Statuts ligne commande', path: '/orders/item-statuses',   anyPermissions: ANY },
-          { label: 'Statuts créneaux',       path: '/orders/slot-statuses',   anyPermissions: ANY },
-          { label: 'Configuration par node', path: '/orders/node-config',     anyPermissions: ANY },
-        ],
-      },
-      {
-        label: 'Picking', key: 'cfgPicking', icon: ICONS.gear,
-        children: [
-          { label: 'Statuts picking',        path: '/picking/statuses',       anyPermissions: ANY },
-          { label: 'Statuts articles',       path: '/picking/item-statuses',  anyPermissions: ANY },
-        ],
-      },
-      {
-        label: 'Livraison', key: 'cfgDelivery', icon: ICONS.gear,
-        children: [
-          { label: 'Types de livraison',     path: '/delivery/types',         anyPermissions: ANY },
-        ],
-      },
-      {
-        label: 'Paiement', key: 'cfgPayment', icon: ICONS.payment,
-        children: [
-          { label: 'Statuts paiement',       path: '/payment/statuses',       anyPermissions: ANY },
-          { label: 'Méthodes de paiement',   path: '/payment/methods',        anyPermissions: ANY },
-        ],
-      },
-      {
-        label: 'Wallet', key: 'cfgWallet', icon: ICONS.wallet,
-        children: [
-          { label: 'Types de transactions',  path: '/wallet/txn-types',       anyPermissions: ANY },
-        ],
-      },
-      // "Référentiel données" (tables P0) est injecté ici dynamiquement.
-    ],
-  },
-  {
-    title: 'Administration',
-    items: [
-      {
-        label: 'Utilisateurs & Accès', key: 'access', icon: ICONS.access,
-        children: [
-          { label: 'Utilisateurs',             path: '/users',                     permission: 'users.view' },
-          { label: 'Rôles',                    path: '/access/roles',              permission: 'roles.view' },
-          { label: 'Permissions',              path: '/access/permissions',        permission: 'permissions.view' },
-          { label: 'Attribution permissions',  path: '/access/role-permissions',   permission: 'permissions.assign' },
-        ],
-      },
+      // « Référentiel données » (tables P0) est injecté ici dynamiquement.
     ],
   },
 ];
@@ -310,7 +312,7 @@ export default function Sidebar() {
         const children = item.children.filter(canSee);
         return children.length ? [{ ...item, children }] : [];
       });
-      if (section.title === 'Paramétrage' && p0Children.length) {
+      if (section.title === 'Admin / Configuration' && p0Children.length) {
         items.push({ label: 'Référentiel données', key: 'p0tables', icon: ICONS.tables, children: p0Children, scrollable: true });
       }
       return { ...section, items };

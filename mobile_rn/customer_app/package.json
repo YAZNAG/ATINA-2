@@ -53,8 +53,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "build:apk": "eas build -p android --profile preview",
-    "update:preview": "eas update --channel preview --auto",
-    "update:production": "eas update --channel production --auto"
+    "update:preview": "eas update --channel preview --environment preview --auto",
+    "update:production": "eas update --channel production --environment production --auto"
   },
   "private": true
 }

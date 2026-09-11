@@ -1,11 +1,14 @@
 const cartService = require('./customer_cart.service');
 const resp        = require('../../utils/response');
 
+// Node de tarification optionnel (?node_id=… ou en-tête X-Node-Id) ; sinon déduit côté service.
+const opts = (req) => ({ nodeId: req.query?.node_id || req.headers['x-node-id'] || null });
+
 class CustomerCartController {
 
   async getCart(req, res, next) {
     try {
-      const result = await cartService.getCart(req.customerId);
+      const result = await cartService.getCart(req.customerId, opts(req));
       resp.success(res, result);
     } catch (err) { next(err); }
   }
@@ -18,7 +21,7 @@ class CustomerCartController {
       if (!sku_id)    return res.status(400).json({ success: false, message: 'sku_id requis' });
       if (quantity < 1) return res.status(400).json({ success: false, message: 'Quantité invalide' });
 
-      const result = await cartService.addItem(req.customerId, sku_id, quantity);
+      const result = await cartService.addItem(req.customerId, sku_id, quantity, opts(req));
       resp.success(res, result, 'Article ajouté au panier');
     } catch (err) { next(err); }
   }
@@ -31,7 +34,7 @@ class CustomerCartController {
       if (!pack_id)    return res.status(400).json({ success: false, message: 'pack_id requis' });
       if (quantity < 1) return res.status(400).json({ success: false, message: 'Quantité invalide' });
 
-      const result = await cartService.addPack(req.customerId, pack_id, quantity);
+      const result = await cartService.addPack(req.customerId, pack_id, quantity, opts(req));
       resp.success(res, result, 'Pack ajouté au panier');
     } catch (err) { next(err); }
   }
@@ -45,7 +48,7 @@ class CustomerCartController {
         return res.status(400).json({ success: false, message: 'Quantité invalide' });
       }
 
-      const result = await cartService.updatePackQuantity(req.customerId, pack_id, quantity);
+      const result = await cartService.updatePackQuantity(req.customerId, pack_id, quantity, opts(req));
       resp.success(res, result, 'Pack mis à jour');
     } catch (err) { next(err); }
   }
@@ -53,7 +56,7 @@ class CustomerCartController {
   async removePack(req, res, next) {
     try {
       const { pack_id } = req.params;
-      const result = await cartService.removePack(req.customerId, pack_id);
+      const result = await cartService.removePack(req.customerId, pack_id, opts(req));
       resp.success(res, result, 'Pack supprimé');
     } catch (err) { next(err); }
   }
@@ -67,7 +70,7 @@ class CustomerCartController {
         return res.status(400).json({ success: false, message: 'Quantité invalide' });
       }
 
-      const result = await cartService.updateItem(req.customerId, item_id, quantity);
+      const result = await cartService.updateItem(req.customerId, item_id, quantity, opts(req));
       resp.success(res, result, 'Quantité mise à jour');
     } catch (err) { next(err); }
   }
@@ -75,14 +78,14 @@ class CustomerCartController {
   async removeItem(req, res, next) {
     try {
       const { item_id } = req.params;
-      const result = await cartService.removeItem(req.customerId, item_id);
+      const result = await cartService.removeItem(req.customerId, item_id, opts(req));
       resp.success(res, result, 'Article supprimé');
     } catch (err) { next(err); }
   }
 
   async clearCart(req, res, next) {
     try {
-      const result = await cartService.clearCart(req.customerId);
+      const result = await cartService.clearCart(req.customerId, opts(req));
       resp.success(res, result, 'Panier vidé');
     } catch (err) { next(err); }
   }
@@ -90,7 +93,7 @@ class CustomerCartController {
   async reorder(req, res, next) {
   try {
     const { order_id, mode } = req.body;
-    resp.success(res, await cartService.reorderFromOrder(req.customerId, order_id, mode), 'Panier mis à jour');
+    resp.success(res, await cartService.reorderFromOrder(req.customerId, order_id, mode, opts(req)), 'Panier mis à jour');
   } catch (err) { next(err); }
 }
 }

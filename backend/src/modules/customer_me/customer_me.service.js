@@ -2,11 +2,11 @@ const prisma = require('../../config/database');
 const bcrypt = require('bcrypt');
 const fs     = require('fs');
 const path   = require('path');
-const { getActiveFlashSales, resolveArticleDiscount } = require('../flash_sale/article_discount');
-const { resolveImageUrl } = require('../pack/pack.shared');
 const { toPublicUrl } = require('../../utils/fileStorage');
-const BASE_URL = process.env.BASE_URL;
-if (!BASE_URL) throw new Error('BASE_URL non configurée');
+const {
+  isUuid, PRIMARY_IMAGE_SELECT, primaryImageUrl,
+  resolveSkuPrice, getActiveFlashSales, bestSkuFlashPrice, resolveCustomerNodeId,
+} = require('../customer_cart/customer_cart.shared');
 
 async function getProfile(customerId) {
   const customer = await prisma.customer.findFirst({
@@ -165,24 +165,11 @@ const ORDER_LIST_INCLUDE = {
       payment_method: { select: { code: true, name_fr: true } },
     },
   },
-items: {
-  take: 4,
-  select: {
-    sku: {
-      select: {
-        article: {
-          select: {
-            images: {
-              where:   { is_main: true, deleted_at: null },
-              select:  { image_path: true },
-              take:    1,
-            },
-          },
-        },
-      },
-    },
+  items: {
+    where:   { sku_id: { not: null } },
+    take:    4,
+    select:  { sku: { select: { images: PRIMARY_IMAGE_SELECT } } },
   },
-},
 };
 
 const ORDER_DETAIL_INCLUDE = {
@@ -190,26 +177,16 @@ const ORDER_DETAIL_INCLUDE = {
   delivery_type: { select: { id: true, code: true, name_fr: true } },
   node:          { select: { id: true, name_fr: true } },
   address:       true,
-  confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, day_of_week: true } },
+  confirmed_slot: { select: { id: true, name_fr: true, slot_start: true, slot_end: true, specific_date: true } },
   items: {
     include: {
       sku: {
         select: {
-          id: true,
-          article: {
-            select: {
-              name_fr: true,
-              sku_code: true,
-              price: true,
-              images: {
-                where:  { is_main: true, deleted_at: null },
-                select: { image_path: true },
-                take:   1,
-              },
-            },
-          },
+          id: true, name_fr: true, name_ar: true, sku_code: true, ean13: true,
+          images: PRIMARY_IMAGE_SELECT,
         },
       },
+      pack: { select: { id: true, name_fr: true, image_url: true } },
     },
   },
   payments: {
@@ -261,14 +238,7 @@ function formatOrderList(o) {
     payment_status_label: payment?.status?.name_fr ?? 'En attente',
     payment_method_name: payment?.payment_method?.name_fr,
     item_count:    o._count?.items ?? 0,
-    items: (o.items ?? []).map(item => {
-  const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
-  return {
-    image_url: imagePath
-      ? `${BASE_URL}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`
-      : null,
-  };
-}),
+    items: (o.items ?? []).map(item => ({ image_url: primaryImageUrl(item.sku) })),
   };
 }
 
@@ -297,20 +267,25 @@ function formatOrderDetail(o, pendingSubstitutionsCount = 0) {
     address_full:  [address?.street_number, address?.street_name, address?.quartier, address?.city]
       .filter(Boolean).join(', '),
     slot_name:     slot?.name_fr,
-    slot_date:     null,
+    slot_date:     slot?.specific_date ? new Date(slot.specific_date).toISOString().slice(0, 10) : null,
     items: (o.items ?? []).map(item => {
-  const imagePath = item.sku?.article?.images?.[0]?.image_path ?? null;
-  const image_url = toPublicUrl(imagePath);
-  return {
-    id:         item.id,
-    sku_code:   item.sku?.article?.sku_code,
-    name_fr:    item.sku?.article?.name_fr ?? 'Article',
-    qty:        item.qty,
-    unit_price: Number(item.unit_price_sold ?? 0),
-    vat_rate:   Number(item.vat_rate ?? 0),
-    total_ttc:  Number(item.unit_price_sold ?? 0) * (item.qty ?? 1),
-    image_url,
-  };}),
+      const qty       = Number(item.qty ?? 1);
+      const unitPrice = Number(item.unit_price_sold ?? 0);
+      return {
+        id:         item.id,
+        sku_id:     item.sku_id,
+        pack_id:    item.pack_id,
+        sku_code:   item.sku?.sku_code ?? null,
+        ean13:      item.sku?.ean13 ?? null,
+        name_fr:    item.sku?.name_fr ?? item.pack?.name_fr ?? 'Article',
+        name_ar:    item.sku?.name_ar ?? null,
+        qty,
+        unit_price: unitPrice,
+        vat_rate:   Number(item.vat_rate ?? 0),
+        total_ttc:  Math.round(unitPrice * qty * 100) / 100,
+        image_url:  primaryImageUrl(item.sku) ?? toPublicUrl(item.pack?.image_url ?? null),
+      };
+    }),
     timeline: (o.history ?? []).map(h => ({
       status_code: h.status?.code,
       name_fr:     h.status?.name_fr,
@@ -341,6 +316,7 @@ async function listOrders(customerId) {
 }
 
 async function getOrderById(customerId, orderId) {
+  if (!isUuid(orderId)) throw { statusCode: 404, message: 'Commande introuvable' };
   const order = await prisma.order.findFirst({
     where:   { id: orderId, customer_id: customerId, is_deleted: false },
     include: ORDER_DETAIL_INCLUDE,
@@ -469,69 +445,67 @@ async function changePassword(customerId, body) {
   return { message: 'Mot de passe modifié' };
 }
 
-//Favoris
-async function listFavorites(customerId) {
-  const [items, flashSales] = await Promise.all([
-    prisma.wishlist.findMany({
-      where: { customer_id: customerId },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        article: {
-          select: {
-            id: true, sku_code: true, name_fr: true, name_ar: true,
-            price: true, vat_rate: true,
-            tax: { select: { rate: true } },
-            category_id: true, brand_id: true,
-            catalog_sku: { select: { id: true } },
-            images: { select: { image_path: true }, take: 1 },
-          },
+// Favoris — la wishlist pointe désormais sur le SKU (wishlists.sku_id).
+// « id » (ex-id article) = id du SKU ; « sku_id » est conservé pour l'ajout au panier.
+async function listFavorites(customerId, { nodeId: explicitNodeId = null } = {}) {
+  const items = await prisma.wishlist.findMany({
+    where:   { customer_id: customerId, sku: { is_deleted: false } },
+    orderBy: { created_at: 'desc' },
+    select: {
+      id: true,
+      sku: {
+        select: {
+          id: true, sku_code: true, name_fr: true, name_ar: true,
+          price: true, vat_rate: true, is_active: true,
+          tax: { select: { rate: true } },
+          category_id: true, brand_id: true,
+          images: PRIMARY_IMAGE_SELECT,
+          selling_rules: { select: { node_id: true, price: true, is_sellable: true } },
         },
       },
-    }),
-    getActiveFlashSales(),
-  ]);
+    },
+  });
+
+  const nodeId     = await resolveCustomerNodeId(customerId, { explicitNodeId });
+  const flashSales = await getActiveFlashSales(nodeId);
+
   return items.map(w => {
-  const a = w.article;
-  const imagePath = a.images?.[0]?.image_path ?? null;
-  const image_url = toPublicUrl(imagePath);
-  const vatRate = Number(a.tax?.rate ?? a.vat_rate ?? 20);       
-  const ttc  = Math.round(Number(a.price) * (1 + vatRate / 100) * 100) / 100;
-  const deal = resolveArticleDiscount({
-    articleSkuId: a.catalog_sku?.id ?? null,
-    categoryId:   a.category_id ?? null,
-    brandId:      a.brand_id ?? null,
-    priceTtc:     ttc,
-  }, flashSales);
+    const sku  = w.sku;
+    const base = resolveSkuPrice(sku, nodeId);
+    const deal = bestSkuFlashPrice(sku, base.price_ttc, flashSales);
     return {
       wishlist_id:   w.id,
-      id:            a.id,
-      sku_code:      a.sku_code,
-      name_fr:       a.name_fr,
-      name_ar:       a.name_ar,
-      price_ttc:     deal ? deal.price_ttc : ttc,
-      old_price_ttc: deal ? deal.old_price_ttc : null,
-      discount_pct:  deal ? deal.discount_pct : null,
-      sku_id:        a.catalog_sku?.id ?? null,
-      image_url,
+      id:            sku.id,
+      sku_code:      sku.sku_code,
+      name_fr:       sku.name_fr,
+      name_ar:       sku.name_ar,
+      price_ttc:     deal != null ? deal : base.price_ttc,
+      old_price_ttc: deal != null ? base.price_ttc : null,
+      discount_pct:  deal != null && base.price_ttc > 0 ? Math.round((1 - deal / base.price_ttc) * 100) : null,
+      sku_id:        sku.id,
+      image_url:     primaryImageUrl(sku),
+      is_active:     sku.is_active,
+      is_sellable:   base.is_sellable,
     };
   });
 }
 
-async function addFavorite(customerId, articleId) {
-  const article = await prisma.article.findUnique({ where: { id: Number(articleId) } });
-  if (!article) throw { statusCode: 404, message: 'Article introuvable' };
+async function addFavorite(customerId, skuId) {
+  if (!isUuid(skuId)) throw { statusCode: 404, message: 'Produit introuvable' };
+  const sku = await prisma.sku.findFirst({ where: { id: skuId, is_deleted: false }, select: { id: true } });
+  if (!sku) throw { statusCode: 404, message: 'Produit introuvable' };
   await prisma.wishlist.upsert({
-    where:  { customer_id_article_id: { customer_id: customerId, article_id: Number(articleId) } },
+    where:  { customer_id_sku_id: { customer_id: customerId, sku_id: skuId } },
     update: {},
-    create: { customer_id: customerId, article_id: Number(articleId) },
+    create: { customer_id: customerId, sku_id: skuId },
   });
-  return { article_id: Number(articleId) };
+  return { article_id: skuId, sku_id: skuId };
 }
 
-async function removeFavorite(customerId, articleId) {
+async function removeFavorite(customerId, skuId) {
+  if (!isUuid(skuId)) return;
   await prisma.wishlist.deleteMany({
-    where: { customer_id: customerId, article_id: Number(articleId) },
+    where: { customer_id: customerId, sku_id: skuId },
   });
 }
 

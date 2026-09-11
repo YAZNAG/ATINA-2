@@ -126,11 +126,11 @@ class CustomerMeController {
 
   // Favorites
   async listFavorites(req, res, next) {
-    try { resp.success(res, await svc.listFavorites(req.customerId)); }
+    try { resp.success(res, await svc.listFavorites(req.customerId, { nodeId: req.query.node_id || req.headers['x-node-id'] || null })); }
     catch(e) { E(res, next, e); }
   }
   async addFavorite(req, res, next) {
-    try { resp.success(res, await svc.addFavorite(req.customerId, req.body.article_id), 'Ajouté aux favoris', 201); }
+    try { resp.success(res, await svc.addFavorite(req.customerId, req.body.sku_id ?? req.body.article_id), 'Ajouté aux favoris', 201); }
     catch(e) { E(res, next, e); }
   }
   async removeFavorite(req, res, next) {

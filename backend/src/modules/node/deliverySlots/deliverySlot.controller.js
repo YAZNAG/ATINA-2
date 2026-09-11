@@ -25,7 +25,7 @@ class DeliverySlotController {
   }
 
   async destroy(req, res, next) {
-    try { await service.delete(req.params.id); return response.success(res, null, 'Créneau supprimé'); } catch (err) { next(err); }
+    try { await service.delete(req.params.id); return response.success(res, null, 'Créneau retiré (désactivé)'); } catch (err) { next(err); }
   }
 }
 

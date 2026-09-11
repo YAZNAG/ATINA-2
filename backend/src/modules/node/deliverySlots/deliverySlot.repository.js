@@ -18,6 +18,5 @@ const findMonthOverview = (nodeId, start, end) =>
 const findById = (id) => prisma.deliverySlot.findUnique({ where: { id } });
 const create = (data) => prisma.deliverySlot.create({ data });
 const update = (id, data) => prisma.deliverySlot.update({ where: { id }, data });
-const remove = (id) => prisma.deliverySlot.delete({ where: { id } });
 
-module.exports = { findByNodeAndDate, findMonthOverview, findById, create, update, remove };
+module.exports = { findByNodeAndDate, findMonthOverview, findById, create, update };

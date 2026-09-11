@@ -5,6 +5,8 @@
  */
 const prisma = require('../../config/database');
 const h = require('../../utils/statusHelpers');
+const L = require('../orders_mgmt/order_lifecycle');
+const loyalty = require('../loyalty/loyalty.service');
 
 // ── Includes ──────────────────────────────────────────────────────────────────
 const STOP_INCLUDE = {
@@ -204,10 +206,6 @@ async function deliverStop(stop_id, { payment_collected = false, note } = {}, ch
     prisma.walletTxnType.findFirst({ where: { code: 'debit_order' } }),
   ]);
 
-  const pointsToCredit = Number(order.points_earned) > 0
-    ? 0
-    : Math.max(0, Math.floor(Number(order.total_ttc) / 10));
-
   await prisma.$transaction(async (tx) => {
     // Update stop
     await tx.tourStop.update({ where: { id: stop_id }, data: { status_id: deliveredStopId } });
@@ -218,7 +216,6 @@ async function deliverStop(stop_id, { payment_collected = false, note } = {}, ch
       data: {
         status_id:     deliveredOrderStatus.id,
         ...(isCOD && !order.cod_collected_at ? { cod_collected_at: new Date() } : {}),
-        ...(pointsToCredit > 0 ? { points_earned: pointsToCredit } : {}),
       },
     });
 
@@ -231,31 +228,13 @@ async function deliverStop(stop_id, { payment_collected = false, note } = {}, ch
       await tx.payment.update({ where: { id: payment.id }, data: { status_id: collectedPayId } });
     }
 
-    // Release stock (sale): qty_reserved-- + qty_physical-- (qty_available unchanged)
-    // Formula: qty_available = qty_physical - qty_reserved → both decrease by qty → net 0 change
-    for (const item of order.items) {
-      if (!item.sku_id) continue;
-      const qty = Number(item.qty);
-      await tx.stockLevel.updateMany({
-        where:  { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty }, qty_physical: { gte: qty } },
-        data:   { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
-      });
-      if (saleMoveType) {
-        await tx.stockMove.create({
-          data: { node_id: order.node_id, sku_id: item.sku_id, move_type_id: saleMoveType.id, order_id: order.id, qty_delta: -qty, reason: 'Livraison — vente' },
-        });
-      }
-    }
-
-    // Credit points
-    if (pointsToCredit > 0) {
-      await tx.customer.update({
-        where: { id: order.customer_id },
-        data:  { points_balance: { increment: pointsToCredit }, points_lifetime: { increment: pointsToCredit } },
-      });
-    }
+    // Sortie de stock (WF #31 : composants de pack, lignes annulées / remplacées exclues)
+    // et points selon les règles actives, par le même chemin que le module de livraison.
+    await L.applyDeliveryStock(tx, order.id, null, 'Livraison — vente');
+    await loyalty.creditPointsOnDelivery(tx, order.customer_id, order, deliveredOrderStatus.id);
   });
 
+  setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, order.id).catch(() => {}));
   return prisma.tourStop.findUnique({ where: { id: stop_id }, include: STOP_INCLUDE });
 }
 

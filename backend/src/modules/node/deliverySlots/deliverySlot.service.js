@@ -67,7 +67,8 @@ class DeliverySlotService {
   async delete(id) {
     const slot = await repo.findById(id);
     if (!slot) throw { statusCode: 404, message: 'Créneau introuvable' };
-    await repo.remove(id);
+    // Classeur : « retrait = is_active=false » — jamais de suppression physique.
+    return repo.update(id, { is_active: false });
   }
 }
 

@@ -5,12 +5,14 @@ const N = (v) => Number(v ?? 0);
 // ─── Enriched list ───────────────────────────────────────────────────────────
 
 const findWithFilters = async ({
-  node_id, sku_id, category_id,
-  low_stock, critical_stock, overstock, is_active, supplier_id,
+  node_id, sku_id, category_id, sku_family_id, brand_id,
+  low_stock, critical_stock, overstock, is_active, supplier_id, has_rule,
 } = {}) => {
   const skuWhere = { is_active: true, is_deleted: false };
-  if (category_id) skuWhere.category_id = category_id;
-  if (sku_id)      skuWhere.id = sku_id;
+  if (category_id)   skuWhere.category_id   = category_id;
+  if (sku_family_id) skuWhere.sku_family_id = sku_family_id;
+  if (brand_id && !isNaN(Number(brand_id))) skuWhere.brand_id = Number(brand_id);
+  if (sku_id)        skuWhere.id = sku_id;
 
 
   let sellingRules = [];
@@ -29,6 +31,7 @@ const findWithFilters = async ({
       images:     { where: { is_primary: true }, take: 1 },
       category:   { select: { id: true, name_fr: true, code: true } },
       sku_family: { select: { id: true, name_fr: true, code: true } },
+      brand:      { select: { id: true, name_fr: true, code: true } },
     },
     orderBy: { name_fr: 'asc' },
   });
@@ -93,6 +96,7 @@ const findWithFilters = async ({
           name_ar:  s.name_ar,
           category: s.category,
           family:   s.sku_family,
+          brand:    s.brand,
           images:   s.images,
         },
       },
@@ -100,7 +104,9 @@ const findWithFilters = async ({
   });
 
   // Boolean filters
-  if (is_active !== undefined) {
+  if (has_rule === 'true' || has_rule === true)   rows = rows.filter((r) => r.has_rule);
+  if (has_rule === 'false' || has_rule === false) rows = rows.filter((r) => !r.has_rule);
+  if (is_active !== undefined && is_active !== '') {
     const active = is_active === 'true' || is_active === true;
     rows = rows.filter((r) => r.is_active === active);
   }
@@ -204,6 +210,132 @@ const bulkSave = async (rows) => {
   );
 };
 
+// ─── Alertes rupture (US-113) ─────────────────────────────────────────────────
+//
+// Lecture seule. Maille node × SKU.
+//   RUPTURE : qty_available ≤ 0
+//   ALERTE  : qty_available ≤ reorder_rules.reorder_point (règle ACTIVE)
+// Un SKU sans règle active n'apparaît que s'il est en rupture.
+// Les lignes « stub » de stock_levels (jamais mouvementées ni comptées) sont
+// ignorées sauf si une règle existe pour le couple (stock attendu).
+// Une règle sans ligne stock_levels = rupture (qty 0).
+
+const SKU_ALERT_SELECT = {
+  id: true, sku_code: true, ean13: true, name_fr: true, name_ar: true,
+  is_active: true, is_deleted: true,
+  sku_family: { select: { id: true, name_fr: true } },
+  category:   { select: { id: true, name_fr: true } },
+  brand:      { select: { id: true, name_fr: true } },
+};
+
+const findAlerts = async ({ node_id, sku_id, sku_family_id, brand_id, status } = {}) => {
+  const skuWhere = { is_active: true, is_deleted: false };
+  if (sku_family_id) skuWhere.sku_family_id = sku_family_id;
+  if (brand_id && !isNaN(Number(brand_id))) skuWhere.brand_id = Number(brand_id);
+
+  const base = {};
+  if (node_id) base.node_id = node_id;
+  if (sku_id)  base.sku_id  = sku_id;
+
+  const [levels, rules] = await Promise.all([
+    prisma.stockLevel.findMany({
+      where: { ...base, sku: skuWhere, node: { is_deleted: false } },
+      include: {
+        node: { select: { id: true, code: true, name_fr: true } },
+        sku:  { select: SKU_ALERT_SELECT },
+      },
+    }),
+    prisma.reorderRule.findMany({
+      where: { ...base, is_active: true, sku: skuWhere, node: { is_deleted: false } },
+      include: {
+        node: { select: { id: true, code: true, name_fr: true } },
+        sku:  { select: SKU_ALERT_SELECT },
+        preferred_supplier: { select: { id: true, code: true, name_fr: true } },
+      },
+    }),
+  ]);
+
+  const key = (n, s) => `${n}_${s}`;
+  const ruleMap  = Object.fromEntries(rules.map((r) => [key(r.node_id, r.sku_id), r]));
+  const levelMap = Object.fromEntries(levels.map((l) => [key(l.node_id, l.sku_id), l]));
+
+  const isStub = (l) => N(l.qty_physical) === 0 && N(l.qty_reserved) === 0 && N(l.qty_available) === 0
+    && N(l.qty_backordered) === 0 && N(l.qty_incoming) === 0 && N(l.qty_floating_cod) === 0
+    && !l.last_move_id && !l.last_counted_at;
+
+  const rows = [];
+  const pushRow = (node, sku, level, rule) => {
+    const qty_available = N(level?.qty_available);
+    let alert_status = null;
+    if (qty_available <= 0) alert_status = 'rupture';
+    else if (rule && qty_available <= N(rule.reorder_point)) alert_status = 'alerte';
+    if (!alert_status) return;
+    const rp = rule ? N(rule.reorder_point) : null;
+    rows.push({
+      node_id:          node.id,
+      sku_id:           sku.id,
+      node,
+      sku: {
+        id: sku.id, sku_code: sku.sku_code, ean13: sku.ean13, name_fr: sku.name_fr, name_ar: sku.name_ar,
+        family: sku.sku_family, category: sku.category, brand: sku.brand,
+      },
+      alert_status,
+      qty_physical:     N(level?.qty_physical),
+      qty_reserved:     N(level?.qty_reserved),
+      qty_available,
+      qty_backordered:  N(level?.qty_backordered),
+      qty_incoming:     N(level?.qty_incoming),
+      has_rule:         !!rule,
+      rule_id:          rule?.id ?? null,
+      safety_stock:     rule ? N(rule.safety_stock) : null,
+      reorder_point:    rp,
+      economic_qty:     rule ? N(rule.economic_qty) : null,
+      max_stock:        rule?.max_stock != null ? N(rule.max_stock) : null,
+      lead_time_days:   rule?.lead_time_days ?? null,
+      preferred_supplier: rule?.preferred_supplier ?? null,
+      // Couverture = disponible / point de réappro (en %), écart = disponible − point de réappro
+      coverage_pct:     rp && rp > 0 ? Math.round((qty_available / rp) * 100) : null,
+      gap_to_reorder:   rp !== null ? qty_available - rp : null,
+      last_counted_at:  level?.last_counted_at ?? null,
+      updated_at:       level?.updated_at ?? null,
+    });
+  };
+
+  for (const l of levels) {
+    const rule = ruleMap[key(l.node_id, l.sku_id)];
+    if (!rule && isStub(l)) continue;
+    pushRow(l.node, l.sku, l, rule);
+  }
+  for (const r of rules) {
+    if (levelMap[key(r.node_id, r.sku_id)]) continue;
+    pushRow(r.node, r.sku, null, r);
+  }
+
+  let out = rows;
+  if (status) out = out.filter((r) => r.alert_status === status);
+  out.sort((a, b) =>
+    (a.alert_status === b.alert_status ? 0 : a.alert_status === 'rupture' ? -1 : 1)
+    || a.qty_available - b.qty_available
+    || String(a.sku.sku_code).localeCompare(String(b.sku.sku_code)));
+  return out;
+};
+
+// Règles brutes (sans enrichissement) — utilisées par Niveaux de stock pour afficher les seuils
+const findPlain = ({ node_id, sku_id } = {}) => {
+  const where = {};
+  if (node_id) where.node_id = node_id;
+  if (sku_id)  where.sku_id  = sku_id;
+  return prisma.reorderRule.findMany({
+    where,
+    select: {
+      id: true, node_id: true, sku_id: true, safety_stock: true, reorder_point: true,
+      economic_qty: true, max_stock: true, lead_time_days: true, is_active: true, updated_at: true,
+      costing_method:     { select: { id: true, code: true, name_fr: true } },
+      preferred_supplier: { select: { id: true, code: true, name_fr: true } },
+    },
+  });
+};
+
 // ─── Business logic ───────────────────────────────────────────────────────────
 
 const shouldReorder = async (node_id, sku_id) => {
@@ -283,7 +415,7 @@ const calculateSuggestedReorderQty = async (node_id, sku_id) => {
 };
 
 module.exports = {
-  findWithFilters, findByNode, findById, findOne, getRefs,
+  findWithFilters, findByNode, findById, findOne, getRefs, findAlerts, findPlain,
   create, upsert, update, remove, bulkSave,
   shouldReorder, detectCriticalStock, detectOverstock, calculateSuggestedReorderQty,
 };

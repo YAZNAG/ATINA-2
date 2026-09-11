@@ -1,8 +1,228 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getDriver, activateDriver, deactivateDriver, resetDriverPassword, getDriverStats } from '../../api/staff.api';
+import { getDriver, updateDriver, deleteDriver, activateDriver, deactivateDriver, resetDriverPassword, getDriverStats, getDriverTours } from '../../api/staff.api';
+import { getNodes } from '../../api/locationNode.api';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
+import { fmtDateTime, orderRef, todayIso, daysAgoIso } from '../picking/pickingUtils';
+
+const TOUR_STATUS_STYLE = {
+  planned: 'bg-slate-100 text-slate-700', in_progress: 'bg-amber-100 text-amber-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-rose-100 text-rose-700',
+};
+const STOP_STATUS_STYLE = {
+  pending: 'bg-slate-100 text-slate-600', arrived: 'bg-blue-100 text-blue-700', in_progress: 'bg-blue-100 text-blue-700',
+  delivered: 'bg-emerald-100 text-emerald-700', failed: 'bg-rose-100 text-rose-700', skipped: 'bg-gray-100 text-gray-500',
+};
+const lc = (c) => String(c ?? '').toLowerCase();
+
+// ── Onglet « Fiche driver » : nom, node, contact, véhicule + Enregistrer ───────
+function DriverForm({ driver, onSaved }) {
+  const [nodes, setNodes] = useState([]);
+  const [form, setForm] = useState({ name: '', node_id: '', phone_country: '+212', phone_number: '', vehicle_type: '', vehicle_plate: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { getNodes({ all: true, limit: 500 }).then(r => setNodes(r.data?.data ?? r.data ?? [])).catch(() => {}); }, []);
+  useEffect(() => {
+    setForm({ name: driver.name ?? '', node_id: driver.node_id ?? '', phone_country: driver.phone_country ?? '+212', phone_number: driver.phone_number ?? '', vehicle_type: driver.vehicle_type ?? '', vehicle_plate: driver.vehicle_plate ?? '' });
+  }, [driver]);
+
+  const hc = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const save = async (e) => {
+    e.preventDefault(); setError(''); setSaving(true);
+    try {
+      await updateDriver(driver.id, form);
+      toast.success('Livreur enregistré');
+      onSaved();
+    } catch (err) { setError(getErrorMessage(err)); }
+    finally { setSaving(false); }
+  };
+
+  const inp = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500';
+  const lbl = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5';
+  return (
+    <form onSubmit={save} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <h2 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Informations du livreur</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label className={lbl}>Nom complet *</label><input name="name" className={inp} value={form.name} onChange={hc} required /></div>
+        <div>
+          <label className={lbl}>Node de rattachement *</label>
+          <select name="node_id" className={inp} value={form.node_id} onChange={hc} required>
+            <option value="">— Sélectionner —</option>
+            {nodes.map(n => <option key={n.id} value={n.id}>{n.name_fr} ({n.code})</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className={lbl}>Indicatif</label>
+            <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
+              {['+212', '+33', '+213'].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2"><label className={lbl}>Téléphone *</label><input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={lbl}>Type véhicule</label>
+            <input name="vehicle_type" className={inp} value={form.vehicle_type} onChange={hc} list="drv-vtypes" placeholder="Moto, Van…" />
+            <datalist id="drv-vtypes">{['Moto','Scooter','Voiture','Van','Camion','Vélo'].map(v => <option key={v} value={v} />)}</datalist>
+          </div>
+          <div><label className={lbl}>Plaque</label><input name="vehicle_plate" className={`${inp} font-mono`} value={form.vehicle_plate} onChange={hc} /></div>
+        </div>
+      </div>
+      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+      <div className="flex justify-end">
+        <button type="submit" disabled={saving} className="px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50">
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Onglet « Tournées liées » : tournées, arrêts, statuts (période) ────────────
+const TOUR_PERIODS = [{ v: '7d', l: '7 jours' }, { v: '30d', l: '30 jours' }, { v: '90d', l: '90 jours' }, { v: '', l: 'Tout' }];
+const periodParams = (p) => (p === '7d' ? { from: daysAgoIso(6), to: todayIso() } : p === '30d' ? { from: daysAgoIso(29), to: todayIso() } : p === '90d' ? { from: daysAgoIso(89), to: todayIso() } : {});
+
+function DriverToursTab({ driverId }) {
+  const navigate = useNavigate();
+  const [period, setPeriod] = useState('30d');
+  const [statusCode, setStatusCode] = useState('');
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const p = { ...periodParams(period), ...(statusCode && { status_code: statusCode }) };
+      const [t, s] = await Promise.all([getDriverTours(driverId, { ...p, page, limit: 15 }), getDriverStats(driverId, periodParams(period))]);
+      setRows(t.data?.data ?? []);
+      setPagination(t.data?.pagination ?? { total: 0, pages: 0 });
+      setStats(s.data?.data ?? null);
+    } catch (err) { setError(getErrorMessage(err)); setRows([]); }
+    finally { setLoading(false); }
+  }, [driverId, period, statusCode, page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Période</span>
+        {TOUR_PERIODS.map(p => (
+          <button key={p.v} type="button" onClick={() => { setPeriod(p.v); setPage(1); }}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${period === p.v ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{p.l}</button>
+        ))}
+        <select value={statusCode} onChange={e => { setStatusCode(e.target.value); setPage(1); }}
+          className="ml-2 text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <option value="">Tous statuts</option>
+          <option value="planned">Planifiée</option>
+          <option value="in_progress">En cours</option>
+          <option value="completed">Terminée</option>
+          <option value="cancelled">Annulée</option>
+        </select>
+        <span className="ml-auto text-sm text-gray-400">{pagination.total ?? 0} tournée(s)</span>
+      </div>
+
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          {[
+            { l: 'Tournées', v: stats.total_tours },
+            { l: 'Terminées', v: stats.completed_tours },
+            { l: 'Arrêts', v: stats.total_stops },
+            { l: 'Livrés', v: stats.total_deliveries },
+            { l: 'Échecs', v: stats.failed_deliveries },
+            { l: 'COD encaissé', v: `${stats.cod_collected} MAD` },
+          ].map(k => (
+            <div key={k.l} className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{k.l}</p>
+              <p className="text-lg font-bold text-gray-800 mt-0.5">{k.v}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                {['Tournée', 'Date / créneau', 'Node', 'Zone', 'Statut', 'Arrêts', 'Livrés / échecs', ''].map((h, i) => (
+                  <th key={i} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr><td colSpan={8} className="text-center py-12 text-gray-400">Chargement…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-12 text-gray-400">Aucune tournée sur la période</td></tr>
+              ) : rows.map(t => (
+                <FragmentRows key={t.id} t={t} open={!!open[t.id]} onToggle={() => setOpen(o => ({ ...o, [t.id]: !o[t.id] }))} onOpenTour={() => navigate(`/delivery/tours/${t.id}`)} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {pagination.pages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-400">Page {page}/{pagination.pages}</p>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">←</button>
+            <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">→</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FragmentRows({ t, open, onToggle, onOpenTour }) {
+  const ref = 'TRN-' + t.id.slice(0, 8).toUpperCase();
+  return (
+    <>
+      <tr className="hover:bg-gray-50/50 cursor-pointer" onClick={onOpenTour} title="Ouvrir dans Tournées & Livreurs">
+        <td className="px-4 py-3 font-mono text-xs font-bold text-emerald-700">{ref}</td>
+        <td className="px-4 py-3 text-xs text-gray-600">
+          {t.date ?? (t.planned_at ? fmtDateTime(t.planned_at) : fmtDateTime(t.created_at))}
+          {t.slot_start && <span className="block text-gray-400">{t.slot_start}–{t.slot_end}</span>}
+        </td>
+        <td className="px-4 py-3 font-mono text-xs">{t.node?.code ?? '—'}</td>
+        <td className="px-4 py-3 text-xs text-gray-600">{t.zone ?? '—'}</td>
+        <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${TOUR_STATUS_STYLE[lc(t.status?.code)] ?? 'bg-gray-100 text-gray-600'}`}>{t.status?.name_fr}</span></td>
+        <td className="px-4 py-3 text-sm font-bold text-gray-700">{t._count?.stops ?? t.stops?.length ?? 0}</td>
+        <td className="px-4 py-3 text-xs"><span className="text-emerald-600 font-semibold">{t.stops_delivered}</span> / <span className="text-rose-600 font-semibold">{t.stops_failed}</span>{t.stops_pending > 0 && <span className="text-gray-400"> · {t.stops_pending} en attente</span>}</td>
+        <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+          {t.stops?.length > 0 && (
+            <button type="button" onClick={onToggle} className="text-xs font-semibold text-emerald-700 hover:underline">{open ? 'Masquer les arrêts' : 'Voir les arrêts'}</button>
+          )}
+        </td>
+      </tr>
+      {open && t.stops.map(s => (
+        <tr key={s.id} className="bg-gray-50/60">
+          <td className="px-4 py-2 pl-8 text-xs text-gray-400">Arrêt {s.sort_order}</td>
+          <td className="px-4 py-2 font-mono text-xs text-blue-600">{orderRef(s.order_id)}</td>
+          <td className="px-4 py-2 text-xs text-gray-600" colSpan={2}>{s.order?.customer?.name ?? '—'}</td>
+          <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STOP_STATUS_STYLE[lc(s.status?.code)] ?? 'bg-gray-100 text-gray-600'}`}>{s.status?.name_fr}</span></td>
+          <td className="px-4 py-2 text-xs text-gray-500" colSpan={2}>
+            {s.delivered_at ? `Livré ${fmtDateTime(s.delivered_at)}` : s.arrived_at ? `Arrivé ${fmtDateTime(s.arrived_at)}` : '—'}
+            {s.failure_reason && <span className="block text-rose-600">{s.failure_reason}</span>}
+            {s.cod_collected && <span className="block text-emerald-600">COD {Number(s.amount_collected ?? 0).toFixed(2)} MAD</span>}
+          </td>
+          <td />
+        </tr>
+      ))}
+    </>
+  );
+}
 
 const SVG = {
   back:   'M10 19l-7-7m0 0l7-7m-7 7h18',
@@ -70,12 +290,21 @@ function InfoRow({ icon, label, value, mono }) {
 
 export default function DriverDetailsPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [driver, setDriver] = useState(null);
   const [stats, setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing]   = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [tab, setTab]         = useState('profil');
+
+  const handleDelete = async () => {
+    setActing(true);
+    try { await deleteDriver(id); toast.success('Livreur supprimé'); navigate('/staff/drivers'); }
+    catch (err) { toast.error(getErrorMessage(err)); }
+    finally { setActing(false); setConfirmDelete(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,15 +345,27 @@ export default function DriverDetailsPage() {
   const vehicleEmoji = Object.entries(VEHICLE_ICONS).find(([k]) => driver.vehicle_type?.toLowerCase().includes(k.toLowerCase()))?.[1] ?? '🚚';
 
   const TABS = [
-    { id: 'profil',    l: 'Profil'          },
+    { id: 'profil',    l: 'Fiche driver'    },
+    { id: 'tournees',  l: 'Tournées liées'  },
     { id: 'vehicule',  l: 'Véhicule'        },
-    { id: 'tournees',  l: 'Tournées'        },
     { id: 'historique',l: 'Historique'      },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       {showReset && <ResetModal driverId={id} onClose={() => setShowReset(false)} />}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Supprimer {driver.name} ?</h3>
+            <p className="text-sm text-gray-500 mb-5">Suppression logique — le compte est désactivé et masqué des listes. L'historique des tournées est conservé.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl">Annuler</button>
+              <button onClick={handleDelete} disabled={acting} className="flex-1 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-100 shadow-sm">
@@ -152,7 +393,11 @@ export default function DriverDetailsPage() {
                   ? <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">Actif</span>
                   : <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">Inactif</span>}
               </div>
-              <p className="text-sm text-gray-500 font-mono">{driver.phone_country} {driver.phone_number}</p>
+              <p className="text-sm text-gray-500 font-mono">
+                {driver.phone_country} {driver.phone_number}
+                {driver.availability === 'on_tour' && <span className="ml-2 font-sans px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">En tournée</span>}
+                {driver.availability === 'available' && <span className="ml-2 font-sans px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">Disponible</span>}
+              </p>
               <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
                 <span className="flex items-center gap-1">
                   <Icon d={SVG.node} className="w-3 h-3" />
@@ -182,6 +427,10 @@ export default function DriverDetailsPage() {
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl transition-colors">
                 <Icon d={SVG.key} className="w-4 h-4" />Reset MDP
               </button>
+              <button onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 rounded-xl transition-colors">
+                <Icon d={SVG.x} className="w-4 h-4" />Supprimer
+              </button>
             </div>
           </div>
 
@@ -197,11 +446,12 @@ export default function DriverDetailsPage() {
         </div>
       </div>
 
-      <div className="px-6 py-6 max-w-4xl">
+      <div className="px-6 py-6 max-w-6xl">
 
         {/* ── PROFIL ───────────────────────────────────────────────────────── */}
         {tab === 'profil' && (
           <div className="space-y-5">
+            <DriverForm driver={driver} onSaved={load} />
             {/* Info cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Identité */}
@@ -295,25 +545,7 @@ export default function DriverDetailsPage() {
         )}
 
         {/* ── TOURNÉES ─────────────────────────────────────────────────────── */}
-        {tab === 'tournees' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                <Icon d={SVG.map} className="w-10 h-10 text-emerald-200" />
-              </div>
-              <div>
-                <p className="text-gray-700 font-semibold text-lg">Module Livraison</p>
-                <p className="text-gray-400 text-sm mt-1 max-w-sm">
-                  Les tournées et livraisons seront disponibles ici lorsque le module Livraison sera connecté à ce livreur.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-                <Icon d={SVG.info} className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <p className="text-xs text-amber-700 font-medium">Prêt pour: tours, tour_stops, COD, livraisons</p>
-              </div>
-            </div>
-          </div>
-        )}
+        {tab === 'tournees' && <DriverToursTab driverId={id} />}
 
         {/* ── HISTORIQUE ───────────────────────────────────────────────────── */}
         {tab === 'historique' && (

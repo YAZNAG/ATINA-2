@@ -6,6 +6,8 @@ import {
 import api from '../../../api/axios';
 import { getSku, getSkuImages } from '../../../api/catalog.api';
 import { getSellingRulesBySku, upsertSellingRule } from '../../../api/stock.api';
+import { Truck } from 'lucide-react';
+import SkuSupplierPricesPanel from '../../purchasing/components/SkuSupplierPricesPanel';
 
 const API_ORIGIN = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
 const toWebPath = (rawPath) => {
@@ -21,6 +23,7 @@ const TABS = [
   { key: 'info', label: 'Informations', icon: Tag },
   { key: 'images', label: 'Images', icon: ImageIcon },
   { key: 'selling', label: 'Règles de vente', icon: ClipboardList },
+  { key: 'supplier_prices', label: 'Prix fournisseurs', icon: Truck },
 ];
 
 function InfoRow({ label, value }) {
@@ -329,6 +332,8 @@ export default function SkuDetailPage() {
           )}
         </div>
       )}
+
+      {activeTab === 'supplier_prices' && <SkuSupplierPricesPanel skuId={sku.id} />}
 
       {lightboxIndex !== null && images[lightboxIndex] && (
         <div

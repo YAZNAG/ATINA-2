@@ -1,699 +1,572 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
-import { useAuth } from '../../../context/AuthContext';
-import { getPack, createPack, updatePack, deletePack, duplicatePack } from '../../../api/offres.api';
-import { getSkus } from '../../../api/catalog.api';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, ArrowDown, ArrowUp, Copy, ImageOff, Lock, Package, Plus, Save, Trash2 } from 'lucide-react';
+import { getPack, createPack, updatePack, activatePack, deactivatePack, getPackEligibleSkus } from '../../../api/packs.api';
+import { DuplicatePackModal, DeletePackModal } from './PackDialogs';
+import { money, nodeLabel, apiError, StatusBadge, VisibilityBadge, ComponentBadge, Toggle, formatDateTime } from './packUi';
 
-const TABS = [
-  { key: 'detail', label: 'Détail & composition' },
-  { key: 'availability', label: 'Disponibilité & assemblables' },
-];
+/**
+ * Onglet « Détail pack & composition » (WF #16, US-071, US-072, US-099, US-100).
+ * Création (packId = null) ou édition d'un pack existant.
+ */
 
-function money(n) {
-  return `${Number(n ?? 0).toFixed(2)} MAD`;
-}
-
-function toDateInputValue(d) {
+function toDateInput(d) {
   if (!d) return '';
   const date = new Date(d);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-}
-
-function formatDateTime(d) {
-  if (!d) return null;
-  const date = new Date(d);
-  if (Number.isNaN(date.getTime())) return null;
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
 function emptyForm(nodeId) {
   return {
-    name_fr: '',
-    name_ar: '',
     node_id: nodeId ?? '',
+    name_fr: '', name_ar: '',
+    description_fr: '', description_ar: '',
+    image_url: '',
+    valid_from: '', valid_to: '',
     total_price: '',
     max_pack_qty: '',
-    valid_from: '',
-    valid_to: '',
     is_backorderable: false,
-    is_active: true,
-    items: [], // { sku_id, sku_code, name_fr, price, qty, stock_available, assemblable }
+    estimated_restock_days: 1,
+    is_active: false,
+    items: [],
   };
 }
 
-export default function PackDetailDrawer({ packId, nodes = [], defaultNodeId = null, onClose, onSaved }) {
-  const { hasPermission } = useAuth();
-  const canUpdate = hasPermission('packs.update');
-  const canCreate = hasPermission('packs.create');
-  const canDelete = hasPermission('packs.delete');
-  const isNew = !packId;
-  // En création il faut canCreate ; en édition il faut canUpdate.
-  const canEditFields = isNew ? canCreate : canUpdate;
+function formFromPack(p) {
+  return {
+    node_id: p.node_id ?? '',
+    name_fr: p.name_fr ?? '', name_ar: p.name_ar ?? '',
+    description_fr: p.description_fr ?? '', description_ar: p.description_ar ?? '',
+    image_url: p.image_url ?? '',
+    valid_from: toDateInput(p.valid_from), valid_to: toDateInput(p.valid_to),
+    total_price: p.total_price ?? '',
+    max_pack_qty: p.max_pack_qty ?? '',
+    is_backorderable: !!p.is_backorderable,
+    estimated_restock_days: p.estimated_restock_days ?? 1,
+    is_active: !!p.is_active,
+    items: (p.items ?? []).map((it) => ({
+      sku_id: it.sku_id,
+      sku_code: it.sku_code,
+      name_fr: it.name_fr,
+      qty: it.qty,
+      unit_price_in_pack: it.unit_price_in_pack ?? it.unit_price,
+      catalog_price: it.catalog_price,
+      stock_available: it.stock_available,
+      component_status: it.component_status,
+      component_status_label: it.component_status_label,
+    })),
+  };
+}
 
-  const [activeTab, setActiveTab] = useState('detail');
+const BLOCKING = ['absent', 'inactif', 'non_vendable'];
+
+/** État d'un composant : statut serveur bloquant, sinon recalcul local (stock vs quantité saisie). */
+function localStatus(it) {
+  if (BLOCKING.includes(it.component_status)) return { code: it.component_status, label: it.component_status_label };
+  if (it.has_selling_rule === true && it.is_sellable === false) return { code: 'non_vendable', label: 'Non vendable sur ce node' };
+  if (it.stock_available !== undefined && Number(it.stock_available) < Number(it.qty || 0)) return { code: 'rupture', label: 'Stock insuffisant' };
+  return { code: 'ok', label: 'Disponible' };
+}
+
+export default function PackDetail({
+  packId, nodes = [], defaultNodeId = null, perms = {}, onSaved, onDeleted, onOpenPack,
+}) {
+  const { canCreate = false, canUpdate = false, canDelete = false } = perms;
+  const isNew = !packId;
+  const canEdit = isNew ? canCreate : canUpdate;
+
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [pack, setPack] = useState(null); // dernière version connue du serveur (pour l'entête/statut)
+  const [info, setInfo] = useState(null);
+  const [pack, setPack] = useState(null);
   const [form, setForm] = useState(emptyForm(defaultNodeId));
-  const [computedAt, setComputedAt] = useState(null); // horodatage du dernier calcul assemblable/vendable
 
-  const [skuOptions, setSkuOptions] = useState([]);
   const [skuSearch, setSkuSearch] = useState('');
+  const [skuOptions, setSkuOptions] = useState([]);
   const [selectedSkuId, setSelectedSkuId] = useState('');
   const [addQty, setAddQty] = useState(1);
 
-  const [duplicateTarget, setDuplicateTarget] = useState('');
-  const [duplicating, setDuplicating] = useState(false);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
-  // --- chargement du pack existant ---------------------------------------
+  // ── Chargement ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isNew) return;
+    setError(null);
+    setInfo(null);
+    if (isNew) {
+      setPack(null);
+      setForm(emptyForm(defaultNodeId));
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
-    setError(null);
     getPack(packId)
       .then(({ data }) => {
         if (cancelled) return;
-        const p = data.data ?? data;
+        const p = data.data;
         setPack(p);
-        setComputedAt(new Date());
-        setForm({
-          name_fr: p.name_fr ?? '',
-          name_ar: p.name_ar ?? '',
-          node_id: p.node_id ?? '',
-          total_price: p.total_price ?? '',
-          max_pack_qty: p.max_pack_qty ?? '',
-          valid_from: toDateInputValue(p.valid_from),
-          valid_to: toDateInputValue(p.valid_to),
-          is_backorderable: !!p.is_backorderable,
-          is_active: !!p.is_active,
-          items: (p.items ?? []).map(it => ({
-            sku_id: it.sku_id,
-            sku_code: it.sku_code,
-            name_fr: it.name_fr,
-            price: it.unit_price,
-            qty: it.qty,
-            stock_available: it.stock_available,
-            assemblable: it.assemblable,
-          })),
-        });
+        setForm(formFromPack(p));
       })
-      .catch(err => setError(err?.response?.data?.message ?? "Impossible de charger le pack"))
+      .catch((err) => !cancelled && setError(apiError(err, 'Impossible de charger le pack')))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [packId, isNew]);
+  }, [packId, isNew, defaultNodeId]);
 
-  // --- recherche de SKU à ajouter -----------------------------------------
+  // ── SKU proposables (même node que le pack) ───────────────────────────────
   useEffect(() => {
+    if (!form.node_id || !canEdit) { setSkuOptions([]); return undefined; }
     const t = setTimeout(() => {
-      getSkus({ search: skuSearch, limit: 20 })
-        .then(({ data }) => setSkuOptions(data.data ?? data ?? []))
+      getPackEligibleSkus({ node_id: form.node_id, search: skuSearch || undefined, limit: 30 })
+        .then(({ data }) => setSkuOptions(data.data ?? []))
         .catch(() => setSkuOptions([]));
     }, 300);
     return () => clearTimeout(t);
-  }, [skuSearch]);
+  }, [form.node_id, skuSearch, canEdit]);
 
-  const nodeLabel = useMemo(() => {
-    const n = nodes.find(n => n.id === form.node_id);
-    return n ? (n.code ?? n.name) : (form.node_id || '—');
-  }, [nodes, form.node_id]);
+  const lock = pack?.composition_lock;
+  const locked = !!lock?.locked;
+  const canEditRecipe = canEdit && !locked;
 
-  const composantsTotal = useMemo(
-    () => form.items.reduce((sum, it) => sum + Number(it.price ?? 0) * Number(it.qty ?? 1), 0),
-    [form.items]
+  const originalPrice = useMemo(
+    () => Math.round(form.items.reduce((s, it) => s + Number(it.unit_price_in_pack || 0) * Number(it.qty || 0), 0) * 100) / 100,
+    [form.items],
   );
+  const packPrice = Number(form.total_price || 0);
+  const discountPct = originalPrice > 0 && packPrice > 0 ? Math.round((1 - packPrice / originalPrice) * 10000) / 100 : 0;
 
-  const discountPct = composantsTotal > 0
-    ? Math.round((1 - Number(form.total_price || composantsTotal) / composantsTotal) * 100)
-    : 0;
+  const itemsWithStatus = form.items.map((it) => ({ ...it, status: localStatus(it) }));
+  const problemItems = itemsWithStatus.filter((it) => it.status.code !== 'ok');
 
-  const outOfStockItems = useMemo(
-    () => form.items.filter(it => Number(it.assemblable ?? 0) <= 0 && it.stock_available !== undefined),
-    [form.items]
-  );
+  const soldCount = pack?.sold_count ?? 0;
+  const remainingCap = form.max_pack_qty === '' || form.max_pack_qty === null ? null : Math.max(0, Number(form.max_pack_qty) - soldCount);
 
-  function updateItemQty(skuId, qty) {
-    setForm(f => ({
-      ...f,
-      items: f.items.map(it => it.sku_id === skuId
-        ? { ...it, qty: Math.max(1, Number(qty) || 1), assemblable: it.stock_available != null ? Math.floor(it.stock_available / Math.max(1, Number(qty) || 1)) : it.assemblable }
-        : it),
-    }));
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  function updateItem(skuId, patch) {
+    setForm((f) => ({ ...f, items: f.items.map((it) => (it.sku_id === skuId ? { ...it, ...patch } : it)) }));
+  }
+
+  function moveItem(index, dir) {
+    setForm((f) => {
+      const items = [...f.items];
+      const j = index + dir;
+      if (j < 0 || j >= items.length) return f;
+      [items[index], items[j]] = [items[j], items[index]];
+      return { ...f, items };
+    });
   }
 
   function removeItem(skuId) {
-    setForm(f => ({ ...f, items: f.items.filter(it => it.sku_id !== skuId) }));
+    setForm((f) => ({ ...f, items: f.items.filter((it) => it.sku_id !== skuId) }));
   }
 
   function addItem() {
     if (!selectedSkuId) return;
-    if (form.items.some(it => it.sku_id === selectedSkuId)) return; // déjà présent
-    const sku = skuOptions.find(s => s.id === selectedSkuId);
+    if (form.items.some((it) => it.sku_id === selectedSkuId)) { setError('Ce SKU est déjà présent dans la recette'); return; }
+    const sku = skuOptions.find((s) => s.id === selectedSkuId);
+    const qty = Number(addQty);
     if (!sku) return;
-    setForm(f => ({
+    if (!(qty > 0)) { setError('La quantité doit être strictement supérieure à 0'); return; }
+    setError(null);
+    setForm((f) => ({
       ...f,
       items: [...f.items, {
         sku_id: sku.id,
         sku_code: sku.sku_code,
         name_fr: sku.name_fr,
-        price: sku.price,
-        qty: Math.max(1, Number(addQty) || 1),
-        stock_available: undefined,
-        assemblable: undefined,
+        qty,
+        unit_price_in_pack: sku.price,
+        catalog_price: sku.price,
+        stock_available: sku.qty_available,
+        is_sellable: sku.is_sellable,
+        has_selling_rule: sku.has_selling_rule,
       }],
     }));
     setSelectedSkuId('');
     setAddQty(1);
   }
 
-  function toggleBackorderable() {
-    if (!canEditFields) return;
-    setForm(f => ({ ...f, is_backorderable: !f.is_backorderable }));
+  function validate() {
+    if (!form.node_id) return 'Node obligatoire : un pack est rattaché à un seul node';
+    if (!form.name_fr.trim()) return 'Nom (FR) obligatoire';
+    if (!form.name_ar.trim()) return 'Nom (AR) obligatoire';
+    if (form.items.length === 0) return 'Ajoutez au moins un composant';
+    if (form.items.some((it) => !(Number(it.qty) > 0))) return 'Chaque quantité doit être strictement supérieure à 0';
+    if (!(packPrice > 0)) return 'Prix pack obligatoire (supérieur à 0)';
+    if (packPrice > originalPrice) return `Le prix pack ne peut pas dépasser le prix original (${money(originalPrice)})`;
+    if (form.max_pack_qty !== '' && Number(form.max_pack_qty) < soldCount) {
+      return `Le plafond de vente ne peut pas être inférieur aux packs déjà vendus (${soldCount})`;
+    }
+    if (form.valid_from && form.valid_to && form.valid_to <= form.valid_from) return 'La date de fin doit être postérieure à la date de début';
+    return null;
   }
 
   async function handleSave() {
-    if (!form.name_fr) { setError('Nom (FR) requis'); return; }
-    if (!form.node_id) { setError('Nœud requis'); return; }
-    if (form.items.length === 0) { setError('Ajoutez au moins un composant'); return; }
-
+    const v = validate();
+    if (v) { setError(v); return; }
     setSaving(true);
     setError(null);
+    setInfo(null);
     const payload = {
-      name_fr: form.name_fr,
-      name_ar: form.name_ar || form.name_fr,
-      node_id: form.node_id,
-      discount_type: 'fixed',
-      total_price: Number(form.total_price || composantsTotal),
-      max_pack_qty: form.max_pack_qty === '' ? null : Number(form.max_pack_qty),
+      name_fr: form.name_fr.trim(),
+      name_ar: form.name_ar.trim(),
+      description_fr: form.description_fr || null,
+      description_ar: form.description_ar || null,
+      image_url: form.image_url || null,
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
+      total_price: packPrice,
+      max_pack_qty: form.max_pack_qty === '' ? null : Number(form.max_pack_qty),
       is_backorderable: !!form.is_backorderable,
-      is_active: !!form.is_active,
-      items: form.items.map(it => ({ sku_id: it.sku_id, qty: it.qty })),
+      estimated_restock_days: Number(form.estimated_restock_days || 1),
+      items: form.items.map((it, idx) => ({
+        sku_id: it.sku_id, qty: Number(it.qty), unit_price_in_pack: Number(it.unit_price_in_pack || 0), sort_order: idx,
+      })),
     };
-
+    if (isNew) { payload.node_id = form.node_id; payload.is_active = !!form.is_active; }
     try {
-      const res = isNew ? await createPack(payload) : await updatePack(packId, payload);
-      const saved = res.data.data ?? res.data;
-      onSaved?.(saved);
-      onClose?.();
+      const { data } = isNew ? await createPack(payload) : await updatePack(packId, payload);
+      const saved = data.data;
+      setInfo(isNew ? 'Pack créé' : 'Pack enregistré');
+      if (!isNew) { setPack(saved); setForm(formFromPack(saved)); }
+      onSaved?.(saved, { created: isNew });
     } catch (err) {
-      setError(err?.response?.data?.message ?? "Échec de l'enregistrement");
+      const d = err?.response?.data;
+      if (err?.response?.status === 409 && d?.data?.composition_lock) {
+        setPack((p) => (p ? { ...p, composition_lock: d.data.composition_lock } : p));
+      }
+      setError(apiError(err, "Échec de l'enregistrement"));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete() {
+  async function handleToggleActive(next) {
     if (!pack) return;
-    if (!window.confirm(`Supprimer le pack "${pack.name_fr}" ?`)) return;
-    try {
-      await deletePack(pack.id);
-      onSaved?.({ deleted: pack.id });
-      onClose?.();
-    } catch (err) {
-      setError(err?.response?.data?.message ?? "Échec de la suppression");
-    }
-  }
-
-  async function handleToggleActive() {
-    if (!pack) return;
-    const next = !form.is_active;
-    setForm(f => ({ ...f, is_active: next }));
-    try {
-      await updatePack(pack.id, { is_active: next });
-      onSaved?.({ ...pack, is_active: next });
-    } catch (err) {
-      setForm(f => ({ ...f, is_active: !next }));
-      setError(err?.response?.data?.message ?? "Échec de la mise à jour du statut");
-    }
-  }
-
-  async function handleDuplicate() {
-    if (!pack || !duplicateTarget) return;
-    setDuplicating(true);
     setError(null);
     try {
-      const res = await duplicatePack(pack.id, duplicateTarget);
-      onSaved?.(res.data.data ?? res.data);
-      setDuplicateTarget('');
+      const { data } = next ? await activatePack(pack.id) : await deactivatePack(pack.id);
+      setPack(data.data);
+      setForm((f) => ({ ...f, is_active: !!data.data.is_active }));
+      onSaved?.(data.data, { created: false });
     } catch (err) {
-      setError(err?.response?.data?.message ?? "Échec de la duplication");
-    } finally {
-      setDuplicating(false);
+      setError(apiError(err, 'Échec du changement de statut'));
     }
   }
 
-  const assemblableCount = pack?.assemblable_count ?? null;
-  const vendableCount = pack?.vendable_count ?? null;
-  const isAvailable = pack?.is_available ?? false;
-  const computedAtLabel = formatDateTime(computedAt);
+  // ── Rendu ─────────────────────────────────────────────────────────────────
+  if (loading) return <div className="card py-12 text-center text-sm text-slate-400">Chargement…</div>;
+  if (!isNew && !pack) {
+    return <div className="card py-12 text-center text-sm text-red-500">{error || 'Pack introuvable'}</div>;
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* overlay */}
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-
-      {/* panel */}
-      <div className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
-        {/* header */}
-        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {isNew ? 'Nouveau pack' : (pack?.name_fr || '…')}
-            </h2>
-            {!isNew && pack && (
-              <p className="mt-1 text-xs text-gray-500">
-                Node {nodeLabel} ·{' '}
-                <span className={form.is_active ? 'text-emerald-600' : 'text-gray-400'}>
-                  {form.is_active ? 'Actif' : 'Inactif'}
-                </span>
-              </p>
-            )}
-          </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* tabs */}
-        <div className="flex gap-1 border-b border-gray-100 px-6">
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-2.5 text-sm font-medium border-b-2 transition ${
-                activeTab === tab.key
-                  ? 'border-red-600 text-red-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading ? (
-            <div className="py-12 text-center text-gray-400">Chargement…</div>
-          ) : error && !pack && !isNew ? (
-            <div className="py-12 text-center text-red-500">{error}</div>
-          ) : activeTab === 'detail' ? (
-            <div className="space-y-5">
-              {error && (
-                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
-              )}
-
-              <div className="rounded-xl border border-gray-200 p-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Nom (FR) *</label>
-                    <input
-                      value={form.name_fr}
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, name_fr: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Nom (AR)</label>
-                    <input
-                      value={form.name_ar}
-                      dir="rtl"
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, name_ar: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Nœud (obligatoire) *</label>
-                    <select
-                      value={form.node_id}
-                      disabled={!isNew || !canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, node_id: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
-                    >
-                      <option value="">— Choisir —</option>
-                      {nodes.map(n => (
-                        <option key={n.id} value={n.id}>{n.code ?? n.name}</option>
-                      ))}
-                    </select>
-                    {!isNew && (
-                      <p className="mt-1 text-xs text-gray-400">
-                        Un pack est strictement rattaché à un node — utilisez « Dupliquer vers un node ».
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Prix pack (MAD) *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.total_price}
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, total_price: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">max_pack_qty</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.max_pack_qty}
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, max_pack_qty: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-                  <div />
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Période — début</label>
-                    <input
-                      type="date"
-                      value={form.valid_from}
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, valid_from: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Période — fin</label>
-                    <input
-                      type="date"
-                      value={form.valid_to}
-                      disabled={!canEditFields}
-                      onChange={(e) => setForm(f => ({ ...f, valid_to: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">is_backorderable (override des règles SKU)</p>
-                    <p className="text-xs text-gray-500">
-                      Si activé, le pack reste vendable même en rupture ; estimated_restock_days pilote les créneaux.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.is_backorderable}
-                    disabled={!canEditFields}
-                    onClick={toggleBackorderable}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                      form.is_backorderable ? 'bg-emerald-500' : 'bg-gray-300'
-                    } ${!canEditFields ? 'opacity-50' : ''}`}
-                  >
-                    <span
-                      className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                      style={{ transform: form.is_backorderable ? 'translateX(22px)' : 'translateX(4px)' }}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {outOfStockItems.length > 0 && !form.is_backorderable && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                  <span>
-                    Composant(s) en rupture sur {nodeLabel} :{' '}
-                    {outOfStockItems.map(it => `${it.name_fr} x${it.qty}`).join(', ')}.
-                    Le pack sera masqué côté app si non-backorderable.
-                  </span>
-                </div>
-              )}
-
-              <div className="rounded-xl border border-gray-200">
-                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                  <p className="text-sm font-semibold text-gray-800">Composition (SKU / quantité) *</p>
-                  <p className="text-sm">
-                    <span className="text-gray-400">Composants : </span>
-                    <span className="text-gray-400 line-through">{money(composantsTotal)}</span>{' '}
-                    <span className="font-medium text-emerald-600">Pack : {money(form.total_price || composantsTotal)}</span>{' '}
-                    <span className="text-emerald-600">-{Math.max(0, discountPct)}%</span>
-                  </p>
-                </div>
-
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">SKU</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Produit</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Prix</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Qté</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Stock</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Assemblables</th>
-                      {canEditFields && <th className="whitespace-nowrap px-4 py-2 font-medium" />}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {form.items.map(it => {
-                      const short = it.stock_available !== undefined && Number(it.assemblable ?? 0) <= 0;
-                      return (
-                        <tr key={it.sku_id} className={short ? 'bg-red-50/40' : ''}>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-500">{it.sku_code}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-800">{it.name_fr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-600">{money(it.price)}</td>
-                          <td className="whitespace-nowrap px-4 py-2">
-                            <input
-                              type="number"
-                              min="1"
-                              value={it.qty}
-                              disabled={!canEditFields}
-                              onChange={(e) => updateItemQty(it.sku_id, e.target.value)}
-                              className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-sm disabled:bg-gray-50"
-                            />
-                          </td>
-                          <td className={`whitespace-nowrap px-4 py-2 ${short ? 'font-medium text-red-500' : 'text-gray-600'}`}>
-                            {it.stock_available ?? '—'} {short && '⚠'}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-600">{it.assemblable ?? '—'}</td>
-                          {canEditFields && (
-                            <td className="whitespace-nowrap px-4 py-2 text-right">
-                              <button onClick={() => removeItem(it.sku_id)} className="text-red-500 hover:text-red-600">
-                                Retirer
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                    {form.items.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-6 text-center text-gray-400">Aucun composant</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                {canEditFields && (
-                  <div className="flex items-center gap-2 border-t border-gray-100 p-3">
-                    <select
-                      value={selectedSkuId}
-                      onChange={(e) => setSelectedSkuId(e.target.value)}
-                      onFocus={() => skuOptions.length === 0 && setSkuSearch(s => s)}
-                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    >
-                      <option value="">— Choisir un SKU —</option>
-                      {skuOptions.map(s => (
-                        <option key={s.id} value={s.id}>{s.sku_code} — {s.name_fr}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min="1"
-                      value={addQty}
-                      onChange={(e) => setAddQty(e.target.value)}
-                      className="w-20 rounded-lg border border-gray-200 px-2 py-2 text-sm"
-                      placeholder="Qté"
-                    />
-                    <button
-                      onClick={addItem}
-                      disabled={!selectedSkuId}
-                      className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50"
-                    >
-                      + Ajouter
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            // --- onglet Disponibilité & assemblables ---------------------
-            <div className="space-y-5">
-              {error && (
-                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
-              )}
-
-              {/* encart explicatif des formules */}
-              <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-xs leading-relaxed text-gray-500">
-                Assemblables = MIN( FLOOR(stock disponible / qté requise) ) sur les composants — calcul à la volée, sans réservation.
-                Qté vendable = MIN(assemblables, max_pack_qty). is_available = backorderable OU assemblables ≥ 1 (recalcul temps réel).
-              </div>
-
-              {/* cartes de synthèse */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-gray-200 p-4 text-center">
-                  <p className={`text-2xl font-semibold ${assemblableCount > 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {assemblableCount ?? '—'}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">Packs assemblables (calcul à la volée)</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 p-4 text-center">
-                  <p className={`text-2xl font-semibold ${vendableCount > 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {vendableCount ?? '—'}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">Qté vendable = MIN(assemblables, max_pack_qty)</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 p-4 text-center">
-                  <p className={`text-lg font-semibold ${isAvailable ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {isAvailable ? 'Visible app' : 'Masqué côté app'}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">is_available (temps réel)</p>
-                </div>
-              </div>
-
-              {/* tableau des composants */}
-              <div className="rounded-xl border border-gray-200">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">SKU</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Produit</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Qté / pack</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Stock dispo</th>
-                      <th className="whitespace-nowrap px-4 py-2 font-medium">Assemblables</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {form.items.map(it => {
-                      const short = it.stock_available !== undefined && Number(it.assemblable ?? 0) <= 0;
-                      return (
-                        <tr key={it.sku_id} className={short ? 'bg-red-50/40' : ''}>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-500">{it.sku_code}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-800">{it.name_fr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-600">{it.qty}</td>
-                          <td className={`whitespace-nowrap px-4 py-2 ${short ? 'font-medium text-red-500' : 'text-gray-600'}`}>
-                            {it.stock_available ?? '—'} {short && '⚠'}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-2 text-gray-600">{it.assemblable ?? '—'}</td>
-                        </tr>
-                      );
-                    })}
-                    {form.items.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-6 text-center text-gray-400">Aucun composant</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* toggle backorderable, accessible aussi depuis cet onglet */}
-              <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-                <p className="text-sm text-gray-800">Backorderable</p>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={form.is_backorderable}
-                  disabled={!canEditFields}
-                  onClick={toggleBackorderable}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                    form.is_backorderable ? 'bg-emerald-500' : 'bg-gray-300'
-                  } ${!canEditFields ? 'opacity-50' : ''}`}
-                >
-                  <span
-                    className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    style={{ transform: form.is_backorderable ? 'translateX(22px)' : 'translateX(4px)' }}
-                  />
-                </button>
-              </div>
-
-              <p className="text-xs text-gray-400">
-                {computedAtLabel
-                  ? `Dernier recalcul : ${computedAtLabel}`
-                  : 'Ces valeurs sont recalculées à chaque requête à partir du stock/des règles de vente courants — pas de réservation.'}
-              </p>
+    <div className="space-y-5">
+      {/* En-tête */}
+      <div className="card flex flex-col gap-3 !p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">{isNew ? 'Nouveau pack' : pack.name_fr}</h2>
+          {!isNew && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>Node {nodeLabel(pack.node, nodes, pack.node_id)}</span>
+              <StatusBadge active={pack.is_active} />
+              <VisibilityBadge visible={pack.is_available} />
+              <span>Créé le {formatDateTime(pack.created_at)}</span>
             </div>
           )}
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isNew && canUpdate && (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Toggle checked={!!pack.is_active} onChange={handleToggleActive} />
+              {pack.is_active ? 'Actif' : 'Inactif'}
+            </label>
+          )}
+          {!isNew && canCreate && (
+            <button type="button" className="btn-secondary" onClick={() => setDupOpen(true)}>
+              <Copy size={16} /> Dupliquer vers un node
+            </button>
+          )}
+          {!isNew && canDelete && (
+            <button type="button" className="btn-icon-delete" title="Supprimer" onClick={() => setDelOpen(true)}>
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
 
-        {/* footer */}
-        {!loading && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {canEditFields && (
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              )}
+      {error && <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+      {info && <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div>}
 
-              {!isNew && canCreate && (
-                <>
-                  <select
-                    value={duplicateTarget}
-                    onChange={(e) => setDuplicateTarget(e.target.value)}
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600"
-                  >
-                    <option value="">Dupliquer vers un node…</option>
-                    {nodes.filter(n => n.id !== form.node_id).map(n => (
-                      <option key={n.id} value={n.id}>{n.code ?? n.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleDuplicate}
-                    disabled={!duplicateTarget || duplicating}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {duplicating ? '…' : 'Dupliquer'}
-                  </button>
-                </>
-              )}
+      {locked && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="mb-1 flex items-center gap-2 font-semibold"><Lock size={16} /> Composition gelée</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {lock.reasons.map((r, i) => (
+              <li key={i}>
+                {r.message}{' '}
+                {r.link && (
+                  <Link to={r.link} className="font-medium text-red-600 hover:underline">
+                    {r.code === 'ACTIVE_ORDERS' ? 'Voir les commandes' : 'Voir la vente flash'}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs">
+            Restent modifiables : libellés, description, image, prix, période, plafond de vente et activation. Pour
+            changer la recette, désactivez ce pack et créez-en un nouveau.
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* Informations */}
+        <div className="card space-y-4 !p-5 lg:col-span-2">
+          <h3 className="text-sm font-semibold text-slate-700">Informations</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="form-label">Node *</label>
+              <select className="form-select" value={form.node_id} disabled={!isNew || !canEdit} onChange={(e) => setForm((f) => ({ ...f, node_id: e.target.value, items: isNew ? [] : f.items }))}>
+                <option value="">— Choisir le node —</option>
+                {nodes.map((n) => <option key={n.id} value={n.id}>{nodeLabel(n)}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Un pack est strictement rattaché à un node (pas de pack global). {isNew ? 'Choisir le node vide la composition.' : 'Pour un autre node, utilisez « Dupliquer vers un node ».'}
+              </p>
             </div>
+            <div>
+              <label className="form-label">Nom (FR) *</label>
+              <input className="form-input" value={form.name_fr} disabled={!canEdit} onChange={set('name_fr')} />
+            </div>
+            <div>
+              <label className="form-label">Nom (AR) *</label>
+              <input className="form-input" dir="rtl" value={form.name_ar} disabled={!canEdit} onChange={set('name_ar')} />
+            </div>
+            <div>
+              <label className="form-label">Description (FR)</label>
+              <textarea className="form-textarea" value={form.description_fr} disabled={!canEdit} onChange={set('description_fr')} />
+            </div>
+            <div>
+              <label className="form-label">Description (AR)</label>
+              <textarea className="form-textarea" dir="rtl" value={form.description_ar} disabled={!canEdit} onChange={set('description_ar')} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="form-label">Image du pack (URL, bannière app)</label>
+              <input className="form-input" value={form.image_url} disabled={!canEdit} onChange={set('image_url')} placeholder="https://…" />
+            </div>
+            <div>
+              <label className="form-label">Validité — début</label>
+              <input type="date" className="form-input" value={form.valid_from} disabled={!canEdit} onChange={set('valid_from')} />
+            </div>
+            <div>
+              <label className="form-label">Validité — fin (optionnel)</label>
+              <input type="date" className="form-input" value={form.valid_to} disabled={!canEdit} onChange={set('valid_to')} />
+            </div>
+          </div>
+        </div>
 
-            {!isNew && (
-              <div className="flex items-center gap-3">
-                {canUpdate && (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.is_active}
-                    onClick={handleToggleActive}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      form.is_active ? 'bg-emerald-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                      style={{ transform: form.is_active ? 'translateX(22px)' : 'translateX(4px)' }}
-                    />
-                  </button>
-                )}
-                <span className="text-sm text-gray-500">{form.is_active ? 'Actif' : 'Inactif'}</span>
-                {canDelete && (
-                  <button onClick={handleDelete} className="text-sm font-medium text-red-500 hover:text-red-600">
-                    Supprimer
-                  </button>
-                )}
-              </div>
+        {/* Prix & aperçu */}
+        <div className="card space-y-4 !p-5">
+          <h3 className="text-sm font-semibold text-slate-700">Prix & aperçu</h3>
+          <div>
+            <label className="form-label">Prix original (auto)</label>
+            <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">{money(originalPrice)}</div>
+            <p className="mt-1 text-xs text-slate-400">Somme des prix de contribution × quantités.</p>
+          </div>
+          <div>
+            <label className="form-label">Prix pack (MAD) *</label>
+            <input type="number" min="0" step="0.01" className="form-input" value={form.total_price} disabled={!canEdit} onChange={set('total_price')} />
+          </div>
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">Remise (auto)</span>
+            <span className={`font-semibold ${discountPct > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>{discountPct > 0 ? `-${discountPct} %` : '0 %'}</span>
+          </div>
+          {/* Aperçu app : vignette + prix barré + prix pack */}
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+              {form.image_url ? <img src={form.image_url} alt="" className="h-full w-full object-cover" /> : <ImageOff size={18} className="text-slate-400" />}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-800">{form.name_fr || 'Nom du pack'}</p>
+              <p className="text-sm">
+                {originalPrice > packPrice && <span className="mr-2 text-slate-400 line-through">{money(originalPrice)}</span>}
+                <span className="font-semibold text-red-600">{money(packPrice)}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Règles de vente */}
+      <div className="card !p-5">
+        <h3 className="mb-4 text-sm font-semibold text-slate-700">Règles de vente</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="form-label">Plafond de vente (max_pack_qty)</label>
+            <input type="number" min={soldCount} className="form-input" value={form.max_pack_qty} disabled={!canEdit} onChange={set('max_pack_qty')} placeholder="Vide = pas de plafond" />
+          </div>
+          <div>
+            <label className="form-label">Packs vendus (sold_count)</label>
+            <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">{soldCount}</div>
+            <p className="mt-1 text-xs text-slate-400">Piloté par les commandes, non modifiable.</p>
+          </div>
+          <div>
+            <label className="form-label">Plafond restant</label>
+            <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">{remainingCap === null ? 'Illimité' : remainingCap}</div>
+          </div>
+          <div>
+            <label className="form-label">Statut</label>
+            {isNew ? (
+              <label className="flex items-center gap-2 py-2 text-sm text-slate-600">
+                <Toggle checked={form.is_active} disabled={!canEdit} onChange={(v) => setForm((f) => ({ ...f, is_active: v }))} />
+                {form.is_active ? 'Actif' : 'Inactif (recommandé avant vérification)'}
+              </label>
+            ) : (
+              <div className="py-2"><StatusBadge active={pack.is_active} /></div>
             )}
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Vente en rupture (is_backorderable)</p>
+            <p className="text-xs text-slate-500">Override total des règles SKU : le pack reste vendable même sans stock ; le plafond de vente reste bloquant.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Toggle checked={form.is_backorderable} disabled={!canEdit} onChange={(v) => setForm((f) => ({ ...f, is_backorderable: v }))} />
+            {form.is_backorderable && (
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                Réappro estimé
+                <input type="number" min="0" className="form-input !w-20 !py-1.5" value={form.estimated_restock_days} disabled={!canEdit} onChange={set('estimated_restock_days')} />
+                jour(s)
+              </label>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Composition */}
+      <div className="table-wrap">
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Package size={16} /> Composition (SKU / quantité) *</p>
+          {!isNew && (
+            <p className="text-xs text-slate-500">
+              Packs assemblables (calcul à la volée, sans réservation) : <strong className="text-slate-800">{pack.assemblable_count}</strong>
+            </p>
+          )}
+        </div>
+
+        {problemItems.length > 0 && (
+          <div className="flex items-start gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <span>
+              Composant(s) en rupture ou non vendable(s) sur ce node : {problemItems.map((it) => `${it.sku_code} (${it.status.label})`).join(', ')}.
+              {!form.is_backorderable && ' Le pack sera masqué côté app tant qu\'aucun pack n\'est assemblable.'}
+            </span>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr>
+                <th className="table-th w-16">Ordre</th>
+                <th className="table-th">SKU</th>
+                <th className="table-th">Qté *</th>
+                <th className="table-th">Prix contribution</th>
+                <th className="table-th">Total ligne</th>
+                <th className="table-th">Stock dispo</th>
+                <th className="table-th">Assemblables</th>
+                <th className="table-th">État</th>
+                {canEditRecipe && <th className="table-th" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {itemsWithStatus.map((it, idx) => (
+                <tr key={it.sku_id}>
+                  <td className="table-td">
+                    <div className="flex gap-1">
+                      <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" disabled={!canEdit || idx === 0} onClick={() => moveItem(idx, -1)} title="Monter"><ArrowUp size={14} /></button>
+                      <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" disabled={!canEdit || idx === form.items.length - 1} onClick={() => moveItem(idx, 1)} title="Descendre"><ArrowDown size={14} /></button>
+                    </div>
+                  </td>
+                  <td className="table-td">
+                    <div className="font-medium text-slate-800">{it.name_fr}</div>
+                    <div className="text-xs text-slate-400">{it.sku_code}</div>
+                  </td>
+                  <td className="table-td">
+                    <input type="number" min="0.001" step="any" className="form-input !w-20 !py-1.5" value={it.qty} disabled={!canEditRecipe} onChange={(e) => updateItem(it.sku_id, { qty: e.target.value })} />
+                  </td>
+                  <td className="table-td">
+                    <input type="number" min="0" step="0.01" className="form-input !w-28 !py-1.5" value={it.unit_price_in_pack} disabled={!canEdit} onChange={(e) => updateItem(it.sku_id, { unit_price_in_pack: e.target.value })} />
+                    {it.catalog_price !== undefined && <div className="mt-0.5 text-xs text-slate-400">Catalogue : {money(it.catalog_price)}</div>}
+                  </td>
+                  <td className="table-td">{money(Number(it.unit_price_in_pack || 0) * Number(it.qty || 0))}</td>
+                  <td className="table-td">{it.stock_available ?? '—'}</td>
+                  <td className="table-td">{it.stock_available !== undefined && Number(it.qty) > 0 ? Math.floor(Number(it.stock_available) / Number(it.qty)) : '—'}</td>
+                  <td className="table-td"><ComponentBadge code={it.status.code} label={it.status.label} /></td>
+                  {canEditRecipe && (
+                    <td className="table-td text-right">
+                      <button type="button" className="text-sm text-red-600 hover:underline" onClick={() => removeItem(it.sku_id)}>Retirer</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {form.items.length === 0 && (
+                <tr><td colSpan={9} className="table-td py-8 text-center text-slate-400">Aucun composant. Choisissez le node puis ajoutez des SKU.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {canEditRecipe && (
+          <div className="flex flex-col gap-2 border-t border-slate-200 p-3 sm:flex-row sm:items-center">
+            <input className="form-input sm:!w-56" placeholder="Rechercher un SKU du node…" value={skuSearch} disabled={!form.node_id} onChange={(e) => setSkuSearch(e.target.value)} />
+            <select className="form-select flex-1" value={selectedSkuId} disabled={!form.node_id} onChange={(e) => setSelectedSkuId(e.target.value)}>
+              <option value="">{form.node_id ? '— Choisir un SKU —' : 'Choisissez d\'abord le node'}</option>
+              {skuOptions.filter((s) => !form.items.some((it) => it.sku_id === s.id)).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.sku_code} — {s.name_fr} · stock {s.qty_available}{s.has_selling_rule && !s.is_sellable ? ' · non vendable' : ''}
+                </option>
+              ))}
+            </select>
+            <input type="number" min="1" className="form-input sm:!w-24" value={addQty} onChange={(e) => setAddQty(e.target.value)} placeholder="Qté" />
+            <button type="button" className="btn-secondary" disabled={!selectedSkuId} onClick={addItem}><Plus size={16} /> Ajouter</button>
           </div>
         )}
       </div>
+
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            <Save size={16} /> {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      )}
+
+      <DuplicatePackModal
+        open={dupOpen}
+        pack={pack}
+        nodes={nodes}
+        onClose={() => setDupOpen(false)}
+        onDuplicated={(res) => onSaved?.(res.pack, { created: true, silent: true })}
+        onOpenPack={(id) => { setDupOpen(false); onOpenPack?.(id); }}
+      />
+      <DeletePackModal
+        open={delOpen}
+        pack={pack}
+        canDeactivate={canUpdate}
+        onClose={() => setDelOpen(false)}
+        onDeleted={(id) => onDeleted?.(id)}
+        onDeactivated={(p) => { setPack((prev) => ({ ...prev, ...p })); setForm((f) => ({ ...f, is_active: false })); onSaved?.(p, { created: false }); }}
+      />
     </div>
   );
 }

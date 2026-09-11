@@ -1,8 +1,87 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getPicker, activatePicker, deactivatePicker, resetPickerPassword, getPickerStats, getPickerSessions, getPickerOrders } from '../../api/staff.api';
+import { getPicker, updatePicker, deletePicker, activatePicker, deactivatePicker, resetPickerPassword, getPickerStats, getPickerSessions, getPickerOrders } from '../../api/staff.api';
+import { getNodes } from '../../api/locationNode.api';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
+import { fmtMinutes, fmtQty, performanceOf } from '../picking/pickingUtils';
+
+const SESSION_STATUS_LABELS = { open: 'Ouverte', in_progress: 'En cours', completed: 'Terminée', cancelled: 'Annulée' };
+
+// ── Onglet « Fiche picker » : nom, node, contact, statut + Enregistrer ─────────
+function PickerForm({ picker, onSaved }) {
+  const [nodes, setNodes] = useState([]);
+  const [form, setForm] = useState({ name: '', node_id: '', phone_country: '+212', phone_number: '', email: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { getNodes({ all: true, limit: 500 }).then(r => setNodes(r.data?.data ?? r.data ?? [])).catch(() => {}); }, []);
+  useEffect(() => {
+    setForm({ name: picker.name ?? '', node_id: picker.node_id ?? '', phone_country: picker.phone_country ?? '+212', phone_number: picker.phone_number ?? '', email: picker.email ?? '' });
+  }, [picker]);
+
+  const hc = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const save = async (e) => {
+    e.preventDefault(); setError(''); setSaving(true);
+    try {
+      await updatePicker(picker.id, { name: form.name, node_id: form.node_id, phone_country: form.phone_country, phone_number: form.phone_number, email: form.email });
+      toast.success('Picker enregistré');
+      onSaved();
+    } catch (err) { setError(getErrorMessage(err)); }
+    finally { setSaving(false); }
+  };
+
+  const inp = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-violet-500';
+  return (
+    <form onSubmit={save} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <h3 className="font-bold text-gray-900 text-sm">Informations du picker</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nom complet *</label>
+          <input name="name" className={inp} value={form.name} onChange={hc} required />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Node de rattachement *</label>
+          <select name="node_id" className={inp} value={form.node_id} onChange={hc} required>
+            <option value="">— Sélectionner —</option>
+            {nodes.map(n => <option key={n.id} value={n.id}>{n.name_fr} ({n.code})</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Indicatif</label>
+            <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
+              {['+212', '+33', '+213'].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Téléphone *</label>
+            <input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email</label>
+          <input type="email" name="email" className={inp} value={form.email} onChange={hc} placeholder="optionnel" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Statut</label>
+          <p className="text-sm">
+            {picker.is_active
+              ? <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Actif — assignable aux sessions</span>
+              : <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Inactif — non assignable</span>}
+            {picker.active_sessions > 0 && <span className="ml-2 text-xs text-amber-600">{picker.active_sessions} session(s) en cours</span>}
+          </p>
+        </div>
+      </div>
+      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+      <div className="flex justify-end">
+        <button type="submit" disabled={saving} className="px-4 py-2.5 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-xl disabled:opacity-50">
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const SVG = {
@@ -174,7 +253,7 @@ function OrderDrawer({ sessionData, onClose }) {
                   <div>
                     <p className="text-xs text-blue-500 font-semibold uppercase">Créneau</p>
                     <p className="text-sm font-semibold text-blue-800">{order.confirmed_slot.name_fr} — {order.confirmed_slot.slot_start}–{order.confirmed_slot.slot_end}</p>
-                    <p className="text-xs text-blue-500">{DAYS[order.confirmed_slot.day_of_week]}</p>
+                    <p className="text-xs text-blue-500">{order.confirmed_slot.specific_date ? `${DAYS[new Date(order.confirmed_slot.specific_date).getDay()]} ${formatDate(order.confirmed_slot.specific_date)}` : ''}</p>
                   </div>
                 </div>
               )}
@@ -224,7 +303,7 @@ function OrderDrawer({ sessionData, onClose }) {
                 <div className="space-y-3">
                   {order.items.map((item, i) => {
                     const pi = pickItemMap[item.id];
-                    const art = item.sku?.article;
+                    const art = item.sku;
                     return (
                       <div key={item.id} className={`rounded-xl border p-4 ${pi?.status?.code === 'picked' ? 'border-emerald-200 bg-emerald-50/30' : pi?.status?.code === 'out_of_stock' ? 'border-red-200 bg-red-50/20' : 'border-gray-100 bg-white'}`}>
                         <div className="flex items-start justify-between gap-3 mb-3">
@@ -255,7 +334,7 @@ function OrderDrawer({ sessionData, onClose }) {
                         {pi && (
                           <div className="mt-3 flex flex-wrap gap-2 text-xs">
                             {pi.scanned_ean && <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg font-mono">Scanné: {pi.scanned_ean}</span>}
-                            {pi.location && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg"><Icon d={SVG.pin} className="w-3 h-3 inline mr-0.5" />{pi.location.aisle&&`All.${pi.location.aisle}`}{pi.location.shelf&&` Ray.${pi.location.shelf}`}{pi.location.code&&` (${pi.location.code})`}</span>}
+                            {pi.location && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg"><Icon d={SVG.pin} className="w-3 h-3 inline mr-0.5" />{pi.location.aisle&&`All.${pi.location.aisle}`}{pi.location.shelf&&` Ray.${pi.location.shelf}`}{pi.location.label&&` (${pi.location.label})`}</span>}
                             {pi.picked_at && <span className="bg-gray-50 text-gray-500 px-2 py-0.5 rounded-lg"><Icon d={SVG.clock} className="w-3 h-3 inline mr-0.5" />{new Date(pi.picked_at).toLocaleTimeString('fr-MA',{hour:'2-digit',minute:'2-digit'})}</span>}
                           </div>
                         )}
@@ -320,7 +399,8 @@ export default function PickerDetailsPage() {
   const [sessLoading, setSessLoading] = useState(false);
   const [ordLoading, setOrdLoading]   = useState(false);
 
-  const [tab, setTab]       = useState('resume');
+  const [tab, setTab]       = useState('fiche');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [period, setPeriod] = useState('7d');
   const [sessPage, setSessPage] = useState(1);
   const [ordPage, setOrdPage]   = useState(1);
@@ -382,7 +462,7 @@ export default function PickerDetailsPage() {
   }, [id, period, ordPage, ordStatus, ordSearch]);
 
   useEffect(() => { loadPicker(); }, [loadPicker]);
-  useEffect(() => { if (tab === 'resume' || tab === 'analytics') loadStats(); }, [loadStats, tab]);
+  useEffect(() => { if (tab === 'fiche' || tab === 'analytics') loadStats(); }, [loadStats, tab]);
   useEffect(() => { if (tab === 'sessions')  loadSessions(); }, [loadSessions, tab]);
   useEffect(() => { if (tab === 'commandes') loadOrders();   }, [loadOrders, tab]);
 
@@ -407,9 +487,16 @@ export default function PickerDetailsPage() {
     { label:'Durée moy.',      value: stats.avg_duration_min>0?`${stats.avg_duration_min}min`:'—', color:'bg-slate-50 border-slate-200 text-slate-700', icon: SVG.clock },
   ] : [];
 
+  const handleDelete = async () => {
+    setActing(true);
+    try { await deletePicker(id); toast.success('Picker supprimé'); navigate('/staff/pickers'); }
+    catch (err) { toast.error(getErrorMessage(err)); }
+    finally { setActing(false); setConfirmDelete(false); }
+  };
+
   const TABS = [
-    { id:'resume',    l:'Résumé'    },
-    { id:'sessions',  l:`Sessions${sessTotal>0?' ('+sessTotal+')':''}` },
+    { id:'fiche',     l:'Fiche picker' },
+    { id:'sessions',  l:`Sessions liées${sessTotal>0?' ('+sessTotal+')':''}` },
     { id:'commandes', l:`Commandes${ordTotal>0?' ('+ordTotal+')':''}` },
     { id:'analytics', l:'Analytics' },
   ];
@@ -418,6 +505,18 @@ export default function PickerDetailsPage() {
     <div className="min-h-screen bg-gray-50">
       {showReset && <ResetModal pickerId={id} onClose={() => setShowReset(false)} />}
       {drawerSession && <OrderDrawer sessionData={drawerSession} onClose={() => setDrawerSession(null)} />}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Supprimer {picker.name} ?</h3>
+            <p className="text-sm text-gray-500 mb-5">Suppression logique — le compte est désactivé et masqué des listes. L'historique des sessions est conservé.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl">Annuler</button>
+              <button onClick={handleDelete} disabled={acting} className="flex-1 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER ───────────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-100 shadow-sm">
@@ -441,7 +540,7 @@ export default function PickerDetailsPage() {
                   ? <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">Actif</span>
                   : <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">Inactif</span>}
               </div>
-              <p className="text-sm text-gray-500 font-mono">{picker.phone_country} {picker.phone_number}</p>
+              <p className="text-sm text-gray-500 font-mono">{picker.phone_country} {picker.phone_number}{picker.email ? <span className="font-sans"> · {picker.email}</span> : null}</p>
               <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
                 <span className="flex items-center gap-1"><Icon d={SVG.node} className="w-3 h-3" />{picker.node?.name_fr} ({picker.node?.code})</span>
                 <span>·</span><span>Créé {formatDate(picker.created_at)}</span>
@@ -451,7 +550,7 @@ export default function PickerDetailsPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-              <button onClick={() => navigate(`/staff/pickers/${id}/edit`)} disabled className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl opacity-40 cursor-not-allowed">
+              <button onClick={() => setTab('fiche')} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-xl">
                 <Icon d={SVG.edit} className="w-4 h-4" />Modifier
               </button>
               {picker.is_active
@@ -465,6 +564,9 @@ export default function PickerDetailsPage() {
                   </button>}
               <button onClick={() => setShowReset(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl">
                 <Icon d={SVG.key} className="w-4 h-4" />Reset MDP
+              </button>
+              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 rounded-xl">
+                <Icon d={SVG.x} className="w-4 h-4" />Supprimer
               </button>
             </div>
           </div>
@@ -492,8 +594,9 @@ export default function PickerDetailsPage() {
       <div className="px-6 py-6 max-w-6xl">
 
         {/* ── RÉSUMÉ ───────────────────────────────────────────────────────────── */}
-        {tab === 'resume' && (
+        {tab === 'fiche' && (
           <div className="space-y-6">
+            <PickerForm picker={picker} onSaved={loadPicker} />
             {statsLoading ? <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600" /></div> : (
               <>
                 {/* Stat cards */}
@@ -557,8 +660,9 @@ export default function PickerDetailsPage() {
               <select value={sessStatus} onChange={e => { setSessStatus(e.target.value); setSessPage(1); }}
                 className="text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500">
                 <option value="">Tous les statuts</option>
-                {['open','in_progress','completed','cancelled'].map(c => <option key={c} value={c}>{c}</option>)}
+                {['open','in_progress','completed','cancelled'].map(c => <option key={c} value={c}>{SESSION_STATUS_LABELS[c]}</option>)}
               </select>
+              <span className="text-xs text-gray-400">Période : sélecteur en haut à droite · clic sur une session → Préparation (Picking)</span>
               <span className="text-sm text-gray-400 ml-auto">{sessTotal} session{sessTotal!==1?'s':''}</span>
             </div>
 
@@ -575,23 +679,34 @@ export default function PickerDetailsPage() {
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Articles</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Erreurs</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Durée</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Prélevé</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Performance</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {sessions.length === 0 ? <tr><td colSpan={8} className="text-center py-12 text-gray-400">Aucune session</td></tr>
-                      : sessions.map(s => (
-                        <tr key={s.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setDrawerSession(s)}>
+                      {sessions.length === 0 ? <tr><td colSpan={10} className="text-center py-12 text-gray-400">Aucune session sur la période</td></tr>
+                      : sessions.map(s => {
+                        const m = s.metrics ?? {};
+                        const perf = performanceOf(m);
+                        const closed = ['completed', 'cancelled'].includes(s.status?.code);
+                        return (
+                        <tr key={s.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" title="Ouvrir dans Préparation (Picking)" onClick={() => navigate(`/picking/sessions/${s.id}`)}>
                           <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold text-violet-600">{sesId(s.id)}</span></td>
-                          <td className="px-4 py-3.5"><span className="font-mono text-xs text-blue-600">{ordId(s.order_id)}</span></td>
+                          <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                            <button type="button" onClick={() => { setTab('commandes'); }} className="font-mono text-xs text-blue-600 hover:underline">{ordId(s.order_id)}</button>
+                          </td>
                           <td className="px-4 py-3.5 text-xs text-gray-600">{s.order?.customer?.name ?? '—'}</td>
                           <td className="px-4 py-3.5"><SBadge status={s.status} /></td>
-                          <td className="px-4 py-3.5 text-center"><span className="text-sm font-bold text-gray-700">{s._count?.items ?? 0}</span></td>
+                          <td className="px-4 py-3.5 text-center"><span className="text-sm font-bold text-gray-700">{m.items_processed ?? 0}/{m.items_total ?? s._count?.items ?? 0}</span></td>
                           <td className="px-4 py-3.5 text-center">{(s.error_count??0)>0?<span className="text-red-600 font-bold text-sm">{s.error_count}</span>:<span className="text-gray-300 text-xs">—</span>}</td>
-                          <td className="px-4 py-3.5 text-right text-xs text-gray-500">{elapsed(s.started_at, s.completed_at)}</td>
+                          <td className="px-4 py-3.5 text-right text-xs text-gray-500">{closed ? fmtMinutes(m.duration_min) : elapsed(s.started_at, s.completed_at)}</td>
+                          <td className="px-4 py-3.5 text-right text-xs text-gray-500">{fmtQty(m.qty_picked)}/{fmtQty(m.qty_expected)}{m.accuracy_pct != null ? ` (${m.accuracy_pct} %)` : ''}</td>
+                          <td className="px-4 py-3.5 text-xs"><span className={`font-semibold ${perf.cls}`}>{closed ? perf.label : '—'}</span></td>
                           <td className="px-4 py-3.5 text-right text-xs text-gray-400">{formatDate(s.created_at)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -623,7 +738,7 @@ export default function PickerDetailsPage() {
               <select value={ordStatus} onChange={e=>{setOrdStatus(e.target.value);setOrdPage(1);}}
                 className="text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500">
                 <option value="">Tous statuts picking</option>
-                {['open','in_progress','completed','cancelled'].map(c=><option key={c} value={c}>{c}</option>)}
+                {['open','in_progress','completed','cancelled'].map(c=><option key={c} value={c}>{SESSION_STATUS_LABELS[c]}</option>)}
               </select>
               <span className="text-sm text-gray-400 ml-auto">{ordTotal} commande{ordTotal!==1?'s':''}</span>
             </div>

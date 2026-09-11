@@ -45,7 +45,7 @@ function Drawer({ editItem, nodes, onClose, onSaved }) {
   const handleSubmit = async e => {
     e.preventDefault(); setSaving(true);
     try {
-      if (isEdit) await updateDriver(editItem.id, { node_id:form.node_id, name:form.name, vehicle_type:form.vehicle_type, vehicle_plate:form.vehicle_plate });
+      if (isEdit) await updateDriver(editItem.id, { node_id:form.node_id, name:form.name, phone_country:form.phone_country, phone_number:form.phone_number, vehicle_type:form.vehicle_type, vehicle_plate:form.vehicle_plate });
       else        await createDriver(form);
       toast.success(isEdit ? 'Livreur mis à jour' : 'Livreur créé'); onSaved();
     } catch (err) { toast.error(getErrorMessage(err)); }
@@ -70,16 +70,14 @@ function Drawer({ editItem, nodes, onClose, onSaved }) {
             </select>
           </Fld>
           <Fld label="Nom complet" req><input name="name" className={inp} value={form.name} onChange={hc} required placeholder="Hassan Amrani" /></Fld>
-          {!isEdit && (
-            <div className="grid grid-cols-3 gap-3">
-              <Fld label="Indicatif">
-                <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
-                  <option value="+212">+212 🇲🇦</option><option value="+33">+33 🇫🇷</option><option value="+213">+213 🇩🇿</option>
-                </select>
-              </Fld>
-              <div className="col-span-2"><Fld label="Téléphone" req><input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required placeholder="601234567" /></Fld></div>
-            </div>
-          )}
+          <div className="grid grid-cols-3 gap-3">
+            <Fld label="Indicatif">
+              <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
+                <option value="+212">+212 🇲🇦</option><option value="+33">+33 🇫🇷</option><option value="+213">+213 🇩🇿</option>
+              </select>
+            </Fld>
+            <div className="col-span-2"><Fld label="Téléphone" req><input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required placeholder="601234567" /></Fld></div>
+          </div>
           {!isEdit && <Fld label="Mot de passe" req><input type="password" name="password" className={inp} value={form.password} onChange={hc} required minLength={6} placeholder="min 6 caractères" /></Fld>}
           <div className="grid grid-cols-2 gap-3">
             <Fld label="Type véhicule">
@@ -216,7 +214,7 @@ export default function DriversPage() {
                 <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Nom, téléphone, plaque…"
                   className="pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 w-56" />
               </div>
-              <button type="submit" className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-xl">Go</button>
+              <button type="submit" className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-xl">Filtrer</button>
               {filters.search && <button type="button" onClick={() => { pf('search',''); setSearchInput(''); }} className="px-2 py-2 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50">✕</button>}
             </form>
             <select value={filters.node_id} onChange={e => pf('node_id', e.target.value)} className="text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
@@ -271,6 +269,7 @@ export default function DriversPage() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Téléphone</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Node</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Véhicule</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Disponibilité</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Statut</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Créé le</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
@@ -302,6 +301,14 @@ export default function DriversPage() {
                         {item.vehicle_type
                           ? <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-lg">{vEmoji(item.vehicle_type)} {item.vehicle_type}</span>
                           : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        {item.availability === 'on_tour'
+                          ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Tournée en cours">En tournée</span>
+                          : item.availability === 'available'
+                            ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Disponible</span>
+                            : <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-50 text-gray-400 border border-gray-200">Indisponible</span>}
+                        {item.planned_tours > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{item.planned_tours} planifiée(s)</p>}
                       </td>
                       <td className="px-4 py-3.5 text-center">
                         {item.is_active

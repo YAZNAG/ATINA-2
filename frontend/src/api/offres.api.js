@@ -39,3 +39,15 @@ export const deletePack         = (id)        => api.delete(`${pk}/${id}`);
 export const duplicatePack      = (id, node_id) => api.post(`${pk}/${id}/duplicate`, { node_id });
 
 export const togglePackActive   = (id, is_active) => api.put(`${pk}/${id}`, { is_active });
+
+// ——— Ventes flash (Offres > Flash Sales) — cibles SKU ou pack ———
+export const getFlashSales             = (params)        => api.get(pr, { params: { scope_type: 'flash', ...params } });
+export const getFlashSale              = (id)            => api.get(`${pr}/${id}`);
+export const createFlashSale           = (data)          => api.post(pr, toFormData(data), multipart);
+export const updateFlashSale           = (id, data)      => api.put(`${pr}/${id}`, toFormData(data), multipart);
+export const setFlashSaleActive        = (id, is_active) => api.patch(`${pr}/${id}/status`, { is_active });
+export const getFlashSaleDeletionCheck = (id, attempt = false) =>
+  api.get(`${pr}/${id}/deletion-check`, { params: attempt ? { attempt: true } : {} });
+export const deleteFlashSale           = (id)            => api.delete(`${pr}/${id}`);
+export const getFlashLookups           = (params)        => api.get(`${pr}/flash/lookups`, { params });
+export const getFlashCeiling           = (params)        => api.get(`${pr}/flash/ceiling`, { params });

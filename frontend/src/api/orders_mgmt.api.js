@@ -22,3 +22,6 @@ export const collectOrderPayment  = (id, data)      => api.post(`${b}/${id}/paym
 export const getPayments          = (params)        => api.get(`${b}/payments`, { params });
 export const updateOrder          = (id, data)      => api.patch(`${b}/${id}`, data);
 export const updateOrderItem      = (id, itemId, data) => api.patch(`${b}/${id}/items/${itemId}`, data);
+// US-059 : ajout et substitution de ligne (motif obligatoire)
+export const addOrderItem         = (id, data)      => api.post(`${b}/${id}/items`, data);
+export const substituteOrderItem  = (id, itemId, data) => api.post(`${b}/${id}/items/${itemId}/substitute`, data);

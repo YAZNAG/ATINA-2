@@ -10,7 +10,7 @@
  */
 const prisma = require('../../config/database');
 const { audit } = require('../../utils/audit');
-const { buildLabel } = require('../loyalty/points-ledger.util');
+const { recordPointsTxn } = require('../loyalty/points-ledger.util');
 
 // ── Statuts ─────────────────────────────────────────────────────────────────
 const ALIASES = {
@@ -162,8 +162,10 @@ async function enrichSlotsCapacity(slots, { excludeOrderId = null } = {}) {
 
 // ── Packs : nombre de packs commandés à partir des lignes ────────────────────
 /**
- * Les packs sont stockés en lignes composants (pack_id + sku_id, qty = nb packs × qty composant),
- * éventuellement avec une ligne parent (pack_id, sku_id NULL, qty = nb packs).
+ * Schema_V3 : un pack commandé = 1 ligne d'EN-TÊTE (pack_id, sku_id NULL, qty = nombre de packs)
+ * + des lignes composants (sku_id, parent_item_id → en-tête, pack_id NULL).
+ * Compatibilité : les commandes antérieures stockaient seulement des composants
+ * (pack_id + sku_id, qty = nb packs × qty composant) → nombre déduit de la recette.
  * Renvoie { [pack_id]: nombre_de_packs }.
  */
 async function countPacks(items, client = prisma) {
@@ -190,6 +192,32 @@ async function countPacks(items, client = prisma) {
     }
   }
   return result;
+}
+
+// ── Lignes remplacées (substitution back-office, US-059) ─────────────────────
+const lc = (v) => String(v ?? '').toLowerCase();
+const isHeader = (i) => !!i.pack_id && !i.sku_id;
+
+/**
+ * Lignes « substituted » REMPLACÉES depuis le back-office : inactives, leur réservation
+ * a été libérée au moment de la substitution. Une ligne « substituted » issue de la
+ * préparation (produit de remplacement porté par la session de picking) reste active.
+ */
+async function replacedLineIds(items, client = prisma) {
+  const subst = (items || []).filter((i) => lc(i.status?.code) === 'substituted').map((i) => i.id);
+  if (!subst.length) return new Set();
+  const viaPicking = await client.pickingSessionItem.findMany({
+    where: { order_item_id: { in: subst }, substitute_sku_id: { not: null } },
+    select: { order_item_id: true },
+  });
+  const live = new Set(viaPicking.map((p) => p.order_item_id));
+  return new Set(subst.filter((id) => !live.has(id)));
+}
+
+/** Lignes qui engagent encore la commande (ni annulées, ni remplacées). */
+async function liveItems(items, client = prisma) {
+  const replaced = await replacedLineIds(items, client);
+  return (items || []).filter((i) => lc(i.status?.code) !== 'cancelled' && !replaced.has(i.id));
 }
 
 // ── Verrou + lecture d'un niveau de stock ────────────────────────────────────
@@ -236,21 +264,21 @@ function assertCancellable(order) {
   }
 }
 
-const activeItems = (order) => (order.items || []).filter((i) => String(i.status?.code || '').toLowerCase() !== 'cancelled');
-
 /** Impact calculé AVANT validation (écran de confirmation — US-058). */
 async function previewCancel(orderId) {
   const order = await loadOrderForCancel(orderId);
   const code = normStatus(order.status?.code);
   const cancellable = CANCELLABLE.includes(code);
-  const items = activeItems(order);
+  const items = await liveItems(order.items);
+  const headerById = Object.fromEntries(items.filter(isHeader).map((i) => [i.id, i]));
 
+  // Stock libéré : produits seuls et COMPOSANTS de pack (jamais la ligne d'en-tête).
   const released = items
     .filter((i) => i.sku_id)
     .map((i) => ({
       sku_id: i.sku_id,
       name: i.sku?.name_fr || i.sku?.sku_code || 'Produit',
-      pack: i.pack?.name_fr || null,
+      pack: i.pack?.name_fr || headerById[i.parent_item_id]?.pack?.name_fr || null,
       qty_reserved_released: n3(Number(i.qty) - Number(i.qty_backordered || 0)),
       qty_backorder_released: n3(i.qty_backordered),
     }));
@@ -310,7 +338,8 @@ async function cancelOrder(orderId, reason, req = null) {
     const order = await loadOrderForCancel(orderId, tx);
     assertCancellable(order);
     const code = normStatus(order.status?.code);
-    const items = activeItems(order);
+    // Lignes encore engagées (les lignes remplacées par substitution ont déjà rendu leur stock).
+    const items = await liveItems(order.items, tx);
 
     // BLOC 1 — statut commande + lignes
     await tx.order.update({
@@ -328,7 +357,8 @@ async function cancelOrder(orderId, reason, req = null) {
       await A(tx, 'order_items', order.id, { active_lines: items.length }, { status: 'cancelled', lines: items.map((i) => i.id) });
     }
 
-    // BLOCS 2, 3, 4 — réservation + rupture (lignes produit ET composants de pack)
+    // BLOCS 2, 3, 4 — réservation + rupture (lignes produit ET composants de pack ;
+    // la ligne d'en-tête d'un pack ne porte aucun stock)
     for (const item of items) {
       if (!item.sku_id) continue;
       const qty = Number(item.qty);
@@ -405,24 +435,17 @@ async function cancelOrder(orderId, reason, req = null) {
     let pointsOutcome = 'none';
     if (pointsSpent > 0) {
       if (POINTS_REFUNDABLE.includes(code)) {
-        const cust = await tx.customer.update({
-          where: { id: order.customer_id },
-          data: { points_balance: { increment: pointsSpent } },
-          select: { points_balance: true },
-        });
-        const txn = await tx.pointsTransaction.create({
-          data: {
-            customer_id: order.customer_id,
-            order_id: order.id,
-            type: 'exchange_revert',
-            points: pointsSpent,
-            balance_after: cust.points_balance,
-            label: buildLabel(`Annulation commande ${order.id.slice(0, 8).toUpperCase()} — ${motif}`),
-          },
+        // Livre des points : écriture compensatoire via le grand-livre (append-only).
+        const { txn, points_balance } = await recordPointsTxn(tx, {
+          customer_id: order.customer_id,
+          amount: pointsSpent,
+          type: 'exchange_revert',
+          reason: `Annulation commande ${order.id.slice(0, 8).toUpperCase()} — ${motif}`,
+          order_id: order.id,
         });
         await A(tx, 'points_transactions', txn.id,
-          { points_balance: cust.points_balance - pointsSpent },
-          { points_balance: cust.points_balance, points: pointsSpent, type: 'exchange_revert' });
+          { points_balance: points_balance - pointsSpent },
+          { points_balance, points: pointsSpent, type: 'exchange_revert' });
         pointsOutcome = 'refunded';
       } else {
         await A(tx, 'customers', order.customer_id,
@@ -476,7 +499,7 @@ async function cancelOrder(orderId, reason, req = null) {
     if (expiredSlotStatus && order.slot_preferences?.length) {
       const toExpire = order.slot_preferences.filter((p) => p.status_id !== expiredSlotStatus.id);
       if (toExpire.length) {
-        await tx.orderSlotPreference.updateMany({ where: { id: { in: toExpire.map((p) => p.id) } }, data: { status_id: expiredSlotStatus.id } });
+        await tx.orderSlotPreference.updateMany({ where: { id: { in: toExpire.map((p) => p.id) } }, data: { status_id: expiredSlotStatus.id, updated_at: new Date() } });
         await A(tx, 'order_slot_preferences', order.id,
           { statuses: toExpire.map((p) => ({ slot_id: p.slot_id, status: p.status?.code || null })) },
           { status: 'expired' });
@@ -562,10 +585,11 @@ async function applyDeliveryStock(tx, orderId, req = null, reason = 'Livraison �
   const codPending = (order.payments || []).some((p) =>
     String(p.payment_method?.code || '').toLowerCase() === 'cod' && String(p.status?.code || '').toLowerCase() === 'pending');
 
+  // Sortie de stock sur les produits seuls et les COMPOSANTS de pack (l'en-tête n'a pas de SKU) ;
+  // lignes annulées ou remplacées exclues.
   const moves = [];
-  for (const item of order.items) {
+  for (const item of await liveItems(order.items, tx)) {
     if (!item.sku_id) continue;
-    if (String(item.status?.code || '').toLowerCase() === 'cancelled') continue;
     const qty = Number(item.qty);
     if (!(qty > 0)) continue;
     const qb = Number(item.qty_backordered || 0);
@@ -664,8 +688,8 @@ async function collectPayment(orderId, { collected_by, collected_at, notes } = {
 
     // Fin du suivi « livré non encaissé » (US-109) si la livraison a déjà eu lieu.
     if (code === 'delivered') {
-      for (const item of order.items) {
-        if (!item.sku_id || String(item.status?.code).toLowerCase() === 'cancelled') continue;
+      for (const item of await liveItems(order.items, tx)) {
+        if (!item.sku_id) continue;
         const level = await lockStockLevel(tx, order.node_id, item.sku_id);
         if (level && Number(level.qty_floating_cod) > 0) {
           await tx.stockLevel.update({
@@ -691,5 +715,6 @@ module.exports = {
   normStatus, allowedTransitions, TRANSITION_LABELS, CANCELLABLE, CLOSED, POINTS_REFUNDABLE,
   byCode, mustCode, dateKey, zonedDateTime, slotLabel,
   slotReservations, slotPreferenceStats, enrichSlotsCapacity, countPacks,
+  replacedLineIds, liveItems, isHeader,
   previewCancel, cancelOrder, removeStopTx, applyDeliveryStock, collectPayment,
 };

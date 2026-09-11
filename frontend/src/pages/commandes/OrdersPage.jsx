@@ -518,7 +518,7 @@ export default function OrdersPage() {
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-semibold text-gray-900">
-              Commandes
+              {view === 'payments' ? 'Paiements à la livraison' : 'Liste des commandes'}
             </h1>
             <div className="flex rounded-lg bg-gray-100 p-0.5 text-xs font-medium">
               {[

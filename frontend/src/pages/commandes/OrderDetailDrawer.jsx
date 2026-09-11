@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, Ban, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, CreditCard,
-  Download, Loader2, MapPin, Package, Pencil, Truck, User, X, Zap,
+  Download, Loader2, MapPin, Package, Pencil, Plus, Repeat, Search, Truck, User, X, Zap,
 } from 'lucide-react';
 
 import {
-  cancelOrder, changeOrderStatus, collectOrderPayment, getCancelPreview, getOrder,
-  getOrderHistory, getOrderSlots, getOrderTransitions, updateOrder, updateOrderItem, updateOrderSlot,
+  addOrderItem, cancelOrder, changeOrderStatus, collectOrderPayment, getCancelPreview, getOrder,
+  getOrderHistory, getOrderSlots, getOrderTransitions, substituteOrderItem, updateOrder, updateOrderItem, updateOrderSlot,
 } from '../../api/orders_mgmt.api';
-import { getCustomerAddresses } from '../../api/checkout.api';
+import { getCustomerAddresses, searchNodeArticles } from '../../api/checkout.api';
 import { downloadCsv } from './csv';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,7 +103,116 @@ function Empty({ children }) {
 // ─────────────────────────────────────────────────────────────────────────────
 const LINE_EDITABLE = ['pending', 'awaiting_stock', 'confirmed', 'picking'];
 
-function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSaveOrder, onSaveItem }) {
+/**
+ * Regroupe les lignes : produits seuls et en-têtes de pack au premier niveau, composants
+ * (parent_item_id → en-tête) affichés sous leur pack. Une ligne « substituted » sans
+ * substitution de préparation est une ligne remplacée depuis le back-office (inactive).
+ */
+function groupLines(items) {
+  const ids = new Set(items.map((i) => i.id));
+  const children = {};
+  for (const it of items) if (it.parent_item_id && ids.has(it.parent_item_id)) (children[it.parent_item_id] ||= []).push(it);
+  return items
+    .filter((it) => !(it.parent_item_id && ids.has(it.parent_item_id)))
+    .map((it) => ({ item: it, components: children[it.id] || [] }));
+}
+
+function LineModal({ order, mode, item, busy, onClose, onSubmit }) {
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [picked, setPicked] = useState(null);
+  const [qty, setQty] = useState(mode === 'substitute' ? String(Number(item?.qty || 1)) : '1');
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (!order.node?.id) return undefined;
+    let alive = true;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = await searchNodeArticles({ search, node_id: order.node.id, limit: 20 });
+        if (alive) setResults((unwrap(r) || []).filter((a) => !(mode === 'substitute' && a.sku_id === item?.sku_id)));
+      } catch { if (alive) setResults([]); } finally { if (alive) setLoading(false); }
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [search, order.node?.id, mode, item?.sku_id]);
+
+  const q = Number(qty);
+  const tooMuch = picked && picked.max_qty != null && q > picked.max_qty;
+  const canSubmit = picked && !picked.refusal && q > 0 && !tooMuch && reason.trim() && !busy;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 bg-black/40" />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              {mode === 'add' ? <><Plus size={17} className="text-red-600" /> Ajouter une ligne</> : <><Repeat size={17} className="text-red-600" /> Substituer une ligne</>}
+            </h2>
+            <p className="text-xs text-gray-500">
+              {mode === 'add'
+                ? `Produit vendable sur ${order.node?.name_fr || 'le nœud'} — prix du nœud, stock réservé.`
+                : `Remplacer « ${item?.sku?.name_fr || 'Produit'} » (${Number(item?.qty)} u.) : l'ancienne ligne passe « substituée », son stock est libéré.`}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm">
+          <div className="relative">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit (nom, code, EAN)…" className="w-full rounded-lg border border-gray-200 py-2 pl-8 pr-3 text-sm" />
+          </div>
+          <div className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-100">
+            {loading && <div className="flex items-center gap-2 p-3 text-xs text-gray-500"><Loader2 size={13} className="animate-spin" /> Recherche…</div>}
+            {!loading && results.length === 0 && <div className="p-3 text-center text-xs text-gray-400">Aucun produit trouvé.</div>}
+            {!loading && results.map((a) => (
+              <button key={a.sku_id} type="button" disabled={!!a.refusal} onClick={() => setPicked(a)}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left ${picked?.sku_id === a.sku_id ? 'bg-red-50' : 'hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-gray-800">{a.name_fr}</span>
+                  <span className="text-xs text-gray-400">{a.sku_code} · dispo {a.qty_available}{a.is_backorderable ? ' · vente en rupture autorisée' : ''}</span>
+                  {a.refusal && <span className="block text-xs text-rose-600">{a.refusal}</span>}
+                </span>
+                <span className="shrink-0 text-gray-800">{money(a.price_ttc)}</span>
+              </button>
+            ))}
+          </div>
+          {picked && (
+            <div className="rounded-lg bg-gray-50 p-3">
+              <div className="font-medium text-gray-800">{picked.name_fr}</div>
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <label className="text-gray-500">Quantité</label>
+                <input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} className="w-24 rounded-md border border-gray-200 px-2 py-1" />
+                <span className="text-gray-500">× {money(picked.price_ttc)} = <strong>{money(q * Number(picked.price_ttc || 0))}</strong></span>
+              </div>
+              {Number(picked.qty_available) < q && !tooMuch && <div className="mt-1 text-xs text-amber-600">Stock disponible insuffisant : {Math.max(0, q - Number(picked.qty_available))} u. vendue(s) en rupture.</div>}
+              {tooMuch && <div className="mt-1 text-xs text-rose-600">Quantité maximale vendable : {picked.max_qty}.</div>}
+            </div>
+          )}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Motif <span className="text-red-600">*</span></label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'add' ? 'Ex. : ajout demandé par le client au téléphone' : 'Ex. : produit en rupture, remplacé avec accord du client'} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">
+          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">Annuler</button>
+          <button type="button" disabled={!canSubmit}
+            onClick={async () => { if (await onSubmit({ sku_id: picked.sku_id, qty: q, reason: reason.trim() })) onClose(); }}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />}
+            {mode === 'add' ? 'Ajouter la ligne' : 'Substituer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSaveOrder, onSaveItem, onAddItem, onSubstituteItem }) {
   const code = lc(order.status?.code);
   const closed = ['delivered', 'cancelled', 'returned'].includes(code);
   const [editAddress, setEditAddress] = useState(false);
@@ -112,6 +221,7 @@ function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSa
   const [notes, setNotes] = useState(order.notes || '');
   const [editNotes, setEditNotes] = useState(false);
   const [editLine, setEditLine] = useState(null); // { id, qty, reason }
+  const [lineModal, setLineModal] = useState(null); // { mode: 'add' | 'substitute', item? }
 
   useEffect(() => { setNotes(order.notes || ''); setAddressId(order.address_id || ''); }, [order]);
 
@@ -121,7 +231,9 @@ function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSa
   }, [editAddress, order.customer?.id]);
 
   const items = order.items || [];
-  const activeItems = items.filter((i) => lc(i.status?.code) !== 'cancelled');
+  const replacedIds = useMemo(() => new Set(order.replaced_item_ids || []), [order.replaced_item_ids]);
+  const groups = useMemo(() => groupLines(items), [items]);
+  const activeItems = groups.filter(({ item }) => lc(item.status?.code) !== 'cancelled' && !replacedIds.has(item.id));
   const isHome = !['pickup', 'in_store'].includes(lc(order.delivery_type?.code));
 
   return (
@@ -178,46 +290,83 @@ function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSa
         </dl>
       </Section>
 
-      <Section title={`Lignes (${activeItems.length})`} icon={Package}>
+      <Section title={`Lignes (${activeItems.length})`} icon={Package}
+        action={LINE_EDITABLE.includes(code) && (
+          <button type="button" onClick={() => setLineModal({ mode: 'add' })} className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"><Plus size={12} /> Ajouter une ligne</button>
+        )}
+      >
         {items.length === 0 ? <Empty>Aucune ligne.</Empty> : (
           <div className="divide-y divide-gray-100">
-            {items.map((item) => {
-              const cancelled = lc(item.status?.code) === 'cancelled';
-              const canEdit = !cancelled && !item.pack_id && LINE_EDITABLE.includes(code);
+            {groups.map(({ item, components }) => {
+              const st = lc(item.status?.code);
+              const inactive = st === 'cancelled' || (st === 'substituted' && replacedIds.has(item.id));
+              const isPackHeader = !!item.pack_id && !item.sku_id;
+              const canEdit = !inactive && LINE_EDITABLE.includes(code);
+              const canSubstitute = canEdit && !isPackHeader && st === 'active' && !item.is_points_exchange && !item.game_play_id;
               const editing = editLine?.id === item.id;
               return (
-                <div key={item.id} className={`py-2.5 text-sm ${cancelled ? 'opacity-50' : ''}`}>
+                <div key={item.id} className={`py-2.5 text-sm ${inactive ? 'opacity-50' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className={`font-medium text-gray-800 ${cancelled ? 'line-through' : ''}`}>{item.sku?.name_fr || item.pack?.name_fr || 'Article'}</div>
+                      <div className={`font-medium text-gray-800 ${inactive ? 'line-through' : ''}`}>
+                        {isPackHeader && <Package size={13} className="mr-1 inline text-violet-500" />}
+                        {item.sku?.name_fr || item.pack?.name_fr || 'Article'}
+                      </div>
                       <div className="mt-0.5 flex flex-wrap gap-1">
-                        {item.pack && <Badge tone="bg-violet-50 text-violet-600">Pack : {item.pack.name_fr}</Badge>}
+                        {isPackHeader && <Badge tone="bg-violet-50 text-violet-600">Pack · {components.length} composant(s)</Badge>}
+                        {!isPackHeader && item.pack && <Badge tone="bg-violet-50 text-violet-600">Pack : {item.pack.name_fr}</Badge>}
                         {item.flash_sale && <Badge tone="bg-amber-50 text-amber-700"><Zap size={11} className="mr-0.5" />{item.flash_sale.name_fr || 'Vente flash'}</Badge>}
                         {Number(item.qty_backordered) > 0 && <Badge tone="bg-rose-50 text-rose-600">Rupture : {Number(item.qty_backordered)}</Badge>}
                         {item.is_points_exchange && <Badge tone="bg-blue-50 text-blue-600">Échange points</Badge>}
-                        {cancelled && <Badge>Annulée</Badge>}
+                        {st === 'cancelled' && <Badge>Annulée</Badge>}
+                        {st === 'substituted' && <Badge tone="bg-sky-50 text-sky-700">{replacedIds.has(item.id) ? 'Remplacée' : 'Substituée (préparation)'}</Badge>}
+                        {st === 'out_of_stock' && <Badge tone="bg-orange-50 text-orange-600">Rupture préparation</Badge>}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-gray-800">{Number(item.qty)} × {money(item.unit_price_sold)}</div>
+                      <div className="text-gray-800">{Number(item.qty)}{isPackHeader ? ' pack(s)' : ''} × {money(item.unit_price_sold)}</div>
                       <div className="font-medium text-gray-900">{money(Number(item.qty) * Number(item.unit_price_sold))}</div>
-                      {canEdit && !editing && (
-                        <button type="button" onClick={() => setEditLine({ id: item.id, qty: Number(item.qty), reason: '' })} className="mt-1 inline-flex items-center gap-1 text-xs text-red-600 hover:underline"><Pencil size={11} /> Modifier</button>
+                      {!editing && (canEdit || canSubstitute) && (
+                        <div className="mt-1 flex justify-end gap-2">
+                          {canEdit && <button type="button" onClick={() => setEditLine({ id: item.id, qty: Number(item.qty), reason: '' })} className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline"><Pencil size={11} /> Modifier</button>}
+                          {canSubstitute && <button type="button" onClick={() => setLineModal({ mode: 'substitute', item })} className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline"><Repeat size={11} /> Substituer</button>}
+                        </div>
                       )}
                     </div>
                   </div>
+                  {components.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 border-l-2 border-violet-100 pl-3">
+                      {components.map((c) => {
+                        const cst = lc(c.status?.code);
+                        return (
+                          <li key={c.id} className={`flex items-center justify-between gap-2 text-xs ${cst === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                            <span className="min-w-0 truncate">↳ {c.sku?.name_fr || 'Produit'} {c.sku?.sku_code ? <span className="text-gray-400">({c.sku.sku_code})</span> : null}</span>
+                            <span className="shrink-0">
+                              {Number(c.qty)} u.
+                              {Number(c.qty_backordered) > 0 && <span className="ml-1 text-rose-600">(rupture {Number(c.qty_backordered)})</span>}
+                              <span className="ml-1 text-gray-400">inclus</span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                   {editing && (
                     <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-2">
                       <div className="flex items-center gap-2 text-xs">
-                        <label className="text-gray-500">Nouvelle quantité (0 = annuler la ligne)</label>
-                        <input type="number" min={0} max={Number(item.qty)} step="any" value={editLine.qty} onChange={(e) => setEditLine({ ...editLine, qty: e.target.value })} className="w-20 rounded-md border border-gray-200 px-2 py-1" />
+                        <label className="text-gray-500">{isPackHeader ? 'Nouveau nombre de packs (0 = annuler la ligne)' : 'Nouvelle quantité (0 = annuler la ligne)'}</label>
+                        <input type="number" min={0} max={Number(item.qty)} step={isPackHeader ? 1 : 'any'} value={editLine.qty} onChange={(e) => setEditLine({ ...editLine, qty: e.target.value })} className="w-20 rounded-md border border-gray-200 px-2 py-1" />
                       </div>
                       <input value={editLine.reason} onChange={(e) => setEditLine({ ...editLine, reason: e.target.value })} placeholder="Motif (rupture, demande client…)" className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs" />
                       <div className="flex gap-2">
                         <button type="button" disabled={busy || editLine.qty === '' || Number(editLine.qty) >= Number(item.qty)} onClick={async () => { if (await onSaveItem(item.id, { qty: Number(editLine.qty), reason: editLine.reason })) setEditLine(null); }} className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50">Enregistrer</button>
                         <button type="button" onClick={() => setEditLine(null)} className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs">Annuler</button>
                       </div>
-                      <p className="text-[11px] text-gray-400">Seule une réduction est possible : la réservation est libérée et le montant à encaisser recalculé.</p>
+                      <p className="text-[11px] text-gray-400">
+                        {isPackHeader
+                          ? 'Réduction du nombre de packs : les composants suivent la recette, leur réservation est libérée, le plafond du pack est rendu et le montant à encaisser recalculé.'
+                          : 'Réduction de quantité : la réservation est libérée et le montant à encaisser recalculé. Pour ajouter un produit, utilisez « Ajouter une ligne ».'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -237,6 +386,17 @@ function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSa
           <div className="flex justify-between text-base font-semibold text-gray-900"><dt>Total TTC</dt><dd>{money(order.total_ttc)}</dd></div>
         </dl>
       </Section>
+
+      {lineModal && (
+        <LineModal
+          order={order}
+          mode={lineModal.mode}
+          item={lineModal.item}
+          busy={busy}
+          onClose={() => setLineModal(null)}
+          onSubmit={(data) => (lineModal.mode === 'add' ? onAddItem(data) : onSubstituteItem(lineModal.item.id, data))}
+        />
+      )}
 
       <Section title="Notes" icon={Pencil}
         action={!closed && !editNotes && <button type="button" onClick={() => setEditNotes(true)} className="text-xs font-medium text-red-600 hover:underline">Modifier</button>}
@@ -726,6 +886,7 @@ export default function OrderDetailDrawer({ orderId, initialAction = null, onClo
         <header className="border-b border-gray-200 bg-white">
           <div className="flex items-start justify-between px-4 py-4">
             <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-red-600">Détail commande</div>
               <div className="text-base font-semibold text-gray-800">ORD-{order?.id?.slice(0, 8).toUpperCase() || '–'}</div>
               <div className="mt-1 text-xs text-gray-500">{order?.customer?.name || '–'} · {order ? formatDateTime(order.created_at) : ''}</div>
             </div>
@@ -759,6 +920,8 @@ export default function OrderDetailDrawer({ orderId, initialAction = null, onClo
                   onAskCancel={() => setCancelOpen(true)}
                   onSaveOrder={(data) => run(() => updateOrder(orderId, data), 'Commande mise à jour')}
                   onSaveItem={(itemId, data) => run(() => updateOrderItem(orderId, itemId, data), 'Ligne mise à jour')}
+                  onAddItem={(data) => run(() => addOrderItem(orderId, data), 'Ligne ajoutée')}
+                  onSubstituteItem={(itemId, data) => run(() => substituteOrderItem(orderId, itemId, data), 'Ligne substituée')}
                 />
               )}
               {activeTab === 'slots' && <SlotsTab orderId={orderId} busy={busy} onConfirmSlot={handleConfirmSlot} />}

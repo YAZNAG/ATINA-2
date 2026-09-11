@@ -128,8 +128,8 @@ export default function DeliverySlotsPage() {
       <div className="mx-auto max-w-7xl rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-5">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Créneaux de livraison</h1>
-            <p className="text-xs text-gray-500">Calendrier daté par nœud — capacité, réservations et préférences client (lecture seule).</p>
+            <h1 className="text-xl font-semibold text-gray-900">Calendrier créneaux</h1>
+            <p className="text-xs text-gray-500">Créneaux de livraison datés par nœud — capacité, réservations et préférences client (lecture seule). Un créneau retiré est désactivé, jamais supprimé.</p>
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={exportCsv} disabled={!slots.length} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40"><Download size={15} /> Exporter</button>

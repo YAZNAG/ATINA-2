@@ -16,7 +16,7 @@ const ORDER_LIST_INCLUDE = {
   node:          { select: { id: true, name_fr: true, code: true } },
   customer:      { select: { id: true, name: true, phone_country: true, phone_number: true } },
   confirmed_slot:{ select: { slot_start: true, slot_end: true, name_fr: true } },
-  _count:        { select: { items: true } },
+  _count:        { select: { items: { where: { parent_item_id: null } } } }, // composants de pack regroupés sous leur en-tête
   payments: {
     take: 1,
     orderBy: { created_at: 'desc' },
@@ -35,6 +35,8 @@ const ORDER_DETAIL_INCLUDE = {
     include: {
       status: { select: { code: true, name_fr: true, color: true } },
       sku: { select: { id: true, name_fr: true, sku_code: true, ean13: true, price: true } },
+      pack: { select: { id: true, name_fr: true } },
+      parent_item: { select: { id: true, pack: { select: { id: true, name_fr: true } } } },
     },
     orderBy: { unit_price_sold: 'desc' },
   },
@@ -89,14 +91,26 @@ async function getOrderDetail(orderId) {
   if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
   if (order.delivery_type?.code !== 'pickup')
     throw { statusCode: 422, message: 'Cette commande n\'est pas de type pickup' };
-  // Compatibilité écran : order_history + sku.article
+  // Compatibilité écran : order_history + sku.article.
+  // Pack : ligne d'en-tête (pack_id, sku_id NULL) suivie de ses composants (à remettre au client) ;
+  // lignes remplacées par substitution back-office exclues.
+  const replaced = await L.replacedLineIds(order.items || []);
+  const rows = (order.items || []).filter((it) => !replaced.has(it.id)).map((it) => ({
+    ...it,
+    is_pack_header: !!it.pack_id && !it.sku_id,
+    name_fr: it.sku?.name_fr ?? it.pack?.name_fr ?? 'Article',
+    pack: it.pack ?? it.parent_item?.pack ?? null,
+    sku: it.sku ? { ...it.sku, article: { id: it.sku.id, name_fr: it.sku.name_fr, sku_code: it.sku.sku_code, ean13: it.sku.ean13, price: it.sku.price } } : it.sku,
+  }));
+  const ids = new Set(rows.map((r) => r.id));
+  const byParent = {};
+  for (const r of rows) if (r.parent_item_id && ids.has(r.parent_item_id)) (byParent[r.parent_item_id] ||= []).push(r);
   return {
     ...order,
     order_history: order.history,
-    items: (order.items || []).map((it) => ({
-      ...it,
-      sku: it.sku ? { ...it.sku, article: { id: it.sku.id, name_fr: it.sku.name_fr, sku_code: it.sku.sku_code, ean13: it.sku.ean13, price: it.sku.price } } : it.sku,
-    })),
+    items: rows
+      .filter((r) => !(r.parent_item_id && ids.has(r.parent_item_id)))
+      .flatMap((r) => [r, ...(byParent[r.id] ?? [])]),
   };
 }
 

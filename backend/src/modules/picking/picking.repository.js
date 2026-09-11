@@ -26,8 +26,10 @@ const DETAIL_INCLUDE = {
     include: {
       order_item: {
         select: {
-          id: true, qty: true, unit_price_sold: true, sku_id: true,
+          id: true, qty: true, unit_price_sold: true, sku_id: true, parent_item_id: true,
           sku: { select: SKU_SELECT },
+          // Composant d'un pack : pack de la ligne d'en-tête (affichage « Pack : … »)
+          parent_item: { select: { id: true, qty: true, pack: { select: { id: true, name_fr: true } } } },
         },
       },
       status:   { select: { id: true, code: true, name_fr: true, name_ar: true } },

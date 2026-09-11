@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Ban, ChevronDown, ChevronUp, Loader2, Pencil, Plus, X } from 'lucide-react';
 import {
   createDeliverySlot, deleteDeliverySlot, getDeliverySlot, getDeliverySlots, patchDeliverySlot,
 } from '../../api/orders.api';
@@ -42,6 +42,7 @@ export default function SlotFormPanel({ nodeId, nodeLabel, dateKey, onClose, onC
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null); // { id, max_orders, name_fr, name_ar }
   const [open, setOpen] = useState(null);
@@ -62,8 +63,10 @@ export default function SlotFormPanel({ nodeId, nodeLabel, dateKey, onClose, onC
   async function act(fn) {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await fn();
+      const res = await fn();
+      if (res?.data?.message) setNotice(res.data.message);
       load();
       onChanged?.();
       return true;
@@ -94,6 +97,7 @@ export default function SlotFormPanel({ nodeId, nodeLabel, dateKey, onClose, onC
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+          {notice && !error && <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
           {loading && <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Chargement…</div>}
           {!loading && slots.length === 0 && <div className="rounded-lg border border-dashed p-4 text-center text-sm text-gray-400">Aucun créneau ce jour.</div>}
 
@@ -114,7 +118,9 @@ export default function SlotFormPanel({ nodeId, nodeLabel, dateKey, onClose, onC
                       {s.is_active ? 'Actif' : 'Inactif'}
                     </label>
                     <button type="button" onClick={() => setEditing(isEditing ? null : { id: s.id, max_orders: String(s.max_orders), name_fr: s.name_fr || '', name_ar: s.name_ar || '' })} className="rounded p-1 text-gray-400 hover:text-red-600" aria-label="Modifier"><Pencil size={14} /></button>
-                    <button type="button" disabled={busy} onClick={() => { if (window.confirm('Supprimer ce créneau ? (impossible s\'il est lié à une commande ou préférence : désactivez-le)')) act(() => deleteDeliverySlot(s.id)); }} className="rounded p-1 text-gray-400 hover:text-red-600" aria-label="Supprimer"><Trash2 size={14} /></button>
+                    {s.is_active && (
+                      <button type="button" disabled={busy} title="Retirer le créneau (désactivation, aucune suppression)" onClick={() => { if (window.confirm('Retirer ce créneau ? Il sera désactivé (is_active = faux) et ne sera plus proposé. Les commandes et préférences liées sont conservées : aucune suppression.')) act(() => deleteDeliverySlot(s.id)); }} className="rounded p-1 text-gray-400 hover:text-red-600" aria-label="Retirer le créneau"><Ban size={14} /></button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-gray-600">

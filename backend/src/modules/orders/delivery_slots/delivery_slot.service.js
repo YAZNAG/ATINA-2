@@ -148,14 +148,32 @@ class DeliverySlotService {
     return enriched;
   }
 
-  /** Suppression physique uniquement d'un créneau jamais utilisé ; sinon le désactiver. */
+  /**
+   * « Supprimer » un créneau = le RETIRER : is_active = false (classeur : « retrait =
+   * is_active=false »). Jamais de suppression physique : les commandes et préférences
+   * qui le référencent restent intactes ; le créneau n'est simplement plus proposé.
+   */
   async delete(id, req = null) {
     const slot = await repo.findById(id);
     if (!slot) throw { statusCode: 404, message: 'Créneau introuvable' };
     const used = await repo.countUsage(id);
-    if (used > 0) throw { statusCode: 409, message: `Ce créneau est lié à ${used} commande(s)/préférence(s) : désactivez-le plutôt que de le supprimer` };
-    await repo.remove(id);
-    await audit(req, { action: 'DELETE', resource: 'delivery_slots', resource_id: id, old_values: slot });
+    if (!slot.is_active) {
+      return { slot, already_inactive: true, usage: used, message: 'Ce créneau est déjà désactivé.' };
+    }
+    const updated = await repo.update(id, { is_active: false });
+    await audit(req, {
+      action: 'DEACTIVATE', resource: 'delivery_slots', resource_id: id,
+      old_values: { is_active: true }, new_values: { is_active: false, retrait: true, usage: used },
+    });
+    const [enriched] = await enrichSlotsCapacity([updated]);
+    return {
+      slot: enriched,
+      already_inactive: false,
+      usage: used,
+      message: used > 0
+        ? `Créneau désactivé : il n'est plus proposé. ${used} commande(s)/préférence(s) qui y sont liées sont conservées.`
+        : "Créneau désactivé : il n'est plus proposé (aucune suppression physique).",
+    };
   }
 }
 

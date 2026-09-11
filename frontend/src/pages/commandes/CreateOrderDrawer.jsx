@@ -494,9 +494,22 @@ export default function CreateOrderDrawer({ open, nodes = [], onClose, onCreated
         <div className="rounded-lg border border-gray-200 bg-white p-3">
           <div className="divide-y divide-gray-100">
             {calc.items.map((it, i) => (
-              <div key={i} className="flex justify-between py-1.5">
-                <span className="text-gray-700">{it.name_fr} × {it.qty}{it.flash_sale_name ? <span className="ml-1 text-xs text-amber-600">({it.flash_sale_name})</span> : null}</span>
-                <span>{money(it.line_total)}</span>
+              <div key={i} className="py-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-700">
+                    {it.is_pack_header && <Package size={12} className="mr-1 inline text-violet-500" />}
+                    {it.name_fr} × {it.qty}{it.is_pack_header ? ' pack(s)' : ''}
+                    {it.flash_sale_name ? <span className="ml-1 text-xs text-amber-600">({it.flash_sale_name})</span> : null}
+                  </span>
+                  <span>{money(it.line_total)}</span>
+                </div>
+                {it.is_pack_header && (it.components || []).length > 0 && (
+                  <ul className="mt-0.5 border-l-2 border-violet-100 pl-3 text-xs text-gray-500">
+                    {it.components.map((c) => (
+                      <li key={c.sku_id} className="flex justify-between"><span>↳ {c.name_fr}</span><span>{c.qty} u. · inclus</span></li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>

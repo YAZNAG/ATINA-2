@@ -1,6 +1,6 @@
 const prisma = require('../../config/database');
 const repo   = require('./checkout.repository');
-const { resolveItemPrice } = require('./pricing.shared');
+const { resolveItemPrice, resolvePackPrice } = require('./pricing.shared');
 const { getNodeOrderSettings } = require('./node_settings');
 const { audit } = require('../../utils/audit');
 
@@ -64,7 +64,16 @@ function isSlotStillValid(slot, checkDate) {
 }
 
 // ── Stock check ───────────────────────────────────────────────────────────────
-async function checkStock(node_id, cart_items, { strict = false } = {}) {
+async function checkStock(node_id, raw_items, { strict = false } = {}) {
+  // Pack au format back-office ({ pack_id, qty } sans sku_id) : contrôle sur ses composants.
+  let cart_items = raw_items;
+  const headerPacks = [...new Set(raw_items.filter((i) => i.pack_id && !i.sku_id).map((i) => i.pack_id))];
+  if (headerPacks.length) {
+    const recipes = await prisma.packItem.findMany({ where: { pack_id: { in: headerPacks } }, select: { pack_id: true, sku_id: true, qty: true } });
+    cart_items = raw_items.flatMap((i) => (i.pack_id && !i.sku_id
+      ? recipes.filter((r) => r.pack_id === i.pack_id).map((r) => ({ pack_id: i.pack_id, sku_id: r.sku_id, qty: Number(r.qty) * Number(i.qty || 1) }))
+      : [i]));
+  }
   const sku_ids = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
   if (!sku_ids.length) return { ok: true, needs_backorder: false, issues: [] };
 
@@ -252,9 +261,14 @@ async function getAvailableDates(node_id, delivery_type_code, days_ahead = 14) {
 
 // ── Panier : expansion des packs ─────────────────────────────────────────────
 /**
- * Une ligne { pack_id, qty } (sans sku_id) est développée en lignes composants
- * { pack_id, sku_id, qty: nb_packs × qty_composant } — même format que le panier
- * de l'app client. Renvoie { lines, packs: { [pack_id]: { pack, count } } }.
+ * Regroupe les packs du panier en lignes d'EN-TÊTE (Schema_V3 order_items) :
+ *   { pack_id, qty: nombre_de_packs, _header: true }
+ * Deux formats acceptés :
+ *   - back-office : { pack_id, qty } (sans sku_id) = qty packs ;
+ *   - app client  : lignes composants déjà développées { pack_id, sku_id, qty = nb_packs × qty_composant }
+ *     → nombre de packs = qty / qty du composant dans la recette (max sur les composants).
+ * Les lignes composants (sku_id, parent_item_id → en-tête) sont créées à la validation.
+ * Renvoie { lines, packs: { [pack_id]: { pack, count } } }.
  */
 async function expandCart(node_id, cart_items, db = prisma) {
   const lines = [];
@@ -265,6 +279,9 @@ async function expandCart(node_id, cart_items, db = prisma) {
     : [];
   const packMap = Object.fromEntries(packRows.map((p) => [p.id, p]));
   const now = new Date();
+  const headerIdx = {};
+  const headerCount = {};
+  const clientCount = {};
 
   for (const [i, item] of cart_items.entries()) {
     const qty = Number(item.qty || 1);
@@ -275,23 +292,28 @@ async function expandCart(node_id, cart_items, db = prisma) {
     if (pack.node_id && node_id && pack.node_id !== node_id) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'est pas proposé sur ce nœud` };
     if (pack.valid_from && new Date(pack.valid_from) > now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'est pas encore disponible` };
     if (pack.valid_to && new Date(pack.valid_to) < now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » est expiré` };
+    if (!pack.pack_items.length) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'a aucun composant` };
 
-    if (!item.sku_id) {
-      // Format back-office : 1 ligne = n packs → développée en composants
-      if (!Number.isInteger(qty) || qty <= 0) throw { statusCode: 400, message: `Quantité de pack invalide (ligne ${i + 1})` };
-      packs[pack.id] = { pack, count: (packs[pack.id]?.count || 0) + qty };
-      for (const pi of pack.pack_items) {
-        lines.push({ pack_id: pack.id, sku_id: pi.sku_id, qty: qty * Number(pi.qty || 1), _pack: true });
-      }
-    } else {
-      // Format app client : ligne composant déjà développée
-      lines.push({ ...item, qty, _pack: true });
-      if (!packs[pack.id]) {
-        const recipe = pack.pack_items.find((pi) => pi.sku_id === item.sku_id);
-        const per = Number(recipe?.qty || 1);
-        packs[pack.id] = { pack, count: Math.max(1, Math.round(qty / per)) };
-      }
+    if (!(pack.id in headerIdx)) {
+      headerIdx[pack.id] = lines.length;
+      lines.push({ pack_id: pack.id, qty: 0, _header: true });
+      headerCount[pack.id] = 0;
+      clientCount[pack.id] = 0;
     }
+    if (!item.sku_id) {
+      if (!Number.isInteger(qty) || qty <= 0) throw { statusCode: 400, message: `Quantité de pack invalide (ligne ${i + 1})` };
+      headerCount[pack.id] += qty;
+    } else {
+      const recipe = pack.pack_items.find((pi) => pi.sku_id === item.sku_id);
+      if (!recipe) throw { statusCode: 400, message: `Ce produit n'appartient pas au pack « ${pack.name_fr} » (ligne ${i + 1})` };
+      const per = Number(recipe.qty || 1);
+      clientCount[pack.id] = Math.max(clientCount[pack.id], Math.max(1, Math.round(qty / per)));
+    }
+  }
+  for (const [packId, idx] of Object.entries(headerIdx)) {
+    const count = headerCount[packId] + clientCount[packId];
+    lines[idx].qty = count;
+    packs[packId] = { pack: packMap[packId], count };
   }
   return { lines, packs };
 }
@@ -332,20 +354,13 @@ function hasOtherOffer(priced) {
  * Quantités « vente flash » par vente flash : SKU = quantité de la ligne,
  * pack = nombre de packs commandés (une seule fois par pack).
  */
-function flashQuantities(priced, packs) {
+function flashQuantities(priced) {
   const out = {};
-  const seenPack = new Set();
   for (const { item, qty, priced: p } of priced) {
     if (!p.flash_sale_id) continue;
     const fsId = p.flash_sale_id;
-    if (item.pack_id) {
-      const key = `${fsId}:${item.pack_id}`;
-      if (seenPack.has(key)) continue;
-      seenPack.add(key);
-      out[fsId] = { fs: p.flash_sale, qty: (out[fsId]?.qty || 0) + (packs[item.pack_id]?.count || 1), pack: true };
-    } else {
-      out[fsId] = { fs: p.flash_sale, qty: (out[fsId]?.qty || 0) + Math.max(1, Math.round(Number(qty))), pack: false };
-    }
+    const n = Math.max(1, Math.round(Number(qty)));
+    out[fsId] = { fs: p.flash_sale, qty: (out[fsId]?.qty || 0) + n, pack: !!item._header };
   }
   return out;
 }
@@ -387,28 +402,44 @@ async function consumeFlashSales(tx, customer_id, flashQty) {
 }
 
 // ── Totaux (partagés calculate / createOrder) ────────────────────────────────
+/**
+ * Sous-totaux calculés sur les lignes de PREMIER NIVEAU uniquement : produits seuls
+ * et en-têtes de pack (prix du pack × nombre de packs). Les composants d'un pack
+ * ne portent aucun prix (0) : aucun double comptage.
+ */
 async function priceLines(node_id, lines) {
-  let subtotal_ht = 0;
-  let vat_amount = 0;
+  let ht = 0;
+  let ttc = 0;
   let paid_subtotal_ttc = 0;
   const priced = [];
   for (const item of lines) {
     const qty = Number(item.qty || 1);
+    if (item._header) {
+      const p = await resolvePackPrice(node_id, item.pack_id);
+      ttc += p.unit_price * qty;
+      ht += p.unit_price_ht * qty;
+      if (!item.is_points_exchange) paid_subtotal_ttc += p.unit_price * qty;
+      priced.push({
+        item, qty, priced: p,
+        components: p.components.map((c) => ({ ...c, qty_per_pack: c.qty, qty_total: Math.round(c.qty * qty * 1000) / 1000 })),
+      });
+      continue;
+    }
     const p = await resolveItemPrice(node_id, item);
     const lineHT = p.unit_price / (1 + p.vat_rate / 100);
-    subtotal_ht += lineHT * qty;
-    vat_amount += (p.unit_price - lineHT) * qty;
+    ht += lineHT * qty;
+    ttc += p.unit_price * qty;
     // WF #21 / US-093 : les articles échangés contre des points sont exclus du minimum.
     if (!item.is_points_exchange) paid_subtotal_ttc += p.unit_price * qty;
     priced.push({ item, qty, priced: p });
   }
-  subtotal_ht = parseFloat(subtotal_ht.toFixed(2));
-  vat_amount = parseFloat(vat_amount.toFixed(2));
+  const subtotal_ttc = parseFloat(ttc.toFixed(2));
+  const vat_amount = parseFloat((ttc - ht).toFixed(2));
   return {
     priced,
-    subtotal_ht,
+    subtotal_ht: parseFloat((subtotal_ttc - vat_amount).toFixed(2)),
     vat_amount,
-    subtotal_ttc: parseFloat((subtotal_ht + vat_amount).toFixed(2)),
+    subtotal_ttc,
     paid_subtotal_ttc: parseFloat(paid_subtotal_ttc.toFixed(2)),
   };
 }
@@ -473,9 +504,15 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
   const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode) ? total_ttc : 0;
 
   return {
-    items: totals.priced.map(({ item, qty, priced }) => ({
-      sku_id:         item.sku_id  || null,
+    items: totals.priced.map(({ item, qty, priced, components }) => ({
+      sku_id:         item._header ? null : (item.sku_id || null),
       pack_id:        item.pack_id || null,
+      is_pack_header: !!item._header,
+      ...(components ? {
+        components: components.map((c) => ({
+          sku_id: c.sku_id, name_fr: c.name_fr, qty: c.qty_total, qty_per_pack: c.qty_per_pack, unit_price_ttc: 0,
+        })),
+      } : {}),
       name_fr:        priced.name_fr,
       qty,
       unit_price_ttc: priced.unit_price,
@@ -811,7 +848,11 @@ async function createOrder(payload, ctx = {}) {
 
   const total_ttc  = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_used).toFixed(2));
   const cod_amount = ['cod', 'cash'].includes(String(paymentMethod.code || '').trim().toLowerCase()) ? total_ttc : 0;
-  const skuNames = Object.fromEntries(totals.priced.map(({ item, priced }) => [item.sku_id, priced.name_fr]));
+  const skuNames = {};
+  for (const { item, priced, components } of totals.priced) {
+    if (components) for (const c of components) skuNames[c.sku_id] = c.name_fr;
+    else if (item.sku_id) skuNames[item.sku_id] = priced.name_fr;
+  }
 
   const order = await prisma.$transaction(async (tx) => {
     const newOrder = await tx.order.create({
@@ -839,32 +880,18 @@ async function createOrder(payload, ctx = {}) {
     });
 
     // Lignes + réservation (US-108) — aucune écriture stock_moves à ce stade.
+    // Pack (Schema_V3) : 1 ligne d'en-tête (pack_id, sku_id NULL, qty = nb de packs, prix du pack)
+    // + 1 ligne par composant (sku_id, parent_item_id → en-tête, prix 0) : la réservation
+    // de stock porte UNIQUEMENT sur les composants.
     const reservations = [];
-    for (const { item, qty, priced } of totals.priced) {
-      const line = await tx.orderItem.create({
-        data: {
-          order_id:        newOrder.id,
-          sku_id:          item.sku_id  || null,
-          pack_id:         item.pack_id || null,
-          status_id:       activeItem.id,
-          qty,
-          unit_price_sold: priced.unit_price,
-          discount_amount: 0,
-          vat_rate:        priced.vat_rate,
-          node_id:         finalNodeId,
-          is_points_exchange: !!item.is_points_exchange,
-          points_spent:    Number(item.points_spent || 0),
-          flash_sale_id:   priced.flash_sale_id || null,
-        },
-      });
-      if (!item.sku_id) continue;
-
-      await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${finalNodeId}::uuid AND sku_id = ${item.sku_id}::uuid FOR UPDATE`;
+    let lineCount = 0;
+    const reserve = async (line, sku_id, qty, pack) => {
+      await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${finalNodeId}::uuid AND sku_id = ${sku_id}::uuid FOR UPDATE`;
       const [level, rule] = await Promise.all([
-        tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } } }),
-        tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } } }),
+        tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id } } }),
+        tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id } } }),
       ]);
-      const name = skuNames[item.sku_id] || 'Produit';
+      const name = skuNames[sku_id] || 'Produit';
       if (strict && rule && !rule.is_sellable) {
         throw { statusCode: 422, message: `« ${name} » n'est pas vendable sur ce nœud.` };
       }
@@ -874,7 +901,6 @@ async function createOrder(payload, ctx = {}) {
       const shortage = parseFloat((qty - toReserve).toFixed(3));
 
       if (shortage > 0) {
-        const pack = item.pack_id ? packs[item.pack_id]?.pack : null;
         const limit = Number(rule?.backorder_limit ?? 0);
         const already = Number(rule?.backordered_quantity ?? 0);
         const allowed = pack
@@ -901,7 +927,7 @@ async function createOrder(payload, ctx = {}) {
         });
       } else if (shortage > 0) {
         await tx.stockLevel.create({
-          data: { node_id: finalNodeId, sku_id: item.sku_id, qty_backordered: shortage },
+          data: { node_id: finalNodeId, sku_id, qty_backordered: shortage },
         });
       }
       if (shortage > 0) {
@@ -910,7 +936,68 @@ async function createOrder(payload, ctx = {}) {
         }
         await tx.orderItem.update({ where: { id: line.id }, data: { qty_backordered: shortage } });
       }
-      reservations.push({ sku_id: item.sku_id, reserved: toReserve, backordered: shortage });
+      reservations.push({ sku_id, reserved: toReserve, backordered: shortage, ...(pack ? { pack_id: pack.id } : {}) });
+    };
+
+    for (const { item, qty, priced, components } of totals.priced) {
+      if (item._header) {
+        const header = await tx.orderItem.create({
+          data: {
+            order_id:        newOrder.id,
+            sku_id:          null,
+            pack_id:         item.pack_id,
+            status_id:       activeItem.id,
+            qty,
+            unit_price_sold: priced.unit_price,
+            discount_amount: 0,
+            vat_rate:        priced.vat_rate,
+            node_id:         finalNodeId,
+            is_points_exchange: !!item.is_points_exchange,
+            points_spent:    Number(item.points_spent || 0),
+            flash_sale_id:   priced.flash_sale_id || null,
+          },
+        });
+        lineCount += 1;
+        const pack = packs[item.pack_id]?.pack || priced.pack;
+        for (const c of components) {
+          const comp = await tx.orderItem.create({
+            data: {
+              order_id:        newOrder.id,
+              sku_id:          c.sku_id,
+              pack_id:         null,
+              parent_item_id:  header.id,
+              status_id:       activeItem.id,
+              qty:             c.qty_total,
+              unit_price_sold: 0,
+              discount_amount: 0,
+              vat_rate:        c.vat_rate,
+              node_id:         finalNodeId,
+            },
+          });
+          lineCount += 1;
+          await reserve(comp, c.sku_id, c.qty_total, pack);
+        }
+        continue;
+      }
+
+      const line = await tx.orderItem.create({
+        data: {
+          order_id:        newOrder.id,
+          sku_id:          item.sku_id || null,
+          pack_id:         null,
+          status_id:       activeItem.id,
+          qty,
+          unit_price_sold: priced.unit_price,
+          discount_amount: 0,
+          vat_rate:        priced.vat_rate,
+          node_id:         finalNodeId,
+          is_points_exchange: !!item.is_points_exchange,
+          points_spent:    Number(item.points_spent || 0),
+          flash_sale_id:   priced.flash_sale_id || null,
+        },
+      });
+      lineCount += 1;
+      if (item.sku_id) await reserve(line, item.sku_id, qty, null);
     }
 
     // Plafond commercial des packs (WF #27 étape 4d) : sold_count += nb de packs
@@ -921,7 +1008,7 @@ async function createOrder(payload, ctx = {}) {
     }
 
     // Ventes flash (WF #27) : quota consommé (sold_count), limite par client contrôlée
-    const flashApplied = await consumeFlashSales(tx, customer_id, flashQuantities(totals.priced, packs));
+    const flashApplied = await consumeFlashSales(tx, customer_id, flashQuantities(totals.priced));
 
     if (wallet_used > 0) {
       const walletBefore = Number(customer.wallet_balance ?? 0);
@@ -1004,7 +1091,7 @@ async function createOrder(payload, ctx = {}) {
         node_id: finalNodeId,
         total_ttc,
         delivery_fee,
-        lines: totals.priced.length,
+        lines: lineCount,
         packs: Object.fromEntries(Object.entries(packs).map(([k, v]) => [k, v.count])),
         packs_sold_count: packSold,
         flash_sales: flashApplied,

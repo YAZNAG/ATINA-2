@@ -180,7 +180,7 @@ export default function HomeScreen() {
     return merged;
   }, [recommended, complements]);
 
-  const handlePressProduct = useCallback((articleId: number) => {
+  const handlePressProduct = useCallback((articleId: string | number) => {
     router.push({ pathname: '/main/product-detail' as any, params: { article_id: articleId } });
   }, [router]);
 

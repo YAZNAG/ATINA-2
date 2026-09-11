@@ -208,7 +208,7 @@ function ReviewCard({
 function ReviewsSection({
   articleId, stats, reviews, onWriteReview, onReviewVoted, onError,
 }: {
-  articleId: number;
+  articleId: string | number;
   stats: ReviewStats | null;
   reviews: Review[];
   onWriteReview: () => void;
@@ -276,7 +276,7 @@ function WriteReviewModal({
   visible, articleId, onClose, onSuccess, onError,
 }: {
   visible: boolean;
-  articleId: number;
+  articleId: string | number;
   onClose: () => void;
   onSuccess: () => void;
   onError: (title: string, message: string) => void;
@@ -383,7 +383,7 @@ export default function ProductDetailScreen() {
   const isWished = useIsFavorite(articleId);
   const toggleWished = useToggleFavorite(articleId);
 
-  const loadReviews = async (id: number) => {
+  const loadReviews = async (id: string | number) => {
     try {
       const res = await ReviewsService.listByArticle(id);
       setReviews(res.data);
@@ -398,7 +398,7 @@ export default function ProductDetailScreen() {
   useEffect(() => {
     const load = async () => {
       try {
-        const id  = Number(article_id);
+        const id  = String(article_id);
         const [art, favs] = await Promise.all([
           CatalogService.getArticleDetail(id),
           ProfileService.listFavorites().catch(() => []),

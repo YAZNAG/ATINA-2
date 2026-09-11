@@ -368,14 +368,14 @@ async listFavorites(): Promise<FavoriteArticle[]> {
     throw new Error(err.response?.data?.message || 'Erreur chargement favoris');
   }
 },
-async addFavorite(articleId: number): Promise<void> {
+async addFavorite(articleId: string | number): Promise<void> {
   try {
     await api.post('/customer/me/favorites', { article_id: articleId });
   } catch (err: any) {
     throw new Error(err.response?.data?.message || 'Erreur ajout favori');
   }
 },
-async removeFavorite(articleId: number): Promise<void> {
+async removeFavorite(articleId: string | number): Promise<void> {
   try {
     await api.delete(`/customer/me/favorites/${articleId}`);
   } catch (err: any) {

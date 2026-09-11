@@ -7,7 +7,7 @@ import { Article } from '../../../services/catalog.service';
 
 interface SuggestionsSectionProps {
   suggestions: Article[];
-  onPressProduct: (articleId: number) => void;
+  onPressProduct: (articleId: string | number) => void;
   onSeeAll: () => void;
 }
 

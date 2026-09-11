@@ -8,7 +8,7 @@ import { BestDeal, bestDealToArticle } from '../../../services/promotions.servic
 
 interface BestDealsSectionProps {
   bestDeals: BestDeal[];
-  onPressProduct: (articleId: number) => void;
+  onPressProduct: (articleId: string | number) => void;
   onSeeAll: () => void;
 }
 

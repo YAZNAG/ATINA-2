@@ -8,7 +8,7 @@ import { Article } from '../../../services/catalog.service';
 
 interface TopRatedSectionProps {
   topRated: Article[];
-  onPressProduct: (articleId: number) => void;
+  onPressProduct: (articleId: string | number) => void;
   onSeeAll: () => void;
 }
 

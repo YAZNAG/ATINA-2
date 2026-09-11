@@ -1,3 +1,6 @@
+/** Identifiant d'entité : UUID texte depuis la fusion article → sku (anciens ids numériques tolérés). */
+export type EntityId = string | number;
+
 import api from '../api/client';
 
 export interface City {
@@ -9,7 +12,7 @@ export interface City {
 }
 
 export interface Category {
-  id: number;
+  id: EntityId;
   name_fr: string;
   name_ar: string;
   code: string;
@@ -49,9 +52,9 @@ export interface Article {
   image_url:      string | null;
   updated_at:     string;
   images:         string[];
-  brand:          { id: number; name_fr: string; name_ar: string } | null;
-  category:       { id: number; name_fr: string; name_ar: string } | null;
-  sub_category:   { id: number; name_fr: string; name_ar: string } | null;
+  brand:          { id: EntityId; name_fr: string; name_ar: string } | null;
+  category:       { id: EntityId; name_fr: string; name_ar: string } | null;
+  sub_category:   { id: EntityId; name_fr: string; name_ar: string } | null;
 }
 
 export interface ArticlesResponse{
@@ -89,7 +92,7 @@ export const CatalogService = {
     }
   },
 
-  async getSubCategories(categoryId: number): Promise<SubCategory[]> {
+  async getSubCategories(categoryId: EntityId): Promise<SubCategory[]> {
   try {
     const response = await api.get(`/customer/catalog/categories/${categoryId}/sub-categories`);
     return response.data.data || [];
@@ -123,7 +126,7 @@ export const CatalogService = {
   },
 
   async getArticlesByCategory(
-    categoryId: number,
+    categoryId: EntityId,
     params?: { page?: number; limit?: number; search?: string }
   ): Promise<ArticlesResponse>{
     try {
@@ -161,7 +164,7 @@ export const CatalogService = {
   }
 },
 
-  async getArticleDetail(id: number): Promise<Article> {
+  async getArticleDetail(id: EntityId): Promise<Article> {
     try {
       const response = await api.get(`/customer/catalog/articles/${id}`);
       return response.data.data;

@@ -539,6 +539,9 @@ export default function PickerDetailsPage() {
                 {picker.is_active
                   ? <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">Actif</span>
                   : <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">Inactif</span>}
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200" title={picker.role?.name_ar || ''}>
+                  Rôle : {picker.role?.name_fr || picker.role?.name || 'Picker'}{picker.role?.code ? ` (${picker.role.code})` : ''}
+                </span>
               </div>
               <p className="text-sm text-gray-500 font-mono">{picker.phone_country} {picker.phone_number}{picker.email ? <span className="font-sans"> · {picker.email}</span> : null}</p>
               <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">

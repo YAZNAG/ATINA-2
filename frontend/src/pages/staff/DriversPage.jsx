@@ -199,7 +199,7 @@ export default function DriversPage() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <div className="flex items-center gap-2 text-xs text-gray-400 mb-1"><span>Staff opérationnel</span><span>›</span><span className="text-emerald-600 font-medium">Livreurs</span></div>
-              <h1 className="text-2xl font-bold text-gray-900">Livreurs</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Liste des drivers</h1>
               <p className="text-sm text-gray-400 mt-0.5">Drivers de livraison affectés aux nodes</p>
             </div>
             <button onClick={() => setDrawer(false)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm flex-shrink-0 transition-colors">
@@ -296,6 +296,7 @@ export default function DriversPage() {
                           <span className="text-xs font-mono font-semibold text-gray-700">{item.node?.code}</span>
                         </div>
                         <p className="text-[11px] text-gray-400">{item.node?.name_fr}</p>
+                        <p className="text-[11px] text-emerald-700">Rôle : {item.role?.name_fr || item.role?.name || 'Driver'}</p>
                       </td>
                       <td className="px-4 py-3.5">
                         {item.vehicle_type

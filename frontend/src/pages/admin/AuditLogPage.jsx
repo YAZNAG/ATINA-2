@@ -382,10 +382,28 @@ function AuditTab() {
 
 /* ───────────────────────── Onglet Notifications (log) ───────────────────────── */
 
-const EMPTY_NOTIF_FILTERS = { event_code: '', channel_id: '', is_read: '', search: '', date_from: '', date_to: '' };
+const EMPTY_NOTIF_FILTERS = { event_code: '', channel_id: '', status_id: '', is_read: '', search: '', date_from: '', date_to: '' };
+
+/** Couleurs des statuts du référentiel notification_statuses. */
+const NOTIF_STATUS_STYLE = {
+  pending: 'bg-amber-50 text-amber-700',
+  sent: 'bg-blue-50 text-blue-700',
+  delivered: 'bg-indigo-50 text-indigo-700',
+  read: 'bg-emerald-50 text-emerald-700',
+  failed: 'bg-red-50 text-red-600',
+};
+
+function NotifStatusBadge({ status }) {
+  if (!status) return <span className="text-xs text-zinc-400">—</span>;
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${NOTIF_STATUS_STYLE[status.code] || 'bg-zinc-100 text-zinc-600'}`} title={status.name_ar || ''}>
+      {status.name_fr || status.code}
+    </span>
+  );
+}
 
 function NotificationsTab() {
-  const [facets, setFacets] = useState({ event_codes: [], channels: [] });
+  const [facets, setFacets] = useState({ event_codes: [], channels: [], statuses: [] });
   const [draft, setDraft] = useState(EMPTY_NOTIF_FILTERS);
   const [filters, setFilters] = useState(EMPTY_NOTIF_FILTERS);
   const [exporting, setExporting] = useState(false);
@@ -394,7 +412,7 @@ function NotificationsTab() {
 
   useEffect(() => {
     getNotificationFacets()
-      .then(({ data }) => setFacets(data.data || { event_codes: [], channels: [] }))
+      .then(({ data }) => setFacets({ event_codes: [], channels: [], statuses: [], ...(data.data || {}) }))
       .catch(() => {});
   }, []);
 
@@ -444,10 +462,18 @@ function NotificationsTab() {
         </div>
         <div>
           <label className="form-label">Statut</label>
-          <select className="form-select" value={draft.is_read} onChange={set('is_read')}>
+          <select className="form-select" value={draft.status_id} onChange={set('status_id')}>
             <option value="">Tous</option>
-            <option value="false">Non lu</option>
-            <option value="true">Lu</option>
+            {facets.statuses.map((s) => <option key={s.id} value={s.id}>{s.name_fr} ({s.count})</option>)}
+            <option value="none">Sans statut</option>
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Lecture</label>
+          <select className="form-select" value={draft.is_read} onChange={set('is_read')}>
+            <option value="">Toutes</option>
+            <option value="false">Non lue</option>
+            <option value="true">Lue</option>
           </select>
         </div>
         <div>
@@ -478,16 +504,18 @@ function NotificationsTab() {
               <th className="table-th">Destinataire</th>
               <th className="table-th">Canal</th>
               <th className="table-th">Type</th>
-              <th className="table-th">Titre</th>
+              <th className="table-th">Titre / contenu (FR)</th>
+              <th className="table-th">Titre / contenu (AR)</th>
               <th className="table-th">Statut</th>
+              <th className="table-th">Lue le</th>
               <th className="table-th text-right">Détail</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="table-td py-10 text-center text-zinc-400"><Loader2 className="mx-auto animate-spin" size={20} /></td></tr>
+              <tr><td colSpan={9} className="table-td py-10 text-center text-zinc-400"><Loader2 className="mx-auto animate-spin" size={20} /></td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={7} className="table-td py-10 text-center text-zinc-400">Aucune notification pour ces critères.</td></tr>
+              <tr><td colSpan={9} className="table-td py-10 text-center text-zinc-400">Aucune notification pour ces critères.</td></tr>
             ) : rows.map((n) => (
               <tr key={n.id} className="hover:bg-zinc-50">
                 <td className="table-td whitespace-nowrap text-zinc-600">{fmtDateTime(n.sent_at)}</td>
@@ -497,9 +525,19 @@ function NotificationsTab() {
                 </td>
                 <td className="table-td text-zinc-600">{n.channel?.name_fr || n.channel?.code || '—'}</td>
                 <td className="table-td font-mono text-xs text-zinc-700">{n.event_code}</td>
-                <td className="table-td max-w-[260px] truncate text-zinc-700" title={n.title_fr || ''}>{n.title_fr || '—'}</td>
+                <td className="table-td max-w-[240px] text-zinc-700">
+                  <p className="truncate font-medium" title={n.title_fr || ''}>{n.title_fr || '—'}</p>
+                  <p className="truncate text-xs text-zinc-400" title={n.body_fr || ''}>{n.body_fr || ''}</p>
+                </td>
+                <td className="table-td max-w-[240px] text-zinc-700" dir="rtl">
+                  <p className="truncate font-medium" title={n.title_ar || ''}>{n.title_ar || '—'}</p>
+                  <p className="truncate text-xs text-zinc-400" title={n.body_ar || ''}>{n.body_ar || ''}</p>
+                </td>
                 <td className="table-td">
-                  <span className={n.is_read ? 'badge-active' : 'badge-inactive'}>{n.is_read ? 'Lu' : 'Non lu'}</span>
+                  <NotifStatusBadge status={n.status} />
+                </td>
+                <td className="table-td whitespace-nowrap text-xs text-zinc-600">
+                  {n.read_at ? fmtDateTime(n.read_at) : n.is_read ? 'Lue' : 'Non lue'}
                 </td>
                 <td className="table-td text-right">
                   <button type="button" onClick={() => setDetail(n)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
@@ -528,12 +566,19 @@ function NotificationsTab() {
               <dd>{detail.customer?.name || '—'} <span className="font-mono text-xs text-zinc-400">{phone(detail.customer)}</span></dd>
             </div>
             <div><dt className="form-label">Canal</dt><dd>{detail.channel?.name_fr || '—'}</dd></div>
-            <div><dt className="form-label">Statut</dt><dd>{detail.is_read ? 'Lu' : 'Non lu'}</dd></div>
+            <div><dt className="form-label">Statut</dt><dd><NotifStatusBadge status={detail.status} /></dd></div>
             <div><dt className="form-label">Commande</dt><dd className="font-mono text-xs">{detail.order_id || '—'}</dd></div>
-            <div className="sm:col-span-2"><dt className="form-label">Titre</dt><dd>{detail.title_fr || '—'}</dd></div>
+            <div><dt className="form-label">Date d'envoi</dt><dd>{fmtDateTime(detail.sent_at)}</dd></div>
+            <div><dt className="form-label">Date de lecture</dt><dd>{detail.read_at ? fmtDateTime(detail.read_at) : detail.is_read ? 'Lue (date inconnue)' : 'Non lue'}</dd></div>
+            <div className="sm:col-span-2"><dt className="form-label">Titre (FR)</dt><dd>{detail.title_fr || '—'}</dd></div>
             <div className="sm:col-span-2">
-              <dt className="form-label">Contenu</dt>
+              <dt className="form-label">Contenu (FR)</dt>
               <dd className="whitespace-pre-wrap text-zinc-700">{detail.body_fr || '—'}</dd>
+            </div>
+            <div className="sm:col-span-2"><dt className="form-label">Titre (AR)</dt><dd dir="rtl">{detail.title_ar || '—'}</dd></div>
+            <div className="sm:col-span-2">
+              <dt className="form-label">Contenu (AR)</dt>
+              <dd dir="rtl" className="whitespace-pre-wrap text-zinc-700">{detail.body_ar || '—'}</dd>
             </div>
             {detail.metadata && (
               <div className="sm:col-span-2">

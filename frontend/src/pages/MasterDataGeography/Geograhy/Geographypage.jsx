@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff,
-  Map, Building2, ChevronRight, ArrowLeft, ArrowRightLeft,
+  Map, Building2, ChevronRight, ArrowLeft, ArrowRightLeft, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getRegions, createRegion, updateRegion, deleteRegion, getRegionStats,
-  getCities, createCity, updateCity, deleteCity, moveCity,
+  getCities, createCity, updateCity, deleteCity, moveCity, reorderCity,
 } from '../../../api/locationNode.api';
+
+const PAGE_TABS = [
+  { key: 'referentiel', label: 'Régions & Villes' },
+  { key: 'rattachement', label: 'Rattachement Ville → Région' },
+];
 
 
 const LIST_LIMIT = 500;
@@ -50,12 +55,13 @@ const LEVELS = {
     icon: Building2,
     api: { list: getCities, create: createCity, update: updateCity, remove: deleteCity },
     parentKey: 'region_id',
-    emptyForm: { code: '', name_fr: '', name_ar: '', postal_code: '' },
+    emptyForm: { code: '', name_fr: '', name_ar: '', postal_code: '', sort_order: '' },
     fields: [
       { name: 'code', label: 'Code', required: true, col: 'half' },
       { name: 'postal_code', label: 'Code postal', col: 'half' },
       { name: 'name_fr', label: 'Nom (FR)', required: true, col: 'half' },
       { name: 'name_ar', label: 'Nom (AR)', required: true, col: 'half', dir: 'rtl' },
+      { name: 'sort_order', label: "Ordre d'affichage", type: 'number', col: 'half', placeholder: 'Auto (fin de liste)' },
     ],
   },
 };
@@ -141,6 +147,14 @@ export default function GeographyPage({ embedded = false }){
 
   const [mobileStep, setMobileStep] = useState('region');
 
+  // Onglets de page + rattachement Ville → Région
+  const [pageTab, setPageTab] = useState('referentiel');
+  const [allCities, setAllCities] = useState([]);
+  const [allCitiesLoading, setAllCitiesLoading] = useState(false);
+  const [attachSearch, setAttachSearch] = useState('');
+  const [attachRegion, setAttachRegion] = useState('');
+  const [reorderingId, setReorderingId] = useState(null);
+
   const [toast, setToast] = useState(null);
   const showToast = (type, message) => {
     setToast({ type, message });
@@ -177,6 +191,31 @@ export default function GeographyPage({ embedded = false }){
   }, [canView]);
 
   useEffect(() => { fetchActiveRegions(); }, [fetchActiveRegions]);
+
+  // Toutes les villes (onglet « Rattachement Ville → Région »)
+  const fetchAllCities = useCallback(async () => {
+    if (!PERMS.city.view) { setAllCities([]); return; }
+    setAllCitiesLoading(true);
+    try {
+      const { data } = await getCities({
+        limit: LIST_LIMIT,
+        ...(attachRegion && { region_id: attachRegion }),
+        ...(attachSearch && { search: attachSearch }),
+      });
+      setAllCities(data.data || data || []);
+    } catch (err) {
+      showToast('error', err?.response?.data?.message || 'Erreur lors du chargement des villes');
+    } finally {
+      setAllCitiesLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachRegion, attachSearch]);
+
+  useEffect(() => {
+    if (pageTab !== 'rattachement') return undefined;
+    const t = setTimeout(fetchAllCities, attachSearch ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [pageTab, fetchAllCities]);
 
   const fetchCities = useCallback(async (regionId) => {
     if (!regionId || !PERMS.city.view) {
@@ -231,6 +270,7 @@ export default function GeographyPage({ embedded = false }){
     const cfg = LEVELS[level];
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] ?? ''; });
+    if (level === 'city') form.sort_order = item.sort_order ?? '';
     if (level === 'city') form.region_id = item.region_id || selectedRegion?.id || '';
     setDrawer({ level, mode: 'edit', id: item.id, form, original_region_id: item.region_id });
     setDrawerOpen(true);
@@ -268,6 +308,8 @@ export default function GeographyPage({ embedded = false }){
     const cfg = LEVELS[drawer.level];
     const payload = { ...drawer.form };
     if (cfg.parentKey === 'region_id') payload.region_id = drawer.form.region_id || selectedRegion?.id;
+    if (payload.sort_order === '' || payload.sort_order === null) delete payload.sort_order;
+    else if (payload.sort_order !== undefined) payload.sort_order = Number(payload.sort_order);
     const movedToOtherRegion =
       drawer.level === 'city' && drawer.mode === 'edit' && payload.region_id !== drawer.original_region_id;
 
@@ -295,7 +337,24 @@ export default function GeographyPage({ embedded = false }){
 
   const refreshLevel = (level) => {
     if (level === 'region') { fetchRegions(); fetchActiveRegions(); }
-    if (level === 'city') { fetchCities(selectedRegion?.id); fetchRegions(); }
+    if (level === 'city') {
+      fetchCities(selectedRegion?.id);
+      fetchRegions();
+      if (pageTab === 'rattachement') fetchAllCities();
+    }
+  };
+
+  // Réordonnancement ↑↓ d'une ville dans sa région
+  const handleReorder = async (item, direction) => {
+    setReorderingId(item.id);
+    try {
+      await reorderCity(item.id, direction);
+      fetchCities(selectedRegion?.id);
+    } catch (err) {
+      showToast('error', err?.response?.data?.message || "Erreur lors du changement d'ordre");
+    } finally {
+      setReorderingId(null);
+    }
   };
 
   const confirmMove = async () => {
@@ -407,6 +466,96 @@ export default function GeographyPage({ embedded = false }){
       )}
 
 
+      {/* Onglets */}
+      <div className="mb-4 flex gap-1 border-b border-neutral-200">
+        {PAGE_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setPageTab(t.key)}
+            className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition ${
+              pageTab === t.key ? 'border-[#E10600] text-neutral-900' : 'border-transparent text-neutral-400 hover:text-neutral-600'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {pageTab === 'rattachement' && (
+        <section className="rounded-xl border border-neutral-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3">
+            <div>
+              <h2 className="font-poppins text-sm font-semibold text-neutral-800">Rattachement Ville → Région</h2>
+              <p className="text-xs text-neutral-500">Chaque ville est rattachée à une région ; déplacer une ville entraîne ses nodes.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  value={attachSearch}
+                  onChange={(e) => setAttachSearch(e.target.value)}
+                  placeholder="Rechercher une ville…"
+                  className="rounded-md border border-neutral-200 bg-neutral-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#E10600] focus:bg-white focus:ring-2 focus:ring-[#E10600]/15"
+                />
+              </div>
+              <select
+                value={attachRegion}
+                onChange={(e) => setAttachRegion(e.target.value)}
+                className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs outline-none focus:border-[#E10600] focus:bg-white"
+              >
+                <option value="">Toutes les régions</option>
+                {activeRegions.map((r) => <option key={r.id} value={r.id}>{r.name_fr}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                <tr>
+                  <th className="px-4 py-2.5 font-medium">Ville</th>
+                  <th className="px-4 py-2.5 font-medium">Code</th>
+                  <th className="px-4 py-2.5 font-medium">Région de rattachement</th>
+                  <th className="px-4 py-2.5 font-medium">Nodes</th>
+                  <th className="px-4 py-2.5 font-medium">Statut</th>
+                  {PERMS.city.update && <th className="px-4 py-2.5 text-right font-medium">Action</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {allCitiesLoading ? (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-neutral-400"><Loader2 size={18} className="mx-auto animate-spin" /></td></tr>
+                ) : allCities.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-xs text-neutral-400">Aucune ville.</td></tr>
+                ) : allCities.map((c) => (
+                  <tr key={c.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-neutral-800">{c.name_fr}</p>
+                      <p className="text-xs text-neutral-400" dir="rtl">{c.name_ar}</p>
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-neutral-500">{c.code}</td>
+                    <td className="px-4 py-2.5 text-neutral-700">{c.region ? `${c.region.name_fr} (${c.region.code})` : '—'}</td>
+                    <td className="px-4 py-2.5 text-neutral-600">{c._count?.nodes ?? 0}</td>
+                    <td className="px-4 py-2.5"><StatusDot item={c} /></td>
+                    {PERMS.city.update && (
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setMoveTarget({ item: c, region_id: '' })}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                        >
+                          <ArrowRightLeft size={13} /> Rattacher
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {pageTab === 'referentiel' && (<>
       {/* Fil d'ariane */}
       <div className="mb-4 flex items-center gap-1.5 text-sm text-neutral-500">
         <button
@@ -471,6 +620,8 @@ export default function GeographyPage({ embedded = false }){
           onDelete={(item) => prepareDeleteTarget({ level: 'city', item })}
           onToggle={(item) => toggleActive('city', item)}
           onMove={PERMS.city.update ? (item) => setMoveTarget({ item, region_id: '' }) : undefined}
+          onReorder={PERMS.city.update && !search.city && status.city !== 'deleted' ? handleReorder : undefined}
+          reorderingId={reorderingId}
           disabled={!selectedRegion}
           disabledMessage="Sélectionnez une région pour voir ses villes."
           onBack={() => setMobileStep('region')}
@@ -478,6 +629,7 @@ export default function GeographyPage({ embedded = false }){
           selectable={false}
         />
       </div>
+      </>)}
 
       {/* Drawer création / édition */}
       <div
@@ -542,7 +694,10 @@ export default function GeographyPage({ embedded = false }){
                         ) : (
                           <input
                             dir={f.dir}
-                            value={drawer.form[f.name]}
+                            type={f.type === 'number' ? 'number' : 'text'}
+                            min={f.type === 'number' ? 0 : undefined}
+                            placeholder={f.placeholder}
+                            value={drawer.form[f.name] ?? ''}
                             onChange={handleFieldChange(f.name)}
                             className={inputClass(formErrors[f.name])}
                           />
@@ -681,7 +836,7 @@ function Column({
   level, title, icon: Icon, items, loading, search, onSearchChange, status, onStatusChange,
   selectedId, onSelect, canView = true, canCreate, canUpdate, canDelete, togglingId,
   onCreate, onEdit, onDelete, onToggle, onMove, disabled, disabledMessage,
-  onBack, emptyLabel, mobileVisible = true, selectable = true,
+  onBack, emptyLabel, mobileVisible = true, selectable = true, onReorder, reorderingId,
 }) {
   if (!canView) {
     return (
@@ -763,7 +918,7 @@ function Column({
           </div>
         ) : (
           <ul className="divide-y divide-neutral-100">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const isDeleted = Boolean(item.is_deleted);
               const isSelected = selectable && selectedId === item.id;
               return (
@@ -791,8 +946,32 @@ function Column({
                         {level === 'city' && item._count?.nodes > 0 && (
                           <span>· {item._count.nodes} node{item._count.nodes > 1 ? 's' : ''}</span>
                         )}
+                        {level === 'city' && item.sort_order !== undefined && <span>· ordre {item.sort_order}</span>}
                       </div>
                     </div>
+
+                    {onReorder && !isDeleted && (
+                      <div className="flex shrink-0 flex-col">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onReorder(item, 'up'); }}
+                          disabled={index === 0 || reorderingId === item.id}
+                          title="Monter"
+                          className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-30"
+                        >
+                          <ArrowUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onReorder(item, 'down'); }}
+                          disabled={index === items.length - 1 || reorderingId === item.id}
+                          title="Descendre"
+                          className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-30"
+                        >
+                          <ArrowDown size={13} />
+                        </button>
+                      </div>
+                    )}
 
                     {!isDeleted && (canUpdate || canDelete) && (
                       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">

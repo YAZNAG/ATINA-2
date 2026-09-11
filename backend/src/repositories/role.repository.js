@@ -6,8 +6,12 @@ const roleInclude = {
   },
 };
 
-const findAll = () =>
-  prisma.role.findMany({ include: roleInclude, orderBy: { created_at: 'desc' } });
+const findAll = (where = {}) =>
+  prisma.role.findMany({
+    where,
+    include: { ...roleInclude, _count: { select: { user_roles: true } } },
+    orderBy: [{ is_system: 'desc' }, { created_at: 'asc' }],
+  });
 
 const findById = (id) =>
   prisma.role.findUnique({ where: { id }, include: roleInclude });

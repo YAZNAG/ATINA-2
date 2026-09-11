@@ -138,6 +138,7 @@ export default function NodeDetailPage() {
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-5">
         <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">Fiche node</p>
           <div className="flex items-center gap-2.5">
             <h1 className="font-poppins text-xl font-semibold text-neutral-900">{node.name_fr}</h1>
             <StatusBadge item={node} />

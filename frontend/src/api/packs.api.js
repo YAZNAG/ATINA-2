@@ -13,3 +13,9 @@ export const activatePack        = (id)              => api.patch(`${pk}/${id}/a
 export const deactivatePack      = (id)              => api.patch(`${pk}/${id}/deactivate`);
 export const deletePack          = (id)              => api.delete(`${pk}/${id}`);
 export const duplicatePack       = (id, node_id)     => api.post(`${pk}/${id}/duplicate`, { node_id });
+// Image du pack : fichier jpg / png / webp (5 Mo max), champ multipart `image`
+export const uploadPackImage     = (id, file)        => {
+  const fd = new FormData();
+  fd.append('image', file);
+  return api.post(`${pk}/${id}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+};

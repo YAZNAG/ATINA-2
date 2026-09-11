@@ -3,6 +3,7 @@ const repo   = require('./picker.repository');
 const prisma = require('../../../config/database');
 const pickingRepo    = require('../../picking/picking.repository');
 const pickingService = require('../../picking/picking.service');
+const { defaultRoleId } = require('../staffRole.util');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const normPhone = (p) => String(p ?? '').replace(/\s+/g, '').replace(/^0/, '');
@@ -43,10 +44,13 @@ class PickerService {
     if (dup) throw { statusCode: 409, message: 'Ce numéro est déjà utilisé' };
 
     const password_hash = await bcrypt.hash(password, 10);
+    // Rôle par défaut : picker (référentiel roles).
+    const role_id = await defaultRoleId('picker');
     return repo.create({
       node_id, phone_country, phone_number: phone, name: name.trim(), password_hash,
       email: email?.trim() || null,
       created_by: created_by ?? null,
+      role_id,
     });
   }
 

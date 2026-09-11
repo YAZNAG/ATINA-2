@@ -42,6 +42,8 @@ const INPUT_KEYS = [
   'sku_subfamily_id',
   'category_id',
   'status',
+  'status_id',
+  'status_code',
   'conservation_type_id',
   'tax_id',
   'unit_sale',
@@ -60,6 +62,43 @@ const INPUT_KEYS = [
 const toBool = (v) => v === 'true' || v === true || v === '1' || v === 1;
 
 class SkuService {
+  /** Référentiel des statuts SKU (draft, active, inactive, discontinued). */
+  async getStatuses() {
+    return prisma.skuStatus.findMany({
+      orderBy: [{ sort_order: 'asc' }, { code: 'asc' }],
+      select: { id: true, code: true, name_fr: true, name_ar: true, sort_order: true },
+    });
+  }
+
+  /**
+   * Résout le statut SKU à partir de `status_id` (uuid) ou du code (`status` / `status_code`)
+   * et garde la colonne texte `status` synchronisée avec le code du référentiel.
+   * `isCreate` : statut « active » par défaut si rien n'est fourni.
+   */
+  async _resolveStatus(mapped, isCreate = false) {
+    const rawId = mapped.status_id;
+    const rawCode = mapped.status_code !== undefined ? mapped.status_code : mapped.status;
+    delete mapped.status_code;
+    let row = null;
+    if (rawId !== undefined && rawId !== null && String(rawId).trim() !== '') {
+      row = await prisma.skuStatus.findUnique({ where: { id: String(rawId) } }).catch(() => null);
+      if (!row) throw { statusCode: 400, message: 'Statut SKU inconnu' };
+    } else if (rawCode !== undefined && rawCode !== null && String(rawCode).trim() !== '') {
+      row = await prisma.skuStatus.findUnique({ where: { code: String(rawCode).trim().toLowerCase() } });
+      if (!row) throw { statusCode: 400, message: `Statut SKU inconnu : ${rawCode}` };
+    } else if (isCreate) {
+      row = await prisma.skuStatus.findUnique({ where: { code: 'active' } });
+    }
+    if (row) {
+      mapped.status_id = row.id;
+      mapped.status = row.code;
+    } else {
+      delete mapped.status_id;
+      delete mapped.status;
+    }
+    return row;
+  }
+
   async getAll(params) {
     const { data, total } = await repo.findAll(params);
     const page = Number(params.page) || 1;
@@ -79,6 +118,7 @@ class SkuService {
       throw { statusCode: 400, message: 'Code SKU requis' };
     }
     await this._assertSkuEanUnique(mapped.sku_code.trim(), mapped.ean13 ?? null, null);
+    await this._resolveStatus(mapped, true);
     await this._validateReferences(mapped, mapped);
     if (mapped.sku_family_id == null) {
       throw { statusCode: 400, message: 'Famille SKU requise (ou sous-famille pour la déduire)' };
@@ -94,7 +134,7 @@ class SkuService {
       if (tax) mapped.vat_rate = Number(tax.rate);
     }
 
-    const payload = this._toPrismaPayload(mapped);
+    const payload = this._toPrismaPayload(mapped, true);
     const created = await repo.create(payload);
     await audit(req, { action: 'CREATE', resource: 'skus', resource_id: created.id, new_values: payload });
     return created;
@@ -105,6 +145,7 @@ class SkuService {
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
 
     const mapped = this._mapData(data);
+    await this._resolveStatus(mapped, false);
     const merged = this._mergeReferentialSnapshot(item, mapped);
 
     if (mapped.sku_code !== undefined) {
@@ -141,6 +182,7 @@ class SkuService {
     if (changed.length) {
       let action = 'UPDATE';
       if (changed.length === 1 && changed[0] === 'is_active') action = new_values.is_active ? 'ACTIVATE' : 'DEACTIVATE';
+      else if (changed.every((k) => k === 'status' || k === 'status_id')) action = 'STATUS_CHANGE';
       await audit(req, { action, resource: 'skus', resource_id: id, old_values, new_values });
     }
     return repo.findById(id);
@@ -224,7 +266,7 @@ class SkuService {
       }
     });
 
-    const uuidFields = ['sku_family_id', 'sku_subfamily_id', 'category_id'];
+    const uuidFields = ['sku_family_id', 'sku_subfamily_id', 'category_id', 'status_id'];
     uuidFields.forEach((f) => {
       if (out[f] !== undefined && (out[f] === '' || out[f] === null)) out[f] = null;
     });
@@ -246,8 +288,10 @@ class SkuService {
     return out;
   }
 
-  _toPrismaPayload(mapped) {
+  /** `isCreate` : valeurs par défaut (unité, coeff, TVA) uniquement à la création — une mise à jour partielle ne les écrase pas. */
+  _toPrismaPayload(mapped, isCreate = false) {
     const data = {};
+    const dflt = (v, d) => (isCreate ? v ?? d : v);
     const assign = (key, value) => {
       if (value !== undefined) data[key] = value;
     };
@@ -263,13 +307,14 @@ class SkuService {
     assign('sku_subfamily_id', mapped.sku_subfamily_id);
     assign('category_id', mapped.category_id);
     assign('status', mapped.status);
+    assign('status_id', mapped.status_id);
     assign('conservation_type_id', mapped.conservation_type_id);
     assign('tax_id', mapped.tax_id);
-    assign('unit_sale', mapped.unit_sale ?? 'unit');
-    assign('unit_purchase', mapped.unit_purchase ?? 'unit');
-    assign('coeff', mapped.coeff ?? 1);
+    assign('unit_sale', dflt(mapped.unit_sale, 'unit'));
+    assign('unit_purchase', dflt(mapped.unit_purchase, 'unit'));
+    assign('coeff', dflt(mapped.coeff, 1));
     assign('price', mapped.price);
-    assign('vat_rate', mapped.vat_rate ?? 20);
+    assign('vat_rate', dflt(mapped.vat_rate, 20));
     assign('weight_g', mapped.weight_g);
     assign('volume_ml', mapped.volume_ml);
     assign('is_active', mapped.is_active);

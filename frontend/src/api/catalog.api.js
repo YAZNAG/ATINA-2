@@ -98,6 +98,7 @@ export const deleteTax = (id) => api.delete(`${c}/taxes/${id}`);
 export const getSkus = (params) => api.get(`${c}/skus`, { params });
 export const getSkusList = () => api.get(`${c}/skus`, { params: { all: true } });
 export const getSku = (id) => api.get(`${c}/skus/${id}`);
+export const getSkuStatuses = () => api.get(`${c}/skus/statuses`);
 export const createSku = (data) => api.post(`${c}/skus`, data);
 export const updateSku = (id, data) => api.put(`${c}/skus/${id}`, data);
 export const deleteSku = (id) => api.delete(`${c}/skus/${id}`);

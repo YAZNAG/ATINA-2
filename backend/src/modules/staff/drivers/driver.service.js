@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const repo   = require('./driver.repository');
 const prisma = require('../../../config/database');
+const { defaultRoleId } = require('../staffRole.util');
 
 const normPhone = (p) => String(p ?? '').replace(/\s+/g, '').replace(/^0/, '');
 
@@ -39,7 +40,10 @@ class DriverService {
     if (dup) throw { statusCode: 409, message: 'Ce numéro est déjà utilisé' };
 
     const password_hash = await bcrypt.hash(password, 10);
+    // Rôle par défaut : driver (référentiel roles).
+    const role_id = await defaultRoleId('driver');
     return repo.create({
+      role_id,
       node_id, phone_country, phone_number: phone,
       name: name.trim(), password_hash,
       vehicle_type: vehicle_type?.trim() || null,

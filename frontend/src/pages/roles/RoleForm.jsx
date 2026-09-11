@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 const initialForm = {
   name: '',
+  name_ar: '',
   code: '',
   description: '',
   status: 'active',
@@ -34,7 +35,8 @@ export default function RoleForm() {
           const roleRes = await getRole(id);
           const r = roleRes.data.data;
           setForm({
-            name: r.name,
+            name: r.name_fr || r.name,
+            name_ar: r.name_ar || '',
             code: r.code,
             description: r.description || '',
             status: r.status,
@@ -83,11 +85,12 @@ export default function RoleForm() {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = { ...form, name_fr: form.name };
       if (isEdit) {
-        await updateRole(id, form);
+        await updateRole(id, payload);
         toast.success('Rôle mis à jour avec succès');
       } else {
-        await createRole(form);
+        await createRole(payload);
         toast.success('Rôle créé avec succès');
       }
       navigate('/roles');
@@ -122,8 +125,12 @@ export default function RoleForm() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Nom du rôle *</label>
+              <label className="form-label">Nom (FR) *</label>
               <input name="name" className="form-input" value={form.name} onChange={handleChange} required />
+            </div>
+            <div>
+              <label className="form-label">Nom (AR)</label>
+              <input name="name_ar" dir="rtl" className="form-input" value={form.name_ar} onChange={handleChange} />
             </div>
             <div>
               <label className="form-label">Code *</label>

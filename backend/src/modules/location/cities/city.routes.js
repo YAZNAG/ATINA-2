@@ -13,6 +13,8 @@ router.get('/:id', perm('cities.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('cities.update'), updateValidator, ctrl.update.bind(ctrl));
 // Rattacher / déplacer une ville vers une autre région
 router.patch('/:id/region', perm('cities.update'), moveValidator, ctrl.move.bind(ctrl));
+// Réordonnancement ↑↓ dans la région : body { direction: 'up' | 'down' }
+router.patch('/:id/sort', perm('cities.update'), ctrl.reorder.bind(ctrl));
 router.delete('/:id', perm('cities.delete'), ctrl.destroy.bind(ctrl));
 
 module.exports = router;

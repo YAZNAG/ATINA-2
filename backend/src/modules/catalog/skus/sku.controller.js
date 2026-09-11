@@ -11,6 +11,14 @@ class SkuController {
     }
   }
 
+  async statuses(req, res, next) {
+    try {
+      return response.success(res, await service.getStatuses());
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async show(req, res, next) {
     try {
       return response.success(res, await service.getById(req.params.id));

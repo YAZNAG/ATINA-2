@@ -11,7 +11,7 @@ import {
   getFamiliesList, getSubFamiliesList, getCategoriesList, getBrandsList,
   getConservationTypesList, getTaxesList,
   getSkuImages, addSkuImages, setSkuPrimaryImage, deleteSkuImage,
-  getUnitsList, getPackagingTypesList,
+  getUnitsList, getPackagingTypesList, getSkuStatuses,
 } from '../../../api/catalog.api';
 
 const PAGE_SIZE = 20;
@@ -48,7 +48,26 @@ const EMPTY_FORM = {
   weight_g: '',
   volume_ml: '',
   is_active: true,
+  status_id: '',
 };
+
+/** Couleurs des badges du référentiel sku_statuses. */
+const SKU_STATUS_STYLE = {
+  draft: 'bg-amber-50 text-amber-700',
+  active: 'bg-emerald-50 text-emerald-700',
+  inactive: 'bg-neutral-100 text-neutral-500',
+  discontinued: 'bg-red-50 text-red-600',
+};
+
+function SkuStatusBadge({ status, code }) {
+  const c = status?.code || code;
+  if (!c) return null;
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${SKU_STATUS_STYLE[c] || 'bg-neutral-100 text-neutral-600'}`}>
+      {status?.name_fr || c}
+    </span>
+  );
+}
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -71,7 +90,7 @@ const FIELD_TAB = {
   brand_id: 'classification', conservation_type_id: 'classification',
   price: 'pricing', tax_id: 'pricing', unit_purchase_id: 'pricing', unit_sale_id: 'pricing',
   packaging_type_id: 'pricing', coeff: 'pricing',
-  weight_g: 'logistics', volume_ml: 'logistics', is_active: 'logistics',
+  weight_g: 'logistics', volume_ml: 'logistics', is_active: 'logistics', status_id: 'logistics',
 };
 
 function StatusBadge({ sku }) {
@@ -127,6 +146,8 @@ export default function SkusPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [skuStatuses, setSkuStatuses] = useState([]);
+  const [filterSkuStatus, setFilterSkuStatus] = useState('');
   const [page, setPage] = useState(1);
   const [togglingId, setTogglingId] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
@@ -166,6 +187,7 @@ export default function SkusPage() {
     getConservationTypesList().then(({ data }) => setConservationTypes(data.data || [])).catch(() => setConservationTypes([]));
     getTaxesList().then(({ data }) => setTaxes(data.data || [])).catch(() => setTaxes([]));
     getUnitsList().then(({ data }) => setUnits(data.data || [])).catch(() => setUnits([]));
+    getSkuStatuses().then(({ data }) => setSkuStatuses(data.data || [])).catch(() => setSkuStatuses([]));
   }, []);
 
   // ——— Cascade filtres toolbar (family -> subfamily uniquement) ———
@@ -195,6 +217,7 @@ export default function SkusPage() {
         limit: PAGE_SIZE,
         ...(search && { search }),
         ...(status && { status }),
+        ...(filterSkuStatus && { status_code: filterSkuStatus }),
         ...(filterFamily && { sku_family_id: filterFamily }),
         ...(filterSubFamily && { sku_subfamily_id: filterSubFamily }),
         ...(filterCategory && { category_id: filterCategory }),
@@ -207,7 +230,7 @@ export default function SkusPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, status, filterFamily, filterSubFamily, filterCategory, filterBrand, canView]);
+  }, [page, search, status, filterSkuStatus, filterFamily, filterSubFamily, filterCategory, filterBrand, canView]);
 
   useEffect(() => {
     const t = setTimeout(fetchSkus, search ? 350 : 0);
@@ -216,7 +239,7 @@ export default function SkusPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, status, filterFamily, filterSubFamily, filterCategory, filterBrand]);
+  }, [search, status, filterSkuStatus, filterFamily, filterSubFamily, filterCategory, filterBrand]);
 
   // ——— Images SKU : chargement (édition) ———
   const fetchSkuImages = useCallback(async (skuId) => {
@@ -235,7 +258,7 @@ export default function SkusPage() {
   // ——— Ouverture drawer ———
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, status_id: skuStatuses.find((st) => st.code === 'active')?.id || '' });
     setFormSubFamilies([]);
     setFormErrors({});
     setActiveTab('info');
@@ -267,6 +290,7 @@ export default function SkusPage() {
       weight_g: sku.weight_g ?? '',
       volume_ml: sku.volume_ml ?? '',
       is_active: sku.is_active,
+      status_id: sku.status_id || sku.sku_status?.id || skuStatuses.find((st) => st.code === sku.status)?.id || '',
     });
     setFormErrors({});
     setActiveTab('info');
@@ -377,6 +401,7 @@ export default function SkusPage() {
       if (!payload.unit_purchase_id) delete payload.unit_purchase_id;
       if (!payload.unit_sale_id) delete payload.unit_sale_id;
       if (!payload.packaging_type_id) delete payload.packaging_type_id;
+      if (!payload.status_id) delete payload.status_id;
       if (payload.ean13 === '') payload.ean13 = null;
       if (payload.weight_g === '') delete payload.weight_g;
       if (payload.volume_ml === '') delete payload.volume_ml;
@@ -491,7 +516,7 @@ export default function SkusPage() {
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">SKU</h1>
+          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Liste SKUs</h1>
           <p className="mt-1 text-sm text-neutral-500">Gérez le catalogue produit (SKU).</p>
         </div>
         {canCreate && (
@@ -519,6 +544,11 @@ export default function SkusPage() {
         <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15">
           {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select value={filterSkuStatus} onChange={(e) => setFilterSkuStatus(e.target.value)} title="Statut du référentiel SKU"
+          className="rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15">
+          <option value="">Tous les statuts SKU</option>
+          {skuStatuses.map((st) => <option key={st.id} value={st.code}>{st.name_fr}</option>)}
         </select>
         <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}
           className="rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15">
@@ -599,7 +629,12 @@ export default function SkusPage() {
                       {s.category?.name_fr || '—'}
                     </td>
                     <td className="px-4 py-3 text-neutral-600">{s.brand?.name_fr || '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge sku={s} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <SkuStatusBadge status={s.sku_status} code={s.status} />
+                        <StatusBadge sku={s} />
+                      </div>
+                    </td>
                     {canManage && (
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
@@ -906,6 +941,13 @@ export default function SkusPage() {
                       <input type="number" value={form.volume_ml} onChange={handleFieldChange('volume_ml')} className={inputClass()} />
                     </Field>
                   </div>
+
+                  <Field label="Statut SKU">
+                    <select value={form.status_id} onChange={handleFieldChange('status_id')} className={inputClass()}>
+                      <option value="">— Choisir un statut —</option>
+                      {skuStatuses.map((st) => <option key={st.id} value={st.id}>{st.name_fr} — {st.name_ar}</option>)}
+                    </select>
+                  </Field>
 
                   <label className="flex items-center gap-2 text-sm text-neutral-700">
                     <input type="checkbox" checked={form.is_active} onChange={handleFieldChange('is_active')} className="rounded border-neutral-300 text-[#E10600] focus:ring-[#E10600]/15" />

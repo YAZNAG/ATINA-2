@@ -430,7 +430,7 @@ export default function UnitsPage() {
       {/* En-tête */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Unités</h1>
+          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Liste des unités</h1>
           <p className="mt-1 text-sm text-neutral-500">Unités de mesure globales (référentiel article).</p>
         </div>
         {canCreate && (

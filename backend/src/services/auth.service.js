@@ -18,9 +18,16 @@ class AuthService {
     const permissions = this._extractPermissions(user);
     const token = this._generateToken(user);
 
-    userRepository.updateLastLogin(user.id).catch(() => {});
+    // Dernière connexion (colonne « dernière connexion » de la Liste des comptes).
+    let last_login_at = user.last_login_at;
+    try {
+      const updated = await userRepository.updateLastLogin(user.id);
+      last_login_at = updated.last_login_at;
+    } catch (e) {
+      console.error('[auth] last_login_at non mis à jour :', e.message);
+    }
 
-    return { token, user: this._sanitizeUser(user, permissions) };
+    return { token, user: this._sanitizeUser({ ...user, last_login_at }, permissions) };
   }
 
   

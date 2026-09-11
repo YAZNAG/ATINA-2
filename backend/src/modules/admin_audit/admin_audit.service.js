@@ -186,9 +186,12 @@ class AdminAuditService {
 
   /* ───────────────────────── Notifications (log) ───────────────────────── */
 
-  _notifWhere({ event_code, channel_id, is_read, customer_id, search, date_from, date_to } = {}) {
+  _notifWhere({ event_code, channel_id, is_read, customer_id, search, date_from, date_to, status_id, status } = {}) {
     const where = {
       ...(event_code && { event_code: String(event_code) }),
+      // Statut de la notification (référentiel notification_statuses) : uuid ou code ; « none » = sans statut.
+      ...(status_id && (status_id === 'none' ? { status_id: null } : { status_id: String(status_id) })),
+      ...(!status_id && status && { status: { code: String(status) } }),
       ...(channel_id && (channel_id === 'none' ? { channel_id: null } : { channel_id: String(channel_id) })),
       ...(is_read !== undefined && is_read !== '' && { is_read: is_read === 'true' || is_read === true }),
       ...(customer_id && { customer_id: String(customer_id) }),
@@ -200,6 +203,8 @@ class AdminAuditService {
         { customer: { name: { contains: q, mode: 'insensitive' } } },
         { customer: { phone_number: { contains: q, mode: 'insensitive' } } },
         { title_fr: { contains: q, mode: 'insensitive' } },
+        { title_ar: { contains: q, mode: 'insensitive' } },
+        { body_fr: { contains: q, mode: 'insensitive' } },
         { event_code: { contains: q, mode: 'insensitive' } },
       ];
     }
@@ -210,6 +215,7 @@ class AdminAuditService {
     return {
       customer: { select: { id: true, name: true, phone_country: true, phone_number: true } },
       channel: { select: { id: true, code: true, name_fr: true, name_ar: true } },
+      status: { select: { id: true, code: true, name_fr: true, name_ar: true } },
     };
   }
 
@@ -241,13 +247,19 @@ class AdminAuditService {
   }
 
   async notificationFacets() {
-    const [events, channels] = await Promise.all([
+    const [events, channels, statuses, statusCounts] = await Promise.all([
       prisma.notification.groupBy({ by: ['event_code'], _count: { _all: true }, orderBy: { event_code: 'asc' } }),
       prisma.notificationChannel.findMany({ select: { id: true, code: true, name_fr: true }, orderBy: { name_fr: 'asc' } }),
+      prisma.notificationDeliveryStatus.findMany({ select: { id: true, code: true, name_fr: true, name_ar: true } }),
+      prisma.notification.groupBy({ by: ['status_id'], _count: { _all: true } }),
     ]);
+    const ORDER = ['pending', 'sent', 'delivered', 'read', 'failed'];
     return {
       event_codes: events.map((e) => ({ value: e.event_code, count: e._count._all })),
       channels,
+      statuses: statuses
+        .sort((a, b) => ORDER.indexOf(a.code) - ORDER.indexOf(b.code))
+        .map((s) => ({ ...s, count: statusCounts.find((c) => c.status_id === s.id)?._count._all ?? 0 })),
     };
   }
 
@@ -258,7 +270,10 @@ class AdminAuditService {
       orderBy: [{ sent_at: 'desc' }, { id: 'desc' }],
       take: EXPORT_MAX,
     });
-    const headers = ['Date d\'envoi', 'Client', 'Téléphone', 'Canal', 'Type (événement)', 'Titre', 'Contenu', 'Statut', 'Commande'];
+    const headers = [
+      'Date d\'envoi', 'Client', 'Téléphone', 'Canal', 'Type (événement)',
+      'Titre (FR)', 'Contenu (FR)', 'Titre (AR)', 'Contenu (AR)', 'Statut', 'Lu', 'Date de lecture', 'Commande',
+    ];
     return toCsv(headers, rows.map((n) => [
       fmtDate(n.sent_at),
       n.customer?.name || '',
@@ -267,7 +282,11 @@ class AdminAuditService {
       n.event_code,
       n.title_fr,
       n.body_fr,
+      n.title_ar || '',
+      n.body_ar || '',
+      n.status?.name_fr || n.status?.code || '',
       n.is_read ? 'Lu' : 'Non lu',
+      n.read_at ? fmtDate(n.read_at) : '',
       n.order_id || '',
     ]));
   }

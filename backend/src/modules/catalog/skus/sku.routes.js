@@ -8,6 +8,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/', perm('skus.view'), ctrl.index.bind(ctrl));
+router.get('/statuses', perm('skus.view'), ctrl.statuses.bind(ctrl));
 router.post('/', perm('skus.create'), createValidator, ctrl.store.bind(ctrl));
 router.get('/:id', perm('skus.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('skus.update'), updateValidator, ctrl.update.bind(ctrl));

@@ -212,7 +212,7 @@ export default function PickersPage() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <div className="flex items-center gap-2 text-xs text-gray-400 mb-1"><span>Staff</span><span>›</span><span className="text-violet-600 font-medium">Pickers</span></div>
-              <h1 className="text-2xl font-bold text-gray-900">Pickers</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Liste des pickers</h1>
               <p className="text-sm text-gray-400 mt-0.5">Préparateurs de commandes — {total} au total</p>
             </div>
             <button onClick={() => setDrawer(false)} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm flex-shrink-0">
@@ -280,6 +280,7 @@ export default function PickersPage() {
                       <td className="px-4 py-3.5">
                         <span className="text-xs font-mono font-semibold text-gray-700">{item.node?.code}</span>
                         <p className="text-[11px] text-gray-400">{item.node?.name_fr}</p>
+                        <p className="text-[11px] text-violet-600">Rôle : {item.role?.name_fr || item.role?.name || 'Picker'}</p>
                       </td>
                       <td className="px-4 py-3.5 text-center">
                         {item.active_sessions > 0

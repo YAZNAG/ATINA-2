@@ -1,6 +1,6 @@
 const prisma = require('../../../config/database');
 
-const SELECT = { id: true, node_id: true, phone_country: true, phone_number: true, name: true, vehicle_type: true, vehicle_plate: true, is_active: true, is_deleted: true, deleted_at: true, created_by: true, created_at: true, updated_at: true, node: { select: { id: true, code: true, name_fr: true } } };
+const SELECT = { id: true, node_id: true, phone_country: true, phone_number: true, name: true, vehicle_type: true, vehicle_plate: true, is_active: true, is_deleted: true, deleted_at: true, created_by: true, created_at: true, updated_at: true, node: { select: { id: true, code: true, name_fr: true } }, role_id: true, role: { select: { id: true, code: true, name: true, name_fr: true, name_ar: true } } };
 
 // Codes de statut (insensibles à la casse côté données) : une tournée « in_progress »
 // rend le livreur indisponible ; « completed » compte comme tournée terminée.

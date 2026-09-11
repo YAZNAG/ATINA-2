@@ -272,7 +272,7 @@ export default function BrandsPage() {
       {/* En-tête */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Marques</h1>
+          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Gestion des marques</h1>
           <p className="mt-1 text-sm text-neutral-500">Gérez les marques associées aux articles du catalogue.</p>
         </div>
         {canCreate && (

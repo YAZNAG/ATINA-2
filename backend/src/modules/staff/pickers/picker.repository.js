@@ -5,6 +5,8 @@ const SELECT = {
   id: true, node_id: true, phone_country: true, phone_number: true, email: true, avatar_url: true, name: true,
   is_active: true, is_deleted: true, deleted_at: true, created_by: true, created_at: true, updated_at: true,
   node: { select: { id: true, code: true, name_fr: true } },
+  role_id: true,
+  role: { select: { id: true, code: true, name: true, name_fr: true, name_ar: true } },
 };
 
 const buildWhere = ({ node_id, is_active, search } = {}) => {

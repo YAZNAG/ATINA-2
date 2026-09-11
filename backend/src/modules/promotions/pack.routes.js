@@ -2,6 +2,10 @@ const { Router } = require('express');
 const ctrl = require('./pack.controller');
 const auth = require('../../middlewares/auth.middleware');
 const perm = require('../../middlewares/permission.middleware');
+const { createUpload } = require('../../middlewares/upload.middleware');
+
+// Image de pack : fichier jpg / png / webp, 5 Mo max (en plus de l'URL).
+const uploadImage = createUpload('packs', [{ name: 'image', maxCount: 1 }]);
 
 const canView   = perm.permAny(['packs.view',   'dashboard.view']);
 const canCreate = perm.permAny(['packs.create', 'dashboard.view']);
@@ -15,9 +19,10 @@ router.get('/',                 canView,   ctrl.index.bind(ctrl));
 router.get('/eligible-skus',    canView,   ctrl.eligibleSkus.bind(ctrl));
 router.get('/:id',              canView,   ctrl.show.bind(ctrl));
 router.get('/:id/lock',         canView,   ctrl.lock.bind(ctrl));
-router.post('/',                canCreate, ctrl.store.bind(ctrl));
+router.post('/',                canCreate, uploadImage, ctrl.store.bind(ctrl));
 router.post('/:id/duplicate',   canCreate, ctrl.duplicate.bind(ctrl));
-router.put('/:id',              canUpdate, ctrl.update.bind(ctrl));
+router.post('/:id/image',       canUpdate, uploadImage, ctrl.uploadImage.bind(ctrl));
+router.put('/:id',              canUpdate, uploadImage, ctrl.update.bind(ctrl));
 router.patch('/:id/activate',   canUpdate, ctrl.activate.bind(ctrl));
 router.patch('/:id/deactivate', canUpdate, ctrl.deactivate.bind(ctrl));
 router.delete('/:id',           canDelete, ctrl.destroy.bind(ctrl));

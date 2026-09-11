@@ -27,6 +27,12 @@ class CityController {
     } catch (err) { next(err); }
   }
 
+  async reorder(req, res, next) {
+    try {
+      return response.success(res, await service.reorder(req.params.id, req.body?.direction, req), 'Ordre des villes mis à jour');
+    } catch (err) { next(err); }
+  }
+
   async destroy(req, res, next) {
     try {
       await service.delete(req.params.id, req);

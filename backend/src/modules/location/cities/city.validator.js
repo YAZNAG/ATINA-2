@@ -18,10 +18,12 @@ const createValidator = [
   body('name_ar').notEmpty().withMessage('Nom AR requis'),
   body('postal_code').optional({ values: 'null' }).isString(),
   body('is_active').optional().isBoolean(),
+  body('sort_order').optional({ values: 'falsy' }).isInt({ min: 0 }).withMessage("Ordre d'affichage invalide"),
   validate,
 ];
 
 const updateValidator = [
+  body('sort_order').optional({ values: 'falsy' }).isInt({ min: 0 }).withMessage("Ordre d'affichage invalide"),
   body('region_id').optional().isUUID().withMessage('Région invalide'),
   body('code').optional().notEmpty(),
   body('name_fr').optional().notEmpty(),

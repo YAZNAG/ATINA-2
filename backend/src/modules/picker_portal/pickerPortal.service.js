@@ -192,8 +192,8 @@ class PickerPortalService {
     let resolvedSkuId = substitute_sku_id ?? null;
     if (!resolvedSkuId && substitute_ean) {
       const skuByEan = await prisma.sku.findFirst({
-        where: { article: { ean13: substitute_ean }, stock_levels: { some: { node_id: item.session.node_id } } },
-        select: { id: true, article: { select: { name_fr: true, ean13: true } } },
+        where: { ean13: substitute_ean, is_deleted: false, stock_levels: { some: { node_id: item.session.node_id } } },
+        select: { id: true, name_fr: true, ean13: true },
       });
       if (!skuByEan) throw { statusCode: 404, message: `Aucun SKU trouvé avec l'EAN ${substitute_ean} dans ce node` };
       resolvedSkuId = skuByEan.id;
@@ -205,19 +205,18 @@ class PickerPortalService {
       const subSku = await prisma.sku.findUnique({
         where: { id: resolvedSkuId },
         include: {
-          article: { select: { name_fr: true, is_active: true } },
           stock_levels: { where: { node_id: item.session.node_id } },
         },
       });
       if (!subSku) throw { statusCode: 404, message: 'SKU substitut introuvable' };
-      if (!subSku.article?.is_active) throw { statusCode: 422, message: 'Le produit substitut est inactif' };
+      if (!subSku.is_active || subSku.is_deleted) throw { statusCode: 422, message: 'Le produit substitut est inactif' };
 
       const stockLevel = subSku.stock_levels[0];
       const avail      = stockLevel ? Number(stockLevel.qty_available) : 0;
       const needed     = Number(qty_picked ?? 1);
       if (avail < needed) throw { statusCode: 422, message: `Stock insuffisant pour le substitut (disponible: ${avail})` };
 
-      substituteName = subSku.article?.name_fr;
+      substituteName = subSku.name_fr;
     }
 
     const [subItemStatusId, subOrderItemStatusId, pickingStatusRow] = await Promise.all([

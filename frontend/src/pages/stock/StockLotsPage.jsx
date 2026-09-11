@@ -64,7 +64,7 @@ const TABS = [
 function exportCSV(rows) {
   const headers = ['N° Lot','Code SKU','Article','Entrepôt','Qté initiale','Qté restante','Coût unitaire (MAD)','Date réception','Date expiration','Jours restants','Statut'];
   const lines = rows.map((l) => {
-    const art  = l.sku?.article;
+    const art  = l.sku;
     const days = daysUntil(l.expiry_date);
     return [
       l.lot_number ?? '',
@@ -146,7 +146,7 @@ export default function StockLotsPage() {
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) => {
-        const a = r.sku?.article;
+        const a = r.sku;
         return r.lot_number?.toLowerCase().includes(q)
           || a?.name_fr?.toLowerCase().includes(q)
           || a?.sku_code?.toLowerCase().includes(q)
@@ -417,7 +417,7 @@ export default function StockLotsPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {paginated.map((lot) => {
-                  const art      = lot.sku?.article;
+                  const art      = lot.sku;
                   const img      = lot.sku?.images?.[0]?.url ?? art?.images?.[0]?.url;
                   const status   = lot._status;
                   const stCfg    = LOT_STATUS[status];

@@ -1,5 +1,21 @@
 const prisma = require('../../config/database');
 const { toPublicUrl } = require('../../utils/fileStorage');
+const { applyDiscount } = require('../flash_sale/article_discount');
+const { isUuid } = require('../customer_catalog/customer_node');
+const {
+  sellableWhere, skuSelect, getNodeFlashSales, formatSkuOffer, round2,
+} = require('../customer_catalog/sku_offer');
+
+/*
+ * Ventes flash côté client. Les ventes flash sont rattachées à un node : on ne montre que
+ * celles du node du client (ctx.node, cf. customer_catalog/customer_node.js). Les produits
+ * éligibles sont des SKU vendables sur ce node ; prix de référence = selling_rules.price,
+ * prix flash = flash_price (cible SKU) sinon remise discount_type/discount_value.
+ */
+
+const MAX_ELIGIBLE = 200;
+const nodeIdOf = (ctx) => ctx?.node?.id ?? null;
+const isPct = (t) => t === 'percentage' || t === 'pourcentage';
 
 function getScopeType(fs) {
   if (fs.sku_id)      return 'sku';
@@ -12,131 +28,66 @@ function getScopeType(fs) {
 function getScopeName(fs) {
   if (fs.category) return fs.category.name_fr;
   if (fs.brand)    return fs.brand.name_fr;
-  if (fs.sku?.article) return fs.sku.article.name_fr;
+  if (fs.sku)      return fs.sku.name_fr;
+  if (fs.pack)     return fs.pack.name_fr;
   return fs.name_fr ?? null;
-}
-
-function applyDiscount(priceTtc, discount_type, discount_value) {
-  const val = parseFloat(discount_value ?? 0);
-  const isPct = discount_type === 'percentage' || discount_type === 'pourcentage';
-  if (isPct)             return Math.round(priceTtc * (1 - val / 100) * 100) / 100;
-  if (discount_type === 'fixed') return Math.max(0, Math.round((priceTtc - val) * 100) / 100);
-  return priceTtc;
-}
-
-function priceTtc(price, vat_rate, tax_rate) {
-  const rate = parseFloat(tax_rate ?? vat_rate ?? 20);
-  return Math.round(parseFloat(price ?? 0) * (1 + rate / 100) * 100) / 100;
 }
 
 function computeIsActive(fs) {
   const now = new Date();
   const started  = !fs.starts_at || new Date(fs.starts_at) <= now;
   const notEnded = !fs.ends_at   || new Date(fs.ends_at)   >= now;
-  return fs.is_active && started && notEnded;
+  const quotaLeft = fs.stock_flash == null || (fs.sold_count ?? 0) < fs.stock_flash;
+  return !!fs.is_active && !fs.is_deleted && started && notEnded && quotaLeft;
 }
 
-function articleImageUrl(a) {
-  const skuImg = a.catalog_sku?.images?.[0]?.url ?? null;
-  const artImg = a.images?.[0]?.image_path ? toPublicUrl(a.images[0].image_path) : null;
-  return skuImg ?? artImg ?? null;
-}
-
-function formatArticleProduct(a, fs) {
-  const ttc = priceTtc(a.price, a.vat_rate, a.tax?.rate);
-  const newPrice = applyDiscount(ttc, fs.discount_type, fs.discount_value);
-  const pct      = ttc > 0 ? Math.round((1 - newPrice / ttc) * 100) : 0;
+function activeWhere(nodeId, extra = {}) {
+  const now = new Date();
   return {
-    id:           a.id,
-    sku_id:       a.catalog_sku?.id ?? a.sku_uuid ?? null,
-    name_fr:      a.name_fr,
-    name_ar:      a.name_ar,
-    image_url:    articleImageUrl(a),
-    old_price:    ttc,
-    new_price:    newPrice,
-    discount_pct: pct,
-    saved_amount: Math.round((ttc - newPrice) * 100) / 100,
-    weight_g:     a.weight_g ?? null,
-    brand:        a.brand ?? null,
+    is_active: true, is_deleted: false,
+    starts_at: { lte: now }, ends_at: { gte: now },
+    node_id: nodeId || '00000000-0000-0000-0000-000000000000',
+    ...extra,
   };
 }
 
-const ARTICLE_SELECT = {
-  id: true, name_fr: true, name_ar: true, sku_code: true,
-  price: true, vat_rate: true, weight_g: true, sku_uuid: true,
-  tax: { select: { rate: true } },
-  catalog_sku: {
-    select: {
-      id: true,
-      images: { select: { url: true }, orderBy: { sort_order: 'asc' }, take: 1 },
-    },
-  },
-  images: { select: { image_path: true }, take: 1 },
-  brand:    { select: { id: true, name_fr: true, name_ar: true } },
-  category: { select: { id: true, name_fr: true, name_ar: true } },
-};
+const quotaLeft = (fs) => fs.stock_flash == null || fs.sold_count < fs.stock_flash;
 
-const ARTICLE_WHERE = { is_active: true, is_deleted: false };
-
-const FLASH_LIST_INCLUDE = {
-  sku: {
-    select: {
-      id: true,
-      article: { select: { name_fr: true, price: true, vat_rate: true, tax: { select: { rate: true } } } },
+/** Relations nécessaires au résumé d'une vente flash (prix de référence = règle du node). */
+function summaryInclude(nodeId) {
+  return {
+    sku: {
+      select: {
+        id: true, name_fr: true, name_ar: true,
+        selling_rules: { where: { node_id: nodeId }, select: { price: true, is_sellable: true } },
+      },
     },
-  },
-  category: { select: { id: true, name_fr: true, _count: { select: { articles: { where: ARTICLE_WHERE } } } } },
-  brand:    { select: { id: true, name_fr: true, _count: { select: { articles: { where: ARTICLE_WHERE } } } } },
-};
-
-const FLASH_DETAIL_INCLUDE = {
-  sku: {
-    select: {
-      id: true,
-      images: { select: { url: true }, orderBy: { sort_order: 'asc' }, take: 1 },
-      article: {
-  select: {
-    id: true,
-    name_fr: true, name_ar: true, price: true, vat_rate: true,
-    tax: { select: { rate: true } },
-    weight_g: true,
-    brand: { select: { id: true, name_fr: true, name_ar: true } },
-    images: { select: { image_path: true }, take: 1 },
-  },
-},
-    },
-  },
-  category: {
-    select: {
-      id: true, name_fr: true, name_ar: true,
-      articles: { where: ARTICLE_WHERE, select: ARTICLE_SELECT },
-    },
-  },
-  brand: {
-    select: {
-      id: true, name_fr: true, name_ar: true,
-      articles: { where: ARTICLE_WHERE, select: ARTICLE_SELECT },
-    },
-  },
-};
-
+    pack:     { select: { id: true, name_fr: true, name_ar: true, total_price: true } },
+    category: { select: { id: true, name_fr: true, name_ar: true, _count: { select: { skus: { where: sellableWhere(nodeId) } } } } },
+    brand:    { select: { id: true, name_fr: true, name_ar: true, _count: { select: { skus: { where: sellableWhere(nodeId) } } } } },
+  };
+}
 
 function formatSummary(fs) {
   const scopeType = getScopeType(fs);
 
   let discountPct = null;
-  const isPct = fs.discount_type === 'percentage' || fs.discount_type === 'pourcentage';
-  if (fs.discount_value && isPct) {
+  if (fs.discount_value != null && isPct(fs.discount_type)) {
     discountPct = parseFloat(fs.discount_value);
-  } else if (fs.flash_price && fs.sku?.article) {
-    const ttc = priceTtc(fs.sku.article.price, fs.sku.article.vat_rate, fs.sku.article.tax?.rate);
-    if (ttc > 0) discountPct = Math.round((1 - parseFloat(fs.flash_price) / ttc) * 100);
+  } else if (scopeType === 'sku') {
+    const ref = Number(fs.sku?.selling_rules?.[0]?.price ?? 0);
+    const flash = fs.flash_price != null ? Number(fs.flash_price) : applyDiscount(ref, fs.discount_type, fs.discount_value);
+    if (ref > 0) discountPct = Math.round((1 - flash / ref) * 100);
+  } else if (scopeType === 'pack') {
+    const ref = Number(fs.pack?.total_price ?? 0);
+    const flash = fs.flash_price != null ? Number(fs.flash_price) : applyDiscount(ref, fs.discount_type, fs.discount_value);
+    if (ref > 0) discountPct = Math.round((1 - flash / ref) * 100);
   }
 
   let productCount = 0;
-  if (scopeType === 'sku')      productCount = 1;
-  else if (scopeType === 'category') productCount = fs.category?._count?.articles ?? 0;
-  else if (scopeType === 'brand')    productCount = fs.brand?._count?.articles ?? 0;
+  if (scopeType === 'sku' || scopeType === 'pack') productCount = 1;
+  else if (scopeType === 'category') productCount = fs.category?._count?.skus ?? 0;
+  else if (scopeType === 'brand')    productCount = fs.brand?._count?.skus ?? 0;
 
   return {
     id:             fs.id,
@@ -153,45 +104,63 @@ function formatSummary(fs) {
   };
 }
 
-function formatDetail(fs) {
+/** SKU vendables sur le node de la vente flash et visés par elle. */
+async function loadEligibleSkus(fs) {
+  let scope;
+  if (fs.sku_id)           scope = { id: fs.sku_id };
+  else if (fs.category_id) scope = { category_id: fs.category_id };
+  else if (fs.brand_id)    scope = { brand_id: fs.brand_id };
+  else return [];
+  return prisma.sku.findMany({
+    where:   { AND: [sellableWhere(fs.node_id), scope] },
+    select:  skuSelect(fs.node_id),
+    orderBy: { name_fr: 'asc' },
+    take:    MAX_ELIGIBLE,
+  });
+}
+
+/** Produit éligible (format PromotionProduct de l'app). id = sku_id = skus.id. */
+function formatPromotionProduct(sku, fs) {
+  const offer = formatSkuOffer(sku, { nodeId: fs.node_id }); // prix node, sans flash
+  const oldPrice = offer.price_ttc;
+  const newPrice = round2(fs.sku_id && fs.flash_price != null
+    ? Number(fs.flash_price)
+    : applyDiscount(oldPrice, fs.discount_type, fs.discount_value));
+  const isSkuScope = !!fs.sku_id;
+  return {
+    id:           sku.id,
+    sku_id:       sku.id,
+    sku_code:     sku.sku_code,
+    name_fr:      (isSkuScope && fs.name_fr) || sku.name_fr,
+    name_ar:      (isSkuScope && fs.name_ar) || sku.name_ar,
+    image_url:    (isSkuScope && toPublicUrl(fs.image_url)) || offer.image_url,
+    old_price:    oldPrice,
+    new_price:    newPrice,
+    discount_pct: oldPrice > 0 ? Math.round((1 - newPrice / oldPrice) * 100) : 0,
+    saved_amount: round2(oldPrice - newPrice),
+    weight_g:     sku.weight_g ?? null,
+    brand:        offer.brand,
+    category:     offer.category,
+    vat_rate:     offer.vat_rate,
+    is_available: offer.is_available,
+    flash_sale_id: fs.id,
+  };
+}
+
+async function formatDetail(fs) {
   const scopeType = getScopeType(fs);
+  const eligible = computeIsActive(fs)
+    ? (await loadEligibleSkus(fs)).map((s) => formatPromotionProduct(s, fs))
+    : [];
 
-  let eligible = [];
-  if (scopeType === 'sku' && fs.sku) {
-    const a = fs.sku.article;
-    const ttc = priceTtc(a?.price, a?.vat_rate, a?.tax?.rate);
-    const newPrice = parseFloat(fs.flash_price ?? 0);
-    const pct = ttc > 0 ? Math.round((1 - newPrice / ttc) * 100) : 0;
-    const skuImg = fs.sku.images?.[0]?.url ?? null;
-    const artImg = a?.images?.[0]?.image_path ? toPublicUrl(a.images[0].image_path) : null;
-    eligible = [{
-      id:           a?.id ?? 0,
-      sku_id:       fs.sku.id,
-      name_fr:      fs.name_fr ?? a?.name_fr ?? null,
-      name_ar:      fs.name_ar ?? a?.name_ar ?? null,
-      image_url:    fs.image_url ?? skuImg ?? artImg ?? null,
-      old_price:    ttc,
-      new_price:    newPrice,
-      discount_pct: pct,
-      saved_amount: Math.round((ttc - newPrice) * 100) / 100,
-      brand:        a?.brand ?? null,
-      weight_g:     a?.weight_g ?? null,
-    }];
-  } else if (scopeType === 'category' && fs.category) {
-    eligible = fs.category.articles.map(a => formatArticleProduct(a, fs));
-  } else if (scopeType === 'brand' && fs.brand) {
-    eligible = fs.brand.articles.map(a => formatArticleProduct(a, fs));
-  }
-
-  const isPct = fs.discount_type === 'percentage' || fs.discount_type === 'pourcentage';
-  const bannerPct = (fs.discount_value && isPct)
+  const bannerPct = (fs.discount_value != null && isPct(fs.discount_type))
     ? parseFloat(fs.discount_value)
     : (eligible[0]?.discount_pct ?? null);
 
   return {
     id:                fs.id,
     name_fr:           fs.name_fr ?? getScopeName(fs),
-    name_ar:           fs.name_ar,
+    name_ar:           fs.name_ar ?? fs.sku?.name_ar ?? fs.category?.name_ar ?? fs.brand?.name_ar ?? fs.pack?.name_ar ?? null,
     image_url:         toPublicUrl(fs.image_url),
     scope_type:        scopeType,
     scope_name:        getScopeName(fs),
@@ -199,154 +168,113 @@ function formatDetail(fs) {
     discount_value:    fs.discount_value != null ? parseFloat(fs.discount_value) : null,
     discount_pct:      bannerPct,
     ends_at:           fs.ends_at,
-    is_active:         computeIsActive(fs), 
+    is_active:         computeIsActive(fs),
+    pack_id:           fs.pack_id ?? null,
     eligible_products: eligible,
     eligible_count:    eligible.length,
   };
 }
 
-const BEST_DEALS_INCLUDE = {
-  sku: {
-    select: {
-      id: true,
-      images: { select: { url: true }, orderBy: { sort_order: 'asc' }, take: 1 },
-      article: { select: ARTICLE_SELECT },
-    },
-  },
-  category: { select: { articles: { where: ARTICLE_WHERE, select: ARTICLE_SELECT } } },
-  brand:    { select: { articles: { where: ARTICLE_WHERE, select: ARTICLE_SELECT } } },
-};
+// ── Meilleures offres : meilleure remise flash par SKU vendable du node ──────
+async function listBestDeals(limit = 10, excludeIds = [], page = 1, ctx = {}) {
+  const nodeId = nodeIdOf(ctx);
+  const flashSales = await getNodeFlashSales(nodeId);
+  if (!flashSales.length) return { data: [], hasMore: false };
 
-async function listBestDeals(limit = 10, excludeIds = [], page = 1) {
-  const now = new Date();
-  const sales = await prisma.flashSale.findMany({
-    where: { is_active: true, is_deleted: false, starts_at: { lte: now }, ends_at: { gte: now } },
-    include: BEST_DEALS_INCLUDE,
+  const skuIds = flashSales.map((f) => f.sku_id).filter(Boolean);
+  const catIds = flashSales.filter((f) => !f.sku_id).map((f) => f.category_id).filter(Boolean);
+  const brandIds = flashSales.filter((f) => !f.sku_id).map((f) => f.brand_id).filter(Boolean);
+  const scopeOr = [
+    skuIds.length   && { id: { in: skuIds } },
+    catIds.length   && { category_id: { in: catIds } },
+    brandIds.length && { brand_id: { in: brandIds } },
+  ].filter(Boolean);
+  if (!scopeOr.length) return { data: [], hasMore: false };
+
+  const excludeSet = new Set(excludeIds.filter(Boolean));
+  const skus = await prisma.sku.findMany({
+    where:  { AND: [sellableWhere(nodeId), { OR: scopeOr }] },
+    select: skuSelect(nodeId),
+    take:   1000,
   });
 
-  const excludeSet = new Set(excludeIds);
-  const best = new Map();
+  const deals = skus
+    .filter((s) => !excludeSet.has(s.id))
+    .map((s) => formatSkuOffer(s, { nodeId, flashSales }))
+    .filter((o) => o.discount_pct != null && o.discount_pct > 0)
+    .sort((x, y) => y.discount_pct - x.discount_pct);
 
-  for (const fs of sales) {
-    const scopeType = getScopeType(fs);
-    let articles = [];
-    if (scopeType === 'sku' && fs.sku?.article) {
-      articles = [{ ...fs.sku.article, _skuImg: fs.sku.images?.[0]?.url ?? null }];
-    } else if (scopeType === 'category' && fs.category) {
-      articles = fs.category.articles;
-    } else if (scopeType === 'brand' && fs.brand) {
-      articles = fs.brand.articles;
-    }
-
-    for (const a of articles) {
-      if (excludeSet.has(a.id)) continue;
-
-      const ttc = priceTtc(a.price, a.vat_rate, a.tax?.rate);
-      const newPrice = (scopeType === 'sku' && fs.flash_price != null)
-        ? parseFloat(fs.flash_price)
-        : applyDiscount(ttc, fs.discount_type, fs.discount_value);
-      const pct = ttc > 0 ? Math.round((1 - newPrice / ttc) * 100) : 0;
-      if (pct <= 0) continue;
-
-      const existing = best.get(a.id);
-      if (!existing || pct > existing.discount_pct) {
-        best.set(a.id, {
-          id: a.id,
-          sku_id: a.catalog_sku?.id ?? a.sku_uuid ?? null,
-          sku_code: a.sku_code ?? null,
-          name_fr: a.name_fr,
-          name_ar: a.name_ar,
-          price: parseFloat(a.price ?? 0),
-          price_ttc: newPrice,
-          old_price_ttc: ttc,
-          discount_pct: pct,
-          vat_rate: parseFloat(a.tax?.rate ?? a.vat_rate ?? 20),
-          image_url: articleImageUrl(a) ?? a._skuImg ?? null,
-          brand: a.brand ?? null,
-          category: a.category ?? null,
-        });
-      }
-    }
-  }
-
-  const sorted = Array.from(best.values()).sort((x, y) => y.discount_pct - x.discount_pct);
-  const skip = (Number(page) - 1) * Number(limit);
-  const pageSlice = sorted.slice(skip, skip + Number(limit));
-  const hasMore = sorted.length > skip + Number(limit);
-
-  return { data: pageSlice, hasMore };
+  const l = Math.max(1, Number(limit) || 10);
+  const skip = (Math.max(1, Number(page) || 1) - 1) * l;
+  return { data: deals.slice(skip, skip + l), hasMore: deals.length > skip + l };
 }
 
-async function listActivePromotions() {
-  const now = new Date();
+async function listActivePromotions(ctx = {}) {
+  const nodeId = nodeIdOf(ctx);
+  if (!nodeId) return [];
   const sales = await prisma.flashSale.findMany({
-    where: { is_active: true, is_deleted: false, starts_at: { lte: now }, ends_at: { gte: now } },
-    include: FLASH_LIST_INCLUDE,
-    orderBy: { ends_at: 'asc' },
-  });
-  return sales.map(formatSummary);
-}
-
-async function getFlashSaleById(id) {
-  const fs = await prisma.flashSale.findUnique({
-    where:   { id, is_deleted: false },
-    include: FLASH_DETAIL_INCLUDE,
-  });
-  if (!fs) throw { statusCode: 404, message: 'Promotion introuvable' };
-
-  const detail = formatDetail(fs);
-  if (!detail.is_active) {
-    detail.eligible_products = [];
-    detail.eligible_count = 0;
-  }
-  return detail;
-}
-
-//Ventes Flash
-async function listEndingSoon(hours = 24) {
-  const now = new Date();
-  const soon = new Date(now.getTime() + hours * 60 * 60 * 1000);
-
-  const sales = await prisma.flashSale.findMany({
-    where: {
-      is_active: true, is_deleted: false,
-      starts_at: { lte: now },
-      ends_at:   { gte: now, lte: soon },
-    },
-    include: FLASH_DETAIL_INCLUDE,
+    where:   activeWhere(nodeId),
+    include: summaryInclude(nodeId),
     orderBy: { ends_at: 'asc' },
   });
 
-  if (sales.length === 0) {
-    return { ends_at: null, products: [] };
+  const visible = [];
+  for (const fs of sales.filter(quotaLeft)) {
+    // une carte flash SKU n'est affichée que si le SKU est vendable sur le node
+    if (fs.sku_id) {
+      const n = await prisma.sku.count({ where: { AND: [sellableWhere(nodeId), { id: fs.sku_id }] } });
+      if (!n) continue;
+    }
+    visible.push(formatSummary(fs));
   }
+  return visible;
+}
+
+async function getFlashSaleById(id, ctx = {}) {
+  if (!isUuid(String(id))) throw { statusCode: 404, message: 'Promotion introuvable' };
+  const base = await prisma.flashSale.findFirst({ where: { id: String(id), is_deleted: false }, select: { node_id: true } });
+  if (!base) throw { statusCode: 404, message: 'Promotion introuvable' };
+  const fs = await prisma.flashSale.findFirst({
+    where:   { id: String(id), is_deleted: false },
+    include: summaryInclude(base.node_id),
+  });
+  return formatDetail(fs);
+}
+
+// ── Ventes flash se terminant bientôt ─────────────────────────────────────────
+async function listEndingSoon(hours = 24, ctx = {}) {
+  const nodeId = nodeIdOf(ctx);
+  if (!nodeId) return { ends_at: null, products: [] };
+  const h = Number(hours) > 0 ? Number(hours) : 24;
+  const soon = new Date(Date.now() + h * 60 * 60 * 1000);
+
+  const sales = (await prisma.flashSale.findMany({
+    where:   activeWhere(nodeId, { pack_id: null, ends_at: { gte: new Date(), lte: soon } }),
+    include: summaryInclude(nodeId),
+    orderBy: { ends_at: 'asc' },
+  })).filter(quotaLeft);
+
+  if (sales.length === 0) return { ends_at: null, products: [] };
 
   const seen = new Set();
   const products = [];
-
   for (const fs of sales) {
-    const detail = formatDetail(fs);
+    const detail = await formatDetail(fs);
     for (const p of detail.eligible_products) {
-      const key = p.sku_id ?? `${fs.id}-${p.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (seen.has(p.sku_id)) continue;
+      seen.add(p.sku_id);
       products.push(p);
     }
   }
-
-  return {
-    ends_at: sales[0].ends_at, 
-    products,
-  };
+  return { ends_at: sales[0].ends_at, products };
 }
 
-//promotions homePage
-async function listHomePromotions({ endingSoonHours = 24, bestDealsLimit = 10 } = {}) {
-  const endingSoon = await listEndingSoon(endingSoonHours);
-  const excludeIds = endingSoon.products.map(p => p.id).filter(id => id > 0);
-  const bestDeals = await listBestDeals(bestDealsLimit, excludeIds, 1);
-  return { endingSoon, bestDeals: bestDeals.data }; 
+// ── Promotions de la page d'accueil ───────────────────────────────────────────
+async function listHomePromotions({ endingSoonHours = 24, bestDealsLimit = 10 } = {}, ctx = {}) {
+  const endingSoon = await listEndingSoon(endingSoonHours, ctx);
+  const excludeIds = endingSoon.products.map((p) => p.id).filter(Boolean);
+  const bestDeals = await listBestDeals(bestDealsLimit, excludeIds, 1, ctx);
+  return { endingSoon, bestDeals: bestDeals.data };
 }
 
 module.exports = { listActivePromotions, getFlashSaleById, listBestDeals, listEndingSoon, listHomePromotions };
-

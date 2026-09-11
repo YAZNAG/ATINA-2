@@ -9,11 +9,10 @@
  *  - points_lifetime n'augmente que sur un crédit ;
  *  - un débit qui rendrait le solde négatif est refusé.
  *
- * Limite du schéma actuel : la table ne possède pas encore les colonnes
- * points_rule_id / referral_id / game_play_id / reason du Schema V3. En attendant
- * la migration, ces références sont encodées à la fin du libellé (label) sous la
- * forme de balises « [rule:<uuid>] », « [ref:<uuid>] », « [play:<uuid>] ».
- * parseLabel() les relit ; le motif lisible est le libellé sans les balises.
+ * Depuis la migration 20260911120000, les références Schema_V3 (txn_type_id,
+ * points_rule_id, referral_id, game_play_id, reason) sont des colonnes. Les balises
+ * « [rule:<uuid>] », « [ref:<uuid>] », « [play:<uuid>] » restent écrites dans le
+ * libellé pour compatibilité ; parseLabel() ne sert plus qu'aux anciennes lignes.
  */
 
 const TAGS = { points_rule_id: 'rule', referral_id: 'ref', game_play_id: 'play' };
@@ -96,14 +95,23 @@ async function recordPointsTxn(tx, {
 
   const after = await tx.customer.findUnique({ where: { id: customer_id }, select: { points_balance: true, points_lifetime: true } });
 
+  // Type du classeur (points_txn_types) résolu par son code.
+  const txnType = await tx.pointsTxnType.findUnique({ where: { code: String(type) }, select: { id: true } });
+
   const txn = await tx.pointsTransaction.create({
     data: {
       customer_id,
       order_id,
       type: String(type).slice(0, 20),
+      txn_type_id: txnType?.id ?? null,
       points,
       // Colonne héritée NOT NULL : renseignée pour compatibilité, jamais affichée (US-086 : pas de solde par ligne).
       balance_after: after.points_balance,
+      // Références Schema_V3 en colonnes ; le libellé garde aussi les balises pour les anciens lecteurs.
+      points_rule_id,
+      referral_id,
+      game_play_id,
+      reason: reason != null ? String(reason) : null,
       label: buildLabel(reason, { points_rule_id, referral_id, game_play_id }),
     },
   });

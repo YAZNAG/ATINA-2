@@ -369,7 +369,7 @@ function flashQuantities(priced) {
  * Incrémente flash_sales.sold_count (atomique, plafond stock_flash) et contrôle
  * la limite par client max_qty_per_user (lignes non annulées des commandes précédentes).
  */
-async function consumeFlashSales(tx, customer_id, flashQty) {
+async function consumeFlashSales(tx, customer_id, flashQty, currentOrderId = null) {
   const L = require('../orders_mgmt/order_lifecycle');
   const applied = [];
   for (const [fsId, { fs, qty, pack }] of Object.entries(flashQty)) {
@@ -379,6 +379,8 @@ async function consumeFlashSales(tx, customer_id, flashQty) {
         where: {
           flash_sale_id: fsId,
           order: { customer_id, is_deleted: false, status: { code: { not: 'cancelled' } } },
+          // La commande en cours (déjà écrite dans la transaction) ne compte pas comme achat antérieur.
+          ...(currentOrderId ? { order_id: { not: currentOrderId } } : {}),
         },
         select: { pack_id: true, sku_id: true, qty: true },
       });
@@ -1147,7 +1149,7 @@ async function createOrder(payload, ctx = {}) {
     }
 
     // Ventes flash (WF #27) : quota consommé (sold_count), limite par client contrôlée
-    const flashApplied = await consumeFlashSales(tx, customer_id, flashQuantities(totals.priced));
+    const flashApplied = await consumeFlashSales(tx, customer_id, flashQuantities(totals.priced), newOrder.id);
 
     if (wallet_used > 0) {
       const walletBefore = Number(customer.wallet_balance ?? 0);

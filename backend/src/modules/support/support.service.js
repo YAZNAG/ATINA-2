@@ -11,6 +11,12 @@ const CONV_INCLUDE = {
   _count:         { select: { messages: true } },
 };
 
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function assertConvId(id) {
+  if (!UUID_RE.test(String(id || ''))) throw { statusCode: 404, message: 'Conversation introuvable' };
+}
+
 function formatConv(c) {
   return {
     id:             c.id,
@@ -49,6 +55,7 @@ async function listConversations(query = {}) {
 // Conversation
 
 async function getConversation(id) {
+  assertConvId(id);
   const conv = await prisma.supportConversation.findUnique({
     where:   { id },
     include: {
@@ -62,6 +69,7 @@ async function getConversation(id) {
 
 // Assigner un agent 
 async function assignAgent(id, agent_id) {
+  assertConvId(id);
   const conv = await prisma.supportConversation.findUnique({ where: { id } });
   if (!conv) throw { statusCode: 404, message: 'Conversation introuvable' };
 
@@ -82,6 +90,7 @@ async function assignAgent(id, agent_id) {
 
 // Changer le statut 
 async function changeStatus(id, status) {
+  assertConvId(id);
   if (!VALID_STATUSES.includes(status))
     throw { statusCode: 400, message: `Statut invalide. Valeurs: ${VALID_STATUSES.join(', ')}` };
 
@@ -96,6 +105,7 @@ async function changeStatus(id, status) {
 
 // Envoyer un message (AGENT ou BOT) 
 async function sendMessage(conversation_id, { sender_type, sender_id, content, attachments = [] }) {
+  assertConvId(conversation_id);
   if (!['AGENT', 'BOT'].includes(sender_type))
     throw { statusCode: 400, message: 'sender_type doit être AGENT ou BOT' };
   if (!content?.trim()) throw { statusCode: 400, message: 'Contenu requis' };

@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CartProvider } from '../context/CartContext';
 import { NotificationProvider } from '../context/NotificationContext';
+import AppUpdater from '../components/AppUpdater';
 import {
   useFonts,
   Poppins_400Regular,
@@ -32,6 +33,7 @@ export default function RootLayout() {
       <NotificationProvider>
         <CartProvider>
           <Stack screenOptions={{ headerShown: false }} />
+          <AppUpdater />
         </CartProvider>
       </NotificationProvider>
     </SafeAreaProvider>

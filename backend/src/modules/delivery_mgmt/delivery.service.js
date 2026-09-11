@@ -1,11 +1,17 @@
 /**
- * Delivery management service.
- * Manages the complete home-delivery lifecycle:
- *   ready → tour planned → in_progress → stops delivered/failed → completed
+ * Delivery management service — tournées & livreurs (WF #4, US-062 à US-065).
+ * Cycle : ready → tournée planifiée → en cours → arrêts livrés / en échec → terminée
+ *
+ *  - l'ordre des arrêts = tour_stops.sort_order (consécutif, sans trou)
+ *  - tours.order_count = nombre d'arrêts de la tournée (tenu à jour à chaque ajout / retrait)
+ *  - un arrêt par commande et par tournée (UNIQUE (tour_id, order_id) contrôlé ici)
  */
 const prisma = require('../../config/database');
 const h      = require('../../utils/statusHelpers');
-const { notifyInDelivery, notifyDelivered, notifyCancelled } = require('../../utils/notify');
+const { audit } = require('../../utils/audit');
+const loyalty = require('../loyalty/loyalty.service');
+const L = require('../orders_mgmt/order_lifecycle');
+const { notifyInDelivery, notifyDelivered } = require('../../utils/notify');
 
 // ── Shared includes ───────────────────────────────────────────────────────────
 const STOP_INCLUDE = {
@@ -22,7 +28,7 @@ const STOP_INCLUDE = {
         orderBy: { created_at: 'desc' },
         include: { payment_method: { select: { code: true, name_fr: true } }, status: { select: { code: true, name_fr: true } } },
       },
-      confirmed_slot: { select: { slot_start: true, slot_end: true, name_fr: true } },
+      confirmed_slot: { select: { id: true, specific_date: true, slot_start: true, slot_end: true, name_fr: true } },
       _count: { select: { items: true } },
     },
   },
@@ -35,31 +41,92 @@ const TOUR_INCLUDE = {
   stops:  { include: STOP_INCLUDE, orderBy: { sort_order: 'asc' } },
 };
 
+const CLOSED_TOUR = ['completed', 'cancelled'];
+const DONE_STOP = ['delivered', 'failed', 'skipped'];
+const lc = (v) => String(v ?? '').toLowerCase();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function getTour(id) {
   const tour = await prisma.tour.findUnique({ where: { id }, include: TOUR_INCLUDE });
   if (!tour) throw { statusCode: 404, message: 'Tournée introuvable' };
-  return tour;
+  const stops = tour.stops || [];
+  return {
+    ...tour,
+    progress: {
+      total: stops.length,
+      delivered: stops.filter((s) => lc(s.status?.code) === 'delivered').length,
+      failed: stops.filter((s) => lc(s.status?.code) === 'failed').length,
+      arrived: stops.filter((s) => lc(s.status?.code) === 'arrived').length,
+      pending: stops.filter((s) => !DONE_STOP.includes(lc(s.status?.code))).length,
+    },
+  };
 }
 
 function checkTourStatus(tour, expected) {
-  if (tour.status.code.toLowerCase() !== expected.toLowerCase())
-    throw { statusCode: 422, message: `Tournée au statut "${tour.status.name_fr}" — attendu : "${expected}"` };
+  const list = Array.isArray(expected) ? expected : [expected];
+  if (!list.includes(lc(tour.status.code))) {
+    throw { statusCode: 422, message: `Tournée au statut « ${tour.status.name_fr} » : action impossible.` };
+  }
+}
+
+function assertNotClosed(tour) {
+  if (CLOSED_TOUR.includes(lc(tour.status.code))) {
+    throw { statusCode: 422, message: `Tournée « ${tour.status.name_fr} » : plus aucune modification possible.` };
+  }
+}
+
+/** Itinéraire (route_json) : arrêts ordonnés avec coordonnées, recalculé après chaque changement. */
+async function refreshRoute(tx, tour_id) {
+  const stops = await tx.tourStop.findMany({
+    where: { tour_id },
+    orderBy: { sort_order: 'asc' },
+    include: { order: { select: { id: true, address: { select: { lat: true, lng: true, street_name: true, city: true } } } } },
+  });
+  const route = stops.map((s) => ({
+    stop_id: s.id,
+    order_id: s.order_id,
+    sort_order: s.sort_order,
+    lat: s.order?.address?.lat != null ? Number(s.order.address.lat) : null,
+    lng: s.order?.address?.lng != null ? Number(s.order.address.lng) : null,
+    label: [s.order?.address?.street_name, s.order?.address?.city].filter(Boolean).join(', ') || null,
+  }));
+  await tx.tour.update({ where: { id: tour_id }, data: { route_json: route, order_count: stops.length } });
+  return route;
+}
+
+async function validateDriver(driver_id, node_id) {
+  const driver = await prisma.driver.findFirst({ where: { id: driver_id, is_active: true, is_deleted: false } });
+  if (!driver) throw { statusCode: 404, message: 'Livreur introuvable ou inactif' };
+  if (node_id && driver.node_id !== node_id) {
+    throw { statusCode: 422, message: `Le livreur ${driver.name} n'est pas rattaché au nœud de la tournée` };
+  }
+  return driver;
+}
+
+/** Commandes éligibles à une tournée : livraison à domicile, prêtes, même nœud, sans tournée. */
+async function eligibleOrders(order_ids, node_id) {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: order_ids }, is_deleted: false, tour_id: null },
+    include: { status: true, delivery_type: true },
+  });
+  return orders.filter((o) =>
+    lc(o.status.code) === 'ready' && lc(o.delivery_type?.code) === 'home' && (!node_id || o.node_id === node_id));
 }
 
 // ── Ready home orders (not in any active tour) ────────────────────────────────
-async function listReadyHomeOrders({ node_id, search } = {}) {
+async function listReadyHomeOrders({ node_id, search, slot_id, date } = {}) {
   const where = {
     is_deleted:    false,
     status:        { code: 'ready' },
     delivery_type: { code: 'home' },
     tour_id:       null,
     ...(node_id ? { node_id } : {}),
+    ...(slot_id ? { confirmed_slot_id: slot_id } : {}),
+    ...(date ? { confirmed_slot: { is: { specific_date: new Date(`${date}T00:00:00.000Z`) } } } : {}),
   };
   if (search?.trim()) {
     const s = search.trim();
     where.OR = [
-      { id:       { contains: s, mode: 'insensitive' } },
       { customer: { name:         { contains: s, mode: 'insensitive' } } },
       { customer: { phone_number: { contains: s, mode: 'insensitive' } } },
     ];
@@ -71,7 +138,7 @@ async function listReadyHomeOrders({ node_id, search } = {}) {
       customer:       { select: { id: true, name: true, phone_country: true, phone_number: true } },
       address:        true,
       node:           { select: { id: true, name_fr: true } },
-      confirmed_slot: { select: { slot_start: true, slot_end: true, name_fr: true } },
+      confirmed_slot: { select: { id: true, specific_date: true, slot_start: true, slot_end: true, name_fr: true } },
       payments: {
         take: 1, orderBy: { created_at: 'desc' },
         include: { payment_method: { select: { code: true, name_fr: true } }, status: { select: { code: true } } },
@@ -83,11 +150,15 @@ async function listReadyHomeOrders({ node_id, search } = {}) {
 }
 
 // ── List tours ────────────────────────────────────────────────────────────────
-async function listTours({ page = 1, limit = 25, status_code, node_id, driver_id } = {}) {
+async function listTours({ page = 1, limit = 25, status_code, node_id, driver_id, date } = {}) {
   const where = {};
-  if (status_code) where.status  = { code: status_code };
-  if (node_id)     where.node_id  = node_id;
-  if (driver_id)   where.driver_id = driver_id;
+  if (status_code) {
+    const codes = String(status_code).split(',').map((c) => c.trim()).filter(Boolean);
+    where.status = { code: codes.length > 1 ? { in: codes } : codes[0] };
+  }
+  if (node_id)   where.node_id   = node_id;
+  if (driver_id) where.driver_id = driver_id;
+  if (date)      where.date      = date;
 
   const [data, total] = await Promise.all([
     prisma.tour.findMany({
@@ -101,37 +172,24 @@ async function listTours({ page = 1, limit = 25, status_code, node_id, driver_id
 }
 
 // ── Create tour (with orders + optional driver) ───────────────────────────────
-async function createTour({ node_id, driver_id, date, slot_start, slot_end, zone, planned_at, notes, order_ids = [] }) {
-  // Validate node
-  if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
+async function createTour({ node_id, driver_id, date, slot_start, slot_end, zone, planned_at, notes, order_ids = [] } = {}, req = null) {
+  if (!node_id) throw { statusCode: 400, message: 'Le nœud est obligatoire' };
   const node = await prisma.node.findFirst({ where: { id: node_id, is_active: true, is_deleted: false } });
-  if (!node) throw { statusCode: 404, message: 'Node introuvable ou inactif' };
+  if (!node) throw { statusCode: 404, message: 'Nœud introuvable ou inactif' };
+  if (driver_id) await validateDriver(driver_id, node_id);
+  if (slot_start && slot_end && slot_start >= slot_end) throw { statusCode: 400, message: "L'heure de fin doit être après l'heure de début" };
 
-  // Validate driver if provided
-  if (driver_id) {
-    const driver = await prisma.driver.findFirst({ where: { id: driver_id, is_active: true, is_deleted: false } });
-    if (!driver) throw { statusCode: 404, message: 'Driver introuvable ou inactif' };
-    if (driver.node_id !== node_id)
-      throw { statusCode: 422, message: `Driver ${driver.name} appartient au node ${driver.node_id}, pas au node ${node_id}` };
+  const ids = [...new Set(order_ids || [])];
+  const validOrders = ids.length ? await eligibleOrders(ids, node_id) : [];
+  if (ids.length && !validOrders.length) {
+    throw { statusCode: 422, message: 'Aucune commande valide (livraison à domicile, prête, même nœud, sans tournée)' };
   }
+  // Conserve l'ordre de sélection
+  validOrders.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
 
-  // Validate orders
-  let validOrders = [];
-  if (order_ids.length > 0) {
-    const orders = await prisma.order.findMany({
-      where: { id: { in: order_ids }, is_deleted: false, tour_id: null },
-      include: { status: true, delivery_type: true },
-    });
-    validOrders = orders.filter(o => o.status.code.toLowerCase() === 'ready' && o.delivery_type?.code.toLowerCase() === 'home' && o.node_id === node_id);
-    const skipped = order_ids.length - validOrders.length;
-    if (skipped > 0 && validOrders.length === 0)
-      throw { statusCode: 422, message: 'Aucune commande valide (home, ready, même node, sans tournée)' };
-  }
-
-  const [plannedStatusId, pendingStopId, confirmedOrderStatusRow] = await Promise.all([
+  const [plannedStatusId, pendingStopId] = await Promise.all([
     h.getTourStatusId('planned'),
     h.getStopStatusId('pending'),
-    h.getOrderStatus('confirmed'),
   ]);
 
   const tour = await prisma.$transaction(async (tx) => {
@@ -140,112 +198,166 @@ async function createTour({ node_id, driver_id, date, slot_start, slot_end, zone
         node_id, driver_id: driver_id || null,
         status_id:  plannedStatusId,
         planned_at: planned_at ? new Date(planned_at) : null,
-        date: date ?? null,
-        slot_start: slot_start ?? null,
-        slot_end:   slot_end ?? null,
-        zone:       zone ?? null,
-        notes:      notes ?? null,
+        date: date || null,
+        slot_start: slot_start || null,
+        slot_end:   slot_end || null,
+        zone:       zone?.trim() || null,
+        notes:      notes?.trim() || null,
       },
     });
-
-    // Add orders as stops
     for (let i = 0; i < validOrders.length; i++) {
-      const order = validOrders[i];
-      await tx.tourStop.create({
-        data: { tour_id: newTour.id, order_id: order.id, status_id: pendingStopId, sort_order: i + 1 },
-      });
-      await tx.order.update({ where: { id: order.id }, data: { tour_id: newTour.id } });
-
-      // order_history
-      const readyRow = await tx.orderStatus.findFirst({ where: { code: 'ready' } });
-      if (readyRow) {
-        await tx.orderHistory.create({
-          data: { order_id: order.id, status_id: readyRow.id, changed_by: null, note: `Commande ajoutée à la tournée ${newTour.id.slice(0, 8)}` },
-        });
-      }
+      await tx.tourStop.create({ data: { tour_id: newTour.id, order_id: validOrders[i].id, status_id: pendingStopId, sort_order: i + 1 } });
+      await tx.order.update({ where: { id: validOrders[i].id }, data: { tour_id: newTour.id } });
     }
-
+    await refreshRoute(tx, newTour.id);
+    await audit(req, {
+      action: 'CREATE', resource: 'tours', resource_id: newTour.id,
+      new_values: { node_id, driver_id: driver_id || null, date, slot_start, slot_end, zone, orders: validOrders.map((o) => o.id) },
+    }, tx);
     return newTour;
   });
 
   return getTour(tour.id);
 }
 
-// ── Assign driver to planned tour ─────────────────────────────────────────────
-async function assignDriver(tour_id, driver_id) {
-  const [tour, driver] = await Promise.all([
-    getTour(tour_id),
-    prisma.driver.findFirst({ where: { id: driver_id, is_active: true, is_deleted: false } }),
-  ]);
-  checkTourStatus(tour, 'planned');
-  if (!driver) throw { statusCode: 404, message: 'Driver introuvable ou inactif' };
-  if (tour.node_id && driver.node_id !== tour.node_id)
-    throw { statusCode: 422, message: `Driver appartient au node ${driver.node_id}, pas au node de la tournée` };
+// ── Update tour info (date, plage, zone, notes) tant que non clôturée ────────
+async function updateTour(tour_id, { date, slot_start, slot_end, zone, notes, planned_at } = {}, req = null) {
+  const tour = await getTour(tour_id);
+  assertNotClosed(tour);
+  const data = {};
+  if (date !== undefined)       data.date = date || null;
+  if (slot_start !== undefined) data.slot_start = slot_start || null;
+  if (slot_end !== undefined)   data.slot_end = slot_end || null;
+  if (zone !== undefined)       data.zone = zone?.trim() || null;
+  if (notes !== undefined)      data.notes = notes?.trim() || null;
+  if (planned_at !== undefined) data.planned_at = planned_at ? new Date(planned_at) : null;
+  const s = data.slot_start ?? tour.slot_start;
+  const e = data.slot_end ?? tour.slot_end;
+  if (s && e && s >= e) throw { statusCode: 400, message: "L'heure de fin doit être après l'heure de début" };
+  await prisma.tour.update({ where: { id: tour_id }, data });
+  await audit(req, {
+    action: 'UPDATE', resource: 'tours', resource_id: tour_id,
+    old_values: { date: tour.date, slot_start: tour.slot_start, slot_end: tour.slot_end, zone: tour.zone, notes: tour.notes },
+    new_values: data,
+  });
+  return getTour(tour_id);
+}
+
+// ── Assign / reassign driver (tant que la tournée n'est pas clôturée) ────────
+async function assignDriver(tour_id, driver_id, req = null) {
+  const tour = await getTour(tour_id);
+  assertNotClosed(tour);
+  const driver = await validateDriver(driver_id, tour.node_id);
+  if (tour.driver_id === driver_id) return tour;
 
   await prisma.tour.update({ where: { id: tour_id }, data: { driver_id } });
+  await audit(req, {
+    action: tour.driver_id ? 'REASSIGN_DRIVER' : 'ASSIGN_DRIVER',
+    resource: 'tours', resource_id: tour_id,
+    old_values: { driver_id: tour.driver_id, driver: tour.driver?.name ?? null },
+    new_values: { driver_id, driver: driver.name },
+  });
   return getTour(tour_id);
 }
 
 // ── Add orders to existing tour ───────────────────────────────────────────────
-async function addOrdersToTour(tour_id, order_ids) {
+async function addOrdersToTour(tour_id, order_ids, req = null) {
+  if (!Array.isArray(order_ids) || !order_ids.length) throw { statusCode: 400, message: 'Sélectionnez au moins une commande' };
   const tour = await getTour(tour_id);
   checkTourStatus(tour, 'planned');
 
-  const [pendingStopId] = await Promise.all([h.getStopStatusId('pending')]);
-  const orders = await prisma.order.findMany({
-    where: { id: { in: order_ids }, is_deleted: false, tour_id: null },
-    include: { status: true, delivery_type: true },
-  });
-  const valid = orders.filter(o => o.status.code.toLowerCase() === 'ready' && o.delivery_type?.code.toLowerCase() === 'home');
-  if (!valid.length) throw { statusCode: 422, message: 'Aucune commande valide à ajouter' };
+  const pendingStopId = await h.getStopStatusId('pending');
+  const already = new Set(tour.stops.map((s) => s.order_id));
+  const valid = (await eligibleOrders([...new Set(order_ids)], tour.node_id)).filter((o) => !already.has(o.id));
+  if (!valid.length) throw { statusCode: 422, message: 'Aucune commande valide à ajouter (prête, à domicile, même nœud, sans tournée)' };
 
   const maxSort = tour.stops.reduce((m, s) => Math.max(m, s.sort_order), 0);
   await prisma.$transaction(async (tx) => {
     for (let i = 0; i < valid.length; i++) {
-      const order = valid[i];
-      await tx.tourStop.create({ data: { tour_id, order_id: order.id, status_id: pendingStopId, sort_order: maxSort + i + 1 } });
-      await tx.order.update({ where: { id: order.id }, data: { tour_id } });
+      await tx.tourStop.create({ data: { tour_id, order_id: valid[i].id, status_id: pendingStopId, sort_order: maxSort + i + 1 } });
+      await tx.order.update({ where: { id: valid[i].id }, data: { tour_id } });
     }
+    const route = await refreshRoute(tx, tour_id);
+    await audit(req, {
+      action: 'ADD_STOP', resource: 'tours', resource_id: tour_id,
+      old_values: { order_count: tour.stops.length },
+      new_values: { added: valid.map((o) => o.id), order_count: route.length },
+    }, tx);
   });
   return getTour(tour_id);
 }
 
 // ── Remove stop from planned tour ─────────────────────────────────────────────
-async function removeStop(stop_id) {
+async function removeStop(stop_id, req = null) {
   const stop = await prisma.tourStop.findUnique({ where: { id: stop_id }, include: { tour: { include: { status: true } } } });
-  if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
+  if (!stop) throw { statusCode: 404, message: 'Arrêt introuvable' };
   checkTourStatus(stop.tour, 'planned');
   await prisma.$transaction(async (tx) => {
-    await tx.tourStop.delete({ where: { id: stop_id } });
-    if (stop.order_id) await tx.order.update({ where: { id: stop.order_id }, data: { tour_id: null } });
+    await L.removeStopTx(tx, stop, req, 'REMOVE_STOP');
+    await refreshRoute(tx, stop.tour_id);
   });
-  return { id: stop_id, deleted: true };
+  return getTour(stop.tour_id);
+}
+
+// ── Réordonner les arrêts (sort_order 1..n) ───────────────────────────────────
+async function reorderStops(tour_id, stop_ids, req = null) {
+  if (!Array.isArray(stop_ids) || !stop_ids.length) throw { statusCode: 400, message: 'Ordre des arrêts requis (stop_ids)' };
+  const tour = await getTour(tour_id);
+  assertNotClosed(tour);
+  const current = tour.stops.map((s) => s.id);
+  if (stop_ids.length !== current.length || !stop_ids.every((id) => current.includes(id)) || new Set(stop_ids).size !== stop_ids.length) {
+    throw { statusCode: 400, message: "La liste doit contenir exactement tous les arrêts de la tournée" };
+  }
+  if (lc(tour.status.code) === 'in_progress') {
+    // En cours : les arrêts déjà traités gardent leur position de tête
+    const done = tour.stops.filter((s) => DONE_STOP.includes(lc(s.status?.code)));
+    const moved = done.some((s) => stop_ids.indexOf(s.id) !== tour.stops.indexOf(s));
+    if (moved) throw { statusCode: 422, message: 'Tournée en cours : seuls les arrêts non traités peuvent être réordonnés' };
+  }
+  await prisma.$transaction(async (tx) => {
+    // Décalage temporaire pour éviter tout conflit, puis numérotation définitive
+    for (let i = 0; i < stop_ids.length; i++) {
+      await tx.tourStop.update({ where: { id: stop_ids[i] }, data: { sort_order: 1000 + i } });
+    }
+    for (let i = 0; i < stop_ids.length; i++) {
+      await tx.tourStop.update({ where: { id: stop_ids[i] }, data: { sort_order: i + 1 } });
+    }
+    await refreshRoute(tx, tour_id);
+    await audit(req, {
+      action: 'REORDER_STOPS', resource: 'tours', resource_id: tour_id,
+      old_values: { order: current }, new_values: { order: stop_ids },
+    }, tx);
+  });
+  return getTour(tour_id);
 }
 
 // ── Start tour ────────────────────────────────────────────────────────────────
-async function startTour(tour_id) {
+async function startTour(tour_id, req = null) {
   const tour = await getTour(tour_id);
   checkTourStatus(tour, 'planned');
-  if (!tour.stops.length) throw { statusCode: 422, message: 'Aucun stop — ajoutez des commandes avant de démarrer' };
+  if (!tour.stops.length) throw { statusCode: 422, message: 'Aucun arrêt : ajoutez des commandes avant de démarrer' };
+  if (!tour.driver_id) throw { statusCode: 422, message: 'Assignez un livreur avant de démarrer la tournée' };
 
   const [tourInProgressId, orderInDeliveryStatus] = await Promise.all([
     h.getTourStatusId('in_progress'),
     h.getOrderStatus('in_delivery'),
   ]);
+  const userId = req?.user?.id ?? null;
 
   await prisma.$transaction(async (tx) => {
-    await tx.tour.update({ where: { id: tour_id }, data: { status_id: tourInProgressId } });
+    await tx.tour.update({ where: { id: tour_id }, data: { status_id: tourInProgressId, planned_at: tour.planned_at ?? new Date() } });
     for (const stop of tour.stops) {
       if (!stop.order_id) continue;
       await tx.order.update({ where: { id: stop.order_id }, data: { status_id: orderInDeliveryStatus.id } });
       await tx.orderHistory.create({
-        data: { order_id: stop.order_id, status_id: orderInDeliveryStatus.id, changed_by: null, note: `Tournée démarrée — commande en livraison${tour.driver?.name ? ' par ' + tour.driver.name : ''}` },
+        data: { order_id: stop.order_id, status_id: orderInDeliveryStatus.id, changed_by: userId, note: `Tournée démarrée — commande en livraison${tour.driver?.name ? ' par ' + tour.driver.name : ''}` },
       });
-      // Notify customer
-      notifyInDelivery(stop.order?.customer_id ?? stop.order?.order?.customer_id, stop.order_id).catch(() => {});
     }
+    await audit(req, { action: 'START_TOUR', resource: 'tours', resource_id: tour_id, old_values: { status: 'planned' }, new_values: { status: 'in_progress' } }, tx);
   });
-
+  for (const stop of tour.stops) {
+    if (stop.order?.customer_id) notifyInDelivery(stop.order.customer_id, stop.order_id).catch(() => {});
+  }
   return getTour(tour_id);
 }
 
@@ -255,22 +367,29 @@ async function arriveStop(stop_id, { driver_notes } = {}) {
     where: { id: stop_id },
     include: { tour: { include: { status: true } }, status: true },
   });
-  if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
-  if (['delivered', 'failed'].includes(stop.status.code.toLowerCase()))
-    throw { statusCode: 422, message: `Stop déjà ${stop.status.name_fr}` };
+  if (!stop) throw { statusCode: 404, message: 'Arrêt introuvable' };
+  if (lc(stop.tour.status.code) !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
+  if (DONE_STOP.includes(lc(stop.status.code))) throw { statusCode: 422, message: `Arrêt déjà ${stop.status.name_fr}` };
 
   const arrivedStatus = await h.getStopStatus('arrived') ?? await h.getStopStatus('in_progress');
-  if (!arrivedStatus) throw { statusCode: 500, message: 'Statut stop "arrived"/"in_progress" introuvable' };
+  if (!arrivedStatus) throw { statusCode: 500, message: 'Statut arrêt « arrived » introuvable' };
   await prisma.tourStop.update({
     where: { id: stop_id },
-    data:  { status_id: arrivedStatus.id, driver_notes: driver_notes ?? stop.driver_notes ?? null },
+    data:  { status_id: arrivedStatus.id, arrived_at: stop.arrived_at ?? new Date(), driver_notes: driver_notes ?? stop.driver_notes ?? null },
   });
   return prisma.tourStop.findUnique({ where: { id: stop_id }, include: STOP_INCLUDE });
 }
 
+async function autoCompleteIfDone(tx, tour_id) {
+  const allStops = await tx.tourStop.findMany({ where: { tour_id }, include: { status: true } });
+  if (allStops.length && allStops.every((s) => DONE_STOP.includes(lc(s.status?.code)))) {
+    const completedId = await h.getTourStatusId('completed');
+    await tx.tour.update({ where: { id: tour_id }, data: { status_id: completedId } });
+  }
+}
+
 // ── Deliver stop ──────────────────────────────────────────────────────────────
-async function deliverStop(stop_id, { cod_collected = false, amount_collected, driver_notes, note } = {}) {
+async function deliverStop(stop_id, { cod_collected = false, amount_collected, driver_notes, note } = {}, req = null) {
   const stop = await prisma.tourStop.findUnique({
     where: { id: stop_id },
     include: {
@@ -279,153 +398,128 @@ async function deliverStop(stop_id, { cod_collected = false, amount_collected, d
       order: {
         include: {
           status:   true,
-          items:    { include: { sku: { select: { id: true } } } },
           payments: { take: 1, orderBy: { created_at: 'desc' }, include: { payment_method: { select: { code: true } }, status: { select: { code: true } } } },
         },
       },
     },
   });
-  if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Démarrez la tournée avant de livrer' };
-  if (stop.status.code.toLowerCase() === 'delivered') throw { statusCode: 409, message: 'Stop déjà livré' };
-  if (!stop.order_id || !stop.order) throw { statusCode: 422, message: 'Stop sans commande' };
+  if (!stop) throw { statusCode: 404, message: 'Arrêt introuvable' };
+  if (lc(stop.tour.status.code) !== 'in_progress') throw { statusCode: 422, message: 'Démarrez la tournée avant de livrer' };
+  if (lc(stop.status.code) === 'delivered') throw { statusCode: 409, message: 'Arrêt déjà livré' };
+  if (!stop.order_id || !stop.order) throw { statusCode: 422, message: 'Arrêt sans commande' };
 
-  const order   = stop.order;
-  if (order.status.code.toLowerCase() !== 'in_delivery')
-    throw { statusCode: 422, message: `Commande au statut "${order.status.code}" — attendu: in_delivery` };
+  const order = stop.order;
+  if (lc(order.status.code) !== 'in_delivery')
+    throw { statusCode: 422, message: `Commande au statut « ${order.status.name_fr} » — attendu : en livraison` };
 
   const payment = order.payments?.[0];
-  const isCOD   = payment?.payment_method?.code.toLowerCase() === 'cod';
-  if (isCOD && !cod_collected)
-    throw { statusCode: 422, message: 'COD non collecté — indiquez cod_collected: true et amount_collected' };
-  if (isCOD && cod_collected) {
+  const isCOD   = lc(payment?.payment_method?.code) === 'cod';
+  const alreadyCollected = lc(payment?.status?.code) === 'collected';
+  if (isCOD && !cod_collected && !alreadyCollected)
+    throw { statusCode: 422, message: 'Paiement à la livraison non encaissé — indiquez cod_collected: true et le montant' };
+  if (isCOD && cod_collected && !alreadyCollected) {
     const total     = Number(order.total_ttc);
     const collected = Number(amount_collected ?? total);
     if (collected < total)
-      throw { statusCode: 422, message: `Montant COD insuffisant (${collected} < ${total} MAD)` };
+      throw { statusCode: 422, message: `Montant encaissé insuffisant (${collected} < ${total} MAD)` };
   }
 
-  const [deliveredStopId, deliveredOrderId, collectedPayId, saleMoveType] = await Promise.all([
+  const [deliveredStopId, deliveredOrderId, collectedPayId] = await Promise.all([
     h.getStopStatusId('delivered'),
     h.getOrderStatusId('delivered'),
     h.getPaymentStatusId('collected'),
-    prisma.moveType.findFirst({ where: { code: 'sale' } }),
   ]);
-
-  const pointsToCredit = Number(order.points_earned ?? 0) > 0
-    ? 0
-    : Math.max(0, Math.floor(Number(order.total_ttc) / 10));
+  const now = new Date();
+  const userId = req?.user?.id ?? null;
 
   await prisma.$transaction(async (tx) => {
-    // Update stop
     await tx.tourStop.update({
       where: { id: stop_id },
       data: {
-        status_id:       deliveredStopId,
-        delivered_at:    new Date(),
-        cod_collected:   isCOD ? cod_collected : false,
+        status_id:        deliveredStopId,
+        delivered_at:     now,
+        arrived_at:       stop.arrived_at ?? now,
+        cod_collected:    isCOD ? !!(cod_collected || alreadyCollected) : false,
         amount_collected: isCOD && cod_collected ? Number(amount_collected ?? order.total_ttc) : null,
-        driver_notes:    driver_notes ?? null,
+        driver_notes:     driver_notes ?? null,
       },
     });
 
-    // Update order
-    await tx.order.update({
-      where: { id: order.id },
-      data: {
-        status_id:       deliveredOrderId,
-        ...(isCOD ? { cod_collected_at: new Date() } : {}),
-        ...(pointsToCredit > 0 ? { points_earned: pointsToCredit } : {}),
-      },
-    });
-
-    // Order history
-    await tx.orderHistory.create({
-      data: {
-        order_id:   order.id,
-        status_id:  deliveredOrderId,
-        changed_by: null,
-        note:       note?.trim() || `Livraison confirmée${stop.tour.driver?.name ? ' par ' + stop.tour.driver.name : ''}`,
-      },
-    });
-
-    // COD: collect payment
-    if (isCOD && cod_collected && payment && payment.status.code.toLowerCase() === 'pending') {
+    // Encaissement COD remis au livreur (WF #30) — avant la sortie de stock pour ne pas créer de flottant
+    if (isCOD && cod_collected && payment && lc(payment.status.code) === 'pending') {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
           status_id: collectedPayId,
+          collected_at: now,
+          collected_by: (stop.tour.driver?.name || 'Livreur').slice(0, 150),
+          notes: driver_notes ?? null,
           metadata: {
-            cod_collected_at:     new Date().toISOString(),
+            cod_collected_at:     now.toISOString(),
             cod_collected_amount: Number(amount_collected ?? order.total_ttc),
             cod_collected_by:     stop.tour.driver_id ?? null,
           },
         },
       });
+      await audit(req, {
+        action: 'COLLECT_PAYMENT', resource: 'payments', resource_id: payment.id,
+        old_values: { status: 'pending', amount: Number(order.total_ttc) },
+        new_values: {
+          status: 'collected', order_id: order.id, collected_by: stop.tour.driver?.name || 'Livreur',
+          collected_at: now, amount_collected: Number(amount_collected ?? order.total_ttc), tour_id: stop.tour_id,
+        },
+      }, tx);
     }
 
-    // Stock: qty_reserved-- + qty_physical-- (qty_available unchanged)
-    for (const item of order.items) {
-      if (!item.sku_id) continue;
-      const qty = Number(item.qty);
-      const upd = await tx.stockLevel.updateMany({
-        where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty }, qty_physical: { gte: qty } },
-        data:  { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
-      });
-      if (upd.count === 1 && saleMoveType) {
-        await tx.stockMove.create({
-          data: { node_id: order.node_id, sku_id: item.sku_id, move_type_id: saleMoveType.id, order_id: order.id, qty_delta: -qty, reason: 'Livraison domicile' },
-        });
-      }
-    }
+    await tx.order.update({
+      where: { id: order.id },
+      data: {
+        status_id: deliveredOrderId,
+        ...(isCOD && cod_collected && !order.cod_collected_at ? { cod_collected_at: now } : {}),
+      },
+    });
+    await tx.orderHistory.create({
+      data: {
+        order_id: order.id, status_id: deliveredOrderId, changed_by: userId,
+        note: note?.trim() || `Livraison confirmée${stop.tour.driver?.name ? ' par ' + stop.tour.driver.name : ''}`,
+      },
+    });
 
-    // Points
-    if (pointsToCredit > 0) {
-      await tx.customer.update({
-        where: { id: order.customer_id },
-        data:  { points_balance: { increment: pointsToCredit }, points_lifetime: { increment: pointsToCredit } },
-      });
-    }
+    // Sortie de stock (WF #31) + points selon les règles actives
+    await L.applyDeliveryStock(tx, order.id, req, 'Livraison domicile — vente');
+    await loyalty.creditPointsOnDelivery(tx, order.customer_id, order, deliveredOrderId);
 
-    // Auto-complete tour if all stops done
-    const allStops = await tx.tourStop.findMany({ where: { tour_id: stop.tour_id } });
-    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes((s.status?.code ?? '').toLowerCase()));
-    if (allDone) {
-      const completedId = await h.getTourStatusId('completed');
-      await tx.tour.update({ where: { id: stop.tour_id }, data: { status_id: completedId } });
-    }
-  });
+    await autoCompleteIfDone(tx, stop.tour_id);
+  }, { timeout: 30000 });
 
-  // Notify customer
-  notifyDelivered(order.customer_id, order.id, pointsToCredit).catch(() => {});
-
+  setImmediate(() => loyalty.validateReferralOnDelivery(order.customer_id, order.id).catch(() => {}));
+  notifyDelivered(order.customer_id, order.id).catch(() => {});
   return prisma.tourStop.findUnique({ where: { id: stop_id }, include: STOP_INCLUDE });
 }
 
 // ── Fail stop ─────────────────────────────────────────────────────────────────
-async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready = true } = {}) {
+async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready = true } = {}, req = null) {
+  // Motif attendu (US-065) ; valeur par défaut pour compatibilité avec l'app livreur
+  const reason = String(failure_reason ?? '').trim() || 'Motif non précisé';
   const stop = await prisma.tourStop.findUnique({
     where: { id: stop_id },
     include: { tour: { include: { status: true } }, status: true, order: { include: { status: true } } },
   });
-  if (!stop) throw { statusCode: 404, message: 'Stop introuvable' };
-  if (stop.tour.status.code.toLowerCase() !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
-  if (stop.status.code.toLowerCase() === 'delivered') throw { statusCode: 422, message: 'Stop déjà livré' };
+  if (!stop) throw { statusCode: 404, message: 'Arrêt introuvable' };
+  if (lc(stop.tour.status.code) !== 'in_progress') throw { statusCode: 422, message: 'Tournée non démarrée' };
+  if (lc(stop.status.code) === 'delivered') throw { statusCode: 422, message: 'Arrêt déjà livré' };
 
   const [failedStopId, readyStatusRow, inDeliveryRow] = await Promise.all([
     h.getStopStatusId('failed'),
     h.getOrderStatus('ready'),
     h.getOrderStatus('in_delivery'),
   ]);
+  const userId = req?.user?.id ?? null;
 
   await prisma.$transaction(async (tx) => {
     await tx.tourStop.update({
       where: { id: stop_id },
-      data: {
-        status_id:      failedStopId,
-        failure_reason: failure_reason ?? null,
-        driver_notes:   driver_notes ?? null,
-      },
+      data: { status_id: failedStopId, failure_reason: reason.slice(0, 100), driver_notes: driver_notes ?? null, arrived_at: stop.arrived_at ?? new Date() },
     });
 
     if (stop.order_id) {
@@ -437,45 +531,66 @@ async function failStop(stop_id, { failure_reason, driver_notes, revert_to_ready
         });
         await tx.orderHistory.create({
           data: {
-            order_id:   stop.order_id,
-            status_id:  targetStatus.id,
-            changed_by: null,
-            note:       `Échec livraison${failure_reason ? ' : ' + failure_reason : ''}${driver_notes ? ' — ' + driver_notes : ''}`,
+            order_id: stop.order_id, status_id: targetStatus.id, changed_by: userId,
+            note: `Échec livraison : ${reason}${driver_notes ? ' — ' + driver_notes : ''}`,
           },
         });
       }
     }
-
-    // Auto-complete tour if all stops done
-    const allStops = await tx.tourStop.findMany({ where: { tour_id: stop.tour_id } });
-    const allDone  = allStops.every(s => s.id === stop_id ? true : ['delivered', 'failed', 'skipped'].includes((s.status?.code ?? '').toLowerCase()));
-    if (allDone) {
-      const completedId = await h.getTourStatusId('completed');
-      await tx.tour.update({ where: { id: stop.tour_id }, data: { status_id: completedId } });
-    }
+    await audit(req, { action: 'FAIL_STOP', resource: 'tour_stops', resource_id: stop_id, old_values: { status: stop.status.code }, new_values: { status: 'failed', failure_reason: reason } }, tx);
+    await autoCompleteIfDone(tx, stop.tour_id);
   });
 
   return prisma.tourStop.findUnique({ where: { id: stop_id }, include: STOP_INCLUDE });
 }
 
-// ── Complete tour manually ────────────────────────────────────────────────────
-async function completeTour(tour_id) {
+// ── Clôturer la tournée ───────────────────────────────────────────────────────
+async function completeTour(tour_id, req = null) {
   const tour = await getTour(tour_id);
   checkTourStatus(tour, 'in_progress');
-  const pending = tour.stops.filter(s => ['pending', 'arrived', 'in_progress'].includes(s.status.code.toLowerCase()));
-  if (pending.length > 0) throw { statusCode: 422, message: `${pending.length} stop(s) non traités` };
+  const pending = tour.stops.filter((s) => !DONE_STOP.includes(lc(s.status.code)));
+  if (pending.length > 0) throw { statusCode: 422, message: `${pending.length} arrêt(s) non traité(s) : livrez-les ou déclarez un échec avant de clôturer` };
   const completedId = await h.getTourStatusId('completed');
   await prisma.tour.update({ where: { id: tour_id }, data: { status_id: completedId } });
+  await audit(req, { action: 'COMPLETE_TOUR', resource: 'tours', resource_id: tour_id, old_values: { status: 'in_progress' }, new_values: { status: 'completed' } });
   return getTour(tour_id);
 }
 
-// ── Driver list (for assign) ──────────────────────────────────────────────────
+// ── Annuler une tournée planifiée (US-064) : arrêts retirés, commandes détachées ──
+async function cancelTour(tour_id, { reason } = {}, req = null) {
+  const tour = await getTour(tour_id);
+  checkTourStatus(tour, 'planned');
+  const cancelledId = await h.getTourStatusId('cancelled');
+  await prisma.$transaction(async (tx) => {
+    const stops = await tx.tourStop.findMany({ where: { tour_id }, orderBy: { sort_order: 'desc' } });
+    for (const s of stops) await L.removeStopTx(tx, s, req, 'CANCEL_TOUR');
+    await tx.tour.update({ where: { id: tour_id }, data: { status_id: cancelledId, order_count: 0, route_json: [], notes: reason ? `${tour.notes ? tour.notes + ' — ' : ''}Annulée : ${reason}` : tour.notes } });
+    await audit(req, { action: 'CANCEL_TOUR', resource: 'tours', resource_id: tour_id, old_values: { status: 'planned', stops: stops.length }, new_values: { status: 'cancelled', reason: reason ?? null } }, tx);
+  });
+  return getTour(tour_id);
+}
+
+// ── Driver list (assignation) : disponibilité = tournées en cours / planifiées ──
 async function listDrivers({ node_id } = {}) {
-  return prisma.driver.findMany({
+  const drivers = await prisma.driver.findMany({
     where: { is_active: true, is_deleted: false, ...(node_id ? { node_id } : {}) },
-    select: { id: true, name: true, phone_country: true, phone_number: true, vehicle_type: true, vehicle_plate: true, node_id: true, node: { select: { name_fr: true } } },
+    select: {
+      id: true, name: true, phone_country: true, phone_number: true, vehicle_type: true, vehicle_plate: true, node_id: true,
+      node: { select: { name_fr: true, code: true } },
+      tours: {
+        where: { status: { code: { in: ['planned', 'in_progress'] } } },
+        select: { id: true, date: true, slot_start: true, slot_end: true, order_count: true, status: { select: { code: true, name_fr: true } } },
+      },
+    },
     orderBy: { name: 'asc' },
   });
+  return drivers.map((d) => ({
+    ...d,
+    active_tours: d.tours,
+    tours_in_progress: d.tours.filter((t) => t.status.code === 'in_progress').length,
+    tours_planned: d.tours.filter((t) => t.status.code === 'planned').length,
+    is_available: !d.tours.some((t) => t.status.code === 'in_progress'),
+  }));
 }
 
 // ── Meta ──────────────────────────────────────────────────────────────────────
@@ -489,8 +604,8 @@ async function getMeta() {
 }
 
 module.exports = {
-  listReadyHomeOrders, listTours, createTour, getTour, assignDriver,
-  addOrdersToTour, removeStop, startTour,
-  arriveStop, deliverStop, failStop, completeTour,
+  listReadyHomeOrders, listTours, createTour, updateTour, getTour, assignDriver,
+  addOrdersToTour, removeStop, reorderStops, startTour,
+  arriveStop, deliverStop, failStop, completeTour, cancelTour,
   listDrivers, getMeta,
 };

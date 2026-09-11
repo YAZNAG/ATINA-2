@@ -111,7 +111,7 @@ export default function PickupOrderDetailPage() {
   const handleCancel = async () => {
     setCancelling(true);
     try {
-      await cancelReadyPickup(id, { reason: cancelReason.trim() || undefined });
+      await cancelReadyPickup(id, { reason: cancelReason.trim() });
       toast.success('Commande annulée — stock libéré');
       setShowCancelModal(false);
       navigate('/pickup/orders');
@@ -175,13 +175,13 @@ export default function PickupOrderDetailPage() {
             <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Annuler la commande ?</h3>
             <p className="text-sm text-gray-500 text-center mb-4">La réservation stock sera libérée automatiquement.</p>
             <input type="text" value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-              placeholder="Raison (optionnel)"
+              placeholder="Motif de l'annulation (obligatoire)"
               className="border rounded-xl px-3 py-2.5 w-full text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-400" />
             <div className="flex gap-3">
               <button onClick={() => setShowCancelModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50">
                 Retour
               </button>
-              <button onClick={handleCancel} disabled={cancelling}
+              <button onClick={handleCancel} disabled={cancelling || !cancelReason.trim()}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl">
                 {cancelling ? '...' : 'Annuler la commande'}
               </button>

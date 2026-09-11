@@ -24,7 +24,7 @@ const getCustomerAddresses = (customer_id) =>
 
 // ── Delivery type ─────────────────────────────────────────────────────────────
 const getDeliveryType        = (id)   => prisma.deliveryType.findUnique({ where: { id } });
-const getDeliveryTypeByCode  = (code) => prisma.deliveryType.findFirst({ where: { code } });
+const getDeliveryTypeByCode  = (code) => prisma.deliveryType.findFirst({ where: { code: { equals: String(code || ''), mode: 'insensitive' } } });
 const getAllDeliveryTypes     = ()     => prisma.deliveryType.findMany({ orderBy: { code: 'asc' } });
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -78,10 +78,13 @@ const countOrdersForNodeDay = (node_id, date) => {
   return prisma.order.count({ where: { node_id, is_deleted: false, created_at: { gte: start, lte: end } } });
 };
 
-const countOrdersForSlotDay = (confirmed_slot_id, date) => {
-  const { start, end } = dayBounds(date);
-  return prisma.order.count({ where: { confirmed_slot_id, is_deleted: false, created_at: { gte: start, lte: end } } });
-};
+// Places occupées d'un créneau daté = commandes non annulées qui l'ont pour
+// créneau confirmé (comptage, jamais un compteur stocké — US-110 bloc 9).
+// Le paramètre date est conservé pour compatibilité d'appel.
+const countOrdersForSlotDay = (confirmed_slot_id /* , date */) =>
+  prisma.order.count({
+    where: { confirmed_slot_id, is_deleted: false, status: { code: { not: 'cancelled' } } },
+  });
 
 // ── Stock & selling rules ─────────────────────────────────────────────────────
 const getStockLevels  = (node_id, sku_ids) =>
@@ -113,26 +116,22 @@ const getAppConfigs = async (node_id = null) => {
     ? { OR: [{ node_id: null }, { node_id }] }
     : { node_id: null };
 
-  const rows = await prisma.appConfig.findMany({ where, orderBy: { node_id: 'asc' } });
+  const rows = await prisma.appConfig.findMany({ where });
 
+  // Global d'abord, puis la config propre au node (qui prime).
   const map = {};
-  for (const row of rows) {
-    map[row.config_key] = row.config_value;
-  }
+  for (const row of rows.filter((r) => r.node_id === null)) map[row.config_key] = row.config_value;
+  for (const row of rows.filter((r) => r.node_id !== null)) map[row.config_key] = row.config_value;
   return map;
 };
 
-// ── SKU prices (lookup from article) ─────────────────────────────────────────
+// ── SKU prices (champs portés directement par skus depuis la fusion article → sku) ──
 const getSkusWithPrices = (sku_ids) =>
   prisma.sku.findMany({
     where: { id: { in: sku_ids } },
-    include: {
-      article: {
-        select: {
-          id: true, name_fr: true, price: true, vat_rate: true, ean13: true,
-          tax: { select: { rate: true } },
-        },
-      },
+    select: {
+      id: true, name_fr: true, price: true, vat_rate: true, ean13: true,
+      tax: { select: { rate: true } },
     },
   });
 

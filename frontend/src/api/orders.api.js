@@ -39,3 +39,5 @@ export const getConfigKeys       = ()         => api.get(`${b}/configs/keys`);
 export const saveOrderConfig     = (data)     => api.post(`${b}/configs`, data);
 export const deleteOrderConfig   = (id)       => api.delete(`${b}/configs/${id}`);
 export const seedOrderConfigs    = ()         => api.post(`${b}/configs/seed`);
+export const bulkCreateDeliverySlots = (data)   => api.post(`${b}/delivery-slots/bulk`, data);
+export const patchDeliverySlot       = (id, data) => api.patch(`${b}/delivery-slots/${id}`, data);

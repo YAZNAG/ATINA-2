@@ -100,7 +100,13 @@ async function validateCoupon(code, customerId, subtotal = 0, opts = {}) {
   }
 
   const userUses = await prisma.couponRedemption.count({
-    where: { promotion_id: promo.id, customer_id: customerId },
+    // Une utilisation liée à une commande annulée ne compte plus (US-110 bloc 8,
+    // aucune suppression physique de coupon_redemptions).
+    where: {
+      promotion_id: promo.id,
+      customer_id: customerId,
+      OR: [{ order_id: null }, { order: { status: { code: { not: 'cancelled' } } } }],
+    },
   });
   if (userUses >= promo.uses_per_user_max) {
     throw { statusCode: 400, message: 'Vous avez déjà utilisé ce code promo' };

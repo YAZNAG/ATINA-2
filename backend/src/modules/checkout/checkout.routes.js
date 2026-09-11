@@ -7,15 +7,22 @@ const router = Router();
 router.use(auth);
 
 const canAccess = perm.permAny(['dashboard.view', 'orders.view', 'orders.create']);
+const canCreate = perm.permAny(['dashboard.view', 'orders.create']);
 
 router.get('/meta',                                canAccess, ctrl.meta.bind(ctrl));
 router.get('/available-dates',                     canAccess, ctrl.availableDates.bind(ctrl));
 router.get('/articles',                            canAccess, ctrl.articles.bind(ctrl));
+router.get('/packs',                               canAccess, ctrl.packs.bind(ctrl));
+router.get('/cities',                              canAccess, ctrl.cities.bind(ctrl));
+router.get('/node-summary/:nodeId',                canAccess, ctrl.nodeSummary.bind(ctrl));
+router.get('/node-slots',                          canAccess, ctrl.nodeSlots.bind(ctrl));
 router.get('/customers',                           canAccess, ctrl.customers.bind(ctrl));
+router.post('/customers',                          canCreate, ctrl.createCustomer.bind(ctrl));
 router.get('/customers/:customerId/addresses',     canAccess, ctrl.customerAddresses.bind(ctrl));
+router.post('/customers/:customerId/addresses',    canCreate, ctrl.createAddress.bind(ctrl));
 router.post('/eligible-nodes',                     canAccess, ctrl.eligibleNodes.bind(ctrl));
 router.get('/delivery-slots',                      canAccess, ctrl.deliverySlots.bind(ctrl));
 router.post('/calculate',                          canAccess, ctrl.calculate.bind(ctrl));
-router.post('/create-order',                       canAccess, ctrl.createOrder.bind(ctrl));
+router.post('/create-order',                       canCreate, ctrl.createOrder.bind(ctrl));
 
 module.exports = router;

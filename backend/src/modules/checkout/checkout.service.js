@@ -1,10 +1,14 @@
 const prisma = require('../../config/database');
 const repo   = require('./checkout.repository');
 const { resolveItemPrice } = require('./pricing.shared');
+const { getNodeOrderSettings } = require('./node_settings');
+const { audit } = require('../../utils/audit');
 
-// ── Groupes de codes équivalents ──────────────────────────────────────────────
-const HOME_LIKE_CODES   = ['HOME_DELIVERY', 'SCHEDULED'];
-const PICKUP_LIKE_CODES = ['PICKUP', 'IN_STORE'];
+// ── Groupes de codes équivalents (référentiel en minuscules : home / pickup) ──
+const HOME_LIKE_CODES   = ['home', 'home_delivery', 'scheduled', 'HOME', 'HOME_DELIVERY', 'SCHEDULED'];
+const PICKUP_LIKE_CODES = ['pickup', 'in_store', 'PICKUP', 'IN_STORE'];
+const isHome   = (code) => ['home', 'home_delivery', 'scheduled'].includes(String(code || '').toLowerCase());
+const isPickup = (code) => ['pickup', 'in_store'].includes(String(code || '').toLowerCase());
 
 // ── City normalizer ───────────────────────────────────────────────────────────
 function normalizeCity(s) {
@@ -89,7 +93,8 @@ async function checkStock(node_id, cart_items, { strict = false } = {}) {
     if (avail >= qty) continue;
 
     const shortage = qty - avail;
-    if (rule?.is_backorderable && (!rule.backorder_limit || Number(rule.backorder_limit) >= shortage)) {
+    const limit = Number(rule?.backorder_limit ?? 0);
+    if (rule?.is_backorderable && (limit === 0 || Number(rule.backordered_quantity ?? 0) + shortage <= limit)) {
       needs_backorder = true;
       continue;
     }
@@ -119,6 +124,19 @@ async function enrichSlots(slots, checkDate) {
     const is_past   = !isSlotStillValid(s, checkDate);
     return { ...s, orders_count: count, available_capacity: available, is_full, is_past };
   }));
+}
+
+async function safeNodeSettings(node_id) {
+  try {
+    const s = await getNodeOrderSettings(node_id);
+    return {
+      delivery_fee: s.delivery_fee,
+      min_order_amount: s.min_order_amount,
+      slot_selection_enabled: s.slot_selection_enabled,
+      free_delivery_threshold: s.free_delivery_threshold,
+      sources: s.sources,
+    };
+  } catch { return null; }
 }
 
 // ── META (filtré par node config) ────────────────────────────────────────────
@@ -167,6 +185,7 @@ async function getMeta(node_id = null) {
       opening_hours_json: nodeData.opening_hours_json ?? {},
       max_daily_orders:   nodeData.max_daily_orders,
     } : null,
+    node_settings: nodeData ? await safeNodeSettings(nodeData.id) : null,
   };
 }
 
@@ -231,60 +250,209 @@ async function getAvailableDates(node_id, delivery_type_code, days_ahead = 14) {
   return results;
 }
 
+// ── Panier : expansion des packs ─────────────────────────────────────────────
+/**
+ * Une ligne { pack_id, qty } (sans sku_id) est développée en lignes composants
+ * { pack_id, sku_id, qty: nb_packs × qty_composant } — même format que le panier
+ * de l'app client. Renvoie { lines, packs: { [pack_id]: { pack, count } } }.
+ */
+async function expandCart(node_id, cart_items, db = prisma) {
+  const lines = [];
+  const packs = {};
+  const packIds = [...new Set(cart_items.filter((i) => i.pack_id).map((i) => i.pack_id))];
+  const packRows = packIds.length
+    ? await db.pack.findMany({ where: { id: { in: packIds } }, include: { pack_items: { orderBy: { sort_order: 'asc' } } } })
+    : [];
+  const packMap = Object.fromEntries(packRows.map((p) => [p.id, p]));
+  const now = new Date();
+
+  for (const [i, item] of cart_items.entries()) {
+    const qty = Number(item.qty || 1);
+    if (!item.pack_id) { lines.push({ ...item, qty }); continue; }
+
+    const pack = packMap[item.pack_id];
+    if (!pack || pack.is_deleted || !pack.is_active) throw { statusCode: 404, message: `Pack introuvable ou inactif (ligne ${i + 1})` };
+    if (pack.node_id && node_id && pack.node_id !== node_id) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'est pas proposé sur ce nœud` };
+    if (pack.valid_from && new Date(pack.valid_from) > now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'est pas encore disponible` };
+    if (pack.valid_to && new Date(pack.valid_to) < now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » est expiré` };
+
+    if (!item.sku_id) {
+      // Format back-office : 1 ligne = n packs → développée en composants
+      if (!Number.isInteger(qty) || qty <= 0) throw { statusCode: 400, message: `Quantité de pack invalide (ligne ${i + 1})` };
+      packs[pack.id] = { pack, count: (packs[pack.id]?.count || 0) + qty };
+      for (const pi of pack.pack_items) {
+        lines.push({ pack_id: pack.id, sku_id: pi.sku_id, qty: qty * Number(pi.qty || 1), _pack: true });
+      }
+    } else {
+      // Format app client : ligne composant déjà développée
+      lines.push({ ...item, qty, _pack: true });
+      if (!packs[pack.id]) {
+        const recipe = pack.pack_items.find((pi) => pi.sku_id === item.sku_id);
+        const per = Number(recipe?.qty || 1);
+        packs[pack.id] = { pack, count: Math.max(1, Math.round(qty / per)) };
+      }
+    }
+  }
+  return { lines, packs };
+}
+
+/** Plafond commercial restant du pack : max_pack_qty − sold_count (null = illimité). */
+function packRemaining(pack) {
+  if (pack.max_pack_qty == null) return null;
+  return Math.max(0, Number(pack.max_pack_qty) - Number(pack.sold_count || 0));
+}
+
+/**
+ * Refuse un pack indisponible (WF #16 / #27 — US-099) : inactif, plafond atteint
+ * ou composants non assemblables (sauf pack vendable en rupture).
+ */
+async function assertPacksSellable(packs) {
+  const { getPackSellableInfo } = require('../pack/pack.shared');
+  for (const { pack, count } of Object.values(packs)) {
+    const info = await getPackSellableInfo(pack.id);
+    if (!info.is_active) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » est désactivé.` };
+    if (info.remaining_cap !== null && count > info.remaining_cap) {
+      throw { statusCode: 409, message: `Plafond du pack « ${pack.name_fr} » : il reste ${info.remaining_cap} pack(s) vendable(s), ${count} demandé(s).` };
+    }
+    if (!info.is_available) {
+      throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » est indisponible (plafond atteint ou composants en rupture).` };
+    }
+    if (!info.is_backorderable && info.vendable_count !== null && count > info.vendable_count) {
+      throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » : ${info.vendable_count} pack(s) assemblable(s) seulement, ${count} demandé(s).` };
+    }
+  }
+}
+
+/** Le panier bénéficie-t-il déjà d'une offre (vente flash ou pack remisé) ? — non-cumul is_combined (US-076). */
+function hasOtherOffer(priced) {
+  return priced.some(({ item, priced: p }) => !!p.flash_sale_id || (!!item.pack_id && !!p.pack_discounted));
+}
+
+/**
+ * Quantités « vente flash » par vente flash : SKU = quantité de la ligne,
+ * pack = nombre de packs commandés (une seule fois par pack).
+ */
+function flashQuantities(priced, packs) {
+  const out = {};
+  const seenPack = new Set();
+  for (const { item, qty, priced: p } of priced) {
+    if (!p.flash_sale_id) continue;
+    const fsId = p.flash_sale_id;
+    if (item.pack_id) {
+      const key = `${fsId}:${item.pack_id}`;
+      if (seenPack.has(key)) continue;
+      seenPack.add(key);
+      out[fsId] = { fs: p.flash_sale, qty: (out[fsId]?.qty || 0) + (packs[item.pack_id]?.count || 1), pack: true };
+    } else {
+      out[fsId] = { fs: p.flash_sale, qty: (out[fsId]?.qty || 0) + Math.max(1, Math.round(Number(qty))), pack: false };
+    }
+  }
+  return out;
+}
+
+/**
+ * Incrémente flash_sales.sold_count (atomique, plafond stock_flash) et contrôle
+ * la limite par client max_qty_per_user (lignes non annulées des commandes précédentes).
+ */
+async function consumeFlashSales(tx, customer_id, flashQty) {
+  const L = require('../orders_mgmt/order_lifecycle');
+  const applied = [];
+  for (const [fsId, { fs, qty, pack }] of Object.entries(flashQty)) {
+    const label = fs?.name_fr || 'Vente flash';
+    if (fs?.max_qty_per_user) {
+      const prior = await tx.orderItem.findMany({
+        where: {
+          flash_sale_id: fsId,
+          order: { customer_id, is_deleted: false, status: { code: { not: 'cancelled' } } },
+        },
+        select: { pack_id: true, sku_id: true, qty: true },
+      });
+      const already = pack
+        ? Object.values(await L.countPacks(prior, tx)).reduce((a, b) => a + b, 0)
+        : prior.reduce((a, l) => a + Number(l.qty), 0);
+      if (already + qty > fs.max_qty_per_user) {
+        throw { statusCode: 409, message: `« ${label} » : limite de ${fs.max_qty_per_user} par client (déjà ${already}, demandé ${qty}).` };
+      }
+    }
+    const rows = await tx.$queryRaw`
+      UPDATE flash_sales SET sold_count = sold_count + ${qty}::int, updated_at = now()
+       WHERE id = ${fsId}::uuid AND (stock_flash IS NULL OR sold_count + ${qty}::int <= stock_flash)
+      RETURNING sold_count, stock_flash`;
+    if (!rows.length) {
+      throw { statusCode: 409, message: `« ${label} » : quota de la vente flash épuisé, recalculez le panier.` };
+    }
+    applied.push({ flash_sale_id: fsId, qty, sold_count: Number(rows[0].sold_count) });
+  }
+  return applied;
+}
+
+// ── Totaux (partagés calculate / createOrder) ────────────────────────────────
+async function priceLines(node_id, lines) {
+  let subtotal_ht = 0;
+  let vat_amount = 0;
+  let paid_subtotal_ttc = 0;
+  const priced = [];
+  for (const item of lines) {
+    const qty = Number(item.qty || 1);
+    const p = await resolveItemPrice(node_id, item);
+    const lineHT = p.unit_price / (1 + p.vat_rate / 100);
+    subtotal_ht += lineHT * qty;
+    vat_amount += (p.unit_price - lineHT) * qty;
+    // WF #21 / US-093 : les articles échangés contre des points sont exclus du minimum.
+    if (!item.is_points_exchange) paid_subtotal_ttc += p.unit_price * qty;
+    priced.push({ item, qty, priced: p });
+  }
+  subtotal_ht = parseFloat(subtotal_ht.toFixed(2));
+  vat_amount = parseFloat(vat_amount.toFixed(2));
+  return {
+    priced,
+    subtotal_ht,
+    vat_amount,
+    subtotal_ttc: parseFloat((subtotal_ht + vat_amount).toFixed(2)),
+    paid_subtotal_ttc: parseFloat(paid_subtotal_ttc.toFixed(2)),
+  };
+}
+
+function computeDeliveryFee(settings, deliveryTypeCode, subtotal_ttc) {
+  if (isPickup(deliveryTypeCode)) return 0;
+  const threshold = Number(settings.free_delivery_threshold || 0);
+  if (threshold > 0 && subtotal_ttc >= threshold) return 0;
+  return Number(settings.delivery_fee || 0);
+}
+
+function minimumCheck(settings, paidSubtotal) {
+  const min = Number(settings.min_order_amount || 0);
+  const gap = min > 0 ? Math.max(0, parseFloat((min - paidSubtotal).toFixed(2))) : 0;
+  return { min_order_amount: min, below_minimum: gap > 0, minimum_gap: gap };
+}
+
 // ── CALCULATE — server-side cart total ───────────────────────────────────────
-async function calculate({ node_id, delivery_type_code, cart_items, payment_method_code, wallet_used = 0, customer_id, promo_code = null }) {
+async function calculate({ node_id, delivery_type_code, cart_items, payment_method_code, wallet_used = 0, customer_id, promo_code = null, soft_minimum = false }) {
   if (!cart_items?.length) throw { statusCode: 400, message: 'Panier vide' };
   if (!node_id)            throw { statusCode: 400, message: 'node_id requis' };
 
-  const configs = await repo.getAppConfigs(node_id);
-  const deliveryFeeConfig        = parseFloat(configs['delivery_fee'] ?? configs['delivery_fee_home'] ?? 0);
-  const freeDeliveryThreshold    = parseFloat(configs['free_delivery_threshold'] ?? 0);
-  const minOrderAmount           = parseFloat(configs['min_order_amount'] ?? 0);
+  const settings = await getNodeOrderSettings(node_id);
+  const { lines, packs } = await expandCart(node_id, cart_items);
+  let pack_error = null;
+  try { await assertPacksSellable(packs); } catch (e) { pack_error = e.message; }
+  const totals = await priceLines(node_id, lines);
+  const { subtotal_ht, vat_amount, subtotal_ttc, paid_subtotal_ttc } = totals;
 
-  let subtotal_ht  = 0;
-  let vat_amount   = 0;
-  const enrichedItems = [];
-
-  for (const item of cart_items) {
-    const qty    = Number(item.qty || 1);
-    const priced = await resolveItemPrice(node_id, item);
-
-    const lineHT = priced.unit_price / (1 + priced.vat_rate / 100);
-    subtotal_ht += lineHT * qty;
-    vat_amount  += (priced.unit_price - lineHT) * qty;
-
-    enrichedItems.push({
-      sku_id:         item.sku_id  || null,
-      pack_id:        item.pack_id || null,
-      name_fr:        priced.name_fr,
-      qty,
-      unit_price_ttc: priced.unit_price,
-      vat_rate:       priced.vat_rate,
-      line_total:     parseFloat((priced.unit_price * qty).toFixed(2)),
-      price_source:   priced.source,
-    });
+  const minimum = minimumCheck(settings, paid_subtotal_ttc);
+  if (minimum.below_minimum && !soft_minimum) {
+    throw { statusCode: 422, message: `Montant minimum de commande : ${minimum.min_order_amount} MAD (sous-total payé : ${paid_subtotal_ttc} MAD, il manque ${minimum.minimum_gap} MAD)` };
   }
 
-  subtotal_ht = parseFloat(subtotal_ht.toFixed(2));
-  vat_amount  = parseFloat(vat_amount.toFixed(2));
-  const subtotal_ttc = parseFloat((subtotal_ht + vat_amount).toFixed(2));
-
-  if (minOrderAmount > 0 && subtotal_ttc < minOrderAmount)
-    throw { statusCode: 422, message: `Montant minimum de commande : ${minOrderAmount} MAD (panier actuel : ${subtotal_ttc} MAD)` };
-
-  let delivery_fee = 0;
-  if (!PICKUP_LIKE_CODES.includes(delivery_type_code)) {
-    delivery_fee = (freeDeliveryThreshold > 0 && subtotal_ttc >= freeDeliveryThreshold)
-      ? 0
-      : deliveryFeeConfig;
-  }
+  const delivery_fee = computeDeliveryFee(settings, delivery_type_code, subtotal_ttc);
 
   let discount_amount = 0;
   let coupon_error    = null;
   if (promo_code) {
     try {
       const { validateCoupon, computeCouponDiscount } = require('../coupons/coupons.shared');
-      const promo = await validateCoupon(promo_code.toUpperCase().trim(), customer_id, subtotal_ttc);
+      const promo = await validateCoupon(promo_code.toUpperCase().trim(), customer_id, subtotal_ttc, {
+        node_id, has_other_offer: hasOtherOffer(totals.priced),
+      });
       const res = computeCouponDiscount(promo, subtotal_ttc, delivery_fee);
       discount_amount = res.free_shipping ? parseFloat(delivery_fee.toFixed(2)) : res.discount;
     } catch (e) {
@@ -305,10 +473,23 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
   const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode) ? total_ttc : 0;
 
   return {
-    items:          enrichedItems,
+    items: totals.priced.map(({ item, qty, priced }) => ({
+      sku_id:         item.sku_id  || null,
+      pack_id:        item.pack_id || null,
+      name_fr:        priced.name_fr,
+      qty,
+      unit_price_ttc: priced.unit_price,
+      vat_rate:       priced.vat_rate,
+      line_total:     parseFloat((priced.unit_price * qty).toFixed(2)),
+      price_source:   priced.source,
+      flash_sale_id:  priced.flash_sale_id || null,
+      flash_sale_name: priced.flash_sale?.name_fr || null,
+    })),
+    pack_error,
     subtotal_ht,
     vat_amount,
     subtotal_ttc,
+    paid_subtotal_ttc,
     delivery_fee:   parseFloat(delivery_fee.toFixed(2)),
     discount_amount,
     coupon_error,
@@ -316,6 +497,8 @@ async function calculate({ node_id, delivery_type_code, cart_items, payment_meth
     total_ttc,
     cod_amount,
     currency:       'MAD',
+    ...minimum,
+    slot_selection_enabled: settings.slot_selection_enabled,
   };
 }
 
@@ -399,7 +582,7 @@ async function getDeliverySlots(params) {
 
   const checkDate = targetDate(date);
 
-  if (HOME_LIKE_CODES.includes(deliveryType.code)) {
+  if (isHome(deliveryType.code)) {
     if (!address_id) throw { statusCode: 400, message: 'address_id requis pour livraison à domicile' };
 
     // Nœud déjà choisi explicitement (ex: création manuelle back-office) —
@@ -447,7 +630,7 @@ async function getDeliverySlots(params) {
     };
   }
 
-  if (PICKUP_LIKE_CODES.includes(deliveryType.code)) {
+  if (isPickup(deliveryType.code)) {
     if (node_id) {
       const node = await repo.getNodeById(node_id);
       if (!node) throw { statusCode: 404, message: 'Node introuvable' };
@@ -473,16 +656,27 @@ async function getDeliverySlots(params) {
 }
 
 // ── CREATE ORDER ──────────────────────────────────────────────────────────────
-async function createOrder(payload) {
+/**
+ * @param {object} payload
+ * @param {{ source?: 'backoffice'|'customer', req?: object }} ctx
+ *   source = 'backoffice' (création manuelle, WF #27 / US-106 / US-108) : contrôles
+ *   stricts de vendabilité et de rupture, COD imposé, créneau affecté par le
+ *   back-office (capacité non bloquante). Par défaut 'customer' (app mobile).
+ */
+async function createOrder(payload, ctx = {}) {
+  const source = ctx.source === 'backoffice' ? 'backoffice' : 'customer';
+  const strict = source === 'backoffice';
+  const req = ctx.req || null;
   const {
     customer_id, address_id,
     delivery_type_id, delivery_type_code,
     node_id, selected_slot_id,
+    slot_preference_ids = [],
     payment_method_id, payment_method_code,
     cart_items, notes, date,
     wallet_used: walletRequested = 0,
     promo_code = null,
-    initial_status_code = 'PENDING',
+    initial_status_code = 'pending',
   } = payload;
 
   if (!customer_id)        throw { statusCode: 400, message: 'customer_id requis' };
@@ -494,129 +688,130 @@ async function createOrder(payload) {
   }
 
   const customer = await repo.getCustomer(customer_id);
-  if (!customer)          throw { statusCode: 404, message: 'Client introuvable' };
+  if (!customer)           throw { statusCode: 404, message: 'Client introuvable' };
   if (!customer.is_active) throw { statusCode: 403, message: 'Compte client bloqué' };
 
   const deliveryType = delivery_type_id
     ? await repo.getDeliveryType(delivery_type_id)
-    : await repo.getDeliveryTypeByCode(delivery_type_code);
+    : await repo.getDeliveryTypeByCode(delivery_type_code || 'home');
   if (!deliveryType) throw { statusCode: 404, message: 'Type de livraison introuvable' };
 
   const checkDate = targetDate(date);
+  let finalNodeId = node_id || null;
 
-  let finalNodeId    = node_id || null;
-  let needsBackorder = false;
-
-  if (HOME_LIKE_CODES.includes(deliveryType.code)) {
-    if (!address_id) throw { statusCode: 400, message: 'address_id requis pour livraison à domicile' };
-    if (finalNodeId) {
-      const s = await checkStock(finalNodeId, cart_items, { strict: false });
-      needsBackorder = s.needs_backorder || !s.ok;
-    } else {
+  if (isHome(deliveryType.code)) {
+    if (!address_id) throw { statusCode: 400, message: 'Adresse de livraison requise pour une livraison à domicile' };
+    if (!finalNodeId) {
       const result = await findEligibleNodes(address_id, cart_items, checkDate);
       if (!result.best_node) {
         const details = result.ineligible.map(n => `${n.name_fr}: ${n.reasons.map(r => r.code).join(', ')}`).join(' | ');
         throw { statusCode: 422, message: 'Aucun node éligible pour cette adresse et ce panier', debug: details };
       }
-      finalNodeId    = result.best_node.id;
-      needsBackorder = result.best_node.needs_backorder;
+      finalNodeId = result.best_node.id;
     }
-  } else {
-    if (!finalNodeId) throw { statusCode: 400, message: 'node_id requis pour retrait magasin' };
-    const s = await checkStock(finalNodeId, cart_items, { strict: false });
-    needsBackorder = s.needs_backorder;
+  } else if (!finalNodeId) {
+    throw { statusCode: 400, message: 'node_id requis pour retrait magasin' };
   }
 
-  const targetCode = initial_status_code;
-  const [orderStatusRow, activeItem, pendingPayment, reservationMoveType, debitTxnType] = await Promise.all([
-    repo.getOrderStatusByCode(targetCode).then(s => s || repo.getOrderStatusByCode('PENDING')),
-    repo.getOrderItemStatusByCode('PENDING'),
-    repo.getPaymentStatusByCode('PENDING'),
-    prisma.moveType.findFirst({ where: { code: { in: ['reservation', 'RESERVATION', 'reserve'] } } }),
+  const node = await repo.getNodeById(finalNodeId);
+  if (!node) throw { statusCode: 404, message: 'Nœud introuvable ou inactif' };
+  if (address_id) {
+    const addr = await repo.getAddress(address_id);
+    if (!addr || addr.customer_id !== customer_id) throw { statusCode: 422, message: "L'adresse ne correspond pas à ce client" };
+  }
+
+  const settings = await getNodeOrderSettings(finalNodeId);
+
+  // ── Articles : développement des packs + plafond commercial ────────────────
+  const { lines, packs } = await expandCart(finalNodeId, cart_items);
+  for (const { pack, count } of Object.values(packs)) {
+    const rem = packRemaining(pack);
+    if (rem !== null && count > rem) {
+      throw { statusCode: 409, message: `Plafond du pack « ${pack.name_fr} » : il reste ${rem} pack(s) vendable(s), ${count} demandé(s).` };
+    }
+  }
+  await assertPacksSellable(packs);
+
+  const totals = await priceLines(finalNodeId, lines);
+  const { subtotal_ht, vat_amount, subtotal_ttc, paid_subtotal_ttc } = totals;
+
+  // WF #21 / US-093 : minimum sur le sous-total PAYÉ (échanges de points exclus)
+  const minimum = minimumCheck(settings, paid_subtotal_ttc);
+  if (minimum.below_minimum) {
+    throw { statusCode: 422, message: `Montant minimum de commande non atteint : ${minimum.min_order_amount} MAD requis, sous-total payé ${paid_subtotal_ttc} MAD (il manque ${minimum.minimum_gap} MAD).` };
+  }
+
+  // ── Statuts & paiement ─────────────────────────────────────────────────────
+  const [orderStatus, activeItem, pendingPayment, debitTxnType] = await Promise.all([
+    repo.getOrderStatusByCode(initial_status_code).then(s => s || repo.getOrderStatusByCode('pending')),
+    repo.getOrderItemStatusByCode('active').then(s => s || repo.getOrderItemStatusByCode('pending')),
+    repo.getPaymentStatusByCode('pending'),
     prisma.walletTxnType.findFirst({ where: { code: 'debit_order' } }),
   ]);
-  const orderStatus = orderStatusRow;
-  if (!orderStatus) throw { statusCode: 500, message: 'Statut commande introuvable — lancez le seed' };
-  if (!activeItem)  throw { statusCode: 500, message: 'Statut ligne "PENDING" introuvable — lancez le seed' };
+  if (!orderStatus)    throw { statusCode: 500, message: 'Statut commande introuvable — lancez le seed' };
+  if (!activeItem)     throw { statusCode: 500, message: 'Statut de ligne « active » introuvable — lancez le seed' };
+  if (!pendingPayment) throw { statusCode: 500, message: 'Statut de paiement « pending » introuvable — lancez le seed' };
 
-  const paymentMethod = payment_method_id
-    ? await repo.getPaymentMethod(payment_method_id)
-    : payment_method_code
-      ? await repo.getPaymentMethodByCode(payment_method_code)
-      : null;
-
+  // Création back-office : paiement à la livraison uniquement.
+  const paymentMethod = strict
+    ? await repo.getPaymentMethodByCode('cod')
+    : payment_method_id
+      ? await repo.getPaymentMethod(payment_method_id)
+      : payment_method_code
+        ? await repo.getPaymentMethodByCode(payment_method_code)
+        : null;
   if (!paymentMethod) {
-    throw { statusCode: 400, message: 'Mode de paiement invalide ou manquant' };
+    throw { statusCode: 400, message: strict ? 'Mode de paiement « Paiement à la livraison » (cod) introuvable ou inactif' : 'Mode de paiement invalide ou manquant' };
   }
 
-  const paymentMethodId = paymentMethod.id;
-
-  if (!pendingPayment) {
-    throw { statusCode: 500, message: 'Statut de paiement "PENDING" introuvable — lancez le seed' };
+  // ── Créneau (WF #3 / #20) ──────────────────────────────────────────────────
+  let slot = null;
+  let slotWarning = null;
+  if (selected_slot_id) {
+    slot = await prisma.deliverySlot.findUnique({ where: { id: selected_slot_id } });
+    if (!slot || slot.node_id !== finalNodeId) throw { statusCode: 422, message: "Le créneau choisi n'appartient pas à ce nœud" };
+    if (!slot.is_active) throw { statusCode: 422, message: 'Le créneau choisi est désactivé' };
+    if (!strict && !settings.slot_selection_enabled) {
+      slot = null; // sélection désactivée : le client ne choisit pas, l'équipe affectera plus tard
+    } else {
+      const used = await repo.countOrdersForSlotDay(slot.id);
+      if (slot.max_orders != null && used >= slot.max_orders) {
+        if (strict) slotWarning = `Créneau complet (${used}/${slot.max_orders}) — affecté malgré tout`;
+        else throw { statusCode: 409, message: 'Ce créneau est complet, choisissez-en un autre' };
+      }
+    }
   }
+  const sourceRow = slot
+    ? await prisma.slotAssignmentSource.findFirst({ where: { code: { equals: strict ? 'backoffice' : 'customer', mode: 'insensitive' } } })
+    : null;
+  const slotDate = slot ? slot.specific_date.toISOString().slice(0, 10) : null;
+  const L = require('../orders_mgmt/order_lifecycle');
 
-  const configs        = await repo.getAppConfigs(finalNodeId);
-  const deliveryFeeConf     = parseFloat(configs['delivery_fee'] ?? configs['delivery_fee_home'] ?? 0);
-  const freeDeliveryThreshold = parseFloat(configs['free_delivery_threshold'] ?? 0);
-
-  let subtotal_ht = 0;
-  let vat_amount  = 0;
-  const itemsData = [];
-
-  for (const item of cart_items) {
-    const qty    = Number(item.qty || 1);
-    const priced = await resolveItemPrice(finalNodeId, item);
-
-    const lineHT = priced.unit_price / (1 + priced.vat_rate / 100);
-    subtotal_ht += lineHT * qty;
-    vat_amount  += (priced.unit_price - lineHT) * qty;
-
-    itemsData.push({
-      sku_id:          item.sku_id  || null,
-      pack_id:         item.pack_id || null,
-      status_id:       activeItem.id,
-      qty,
-      unit_price_sold: priced.unit_price,
-      discount_amount: 0,
-      vat_rate:        priced.vat_rate,
-      node_id:         finalNodeId,
-    });
-  }
-
-  subtotal_ht = parseFloat(subtotal_ht.toFixed(2));
-  vat_amount  = parseFloat(vat_amount.toFixed(2));
-  const subtotal_ttc = parseFloat((subtotal_ht + vat_amount).toFixed(2));
-
+  // ── Promo, frais, wallet ───────────────────────────────────────────────────
   let discount_amount = 0;
   let appliedPromo    = null;
   let couponFreeShipping = false;
-  if (promo_code) {
+  if (promo_code && String(promo_code).trim()) {
     const { validateCoupon, computeCouponDiscount } = require('../coupons/coupons.shared');
-    appliedPromo = await validateCoupon(promo_code.toUpperCase().trim(), customer_id, subtotal_ttc);
+    appliedPromo = await validateCoupon(String(promo_code).toUpperCase().trim(), customer_id, subtotal_ttc, {
+      node_id: finalNodeId,
+      has_other_offer: hasOtherOffer(totals.priced),
+    });
     const res = computeCouponDiscount(appliedPromo, subtotal_ttc, 0);
     discount_amount    = res.discount;
     couponFreeShipping = res.free_shipping;
   }
 
-  let delivery_fee = 0;
-  if (!PICKUP_LIKE_CODES.includes(deliveryType.code)) {
-    delivery_fee = (freeDeliveryThreshold > 0 && subtotal_ttc >= freeDeliveryThreshold)
-      ? 0 : deliveryFeeConf;
-  }
-
-  if (couponFreeShipping) {
-    discount_amount = parseFloat(delivery_fee.toFixed(2));
-  }
+  const delivery_fee = computeDeliveryFee(settings, deliveryType.code, subtotal_ttc);
+  if (couponFreeShipping) discount_amount = parseFloat(delivery_fee.toFixed(2));
   discount_amount = parseFloat(Math.min(discount_amount, subtotal_ttc).toFixed(2));
 
-  const maxWallet = Math.min(Number(customer.wallet_balance ?? 0), Number(walletRequested));
+  const maxWallet = strict ? 0 : Math.min(Number(customer.wallet_balance ?? 0), Number(walletRequested));
   const wallet_used = parseFloat(Math.max(0, maxWallet).toFixed(2));
 
   const total_ttc  = parseFloat(Math.max(0, subtotal_ttc + delivery_fee - discount_amount - wallet_used).toFixed(2));
-  const normalizedPaymentCode = String(paymentMethod.code || '').trim().toLowerCase();
-  const cod_amount = ['cod', 'cash'].includes(normalizedPaymentCode)
-    ? total_ttc
-    : 0;
+  const cod_amount = ['cod', 'cash'].includes(String(paymentMethod.code || '').trim().toLowerCase()) ? total_ttc : 0;
+  const skuNames = Object.fromEntries(totals.priced.map(({ item, priced }) => [item.sku_id, priced.name_fr]));
 
   const order = await prisma.$transaction(async (tx) => {
     const newOrder = await tx.order.create({
@@ -626,7 +821,11 @@ async function createOrder(payload) {
         address_id:        address_id || null,
         status_id:         orderStatus.id,
         delivery_type_id:  deliveryType.id,
-        confirmed_slot_id: selected_slot_id || null,
+        confirmed_slot_id: slot?.id || null,
+        slot_start:        slot ? L.zonedDateTime(slotDate, slot.slot_start, settings.timezone) : null,
+        slot_end:          slot ? L.zonedDateTime(slotDate, slot.slot_end, settings.timezone) : null,
+        assignment_source_id: sourceRow?.id || null,
+        slot_assigned_by:  slot && strict ? (req?.user?.id ?? null) : null,
         promotion_id:      appliedPromo?.id || null,
         subtotal_ht,
         vat_amount,
@@ -636,117 +835,98 @@ async function createOrder(payload) {
         total_ttc,
         cod_amount,
         notes:             notes || null,
-        items:             { create: itemsData },
-      },
-      include: {
-        items:        true,
-        status:       true,
-        delivery_type: true,
-        node:         { select: { id: true, name_fr: true, code: true } },
-        customer:     { select: { id: true, name: true, phone_number: true } },
-        payments: {
-          include: { payment_method: true, status: true },
-        },
       },
     });
 
-    const cartSkuIds   = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
-    const sellingRules = cartSkuIds.length
-      ? await tx.sellingRule.findMany({ where: { node_id: finalNodeId, sku_id: { in: cartSkuIds } } })
-      : [];
-    const txRuleMap = Object.fromEntries(sellingRules.map(r => [r.sku_id, r]));
-
-    for (const item of cart_items) {
-      if (!item.sku_id) continue;
-      const qty  = Number(item.qty || 1);
-      const rule = txRuleMap[item.sku_id];
-
-      const upd = await tx.stockLevel.updateMany({
-        where: { node_id: finalNodeId, sku_id: item.sku_id, qty_available: { gte: qty } },
-        data:  { qty_reserved: { increment: qty }, qty_available: { decrement: qty } },
+    // Lignes + réservation (US-108) — aucune écriture stock_moves à ce stade.
+    const reservations = [];
+    for (const { item, qty, priced } of totals.priced) {
+      const line = await tx.orderItem.create({
+        data: {
+          order_id:        newOrder.id,
+          sku_id:          item.sku_id  || null,
+          pack_id:         item.pack_id || null,
+          status_id:       activeItem.id,
+          qty,
+          unit_price_sold: priced.unit_price,
+          discount_amount: 0,
+          vat_rate:        priced.vat_rate,
+          node_id:         finalNodeId,
+          is_points_exchange: !!item.is_points_exchange,
+          points_spent:    Number(item.points_spent || 0),
+          flash_sale_id:   priced.flash_sale_id || null,
+        },
       });
+      if (!item.sku_id) continue;
 
-      if (upd.count === 1) {
-        if (reservationMoveType) {
-          await tx.stockMove.create({
-            data: {
-              node_id:      finalNodeId,
-              sku_id:       item.sku_id,
-              move_type_id: reservationMoveType.id,
-              order_id:     newOrder.id,
-              qty_delta:    0,
-              reason:       `Réservation commande ${newOrder.id.slice(0, 8)}`,
-            },
-          });
-        }
-      } else {
-        const stock = await tx.stockLevel.findUnique({
-          where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } },
-        });
-        const avail = stock ? Number(stock.qty_available) : 0;
-        const shortage = qty - avail;
+      await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${finalNodeId}::uuid AND sku_id = ${item.sku_id}::uuid FOR UPDATE`;
+      const [level, rule] = await Promise.all([
+        tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } } }),
+        tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: finalNodeId, sku_id: item.sku_id } } }),
+      ]);
+      const name = skuNames[item.sku_id] || 'Produit';
+      if (strict && rule && !rule.is_sellable) {
+        throw { statusCode: 422, message: `« ${name} » n'est pas vendable sur ce nœud.` };
+      }
 
-        if (rule?.is_backorderable && (!rule.backorder_limit || Number(rule.backorder_limit) >= shortage)) {
-          const toReserve   = Math.max(0, avail);
-          const toBackorder = qty - toReserve;
+      const avail = level ? Math.max(0, Number(level.qty_available)) : 0;
+      const toReserve = Math.min(qty, avail);
+      const shortage = parseFloat((qty - toReserve).toFixed(3));
 
-          await tx.stockLevel.updateMany({
-            where: { node_id: finalNodeId, sku_id: item.sku_id },
-            data: {
-              qty_reserved:    { increment: toReserve },
-              qty_available:   { decrement: toReserve },
-              qty_backordered: { increment: toBackorder },
-            },
-          });
-
-          await tx.orderItem.updateMany({
-            where: { order_id: newOrder.id, sku_id: item.sku_id },
-            data:  { qty_backordered: toBackorder },
-          });
-
-          if (reservationMoveType) {
-            await tx.stockMove.create({
-              data: {
-                node_id:      finalNodeId,
-                sku_id:       item.sku_id,
-                move_type_id: reservationMoveType.id,
-                order_id:     newOrder.id,
-                qty_delta:    0,
-                reason:       `Réservation partielle + backorder ${toBackorder} — commande ${newOrder.id.slice(0, 8)}`,
-              },
-            });
-          }
-        } else {
-          const toBackorder = qty;
-          await tx.stockLevel.updateMany({
-            where: { node_id: finalNodeId, sku_id: item.sku_id },
-            data:  { qty_backordered: { increment: toBackorder } },
-          });
-          await tx.orderItem.updateMany({
-            where: { order_id: newOrder.id, sku_id: item.sku_id },
-            data:  { qty_backordered: toBackorder },
-          });
-          if (reservationMoveType) {
-            await tx.stockMove.create({
-              data: {
-                node_id: finalNodeId, sku_id: item.sku_id,
-                move_type_id: reservationMoveType.id, order_id: newOrder.id,
-                qty_delta: 0,
-                reason: `Backorder forcé (stock épuisé: ${avail}/${qty}) — substitution à venir — commande ${newOrder.id.slice(0, 8)}`,
-              },
-            });
-          }
+      if (shortage > 0) {
+        const pack = item.pack_id ? packs[item.pack_id]?.pack : null;
+        const limit = Number(rule?.backorder_limit ?? 0);
+        const already = Number(rule?.backordered_quantity ?? 0);
+        const allowed = pack
+          ? !!pack.is_backorderable || (!!rule?.is_backorderable && (limit === 0 || already + shortage <= limit))
+          : !!rule?.is_backorderable && (limit === 0 || already + shortage <= limit);
+        if (!allowed && strict) {
+          const why = pack && !pack.is_backorderable
+            ? `le pack « ${pack.name_fr} » n'est pas vendable en rupture`
+            : !rule?.is_backorderable
+              ? 'la vente en rupture n\'est pas autorisée'
+              : `plafond de rupture atteint (${already}/${limit})`;
+          throw { statusCode: 422, message: `Stock insuffisant pour « ${name} » (disponible ${avail}, demandé ${qty}) : ${why}.` };
         }
       }
+
+      if (level) {
+        await tx.stockLevel.update({
+          where: { id: level.id },
+          data: {
+            qty_reserved:    { increment: toReserve },
+            qty_available:   { decrement: toReserve },
+            qty_backordered: { increment: shortage },
+          },
+        });
+      } else if (shortage > 0) {
+        await tx.stockLevel.create({
+          data: { node_id: finalNodeId, sku_id: item.sku_id, qty_backordered: shortage },
+        });
+      }
+      if (shortage > 0) {
+        if (rule) {
+          await tx.sellingRule.update({ where: { id: rule.id }, data: { backordered_quantity: { increment: shortage } } });
+        }
+        await tx.orderItem.update({ where: { id: line.id }, data: { qty_backordered: shortage } });
+      }
+      reservations.push({ sku_id: item.sku_id, reserved: toReserve, backordered: shortage });
     }
+
+    // Plafond commercial des packs (WF #27 étape 4d) : sold_count += nb de packs
+    const { adjustPackSoldCount } = require('../pack/pack.shared');
+    const packSold = {};
+    for (const [packId, { count }] of Object.entries(packs)) {
+      if (count > 0) packSold[packId] = (await adjustPackSoldCount(packId, count, tx)).sold_count;
+    }
+
+    // Ventes flash (WF #27) : quota consommé (sold_count), limite par client contrôlée
+    const flashApplied = await consumeFlashSales(tx, customer_id, flashQuantities(totals.priced, packs));
 
     if (wallet_used > 0) {
       const walletBefore = Number(customer.wallet_balance ?? 0);
       const walletAfter  = Math.max(0, walletBefore - wallet_used);
-      await tx.customer.update({
-        where: { id: customer_id },
-        data:  { wallet_balance: walletAfter },
-      });
+      await tx.customer.update({ where: { id: customer_id }, data: { wallet_balance: walletAfter } });
       if (debitTxnType) {
         await tx.walletTransaction.create({
           data: {
@@ -762,11 +942,12 @@ async function createOrder(payload) {
       }
     }
 
+    // Paiement à encaisser préparé (aucun encaissement à la création)
     await tx.payment.create({
       data: {
         order_id:          newOrder.id,
         status_id:         pendingPayment.id,
-        payment_method_id: paymentMethodId,
+        payment_method_id: paymentMethod.id,
         amount:            total_ttc,
         currency:          'MAD',
       },
@@ -774,52 +955,326 @@ async function createOrder(payload) {
 
     if (appliedPromo) {
       await tx.couponRedemption.create({
-        data: {
-          promotion_id:     appliedPromo.id,
-          customer_id,
-          order_id:         newOrder.id,
-          discount_applied: discount_amount,
-        },
+        data: { promotion_id: appliedPromo.id, customer_id, order_id: newOrder.id, discount_applied: discount_amount },
       });
-      await tx.promotion.update({
-        where: { id: appliedPromo.id },
-        data:  { uses_count: { increment: 1 } },
-      });
+      await tx.promotion.update({ where: { id: appliedPromo.id }, data: { uses_count: { increment: 1 } } });
+      await audit(req, {
+        action: 'REDEEM_COUPON', resource: 'promotions', resource_id: appliedPromo.id,
+        old_values: { uses_count: appliedPromo.uses_count },
+        new_values: { uses_count: appliedPromo.uses_count + 1, order_id: newOrder.id, discount_applied: discount_amount },
+      }, tx);
     }
 
-    const histNote = initial_status_code === 'CONFIRMED'
-      ? 'Commande créée et confirmée automatiquement'
-      : 'Commande créée depuis le back-office';
+    // Préférences de créneau (app client) : une ligne par créneau choisi
+    if (!strict && settings.slot_selection_enabled) {
+      const prefIds = [...new Set([...(Array.isArray(slot_preference_ids) ? slot_preference_ids : []), ...(slot ? [slot.id] : [])])];
+      if (prefIds.length) {
+        const [preferred, confirmed, rejected] = await Promise.all(
+          ['preferred', 'confirmed', 'rejected'].map((c) => tx.orderSlotStatus.findFirst({ where: { code: c } })),
+        );
+        const validSlots = await tx.deliverySlot.findMany({ where: { id: { in: prefIds }, node_id: finalNodeId, is_active: true }, select: { id: true } });
+        const validSet = new Set(validSlots.map((s) => s.id));
+        let rank = 1;
+        for (const sid of prefIds) {
+          if (!validSet.has(sid)) continue;
+          const status = slot ? (sid === slot.id ? confirmed : rejected) : preferred;
+          await tx.orderSlotPreference.create({
+            data: { order_id: newOrder.id, slot_id: sid, preference_order: rank++, status_id: status?.id ?? null },
+          });
+        }
+      }
+    }
+
+    const histNote = strict
+      ? 'Commande créée depuis le back-office'
+      : String(orderStatus.code).toLowerCase() === 'confirmed'
+        ? 'Commande créée et confirmée automatiquement'
+        : 'Commande créée';
     await tx.orderHistory.create({
-      data: { order_id: newOrder.id, status_id: orderStatus.id, note: histNote },
+      data: { order_id: newOrder.id, status_id: orderStatus.id, changed_by: strict ? (req?.user?.id ?? null) : null, note: histNote },
     });
 
-    return newOrder;
-  });
+    await audit(req, {
+      action: 'CREATE',
+      resource: 'orders',
+      resource_id: newOrder.id,
+      new_values: {
+        source,
+        customer_id,
+        node_id: finalNodeId,
+        total_ttc,
+        delivery_fee,
+        lines: totals.priced.length,
+        packs: Object.fromEntries(Object.entries(packs).map(([k, v]) => [k, v.count])),
+        packs_sold_count: packSold,
+        flash_sales: flashApplied,
+        promotion: appliedPromo ? { id: appliedPromo.id, code: appliedPromo.code, discount_amount } : null,
+        reservations,
+        confirmed_slot_id: slot?.id || null,
+        slot_warning: slotWarning,
+      },
+    }, tx);
 
-  if (
-    String(order.status?.code || '').toUpperCase() === 'CONFIRMED' ||
-    String(orderStatus.code || '').toUpperCase() === 'CONFIRMED'
-  ) {
+    return tx.order.findUnique({
+      where: { id: newOrder.id },
+      include: {
+        items:         true,
+        status:        true,
+        delivery_type: true,
+        node:          { select: { id: true, name_fr: true, code: true } },
+        customer:      { select: { id: true, name: true, phone_number: true } },
+        confirmed_slot: true,
+        payments:      { include: { payment_method: true, status: true } },
+      },
+    });
+  }, { timeout: 30000 });
+
+  // Disponibilité des packs (flag is_available) — non bloquant
+  try {
+    const { syncPackAvailability } = require('../pack/pack.shared');
+    for (const packId of Object.keys(packs)) syncPackAvailability(packId).catch(() => {});
+  } catch { /* optionnel */ }
+
+  if (String(order.status?.code || '').toLowerCase() === 'confirmed') {
     try {
       const { emitNewOrder } = require('../../socket/picker.socket');
-      const itemCount = order.items?.length ?? 0;
       emitNewOrder(finalNodeId, {
         order_id:      order.id,
         reference:     order.id.slice(0, 8).toUpperCase(),
         customer_name: order.customer?.name ?? 'Client',
         total_ttc:     Number(order.total_ttc ?? 0).toFixed(2),
-        items_count:   itemCount,
+        items_count:   order.items?.length ?? 0,
         created_at:    order.created_at ?? new Date().toISOString(),
       });
     } catch (_) { /* Socket optionnel — ne pas bloquer */ }
   }
 
-  return order;
+  return { ...order, slot_warning: slotWarning };
+}
+
+// ── Back-office : recherche d'articles vendables sur un nœud (US-106 / US-108) ──
+async function searchArticlesForNode({ search, node_id, limit = 20 } = {}) {
+  const where = { is_deleted: false, is_active: true };
+  if (search?.trim()) {
+    const s = search.trim();
+    where.OR = [
+      { name_fr:  { contains: s, mode: 'insensitive' } },
+      { sku_code: { contains: s, mode: 'insensitive' } },
+      { ean13:    { contains: s, mode: 'insensitive' } },
+    ];
+  }
+  const skus = await prisma.sku.findMany({
+    where,
+    take: Math.min(50, Number(limit) || 20),
+    orderBy: { name_fr: 'asc' },
+    select: {
+      id: true, name_fr: true, name_ar: true, sku_code: true, price: true, vat_rate: true,
+      tax: { select: { rate: true } },
+      ...(node_id ? {
+        stock_levels:  { where: { node_id }, select: { qty_available: true, qty_physical: true, qty_reserved: true } },
+        selling_rules: { where: { node_id }, select: { is_sellable: true, is_backorderable: true, backorder_limit: true, backordered_quantity: true, estimated_restock_days: true, price: true } },
+      } : {}),
+    },
+  });
+  return skus.map((s) => {
+    const vat = Number(s.tax?.rate ?? s.vat_rate ?? 20);
+    const rule = s.selling_rules?.[0] || null;
+    // US-114 : prix du node (TTC) ; repli sur l'ancien prix catalogue HT.
+    const price_ttc = rule && Number(rule.price) > 0
+      ? Math.round(Number(rule.price) * 100) / 100
+      : Math.round(Number(s.price ?? 0) * (1 + vat / 100) * 100) / 100;
+    const level = s.stock_levels?.[0] || null;
+    const qty_available = level ? Math.max(0, Number(level.qty_available)) : 0;
+    const limit = Number(rule?.backorder_limit ?? 0);
+    const backorder_remaining = rule?.is_backorderable
+      ? (limit === 0 ? null : Math.max(0, limit - Number(rule.backordered_quantity ?? 0)))
+      : 0;
+    const is_sellable = rule ? !!rule.is_sellable : true;
+    let refusal = null;
+    if (!is_sellable) refusal = 'Non vendable sur ce nœud';
+    else if (qty_available <= 0 && !rule?.is_backorderable) refusal = 'Rupture — vente en rupture non autorisée';
+    else if (qty_available <= 0 && backorder_remaining === 0) refusal = 'Rupture — plafond de vente en rupture atteint';
+    return {
+      id: s.id, sku_id: s.id, name_fr: s.name_fr, name_ar: s.name_ar, sku_code: s.sku_code,
+      price: price_ttc, price_ttc, vat_rate: vat,
+      has_selling_rule: !!rule,
+      is_sellable,
+      qty_available,
+      is_backorderable: !!rule?.is_backorderable,
+      backorder_remaining,
+      estimated_restock_days: rule?.estimated_restock_days ?? null,
+      max_qty: !is_sellable ? 0 : (rule?.is_backorderable ? (backorder_remaining == null ? null : qty_available + backorder_remaining) : qty_available),
+      refusal,
+    };
+  });
+}
+
+// ── Back-office : packs proposés sur un nœud ──────────────────────────────────
+async function searchPacksForNode({ search, node_id } = {}) {
+  if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
+  const now = new Date();
+  const { PACK_INCLUDE, computePackAvailability } = require('../pack/pack.shared');
+  const packs = await prisma.pack.findMany({
+    where: {
+      is_deleted: false,
+      is_active: true,
+      OR: [{ node_id }, { node_id: null }],
+      AND: [
+        { OR: [{ valid_from: null }, { valid_from: { lte: now } }] },
+        { OR: [{ valid_to: null }, { valid_to: { gte: now } }] },
+        ...(search?.trim() ? [{ name_fr: { contains: search.trim(), mode: 'insensitive' } }] : []),
+      ],
+    },
+    include: PACK_INCLUDE,
+    orderBy: { name_fr: 'asc' },
+    take: 30,
+  });
+  return packs.map((p) => {
+    const a = computePackAvailability({ ...p, node_id: p.node_id || node_id });
+    return {
+      id: p.id,
+      pack_id: p.id,
+      name_fr: p.name_fr,
+      name_ar: p.name_ar,
+      price: Number(p.total_price),
+      original_price: Number(p.original_price),
+      max_pack_qty: p.max_pack_qty,
+      sold_count: p.sold_count,
+      remaining_cap: a.remainingCap,
+      assemblable: a.assemblableCount,
+      vendable: a.vendableCount,
+      is_backorderable: p.is_backorderable,
+      estimated_restock_days: p.estimated_restock_days,
+      is_available: a.isAvailable,
+      components: (p.pack_items || []).map((it) => ({ sku_id: it.sku_id, name_fr: it.sku?.name_fr, qty: Number(it.qty) })),
+      refusal: a.isAvailable ? null
+        : (a.remainingCap === 0 ? 'Plafond de vente du pack atteint' : 'Composants en rupture (pack non vendable en rupture)'),
+    };
+  });
+}
+
+// ── Back-office : paramètres de commande du nœud (frais, minimum, créneaux) ──
+async function getNodeSummary(node_id) {
+  const s = await getNodeOrderSettings(node_id);
+  return {
+    node_id: s.node_id,
+    code: s.node_code,
+    name_fr: s.node_name,
+    delivery_fee: s.delivery_fee,
+    min_order_amount: s.min_order_amount,
+    slot_selection_enabled: s.slot_selection_enabled,
+    free_delivery_threshold: s.free_delivery_threshold,
+    sources: s.sources,
+  };
+}
+
+// ── Back-office : créneaux datés actifs du nœud (capacité affichée, non bloquante) ──
+async function getNodeSlots(node_id, { from, days = 14 } = {}) {
+  if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
+  const L = require('../orders_mgmt/order_lifecycle');
+  const today = new Date();
+  const start = from ? new Date(`${from}T00:00:00.000Z`) : new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + Math.min(60, Math.max(1, Number(days) || 14)));
+  const slots = await prisma.deliverySlot.findMany({
+    where: { node_id, is_active: true, specific_date: { gte: start, lt: end } },
+    orderBy: [{ specific_date: 'asc' }, { slot_start: 'asc' }],
+  });
+  const enriched = await L.enrichSlotsCapacity(slots);
+  return enriched.map((s) => ({ ...s, is_past: !isSlotStillValid(s, new Date(`${s.date}T12:00:00`)) }));
+}
+
+// ── Back-office : nouveau client (onglet Client) ──────────────────────────────
+function referralCode() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 8 }, () => c[Math.floor(Math.random() * c.length)]).join('');
+}
+
+async function createCustomer({ name, phone_country = '+212', phone_number, city_id } = {}, req = null) {
+  const cleanName = String(name ?? '').trim();
+  const phone = String(phone_number ?? '').replace(/\s/g, '').replace(/^0/, '');
+  if (!cleanName) throw { statusCode: 400, message: 'Le nom du client est obligatoire' };
+  if (!/^\d{8,12}$/.test(phone)) throw { statusCode: 400, message: 'Numéro de téléphone invalide (8 à 12 chiffres)' };
+  const country = String(phone_country || '+212').trim().slice(0, 5);
+
+  const existing = await prisma.customer.findFirst({ where: { phone_country: country, phone_number: phone, is_deleted: false } });
+  if (existing) throw { statusCode: 409, message: `Un client existe déjà avec ce numéro : ${existing.name}` };
+
+  let cityName = null;
+  if (city_id) {
+    const city = await prisma.city.findFirst({ where: { id: city_id, is_deleted: false } });
+    if (!city) throw { statusCode: 404, message: 'Ville introuvable' };
+    cityName = city.name_fr;
+  }
+
+  let code = referralCode();
+  for (let i = 0; i < 5 && await prisma.customer.findUnique({ where: { referral_code: code } }); i++) code = referralCode();
+
+  const customer = await prisma.customer.create({
+    data: {
+      name: cleanName.slice(0, 150),
+      phone_country: country,
+      phone_number: phone,
+      referral_code: code,
+      city_id: city_id || null,
+      city: cityName,
+    },
+    select: { id: true, name: true, phone_country: true, phone_number: true, wallet_balance: true, city: true, is_active: true },
+  });
+  await audit(req, { action: 'CREATE', resource: 'customers', resource_id: customer.id, new_values: { ...customer, source: 'backoffice_order' } });
+  return customer;
+}
+
+// ── Back-office : nouvelle adresse rattachée à une ville (onglet Adresse) ─────
+async function createAddress(customer_id, data = {}, req = null) {
+  const customer = await repo.getCustomer(customer_id);
+  if (!customer) throw { statusCode: 404, message: 'Client introuvable' };
+  const street = String(data.street_name ?? '').trim();
+  if (!street) throw { statusCode: 400, message: 'La rue / adresse est obligatoire' };
+  if (!data.city_id) throw { statusCode: 400, message: "La ville est obligatoire (l'adresse doit être rattachée à une ville)" };
+  const city = await prisma.city.findFirst({ where: { id: data.city_id, is_deleted: false } });
+  if (!city) throw { statusCode: 404, message: 'Ville introuvable' };
+  const postal = data.postal_code ? String(data.postal_code).trim() : null;
+  if (postal && !/^\d{5}$/.test(postal)) throw { statusCode: 400, message: 'Code postal invalide (5 chiffres)' };
+
+  const hasDefault = await prisma.address.count({ where: { customer_id, is_deleted: false, is_default: true } });
+  const address = await prisma.address.create({
+    data: {
+      customer_id,
+      label: data.label?.trim()?.slice(0, 100) || null,
+      street_number: data.street_number?.toString().trim().slice(0, 20) || null,
+      street_name: street.slice(0, 255),
+      quartier: data.quartier?.trim()?.slice(0, 100) || null,
+      city: city.name_fr,
+      city_id: city.id,
+      postal_code: postal,
+      delivery_notes: data.delivery_notes?.trim() || null,
+      phone: data.phone?.trim()?.slice(0, 30) || null,
+      recipient_name: data.recipient_name?.trim()?.slice(0, 150) || null,
+      is_default: hasDefault === 0,
+    },
+  });
+  await audit(req, { action: 'CREATE', resource: 'addresses', resource_id: address.id, new_values: { customer_id, city: city.name_fr, street_name: address.street_name } });
+  return address;
+}
+
+async function listCities(search) {
+  return prisma.city.findMany({
+    where: {
+      is_deleted: false,
+      is_active: true,
+      ...(search?.trim() ? { name_fr: { contains: search.trim(), mode: 'insensitive' } } : {}),
+    },
+    select: { id: true, name_fr: true, name_ar: true, postal_code: true },
+    orderBy: { name_fr: 'asc' },
+    take: 100,
+  });
 }
 
 module.exports = {
   getMeta, getAvailableDates, calculate, findEligibleNodes, findPickupNodes,
-  getDeliverySlots, createOrder, checkStock,
-  HOME_LIKE_CODES, PICKUP_LIKE_CODES,
+  getDeliverySlots, createOrder, checkStock, expandCart,
+  searchArticlesForNode, searchPacksForNode, getNodeSummary, getNodeSlots,
+  createCustomer, createAddress, listCities,
+  HOME_LIKE_CODES, PICKUP_LIKE_CODES, isHome, isPickup,
 };

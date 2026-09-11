@@ -159,8 +159,8 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/checkout/new"    element={<CheckoutPage />} />
-          <Route path="/checkout-test"   element={<CheckoutTestPage />} />
+          <Route path="/checkout/new"    element={<Navigate to="/orders-mgmt" replace />} />
+          <Route path="/checkout-test"   element={<Navigate to="/orders-mgmt" replace />} />
           <Route path="/pickup/orders"             element={<PickupOrdersPage />} />
           <Route path="/pickup/orders/:id"         element={<PickupOrderDetailPage />} />
           <Route path="/delivery/ready-orders"     element={<ReadyHomeOrdersPage />} />

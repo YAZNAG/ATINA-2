@@ -6,10 +6,17 @@ const perm = require('../../../middlewares/permission.middleware');
 const router = Router();
 router.use(auth);
 
-router.get('/',       perm('dashboard.view'), ctrl.index.bind(ctrl));
-router.get('/:id',    perm('dashboard.view'), ctrl.show.bind(ctrl));
-router.post('/',      perm('dashboard.view'), ctrl.store.bind(ctrl));
-router.put('/:id',    perm('dashboard.view'), ctrl.update.bind(ctrl));
-router.delete('/:id', perm('dashboard.view'), ctrl.destroy.bind(ctrl));
+const canView   = perm.permAny(['delivery_slots.view', 'orders.view', 'dashboard.view']);
+const canCreate = perm.permAny(['delivery_slots.create', 'dashboard.view']);
+const canUpdate = perm.permAny(['delivery_slots.update', 'dashboard.view']);
+const canDelete = perm.permAny(['delivery_slots.delete', 'dashboard.view']);
+
+router.get('/',       canView,   ctrl.index.bind(ctrl));
+router.post('/bulk',  canCreate, ctrl.bulk.bind(ctrl));
+router.get('/:id',    canView,   ctrl.show.bind(ctrl));
+router.post('/',      canCreate, ctrl.store.bind(ctrl));
+router.put('/:id',    canUpdate, ctrl.update.bind(ctrl));
+router.patch('/:id',  canUpdate, ctrl.update.bind(ctrl));
+router.delete('/:id', canDelete, ctrl.destroy.bind(ctrl));
 
 module.exports = router;

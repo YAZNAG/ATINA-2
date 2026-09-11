@@ -51,7 +51,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:apk": "eas build -p android --profile preview",
+    "update:preview": "eas update --channel preview --auto",
+    "update:production": "eas update --channel production --auto"
   },
   "private": true
 }

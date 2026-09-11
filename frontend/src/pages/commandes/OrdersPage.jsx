@@ -5,11 +5,14 @@ import {
   useState,
 } from 'react';
 
+import { useSearchParams } from 'react-router-dom';
+
 import {
   AlertTriangle,
   Ban,
   CalendarDays,
   Clock3,
+  Download,
   Eye,
   Loader2,
   MapPin,
@@ -19,13 +22,31 @@ import {
 } from 'lucide-react';
 
 import {
-  cancelOrder,
   getOrders,
   getOrdersMeta,
 } from '../../api/orders_mgmt.api';
 
 import OrderDetailDrawer from './OrderDetailDrawer';
 import CreateOrderDrawer from './CreateOrderDrawer';
+import PaymentsView from './PaymentsView';
+import { downloadCsv } from './csv';
+
+// Filtres reçus par l'URL (liens depuis le reporting et les offres)
+const EXTERNAL_FILTERS = {
+  period: 'Période',
+  from: 'Du',
+  to: 'Au',
+  pack_id: 'Pack',
+  flash_sale_id: 'Vente flash',
+  promotion_id: 'Code promo',
+  customer_id: 'Client',
+  payment_status: 'Statut paiement',
+};
+
+const PERIOD_LABELS = {
+  today: "Aujourd'hui", day: "Aujourd'hui", yesterday: 'Hier', week: 'Semaine en cours',
+  month: 'Mois en cours', year: 'Année en cours', '7d': '7 derniers jours', '30d': '30 derniers jours', '90d': '90 derniers jours',
+};
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -219,7 +240,19 @@ function PaymentStatusCell({ order }) {
 // -----------------------------------------------------------------------------
 
 export default function OrdersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [view, setView] = useState(searchParams.get('view') === 'payments' ? 'payments' : 'orders');
   const [orders, setOrders] = useState([]);
+  const [exporting, setExporting] = useState(false);
+  const [cancelIntent, setCancelIntent] = useState(false);
+  const [extFilters, setExtFilters] = useState(() => {
+    const out = {};
+    for (const key of Object.keys(EXTERNAL_FILTERS)) {
+      const v = searchParams.get(key);
+      if (v) out[key] = v;
+    }
+    return out;
+  });
 
   const [pagination, setPagination] = useState({
     total: 0,
@@ -242,24 +275,35 @@ export default function OrdersPage() {
   const [debouncedSearch, setDebouncedSearch] =
     useState('');
 
-  const [activeTab, setActiveTab] = useState('all');
-  const [nodeId, setNodeId] = useState('');
-  const [date, setDate] = useState('');
+  const [activeTab, setActiveTab] = useState(searchParams.get('status') || searchParams.get('status_code') || 'all');
+  const [nodeId, setNodeId] = useState(searchParams.get('node_id') || '');
+  const [date, setDate] = useState(searchParams.get('date') || '');
   const [slotFilter, setSlotFilter] = useState('');
   const [createOrderOpen, setCreateOrderOpen] =
   useState(false);
 
   const [openFilter, setOpenFilter] = useState(null);
   const [selectedOrderId, setSelectedOrderId] =
-    useState(null);
+    useState(searchParams.get('order_id') || null);
 
-  // Modal d'annulation
-  const [cancelTarget, setCancelTarget] =
-    useState(null);
-  const [cancelReason, setCancelReason] =
-    useState('');
-  const [cancelLoading, setCancelLoading] =
-    useState(false);
+  function removeExtFilter(key) {
+    setExtFilters((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      if (key === 'period') { delete next.from; delete next.to; }
+      return next;
+    });
+    const params = new URLSearchParams(searchParams);
+    params.delete(key);
+    setSearchParams(params, { replace: true });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }
+
+  function extFilterLabel(key, value) {
+    if (key === 'period') return PERIOD_LABELS[value] || value;
+    if (['pack_id', 'flash_sale_id', 'promotion_id', 'customer_id'].includes(key)) return `#${String(value).slice(0, 8).toUpperCase()}`;
+    return value;
+  }
 
   // ---------------------------------------------------------------------------
   // Recherche avec debounce
@@ -304,12 +348,65 @@ export default function OrdersPage() {
   // Chargement des commandes
   // ---------------------------------------------------------------------------
 
+  const queryFilters = useMemo(() => ({
+    ...extFilters,
+    search: debouncedSearch || undefined,
+    status_code: activeTab === 'all' ? undefined : activeTab,
+    node_id: nodeId || undefined,
+    date: date || undefined,
+    slot_id: slotFilter || undefined,
+  }), [extFilters, debouncedSearch, activeTab, nodeId, date, slotFilter]);
+
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
+    try {
+      const rows = [];
+      let page = 1;
+      let pages = 1;
+      do {
+        const res = await getOrders({ ...queryFilters, page, limit: 100 });
+        rows.push(...(res.data.data || []));
+        pages = res.data.pagination?.pages || 1;
+        page += 1;
+      } while (page <= pages && page <= 100);
+      downloadCsv(`commandes-${new Date().toISOString().slice(0, 10)}.csv`, [
+        'N° commande', 'Date', 'Client', 'Téléphone', 'Nœud', 'Statut', 'Articles', 'Total TTC', 'Frais livraison',
+        'Remise', 'Créneau confirmé', 'Mode paiement', 'Statut paiement', 'Encaissé le',
+      ], rows.map((o) => {
+        const pay = o.payments?.[0];
+        const slot = o.confirmed_slot;
+        return [
+          `ORD-${o.id.slice(0, 8).toUpperCase()}`,
+          new Date(o.created_at).toLocaleString('fr-FR'),
+          o.customer?.name || '',
+          `${o.customer?.phone_country || ''}${o.customer?.phone_number || ''}`,
+          o.node?.name_fr || '',
+          o.status?.name_fr || o.status?.code || '',
+          o._count?.items ?? '',
+          Number(o.total_ttc ?? 0).toFixed(2),
+          Number(o.delivery_fee ?? 0).toFixed(2),
+          Number(o.discount_amount ?? 0).toFixed(2),
+          slot ? `${String(slot.specific_date).slice(0, 10)} ${slot.slot_start}-${slot.slot_end}` : '',
+          pay?.payment_method?.name_fr || pay?.payment_method?.code || '',
+          pay?.status?.name_fr || pay?.status?.code || '',
+          o.cod_collected_at ? new Date(o.cod_collected_at).toLocaleString('fr-FR') : '',
+        ];
+      }));
+    } catch (err) {
+      setError(err?.response?.data?.message || "Erreur lors de l'export");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const response = await getOrders({
+        ...extFilters,
         page: pagination.page,
         limit: pagination.limit,
 
@@ -338,6 +435,7 @@ export default function OrdersPage() {
       setLoading(false);
     }
   }, [
+    extFilters,
     pagination.page,
     pagination.limit,
     debouncedSearch,
@@ -393,38 +491,10 @@ export default function OrdersPage() {
   // Annulation
   // ---------------------------------------------------------------------------
 
+  // L'annulation passe par le panneau de détail : aperçu d'impact + motif obligatoire (US-058)
   function handleCancel(order) {
-    setCancelTarget(order);
-    setCancelReason('');
-  }
-
-  async function confirmCancel() {
-    if (!cancelTarget) return;
-
-    setCancelLoading(true);
-    setError(null);
-
-    try {
-      await cancelOrder(
-        cancelTarget.id,
-        cancelReason.trim() || undefined
-      );
-
-      setCancelTarget(null);
-      setCancelReason('');
-
-      await Promise.all([
-        loadOrders(),
-        loadMeta(),
-      ]);
-    } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          "Erreur lors de l'annulation"
-      );
-    } finally {
-      setCancelLoading(false);
-    }
+    setCancelIntent(true);
+    setSelectedOrderId(order.id);
   }
 
   // ---------------------------------------------------------------------------
@@ -446,9 +516,26 @@ export default function OrdersPage() {
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
-          <h1 className="text-xl font-semibold text-gray-900">
-            Commandes
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Commandes
+            </h1>
+            <div className="flex rounded-lg bg-gray-100 p-0.5 text-xs font-medium">
+              {[
+                { key: 'orders', label: 'Liste des commandes' },
+                { key: 'payments', label: 'Paiements à la livraison' },
+              ].map((v) => (
+                <button
+                  key={v.key}
+                  type="button"
+                  onClick={() => setView(v.key)}
+                  className={`rounded-md px-3 py-1.5 ${view === v.key ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="flex items-center gap-1.5 text-sm text-emerald-600">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -468,6 +555,11 @@ export default function OrdersPage() {
           </div>
         )}
 
+        {view === 'payments' && (
+          <PaymentsView nodes={nodes} onOpenOrder={(id) => setSelectedOrderId(id)} />
+        )}
+
+        {view === 'orders' && (<>
         {/* Filtres */}
         <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-6 py-4">
 
@@ -641,16 +733,41 @@ export default function OrdersPage() {
             )}
           </div>
 
+          {/* Exporter */}
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            Exporter
+          </button>
+
           {/* Créer une commande */}
           <button
   type="button"
   onClick={() => setCreateOrderOpen(true)}
-  className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
 >
   <Plus size={16} />
-  Créer commande
+  Créer une commande
 </button>
         </div>
+
+        {Object.keys(extFilters).length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-6 py-2.5 text-xs">
+            <span className="text-gray-400">Filtres appliqués :</span>
+            {Object.entries(extFilters).map(([key, value]) => (
+              <span key={key} className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 font-medium text-red-600">
+                {EXTERNAL_FILTERS[key]} : {extFilterLabel(key, value)}
+                <button type="button" onClick={() => removeExtFilter(key)} aria-label="Retirer le filtre" className="rounded hover:bg-red-100">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Filtres des statuts */}
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-6 py-3">
@@ -778,7 +895,8 @@ export default function OrdersPage() {
                 orders.map((order) => (
                   <tr
                     key={order.id}
-                    className="border-t border-gray-50 hover:bg-gray-50/60"
+                    onClick={() => { setCancelIntent(false); setSelectedOrderId(order.id); }}
+                    className="cursor-pointer border-t border-gray-50 hover:bg-gray-50/60"
                   >
                     <td className="px-6 py-3.5 font-medium text-red-600">
                       ORD-
@@ -834,23 +952,24 @@ export default function OrdersPage() {
                     </td>
 
                     {/* Actions avec icônes */}
-                    <td className="px-6 py-3.5 text-right">
+                    <td className="px-6 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center gap-1">
                         {/* Voir le détail */}
                         <button
                           type="button"
                           title="Voir le détail"
                           aria-label="Voir le détail"
-                          onClick={() =>
-                            setSelectedOrderId(order.id)
-                          }
+                          onClick={() => {
+                            setCancelIntent(false);
+                            setSelectedOrderId(order.id);
+                          }}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                         >
                           <Eye size={17} />
                         </button>
 
                         {/* Annuler */}
-                        {!order.status?.is_terminal && (
+                        {!order.status?.is_terminal && order.status?.code !== 'delivered' && (
                           <button
                             type="button"
                             title="Annuler la commande"
@@ -929,140 +1048,15 @@ export default function OrdersPage() {
             </div>
           </div>
         </div>
+        </>)}
       </div>
 
-      {/* Modal personnalisé d'annulation */}
-      {cancelTarget && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          {/* Overlay */}
-          <button
-            type="button"
-            aria-label="Fermer la fenêtre"
-            onClick={() => {
-              if (!cancelLoading) {
-                setCancelTarget(null);
-                setCancelReason('');
-              }
-            }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-          />
-
-          {/* Contenu du modal */}
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cancel-order-title"
-            className="relative z-10 w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl"
-          >
-            {/* Header du modal */}
-            <div className="flex items-start justify-between border-b border-gray-100 px-5 py-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
-                  <Ban size={19} />
-                </div>
-
-                <div>
-                  <h2
-                    id="cancel-order-title"
-                    className="text-base font-semibold text-gray-900"
-                  >
-                    Annuler la commande
-                  </h2>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    ORD-
-                    {cancelTarget.id
-                      ?.slice(0, 8)
-                      .toUpperCase()}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                title="Fermer"
-                aria-label="Fermer"
-                disabled={cancelLoading}
-                onClick={() => {
-                  setCancelTarget(null);
-                  setCancelReason('');
-                }}
-                className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Corps du modal */}
-            <div className="px-5 py-5">
-              <div className="mb-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                Cette action annulera définitivement cette commande.
-              </div>
-
-              <label
-                htmlFor="cancel-reason"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Motif de l’annulation
-                <span className="ml-1 text-xs font-normal text-gray-400">
-                  (optionnel)
-                </span>
-              </label>
-
-              <textarea
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(event) =>
-                  setCancelReason(event.target.value)
-                }
-                placeholder="Ex : Client indisponible, stock insuffisant..."
-                rows={4}
-                disabled={cancelLoading}
-                autoFocus
-                className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 disabled:bg-gray-50"
-              />
-            </div>
-
-            {/* Footer du modal */}
-            <div className="flex justify-end gap-2 border-t border-gray-100 bg-gray-50 px-5 py-4">
-              <button
-                type="button"
-                disabled={cancelLoading}
-                onClick={() => {
-                  setCancelTarget(null);
-                  setCancelReason('');
-                }}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Retour
-              </button>
-
-              <button
-                type="button"
-                disabled={cancelLoading}
-                onClick={confirmCancel}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {cancelLoading && (
-                  <Loader2
-                    size={16}
-                    className="animate-spin"
-                  />
-                )}
-
-                {cancelLoading
-                  ? 'Annulation…'
-                  : 'Annuler la commande'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Drawer de détail */}
       <OrderDetailDrawer
         orderId={selectedOrderId}
-        onClose={() => setSelectedOrderId(null)}
+        initialAction={cancelIntent ? 'cancel' : null}
+        onClose={() => { setSelectedOrderId(null); setCancelIntent(false); }}
         onChanged={async () => {
           await Promise.all([
             loadOrders(),

@@ -27,13 +27,51 @@ class CheckoutController {
     }
   }
 
-  // GET /api/checkout/articles?search=xxx&limit=20
+  // GET /api/checkout/articles?search=xxx&limit=20&node_id=...
+  // Avec node_id : vendabilité, disponibilité et rupture du couple nœud × SKU (US-108).
   async articles(req, res, next) {
     try {
-      const { search, limit = 20 } = req.query;
-      const data = await repo.searchArticles(search, limit);
+      const { search, limit = 20, node_id } = req.query;
+      const data = node_id
+        ? await svc.searchArticlesForNode({ search, node_id, limit })
+        : await repo.searchArticles(search, limit);
       resp.success(res, data);
     } catch (e) { next(e); }
+  }
+
+  // GET /api/checkout/packs?node_id=...&search=
+  async packs(req, res, next) {
+    try { resp.success(res, await svc.searchPacksForNode(req.query)); }
+    catch (e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+
+  // GET /api/checkout/cities?search=
+  async cities(req, res, next) {
+    try { resp.success(res, await svc.listCities(req.query.search)); } catch (e) { next(e); }
+  }
+
+  // GET /api/checkout/node-summary/:nodeId — frais, minimum, sélection de créneau
+  async nodeSummary(req, res, next) {
+    try { resp.success(res, await svc.getNodeSummary(req.params.nodeId)); }
+    catch (e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+
+  // GET /api/checkout/node-slots?node_id=...&from=YYYY-MM-DD&days=14
+  async nodeSlots(req, res, next) {
+    try { resp.success(res, await svc.getNodeSlots(req.query.node_id, req.query)); }
+    catch (e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+
+  // POST /api/checkout/customers — nouveau client (création manuelle de commande)
+  async createCustomer(req, res, next) {
+    try { resp.success(res, await svc.createCustomer(req.body || {}, req), 'Client créé', 201); }
+    catch (e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
+  }
+
+  // POST /api/checkout/customers/:customerId/addresses — nouvelle adresse
+  async createAddress(req, res, next) {
+    try { resp.success(res, await svc.createAddress(req.params.customerId, req.body || {}, req), 'Adresse enregistrée', 201); }
+    catch (e) { if (e.statusCode) return resp.error(res, e.message, e.statusCode); next(e); }
   }
 
   // GET /api/checkout/customers?search=xxx
@@ -95,7 +133,7 @@ class CheckoutController {
   // POST /api/checkout/calculate
   async calculate(req, res, next) {
     try {
-      const result = await svc.calculate(req.body);
+      const result = await svc.calculate({ ...req.body, soft_minimum: req.body?.soft_minimum === true });
       resp.success(res, result);
     } catch (e) {
       if (e.statusCode) return resp.error(res, e.message, e.statusCode);
@@ -106,8 +144,8 @@ class CheckoutController {
   // POST /api/checkout/create-order
   async createOrder(req, res, next) {
     try {
-      const order = await svc.createOrder(req.body);
-      resp.success(res, order, 'Commande créée', 201);
+      const order = await svc.createOrder(req.body, { source: 'backoffice', req });
+      resp.success(res, order, order.slot_warning ? `Commande créée — ${order.slot_warning}` : 'Commande créée', 201);
     } catch (e) {
       if (e.statusCode) return resp.error(res, e.message, e.statusCode, e.issues);
       next(e);

@@ -6,6 +6,8 @@ const prisma  = require('../../config/database');
 const h       = require('../../utils/statusHelpers');
 const { notifyDelivered } = require('../../utils/notify');
 const loyalty = require('../loyalty/loyalty.service');
+const { audit } = require('../../utils/audit');
+const L = require('../orders_mgmt/order_lifecycle');
 
 // ── Shared includes ───────────────────────────────────────────────────────────
 const ORDER_LIST_INCLUDE = {
@@ -32,15 +34,11 @@ const ORDER_DETAIL_INCLUDE = {
     where: { status: { code: { not: 'cancelled' } } },
     include: {
       status: { select: { code: true, name_fr: true, color: true } },
-      sku: {
-        include: {
-          article: { select: { id: true, name_fr: true, sku_code: true, ean13: true, price: true } },
-        },
-      },
+      sku: { select: { id: true, name_fr: true, sku_code: true, ean13: true, price: true } },
     },
-    orderBy: { created_at: 'asc' },
+    orderBy: { unit_price_sold: 'desc' },
   },
-  order_history: {
+  history: {
     include: { status: { select: { code: true, name_fr: true, color: true } } },
     orderBy: { created_at: 'asc' },
   },
@@ -91,11 +89,19 @@ async function getOrderDetail(orderId) {
   if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
   if (order.delivery_type?.code !== 'pickup')
     throw { statusCode: 422, message: 'Cette commande n\'est pas de type pickup' };
-  return order;
+  // Compatibilité écran : order_history + sku.article
+  return {
+    ...order,
+    order_history: order.history,
+    items: (order.items || []).map((it) => ({
+      ...it,
+      sku: it.sku ? { ...it.sku, article: { id: it.sku.id, name_fr: it.sku.name_fr, sku_code: it.sku.sku_code, ean13: it.sku.ean13, price: it.sku.price } } : it.sku,
+    })),
+  };
 }
 
 // ── Collect COD (separate step before confirm) ────────────────────────────────
-async function collectCOD(orderId, { amount_collected, payment_note } = {}, changed_by = null) {
+async function collectCOD(orderId, { amount_collected, payment_note } = {}, changed_by = null, req = null) {
   const order = await prisma.order.findUnique({
     where:   { id: orderId },
     include: {
@@ -112,7 +118,7 @@ async function collectCOD(orderId, { amount_collected, payment_note } = {}, chan
   if (!payment) throw { statusCode: 422, message: 'Aucun paiement enregistré pour cette commande' };
   if (payment.payment_method?.code !== 'cod')
     throw { statusCode: 422, message: 'Le paiement COD ne s\'applique pas à cette commande' };
-  if (payment.status?.code === 'collected')
+  if (payment.status?.code === 'collected' || order.cod_collected_at)
     throw { statusCode: 409, message: 'Paiement COD déjà collecté' };
 
   const total = Number(order.total_ttc);
@@ -130,6 +136,9 @@ async function collectCOD(orderId, { amount_collected, payment_note } = {}, chan
       where: { id: payment.id },
       data:  {
         status_id: collectedStatusId,
+        collected_at: new Date(),
+        collected_by: 'Comptoir (retrait magasin)',
+        notes: payment_note ?? null,
         metadata:  {
           ...(payment.metadata ?? {}),
           cod_collected_at:     new Date().toISOString(),
@@ -145,7 +154,7 @@ async function collectCOD(orderId, { amount_collected, payment_note } = {}, chan
         data: {
           order_id:   orderId,
           status_id:  readyStatusRow.id,
-          changed_by: null,
+          changed_by: changed_by,
           note:       `Paiement COD collecté au comptoir (${collected.toFixed(2)} MAD)${payment_note ? ' — ' + payment_note : ''}`,
         },
       });
@@ -155,13 +164,19 @@ async function collectCOD(orderId, { amount_collected, payment_note } = {}, chan
       where: { id: orderId },
       data:  { cod_collected_at: new Date() },
     });
+
+    await audit(req, {
+      action: 'COLLECT_PAYMENT', resource: 'payments', resource_id: payment.id,
+      old_values: { status: payment.status?.code, amount: Number(payment.amount) },
+      new_values: { status: 'collected', amount_collected: collected, collected_by: 'Comptoir (retrait magasin)', order_id: orderId },
+    }, tx);
   });
 
   return getOrderDetail(orderId);
 }
 
 // ── Confirm pickup → delivered + stock OUT ────────────────────────────────────
-async function confirmPickup(orderId, { note } = {}, changed_by = null) {
+async function confirmPickup(orderId, { note } = {}, changed_by = null, req = null) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -169,7 +184,7 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
       delivery_type: true,
       items:         { include: { sku: { select: { id: true } } } },
       payments:      { include: { payment_method: { select: { code: true } }, status: { select: { code: true } } } },
-      customer:      { select: { id: true, wallet_balance: true, points_balance: true, points_lifetime: true, points_earned: true } },
+      customer:      { select: { id: true, wallet_balance: true, points_balance: true, points_lifetime: true } },
     },
   });
 
@@ -185,18 +200,6 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
     throw { statusCode: 422, message: 'Le paiement COD doit être encaissé avant de confirmer le retrait. Utilisez d\'abord collect-cod.' };
   if (!isCOD && !['pending', 'collected'].includes(payCode ?? ''))
     throw { statusCode: 422, message: `Statut paiement incompatible (${payCode})` };
-
-  // Validate stock
-  for (const item of order.items) {
-    if (!item.sku_id) continue;
-    const qty   = Number(item.qty);
-    const level = await prisma.stockLevel.findUnique({
-      where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } },
-    });
-    if (!level) throw { statusCode: 422, message: 'Stock introuvable pour un article' };
-    if (Number(level.qty_reserved) < qty || Number(level.qty_physical) < qty)
-      throw { statusCode: 422, message: 'Stock insuffisant pour finaliser le retrait' };
-  }
 
   const [deliveredStatus, collectedStatus, saleMoveType, readyStatus] = await Promise.all([
     h.getOrderStatus('delivered'),
@@ -214,31 +217,8 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
       await tx.payment.update({ where: { id: payment.id }, data: { status_id: collectedStatus.id } });
     }
 
-    // Stock: qty_reserved--, qty_physical-- (qty_available unchanged per formula)
-    for (const item of order.items) {
-      if (!item.sku_id) continue;
-      const qty = Number(item.qty);
-      const upd = await tx.stockLevel.updateMany({
-        where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: qty }, qty_physical: { gte: qty } },
-        data:  { qty_reserved: { decrement: qty }, qty_physical: { decrement: qty } },
-      });
-      if (upd.count !== 1)
-        throw { statusCode: 422, message: 'Mise à jour stock impossible — rollback déclenché' };
-
-      // Stock move OUT
-      if (saleMoveType) {
-        await tx.stockMove.create({
-          data: {
-            node_id:      order.node_id,
-            sku_id:       item.sku_id,
-            move_type_id: saleMoveType.id,
-            order_id:     orderId,
-            qty_delta:    -qty,
-            reason:       `Retrait commande pickup — ${orderId.slice(0, 8)}`,
-          },
-        });
-      }
-    }
+    // Sortie de stock (WF #31) : mouvement « sale », physique et réservation diminués, rupture soldée
+    await L.applyDeliveryStock(tx, orderId, req, `Retrait commande pickup — ${orderId.slice(0, 8)}`);
 
     // Update order → delivered
     await tx.order.update({
@@ -257,102 +237,39 @@ async function confirmPickup(orderId, { note } = {}, changed_by = null) {
       data: {
         order_id:   orderId,
         status_id:  deliveredStatus.id,
-        changed_by: null,
+        changed_by: changed_by,
         note:       note?.trim() || 'Commande retirée par le client au magasin',
       },
     });
 
-    // Order history — stock note
-    if (readyStatus) {
-      await tx.orderHistory.create({
-        data: {
-          order_id:   orderId,
-          status_id:  deliveredStatus.id,
-          changed_by: null,
-          note:       'Stock physique décrémenté après retrait confirmé',
-        },
-      });
-    }
+    await audit(req, {
+      action: 'UPDATE_STATUS', resource: 'orders', resource_id: orderId,
+      old_values: { status: 'ready' }, new_values: { status: 'delivered', pickup: true },
+    }, tx);
 
-    // Notification (fire-and-forget outside tx)
-    setImmediate(() => {
-      notifyDelivered(order.customer_id, orderId, 0).catch(() => {});
-      loyalty.validateReferralOnDelivery(order.customer_id, orderId).catch(() => {});
-    });
+  }, { timeout: 30000 });
+
+  // Notification (fire-and-forget outside tx)
+  setImmediate(() => {
+    notifyDelivered(order.customer_id, orderId, 0).catch(() => {});
+    loyalty.validateReferralOnDelivery(order.customer_id, orderId).catch(() => {});
   });
 
   return getOrderDetail(orderId);
 }
 
-// ── Cancel ready order (releases reservation) ─────────────────────────────────
-async function cancelReadyOrder(orderId, { reason } = {}, changed_by = null) {
+// ── Cancel ready order → annulation centrale (WF #29 : motif obligatoire,
+//    tous les compteurs remis à jour en une transaction, audit CANCEL_ORDER) ──
+async function cancelReadyOrder(orderId, { reason } = {}, changed_by = null, req = null) {
   const order = await prisma.order.findUnique({
     where:   { id: orderId },
-    include: {
-      status:        true,
-      delivery_type: true,
-      items:         true,
-    },
+    include: { status: true, delivery_type: true },
   });
-
   ensurePickup(order);
   if (order.status?.code !== 'ready')
     throw { statusCode: 422, message: `Statut "${order.status?.name_fr}" — annulation impossible (statut requis : ready)` };
 
-  const [cancelledStatus, cancelMoveType] = await Promise.all([
-    h.getOrderStatus('cancelled'),
-    prisma.moveType.findFirst({ where: { code: 'reservation_cancel' } }),
-  ]);
-  if (!cancelledStatus) throw { statusCode: 500, message: 'Statut "cancelled" introuvable' };
-
-  await prisma.$transaction(async (tx) => {
-    // Release stock reservations
-    for (const item of order.items) {
-      if (!item.sku_id) continue;
-      const reserved   = Number(item.qty) - Number(item.qty_backordered ?? 0);
-      const backordered = Number(item.qty_backordered ?? 0);
-
-      if (reserved > 0) {
-        await tx.stockLevel.updateMany({
-          where: { node_id: order.node_id, sku_id: item.sku_id, qty_reserved: { gte: reserved } },
-          data:  { qty_reserved: { decrement: reserved }, qty_available: { increment: reserved } },
-        });
-      }
-      if (backordered > 0) {
-        await tx.stockLevel.updateMany({
-          where: { node_id: order.node_id, sku_id: item.sku_id },
-          data:  { qty_backordered: { decrement: backordered } },
-        });
-      }
-      if (cancelMoveType) {
-        await tx.stockMove.create({
-          data: {
-            node_id:      order.node_id,
-            sku_id:       item.sku_id,
-            move_type_id: cancelMoveType.id,
-            order_id:     orderId,
-            qty_delta:    0,
-            reason:       `Annulation retrait — ${orderId.slice(0, 8)}`,
-          },
-        });
-      }
-    }
-
-    await tx.order.update({
-      where: { id: orderId },
-      data:  { status_id: cancelledStatus.id, cancelled_reason: reason ?? null },
-    });
-
-    await tx.orderHistory.create({
-      data: {
-        order_id:   orderId,
-        status_id:  cancelledStatus.id,
-        changed_by: null,
-        note:       `Retrait annulé${reason ? ' — ' + reason : ''}. Réservation stock libérée.`,
-      },
-    });
-  });
-
+  await L.cancelOrder(orderId, reason, req || (changed_by ? { user: { id: changed_by } } : null));
   return getOrderDetail(orderId);
 }
 

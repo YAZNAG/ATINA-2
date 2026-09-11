@@ -31,7 +31,7 @@ router.get('/orders/:orderId', canView, async (req, res, next) => {
 router.patch('/orders/:orderId/collect-cod', canManage, async (req, res, next) => {
   try {
     const { amount_collected, payment_note } = req.body;
-    resp.success(res, await svc.collectCOD(req.params.orderId, { amount_collected, payment_note }, req.user?.id ?? null));
+    resp.success(res, await svc.collectCOD(req.params.orderId, { amount_collected, payment_note }, req.user?.id ?? null, req));
   } catch(e) { E(res, next, e); }
 });
 
@@ -39,7 +39,7 @@ router.patch('/orders/:orderId/collect-cod', canManage, async (req, res, next) =
 router.patch('/orders/:orderId/confirm', canManage, async (req, res, next) => {
   try {
     const { note } = req.body ?? {};
-    resp.success(res, await svc.confirmPickup(req.params.orderId, { note }, req.user?.id ?? null), 'Retrait confirmé — commande livrée');
+    resp.success(res, await svc.confirmPickup(req.params.orderId, { note }, req.user?.id ?? null, req), 'Retrait confirmé — commande livrée');
   } catch(e) { E(res, next, e); }
 });
 
@@ -47,7 +47,7 @@ router.patch('/orders/:orderId/confirm', canManage, async (req, res, next) => {
 router.patch('/orders/:orderId/cancel', canManage, async (req, res, next) => {
   try {
     const { reason } = req.body ?? {};
-    resp.success(res, await svc.cancelReadyOrder(req.params.orderId, { reason }, req.user?.id ?? null), 'Commande annulée — stock libéré');
+    resp.success(res, await svc.cancelReadyOrder(req.params.orderId, { reason }, req.user?.id ?? null, req), 'Commande annulée — compteurs remis à jour');
   } catch(e) { E(res, next, e); }
 });
 

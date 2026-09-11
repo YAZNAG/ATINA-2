@@ -23,3 +23,8 @@ export const completeTour = (id)             => api.patch(`${b}/tours/${id}/comp
 export const arriveStop  = (stopId, data)    => api.patch(`${b}/stops/${stopId}/arrive`, data);
 export const deliverStop = (stopId, data)    => api.patch(`${b}/stops/${stopId}/deliver`, data);
 export const failStop    = (stopId, data)    => api.patch(`${b}/stops/${stopId}/fail`, data);
+
+// ── Gestion des arrêts & de la tournée (WF #4, US-062 à US-065) ──────────────
+export const updateTour   = (id, data)       => api.patch(`${b}/tours/${id}`, data);
+export const reorderStops = (id, stop_ids)   => api.patch(`${b}/tours/${id}/reorder`, { stop_ids });
+export const cancelTour   = (id, reason)     => api.patch(`${b}/tours/${id}/cancel`, { reason });

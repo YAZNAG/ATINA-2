@@ -1,6 +1,17 @@
 const svc  = require('./customer_checkout.service');
 const resp = require('../../utils/response');
 
+/** cart_items passé en query string (JSON) : 400 propre si le JSON est invalide. */
+function parseCartItems(raw) {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    throw { statusCode: 400, message: 'cart_items : JSON invalide' };
+  }
+}
+
 class CustomerCheckoutController {
   async meta(req, res, next) {
     try {
@@ -20,9 +31,7 @@ class CustomerCheckoutController {
 
   async pickupNodes(req, res, next) {
     try {
-      const cart_items = req.query.cart_items
-        ? JSON.parse(req.query.cart_items)
-        : req.body?.cart_items || [];
+      const cart_items = parseCartItems(req.query.cart_items) ?? req.body?.cart_items ?? [];
       const date = req.query.date || req.body?.date;
       const result = await svc.findPickupNodes(req.customerId, cart_items, date);
       return resp.success(res, result);
@@ -37,9 +46,7 @@ class CustomerCheckoutController {
         delivery_type_id:   req.query.delivery_type_id,
         delivery_type_code: req.query.delivery_type_code,
         date:               req.query.date,
-        cart_items:         req.query.cart_items
-          ? JSON.parse(req.query.cart_items)
-          : [],
+        cart_items:         parseCartItems(req.query.cart_items) ?? [],
       };
       const result = await svc.getDeliverySlots(params);
       return resp.success(res, result);

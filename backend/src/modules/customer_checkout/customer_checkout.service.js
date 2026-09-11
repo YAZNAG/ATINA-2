@@ -1,6 +1,7 @@
 const prisma    = require('../../config/database');
 const checkoutSvc = require('../checkout/checkout.service');
-const repo      = require('../checkout/checkout.repository');
+const { getPackWithItems } = require('../pack/pack.shared');
+const { isUuid, assertPackAvailable } = require('../customer_cart/customer_cart.shared');
 
 // distance en km entre 2 points GPS 
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -14,46 +15,64 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * Normalise les lignes envoyées par l'app : l'identifiant peut être l'id du SKU,
+ * son EAN-13 (scan — skus.ean13) ou son code SKU. Seuls les UUID valides sont
+ * cherchés par id (un EAN passé à `id: { in }` ferait échouer Prisma).
+ */
 async function resolveCartItems(cart_items) {
   if (!cart_items?.length) return [];
 
-  const codes = cart_items.map(i => i.sku_code || i.sku_id).filter(Boolean);
-  
-  const [byEan, byId] = await Promise.all([
-    prisma.sku.findMany({
-      where: { article: { ean13: { in: codes } } },
-      select: {
-        id: true,
-        article: {
-          select: {
-            ean13: true, price: true, vat_rate: true, name_fr: true,
-            tax: { select: { rate: true } },
-          },
-        },
-      },
-    }),
-    prisma.sku.findMany({
-      where: { id: { in: codes } },
-      select: {
-        id: true,
-        article: {
-          select: {
-            ean13: true, price: true, vat_rate: true, name_fr: true,
-            tax: { select: { rate: true } },
-          },
-        },
-      },
-    }),
-  ]);
+  const codes = [...new Set(cart_items.map(i => i.sku_code || i.sku_id).filter(Boolean).map(String))];
+  const uuids = codes.filter(isUuid);
 
-  const eanMap = Object.fromEntries(byEan.map(s => [s.article.ean13, s]));
-  const idMap  = Object.fromEntries(byId.map(s => [s.id, s]));
+  const skus = codes.length
+    ? await prisma.sku.findMany({
+        where: {
+          is_deleted: false,
+          OR: [
+            ...(uuids.length ? [{ id: { in: uuids } }] : []),
+            { ean13:    { in: codes } },
+            { sku_code: { in: codes } },
+          ],
+        },
+        select: { id: true, ean13: true, sku_code: true },
+      })
+    : [];
+
+  const idMap   = Object.fromEntries(skus.map(s => [s.id, s]));
+  const eanMap  = Object.fromEntries(skus.filter(s => s.ean13).map(s => [s.ean13, s]));
+  const codeMap = Object.fromEntries(skus.map(s => [s.sku_code, s]));
 
   return cart_items.map(item => {
-    const identifier = item.sku_code || item.sku_id;
-    const sku = eanMap[identifier] ?? idMap[identifier];
+    const identifier = String(item.sku_code || item.sku_id || '');
+    const sku = idMap[identifier] ?? eanMap[identifier] ?? codeMap[identifier];
     return { ...item, sku_id: sku?.id ?? item.sku_id ?? null };
   });
+}
+
+/**
+ * US-102 : refuse (409) la validation d'une commande contenant un pack indisponible
+ * (supprimé, inactif, packs.is_available = false, plafond / stock insuffisant).
+ * Nombre de packs par pack_id : ligne { pack_id } sans sku_id = qty packs ; lignes
+ * composants (format panier de l'app) = qty / qty du composant dans la recette.
+ */
+async function assertCartPacksAvailable(cart_items) {
+  const packIds = [...new Set((cart_items || []).filter(i => i.pack_id).map(i => String(i.pack_id)))];
+  for (const packId of packIds) {
+    const lines  = cart_items.filter(i => String(i.pack_id) === packId);
+    const recipe = isUuid(packId) ? await getPackWithItems(packId) : null;
+    const baseBySku = Object.fromEntries((recipe?.pack_items ?? []).map(it => [it.sku_id, Number(it.qty ?? 1)]));
+    let count = 0;
+    let headerCount = 0;
+    for (const l of lines) {
+      const qty = Number(l.qty || 1);
+      if (!l.sku_id) { headerCount += qty; continue; }
+      const base = baseBySku[l.sku_id] ?? 1;
+      count = Math.max(count, base > 0 ? Math.round(qty / base) : qty);
+    }
+    await assertPackAvailable(packId, Math.max(1, count + headerCount));
+  }
 }
 
 async function calculate(customerId, payload) {
@@ -128,7 +147,6 @@ async function findPickupNodes(customerId, cart_items, date) {
   const resolved = await resolveCartItems(cart_items);
   const result   = await checkoutSvc.findPickupNodes(resolved, date);
 
-  console.log('[DEBUG] findPickupNodes appelé, customerId:', customerId); 
   if (result?.eligible?.length) {
     result.eligible = await sortNodesByDistance(customerId, result.eligible);
   }
@@ -146,6 +164,10 @@ async function getDeliverySlots(params) {
 async function createOrder(customerId, payload) {
   const { cart_items, slot_id, ...rest } = payload;
   const resolved = await resolveCartItems(cart_items || []);
+
+  // Contrôle de disponibilité des packs AVANT la création (le module checkout
+  // incrémente ensuite packs.sold_count dans sa transaction via adjustPackSoldCount).
+  await assertCartPacksAvailable(resolved);
 
   const order = await checkoutSvc.createOrder({
     ...rest,

@@ -1,79 +1,32 @@
+/**
+ * Sous-catégories : fonctionnalité retirée (table `sub_categories` supprimée le 18/08/2026,
+ * remplacée par les sous-familles SKU). Le module répond proprement sans toucher la base :
+ *  - liste  → vide (compatibilité des écrans qui l'appellent encore) ;
+ *  - détail / création / modification / suppression / restauration → 410 Gone.
+ */
 const repo = require('./subCategory.repository');
-const { persistSubCategoryFiles, removeSubCategoryMediaFolder } = require('../../../services/familyMedia.service');
 
-const emptyToNull = (v) => (v === '' || v === undefined ? null : v);
-
-const pickSubCategoryPayload = (body) => ({
-  name_fr: body.name_fr,
-  name_ar: body.name_ar,
-  code: body.code,
-  category_id: Number(body.category_id),
-  description_fr: emptyToNull(body.description_fr),
-  description_ar: emptyToNull(body.description_ar),
-  status: body.status || 'active',
-  sort_order:
-    body.sort_order !== undefined && body.sort_order !== '' ? Number(body.sort_order) : 0,
-});
+const GONE_MESSAGE = 'Les sous-catégories ont été supprimées : utilisez les sous-familles SKU.';
+const gone = () => ({ statusCode: 410, message: GONE_MESSAGE });
 
 class SubCategoryService {
-  async getAll(params) {
+  async getAll(params = {}) {
     const { data, total } = await repo.findAll(params);
     const page = Number(params.page) || 1;
     const limit = Number(params.limit) || 20;
-    return { data, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
+    return { data, pagination: { total, page, limit, pages: 0 }, message: GONE_MESSAGE };
   }
 
-  async getList(category_id) {
-    return repo.findAll_noPage(category_id);
+  async getList() {
+    return repo.findAll_noPage();
   }
 
-  async getById(id) {
-    const item = await repo.findById(Number(id));
-    if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
-    return item;
-  }
-
-  async create(body, files) {
-    const payload = pickSubCategoryPayload(body);
-    const exists = await repo.findByCode(payload.code);
-    if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    let row = await repo.create(payload);
-    const paths = persistSubCategoryFiles(row.id, files, null);
-    if (paths.image_path || paths.icon_path) {
-      row = await repo.update(row.id, paths);
-    }
-    return row;
-  }
-
-  async update(id, body, files) {
-    const item = await repo.findById(Number(id));
-    if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
-    if (body.code) {
-      const exists = await repo.findByCode(body.code, Number(id));
-      if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    }
-    const payload = pickSubCategoryPayload(body);
-    const paths = persistSubCategoryFiles(Number(id), files, item);
-    return repo.update(Number(id), { ...payload, ...paths });
-  }
-
-  async delete(id) {
-    const item = await repo.findById(Number(id));
-    if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
-    const artCount = await repo.countArticles(Number(id));
-    if (artCount > 0) {
-      throw { statusCode: 400, message: 'Impossible de supprimer : cette sous-catégorie contient des articles' };
-    }
-    await repo.softDelete(Number(id));
-    removeSubCategoryMediaFolder(Number(id));
-  }
-
-  async restore(id) {
-  const item = await repo.findByIdIncludingDeleted(Number(id));
-  if (!item) throw { statusCode: 404, message: 'Sous-catégorie introuvable' };
-  if (!item.deleted_at) throw { statusCode: 400, message: "Cette sous-catégorie n'est pas supprimée" };
-  return repo.restore(Number(id));
-}
+  async getById() { throw gone(); }
+  async create() { throw gone(); }
+  async update() { throw gone(); }
+  async delete() { throw gone(); }
+  async restore() { throw gone(); }
 }
 
 module.exports = new SubCategoryService();
+module.exports.GONE_MESSAGE = GONE_MESSAGE;

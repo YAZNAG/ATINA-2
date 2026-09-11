@@ -11,14 +11,30 @@ const INCLUDE = {
       category: { select: { id: true, name_fr: true } },
     },
   },
+  // Emplacement de stockage (optionnel) et ligne de BC d'origine (réception)
+  location: {
+    select: {
+      id: true, label: true, aisle: true, shelf: true,
+      zone: { select: { id: true, code: true, name_fr: true } },
+      level: { select: { id: true, code: true, name_fr: true } },
+    },
+  },
+  po_item: {
+    select: {
+      id: true, qty_ordered: true, unit_price_ht: true,
+      po: { select: { id: true, reference: true, supplier: { select: { id: true, name_fr: true } } } },
+    },
+  },
 };
 
 const findWithFilters = async ({
-  node_id, sku_id, expiring_soon, expired, exhausted, active,
+  node_id, sku_id, expiring_soon, expired, exhausted, active, location_id, po_id,
 } = {}) => {
   const where = { is_deleted: false };
   if (node_id) where.node_id = node_id;
   if (sku_id)  where.sku_id  = sku_id;
+  if (location_id) where.location_id = location_id;
+  if (po_id) where.po_item = { po_id };
 
   const now = new Date();
   if (expired === 'true' || expired === true) {

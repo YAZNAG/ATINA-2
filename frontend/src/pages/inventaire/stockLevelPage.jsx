@@ -2,16 +2,17 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ArrowUpDown, Loader2, ArrowRight, SlidersHorizontal, History,
-  Settings2, AlertTriangle, PackageX, Plus, Minus, RefreshCw,
+  Settings2, AlertTriangle, PackageX, Plus, Minus, RefreshCw, FileText, Coins,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getStockLevels, adjustStockLevel, getMoveTypesList, getStockMoves } from '../../api/stock.api';
+import { getStockLevels, adjustStockLevel, getMoveTypesList, getStockMoves, getStockCost } from '../../api/stock.api';
+import { exportPdf } from '../../utils/pdfExport';
 import { getReorderAlerts, getReorderThresholds } from '../../api/stockCounts.api';
 import { getNodes } from '../../api/locationNode.api';
 import { getSkus, getFamiliesList, getBrandsList } from '../../api/catalog.api';
 import { useAuth } from '../../context/AuthContext';
 import {
-  N, fmtQty, fmtSigned, formatDate, formatDateTime, downloadCsv, asList, apiError, todayStamp,
+  N, fmtQty, fmtSigned, formatDate, formatDateTime, downloadCsv, asList, apiError, todayStamp, fmtMoney4,
 } from './inventaireUtils';
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
@@ -190,8 +191,30 @@ function DetailTab({ row, rule, nodes, rows, onPick, onAdjust, navigate }) {
   const [movesLoading, setMovesLoading] = useState(false);
   const [movesError, setMovesError] = useState('');
   const [pickNode, setPickNode] = useState(row?.node_id || '');
+  const [cost, setCost] = useState(null);
+  const [costLoading, setCostLoading] = useState(false);
+  const [costError, setCostError] = useState('');
 
   useEffect(() => { if (row) setPickNode(row.node_id); }, [row]);
+
+  // Valorisation (US-047) : CUMP courant, valeur du stock, historique sku_cost_snapshots
+  useEffect(() => {
+    if (!row) { setCost(null); return undefined; }
+    let cancelled = false;
+    (async () => {
+      setCostLoading(true);
+      setCostError('');
+      try {
+        const res = await getStockCost(row.node_id, row.sku_id, 10);
+        if (!cancelled) setCost(res?.data?.data ?? null);
+      } catch (err) {
+        if (!cancelled) { setCost(null); setCostError(apiError(err, 'Valorisation indisponible.')); }
+      } finally {
+        if (!cancelled) setCostLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [row]);
 
   useEffect(() => {
     if (!row) return undefined;
@@ -285,6 +308,62 @@ function DetailTab({ row, rule, nodes, rows, onPick, onAdjust, navigate }) {
         <StatCard label="Backorder" value={fmtQty(row.qty_backordered)} tone="purple" />
         <StatCard label="Entrant" value={fmtQty(row.qty_incoming)} tone="blue" />
         <StatCard label="COD flottant" value={fmtQty(row.qty_floating_cod)} />
+      </div>
+
+      <div className="border rounded-xl overflow-hidden bg-white mb-4">
+        <div className="px-4 py-3 border-b bg-gray-50 text-sm font-semibold text-gray-700 flex flex-wrap items-center justify-between gap-2">
+          <span className="flex items-center gap-2"><Coins size={15} /> Valorisation (CUMP)</span>
+          {cost && (
+            <span className="text-xs font-normal text-gray-500">
+              Méthode : <strong>{cost.costing_method === 'FIFO' ? 'FIFO (lots)' : 'CUMP'}</strong>
+              {cost.costing_method_source === 'defaut' ? ' (par défaut, aucune règle de réappro)' : ' (règle de réappro)'}
+            </span>
+          )}
+        </div>
+        {costLoading && <div className="px-4 py-6 text-sm text-gray-400"><Loader2 className="inline animate-spin mr-2" size={14} />Chargement...</div>}
+        {!costLoading && costError && <div className="px-4 py-6 text-sm text-red-600">{costError}</div>}
+        {!costLoading && !costError && cost && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:divide-x">
+            <div className="p-4 grid grid-cols-2 lg:grid-cols-1 gap-3">
+              <StatCard label="CUMP courant (MAD / unité)" value={cost.cump == null ? '—' : fmtMoney4(cost.cump)} tone="blue" />
+              <StatCard label="Valeur du stock (physique × CUMP)" value={cost.stock_value == null ? '—' : `${fmtMoney4(cost.stock_value, 2)} MAD`} tone="green" />
+              <p className="text-xs text-gray-400 col-span-2 lg:col-span-1">
+                {cost.cump_source === 'snapshot' && `Dernier recalcul : ${formatDateTime(cost.cump_computed_at)}`}
+                {cost.cump_source === 'lots' && 'Aucun snapshot CUMP : coût moyen pondéré des lots en stock.'}
+                {!cost.cump_source && 'Aucune réception valorisée pour ce couple.'}
+              </p>
+            </div>
+            <div className="lg:col-span-2 p-4">
+              <p className="text-xs font-semibold text-gray-500 mb-2">Historique CUMP (sku_cost_snapshots) — lecture seule</p>
+              {cost.snapshots.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">Aucun snapshot : le CUMP est recalculé à chaque réception de bon de commande.</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-gray-400 text-left"><th className="py-1">Date</th><th className="py-1 text-right">CUMP</th><th className="py-1 text-right">Qté reçue</th><th className="py-1 text-right">Coût lot</th><th className="py-1">Origine</th></tr>
+                  </thead>
+                  <tbody>
+                    {cost.snapshots.map((sn) => (
+                      <tr key={sn.id} className="border-t">
+                        <td className="py-1.5 text-gray-500">{formatDateTime(sn.computed_at)}</td>
+                        <td className="py-1.5 text-right font-semibold text-gray-800">{fmtMoney4(sn.cump)}</td>
+                        <td className="py-1.5 text-right text-green-600">{sn.move ? fmtSigned(sn.move.qty_delta) : '—'}</td>
+                        <td className="py-1.5 text-right text-gray-600">{sn.move?.cost_unit != null ? fmtMoney4(sn.move.cost_unit) : '—'}</td>
+                        <td className="py-1.5">
+                          {sn.move?.po ? (
+                            <button type="button" onClick={() => navigate(`/purchasing/purchase-orders?tab=detail&id=${sn.move.po.id}`)} className="text-[#E10600] hover:underline font-mono">
+                              {sn.move.po.reference}
+                            </button>
+                          ) : (sn.move?.reference ?? '—')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -601,15 +680,40 @@ function AlertsTab({ nodes, initialNode, navigate }) {
     return list;
   }, [rows, status, search]);
 
+  const EXPORT_HEADERS = ['Statut', 'Node', 'SKU', 'Nom', 'Famille', 'Physique', 'Réservé', 'Disponible', 'Stock sécurité', 'Point réappro', 'Couverture %', 'Entrant'];
+  const exportRows = () => filtered.map((r) => [
+    r.alert_status === 'rupture' ? 'Rupture' : 'Alerte', r.node?.code, r.sku?.sku_code, r.sku?.name_fr, r.sku?.family?.name_fr,
+    r.qty_physical, r.qty_reserved, r.qty_available,
+    r.has_rule ? r.safety_stock : 'Aucune règle', r.has_rule ? r.reorder_point : 'Aucune règle',
+    r.coverage_pct ?? '', r.qty_incoming,
+  ]);
+
   const exportCsv = () => {
-    downloadCsv(`alertes-rupture-${todayStamp()}.csv`,
-      ['Statut', 'Node', 'SKU', 'Nom', 'Famille', 'Physique', 'Réservé', 'Disponible', 'Stock sécurité', 'Point réappro', 'Couverture %', 'Entrant'],
-      filtered.map((r) => [
-        r.alert_status === 'rupture' ? 'Rupture' : 'Alerte', r.node?.code, r.sku?.sku_code, r.sku?.name_fr, r.sku?.family?.name_fr,
-        r.qty_physical, r.qty_reserved, r.qty_available,
-        r.has_rule ? r.safety_stock : 'Aucune règle', r.has_rule ? r.reorder_point : 'Aucune règle',
-        r.coverage_pct ?? '', r.qty_incoming,
-      ]));
+    downloadCsv(`alertes-rupture-${todayStamp()}.csv`, EXPORT_HEADERS, exportRows());
+  };
+
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const exportAlertsPdf = async () => {
+    setPdfBusy(true);
+    try {
+      const node = nodes.find((n) => n.id === nodeId);
+      await exportPdf({
+        title: 'Alertes rupture — Niveaux de stock',
+        subtitle: `${ruptureCount} rupture(s) (disponible ≤ 0) · ${alerteCount} alerte(s) (disponible ≤ point de réappro)`,
+        filters: [
+          ['Node', node ? `${node.code} — ${node.name_fr}` : 'Tous les nodes'],
+          ['Statut', ALERT_FILTERS.find((t) => t.key === status)?.label ?? 'Tous'],
+          ['Recherche', search.trim()],
+        ],
+        sections: [{ headers: EXPORT_HEADERS, rows: exportRows(), align: { 5: 'right', 6: 'right', 7: 'right', 8: 'right', 9: 'right', 10: 'right', 11: 'right' } }],
+        orientation: 'landscape',
+        filename: `alertes-rupture-${todayStamp()}.pdf`,
+      });
+    } catch (err) {
+      toast.error(apiError(err, "Erreur lors de l'export PDF."));
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   return (
@@ -640,6 +744,9 @@ function AlertsTab({ nodes, initialNode, navigate }) {
           <button onClick={load} title="Rafraîchir" className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"><RefreshCw size={15} /></button>
           <button onClick={exportCsv} disabled={!filtered.length} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
             <Download size={15} /> Exporter
+          </button>
+          <button onClick={exportAlertsPdf} disabled={pdfBusy || loading} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Exporter PDF
           </button>
         </div>
       </div>

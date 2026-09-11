@@ -1,6 +1,9 @@
 const { audit } = require('../../../utils/audit');
 const repo   = require('./stock_level.repository');
 const prisma = require('../../../config/database');
+const skuCost = require('../sku_costs/sku_cost.util');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class StockLevelService {
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -17,6 +20,13 @@ class StockLevelService {
   async getByNode(node_id) {
     if (!node_id) throw { statusCode: 400, message: 'node_id requis' };
     return this.getWithFilters({ node_id });
+  }
+
+  /** CUMP courant, valeur du stock (qty_physical × CUMP) et historique des snapshots d'un couple. */
+  async getCost({ node_id, sku_id, limit } = {}) {
+    if (!UUID_RE.test(String(node_id || ''))) throw { statusCode: 400, message: 'node_id requis (identifiant valide)' };
+    if (!UUID_RE.test(String(sku_id || ''))) throw { statusCode: 400, message: 'sku_id requis (identifiant valide)' };
+    return skuCost.costSummary({ node_id, sku_id, limit });
   }
 
   async getById(id) {

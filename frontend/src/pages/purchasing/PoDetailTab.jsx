@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FileText, Pencil, Send, Truck, PackageCheck, CheckCheck, Ban, Trash2, Download, Save, Loader2, Boxes, History, X,
+  FileText, Pencil, Send, Truck, PackageCheck, CheckCheck, Ban, Trash2, Download, Save, Loader2, Boxes, History, X, Coins, Lock,
 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import {
@@ -14,6 +14,12 @@ import {
 import { errMsg, fmtMoney, fmtPrice, fmtQty, fmtDate, fmtDateTime, downloadCsv, csvNum } from './purchasingUtils';
 
 const PIPELINE = ['draft', 'sent', 'in_transit', 'partially_received', 'received'];
+
+const locationLabel = (loc) => {
+  if (!loc) return '';
+  const path = [loc.aisle, loc.shelf, loc.level?.code].filter(Boolean).join('-');
+  return loc.label && loc.label !== path ? `${loc.label} (${path})` : (loc.label || path);
+};
 
 function Pipeline({ statuses, current }) {
   if (current === 'cancelled') {
@@ -202,6 +208,11 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
           )}
         </div>
         <div className="mt-4"><Pipeline statuses={lookups.statuses} current={statusCode} /></div>
+        {po.is_terminal && (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-600">
+            <Lock size={13} /> Statut terminal « {po.status?.name_fr} » : ce bon de commande n'est plus modifiable.
+          </p>
+        )}
       </div>
 
       {editing ? (
@@ -259,12 +270,13 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
                     <th className="px-3 py-2 font-medium text-right">Reçue</th>
                     <th className="px-3 py-2 font-medium text-right">Reliquat</th>
                     <th className="px-3 py-2 font-medium text-right">Prix HT</th>
+                    <th className="px-3 py-2 font-medium text-right" title="Coût moyen pondéré actuel du SKU sur le node de livraison (par unité de vente)">CUMP actuel</th>
                     <th className="py-2 pl-3 font-medium text-right">Total HT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
                   {po.items.length === 0 ? (
-                    <tr><td colSpan={6} className="py-8 text-center text-neutral-400">Aucune ligne.</td></tr>
+                    <tr><td colSpan={7} className="py-8 text-center text-neutral-400">Aucune ligne.</td></tr>
                   ) : po.items.map((i) => (
                     <tr key={i.id}>
                       <td className="py-2.5 pr-3">
@@ -275,13 +287,14 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
                       <td className={`px-3 py-2.5 text-right tabular-nums ${i.qty_received >= i.qty_ordered ? 'text-emerald-600' : i.qty_received > 0 ? 'text-amber-600' : 'text-neutral-500'}`}>{fmtQty(i.qty_received)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{fmtQty(i.qty_remaining)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{fmtPrice(i.unit_price_ht)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{i.cump_current != null ? fmtPrice(i.cump_current) : '—'}</td>
                       <td className="py-2.5 pl-3 text-right font-medium tabular-nums text-neutral-900">{fmtMoney(i.line_total_ht)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="border-t border-neutral-200">
                   <tr>
-                    <td colSpan={5} className="py-3 pr-3 text-right text-sm font-semibold text-neutral-700">Total HT</td>
+                    <td colSpan={6} className="py-3 pr-3 text-right text-sm font-semibold text-neutral-700">Total HT</td>
                     <td className="py-3 pl-3 text-right text-base font-bold tabular-nums text-neutral-900">{fmtMoney(po.total_ht)}</td>
                   </tr>
                 </tfoot>
@@ -299,6 +312,7 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
               <InfoRow label="Contact" value={[po.supplier?.contact_name, po.supplier?.contact_phone].filter(Boolean).join(' · ') || '—'} />
               <InfoRow label="Conditions de paiement" value={po.supplier?.payment_terms || '—'} />
               <InfoRow label="Node de livraison" value={po.node ? `${po.node.name_fr} (${po.node.code})` : '—'} />
+              <InfoRow label="Envoyé au fournisseur" value={po.ordered_at ? fmtDateTime(po.ordered_at) : '—'} />
               <InfoRow label="Livraison prévue" value={fmtDate(po.expected_at)} />
               <InfoRow label="Dernière réception" value={po.received_at ? fmtDateTime(po.received_at) : '—'} />
               <InfoRow label="Réception" value={`${po.progress_pct ?? 0} %`} />
@@ -312,7 +326,7 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
             className="xl:col-span-3"
             actions={po.receptions?.length ? (
               <>
-                <button type="button" className={btnSecondary} onClick={() => navigate('/stock/moves')}><History size={16} /> Mouvements de stock</button>
+                <button type="button" className={btnSecondary} onClick={() => navigate(`/stock/moves?po_id=${po.id}`)}><History size={16} /> Mouvements de stock</button>
                 <button type="button" className={btnSecondary} onClick={() => navigate('/stock/lots')}><Boxes size={16} /> Lots de stock</button>
               </>
             ) : null}
@@ -330,6 +344,8 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
                       <th className="px-3 py-2 font-medium">N° lot</th>
                       <th className="px-3 py-2 font-medium">Expiration</th>
                       <th className="px-3 py-2 font-medium text-right">Coût unitaire</th>
+                      <th className="px-3 py-2 font-medium">Emplacement</th>
+                      <th className="px-3 py-2 font-medium text-right">CUMP après</th>
                       <th className="py-2 pl-3 font-medium">Opérateur</th>
                     </tr>
                   </thead>
@@ -342,7 +358,50 @@ export default function PoDetailTab({ poId, lookups, perms, toast, goTab, onChan
                         <td className="px-3 py-2 text-neutral-600">{m.lot?.lot_number || '—'}</td>
                         <td className="px-3 py-2 text-neutral-600">{fmtDate(m.lot?.expiry_date)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{m.lot ? fmtPrice(m.lot.cost_unit) : '—'}</td>
+                        <td className="px-3 py-2 text-xs text-neutral-600">{locationLabel(m.location) || <span className="text-neutral-300">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-700">{m.cump_after != null ? fmtPrice(m.cump_after) : <span className="text-xs text-neutral-300" title="Pas de snapshot CUMP (méthode FIFO)">FIFO</span>}</td>
                         <td className="py-2 pl-3 text-xs text-neutral-500">{m.operator?.full_name || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card
+            title={<span className="flex items-center gap-2"><Coins size={15} /> Coût moyen (CUMP) — historique</span>}
+            className="xl:col-span-3"
+          >
+            {!po.cump_history?.length ? (
+              <p className="py-4 text-sm text-neutral-400">
+                Aucun snapshot de coût pour les SKU de ce BC sur {po.node?.name_fr || 'ce node'} : le CUMP est recalculé à chaque réception
+                (méthode CUMP ou SKU sans règle de réappro ; en FIFO, la valorisation est portée par les lots).
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
+                    <tr>
+                      <th className="py-2 pr-3 font-medium">Date du calcul</th>
+                      <th className="px-3 py-2 font-medium">SKU</th>
+                      <th className="px-3 py-2 font-medium text-right">CUMP (MAD / unité)</th>
+                      <th className="px-3 py-2 font-medium text-right">Qté reçue</th>
+                      <th className="py-2 pl-3 font-medium">Réception</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {po.cump_history.map((h) => (
+                      <tr key={h.id} className={h.from_this_po ? 'bg-red-50/30' : ''}>
+                        <td className="py-2 pr-3 text-xs text-neutral-500">{fmtDateTime(h.computed_at)}</td>
+                        <td className="px-3 py-2"><span className="font-mono text-xs text-neutral-500">{h.sku?.sku_code}</span> {h.sku?.name_fr}</td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-neutral-900">{fmtPrice(h.cump)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{h.move ? `+${fmtQty(h.move.qty_delta)}` : '—'}</td>
+                        <td className="py-2 pl-3 text-xs">
+                          {h.from_this_po
+                            ? <span className="rounded-full bg-[#E10600]/10 px-2 py-0.5 font-medium text-[#E10600]">Ce BC</span>
+                            : <span className="font-mono text-neutral-500">{h.move?.reference || '—'}</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

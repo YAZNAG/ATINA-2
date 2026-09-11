@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PackageCheck, Lock, Loader2, ArrowLeft, AlertTriangle } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { getPurchaseOrder, getPurchaseOrders, receivePurchaseOrder } from '../../api/purchasing.api';
+import { getPurchaseOrder, getPurchaseOrders, receivePurchaseOrder, getPurchasingLocations } from '../../api/purchasing.api';
 import {
   Card, Field, EmptyState, Spinner, PoStatusPill, inputCls, btnPrimary, btnSecondary,
 } from './components/PurchasingUi';
@@ -10,10 +10,18 @@ import { errMsg, fmtMoney, fmtPrice, fmtQty, fmtDate, todayIso } from './purchas
 const RECEIVABLE = 'sent,in_transit,partially_received';
 
 /**
- * Onglet « Réception » (WF #2 / US-054) : qté reçue par ligne, n° de lot, date d'expiration, coût.
- * « Réceptionner » crée les lots et les mouvements d'entrée en stock, met à jour les niveaux
- * de stock et passe le BC en « Partiellement reçu » ou « Reçu ».
+ * Onglet « Réception » (WF #2 / US-054) : qté reçue par ligne, n° de lot, date d'expiration, coût,
+ * emplacement de stockage (optionnel).
+ * « Réceptionner » crée les lots et les mouvements d'entrée en stock (rattachés à la ligne de BC),
+ * met à jour les niveaux de stock (et l'emplacement choisi), recalcule le CUMP du SKU sur le node
+ * et passe le BC en « Partiellement reçu » ou « Reçu ».
  */
+const locationLabel = (loc) => {
+  if (!loc) return '';
+  const path = [loc.aisle, loc.shelf, loc.level?.code].filter(Boolean).join('-');
+  const base = loc.label && loc.label !== path ? `${loc.label} (${path})` : (loc.label || path);
+  return loc.zone?.name_fr ? `${base} — ${loc.zone.name_fr}` : base;
+};
 export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone }) {
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +32,7 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
   const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [locations, setLocations] = useState([]);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -48,7 +57,12 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
         lot_number: '',
         expiry_date: '',
         cost_unit: String(i.unit_price_ht ?? ''),
+        location_id: '',
       }])));
+      // Emplacements du node de réception (choix optionnel par ligne)
+      getPurchasingLocations(p.node_id)
+        .then(({ data: res }) => setLocations(res.data || []))
+        .catch(() => setLocations([]));
     } catch (err) {
       toast('error', errMsg(err, 'Bon de commande introuvable'));
       setPo(null);
@@ -171,6 +185,7 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
             qty_received: lines[i.id].qty,
             lot_number: lines[i.id].lot_number || null,
             expiry_date: lines[i.id].expiry_date || null,
+            location_id: lines[i.id].location_id || null,
             ...(lines[i.id].cost_unit !== '' ? { cost_unit: lines[i.id].cost_unit } : {}),
           })),
       };
@@ -203,7 +218,7 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
 
       <Card title="Lignes à réceptionner">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[1300px] text-left text-sm">
             <thead className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
               <tr>
                 <th className="py-2 pr-3 font-medium">SKU</th>
@@ -214,6 +229,7 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
                 <th className="w-36 px-2 py-2 font-medium">N° lot</th>
                 <th className="w-40 px-2 py-2 font-medium">Date d'expiration</th>
                 <th className="w-32 px-2 py-2 font-medium text-right">Coût unit. HT</th>
+                <th className="w-48 px-2 py-2 font-medium">Emplacement <span className="normal-case text-neutral-400">(optionnel)</span></th>
                 <th className="py-2 pl-2 font-medium text-right">Entrée stock</th>
               </tr>
             </thead>
@@ -233,7 +249,7 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
                     <td className="px-2 py-2.5 text-right tabular-nums">{fmtQty(i.qty_ordered)} <span className="text-xs text-neutral-400">{i.sku?.unit_purchase}</span></td>
                     <td className="px-2 py-2.5 text-right tabular-nums text-neutral-500">{fmtQty(i.qty_received)}</td>
                     {done ? (
-                      <td colSpan={5} className="px-2 py-2.5 text-center text-xs font-medium text-emerald-600">Ligne entièrement reçue</td>
+                      <td colSpan={6} className="px-2 py-2.5 text-center text-xs font-medium text-emerald-600">Ligne entièrement reçue</td>
                     ) : (
                       <>
                         <td className="px-2 py-2.5">
@@ -250,6 +266,17 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
                         </td>
                         <td className="px-2 py-2.5">
                           <input type="number" min="0" step="0.0001" value={l.cost_unit ?? ''} onChange={(e) => setLine(i.id, 'cost_unit', e.target.value)} className={`${inputCls} text-right`} />
+                          {i.cump_current != null && (
+                            <span className="mt-0.5 block text-right text-[11px] text-neutral-400" title="Coût moyen pondéré actuel du SKU sur ce node (par unité de vente)">
+                              CUMP actuel {fmtPrice(i.cump_current)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <select value={l.location_id ?? ''} onChange={(e) => setLine(i.id, 'location_id', e.target.value)} className={inputCls} disabled={!locations.length}>
+                            <option value="">{locations.length ? 'Sans emplacement' : 'Aucun emplacement sur ce node'}</option>
+                            {locations.map((loc) => <option key={loc.id} value={loc.id}>{locationLabel(loc)}</option>)}
+                          </select>
                         </td>
                       </>
                     )}
@@ -269,7 +296,9 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
         </div>
         <p className="mt-3 text-xs text-neutral-400">
           Écart = total reçu − commandé (négatif : reliquat restant). Coût unitaire en unité d'achat (prérempli avec le prix du BC) ;
-          le lot de stock est valorisé par unité de vente (coût ÷ coefficient).
+          le lot de stock est valorisé par unité de vente (coût ÷ coefficient) et le CUMP du SKU sur le node est recalculé
+          (méthode CUMP ou sans règle de réappro ; en FIFO, seul le lot porte le coût). L'emplacement choisi alimente le stock
+          de l'emplacement (Entrepôt &gt; Emplacements &amp; Mapping).
         </p>
       </Card>
 
@@ -310,7 +339,9 @@ export default function PoReceptionTab({ poId, perms, toast, onSelect, onDone })
         <div className="space-y-2 text-sm text-neutral-600">
           <p>
             {summary.count} ligne(s) seront réceptionnées sur <strong>{po.node?.name_fr}</strong> :
-            création des lots, des mouvements d'entrée en stock et mise à jour des niveaux de stock.
+            création des lots, des mouvements d'entrée en stock, mise à jour des niveaux de stock
+            {po.items.some((i) => Number(lines[i.id]?.qty) > 0 && lines[i.id]?.location_id) ? ' et des emplacements choisis' : ''},
+            recalcul du coût moyen (CUMP).
           </p>
           <p>Valeur reçue : <strong>{fmtMoney(summary.value)}</strong> · {fmtQty(summary.units)} unité(s) de stock.</p>
           {po.items.some((i) => (Number(lines[i.id]?.qty) || 0) < i.qty_remaining && i.qty_remaining > 0) && (

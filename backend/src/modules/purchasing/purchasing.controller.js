@@ -9,6 +9,10 @@ class PurchasingController {
     try { return response.success(res, await service.lookups()); } catch (err) { next(err); }
   }
 
+  async locations(req, res, next) {
+    try { return response.success(res, await service.orders.nodeLocations(req.query)); } catch (err) { next(err); }
+  }
+
   async searchSkus(req, res, next) {
     try { return response.success(res, await service.searchSkus(req.query)); } catch (err) { next(err); }
   }

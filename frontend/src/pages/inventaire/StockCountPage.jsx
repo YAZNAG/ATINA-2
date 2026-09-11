@@ -74,12 +74,13 @@ function NewCountModal({ open, onClose, refs, onCreated }) {
   const [scope, setScope] = useState('node'); // node | zone | category
   const [zoneId, setZoneId] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [includeUnlocated, setIncludeUnlocated] = useState(false);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) { setNodeId(''); setScope('node'); setZoneId(''); setCategoryId(''); setNotes(''); setError(''); }
+    if (open) { setNodeId(''); setScope('node'); setZoneId(''); setCategoryId(''); setIncludeUnlocated(false); setNotes(''); setError(''); }
   }, [open]);
 
   const submit = async () => {
@@ -93,6 +94,7 @@ function NewCountModal({ open, onClose, refs, onCreated }) {
         node_id: nodeId,
         zone_id: scope === 'zone' ? zoneId : null,
         category_id: scope === 'category' ? categoryId : null,
+        ...(scope === 'zone' ? { include_unlocated: includeUnlocated } : {}),
         notes: notes.trim() || null,
       });
       const session = res?.data?.data;
@@ -151,6 +153,18 @@ function NewCountModal({ open, onClose, refs, onCreated }) {
               {(refs.zones || []).map((z) => <option key={z.id} value={z.id}>{z.code} — {z.name_fr}</option>)}
             </select>
             <p className="text-xs text-gray-400 mt-1">Seuls les SKU affectés à un emplacement de cette zone (Entrepôt &gt; Emplacements) sont comptés.</p>
+            <label className="mt-3 flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeUnlocated}
+                onChange={(e) => setIncludeUnlocated(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+              />
+              <span>
+                Inclure les SKU sans emplacement
+                <span className="block text-xs text-gray-400">SKU en stock sur ce node sans aucun emplacement affecté : ajoutés en fin de liste.</span>
+              </span>
+            </label>
           </div>
         )}
         {scope === 'category' && (

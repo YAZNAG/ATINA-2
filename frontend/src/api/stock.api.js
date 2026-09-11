@@ -108,3 +108,6 @@ export const getStockStatus       = (id)        => api.get(`${s}/stock-statuses/
 export const createStockStatus    = (data)      => api.post(`${s}/stock-statuses`, data);
 export const updateStockStatus    = (id, data)  => api.put(`${s}/stock-statuses/${id}`, data);
 export const deleteStockStatus    = (id)        => api.delete(`${s}/stock-statuses/${id}`);
+
+// ——— Valorisation SKU × node (CUMP courant, valeur du stock, historique sku_cost_snapshots) ———
+export const getStockCost = (node_id, sku_id, limit = 20) => api.get(`${s}/levels/cost`, { params: { node_id, sku_id, limit } });

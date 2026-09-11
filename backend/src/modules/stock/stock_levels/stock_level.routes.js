@@ -11,6 +11,8 @@ router.get('/',                 perm('stock.view'),   ctrl.list.bind(ctrl));
 router.get('/moves',            perm('stock.view'),   ctrl.listMoves.bind(ctrl));
 router.get('/by-node/:node_id', perm('stock.view'),   ctrl.byNode.bind(ctrl));
 router.get('/by-sku/:sku_id',   perm('stock.view'),   ctrl.bySku.bind(ctrl));
+// Valorisation SKU × node : CUMP courant, valeur du stock, historique sku_cost_snapshots (US-047)
+router.get('/cost',             perm.permAny(['stock.view', 'purchase_orders.view']), ctrl.cost.bind(ctrl));
 router.get('/:id',              perm('stock.view'),   ctrl.getById.bind(ctrl));
 
 // POST

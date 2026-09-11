@@ -16,6 +16,7 @@
 const prisma = require('../../config/database');
 const { audit } = require('../../utils/audit');
 const priceService = require('./supplier_prices.service');
+const skuCost = require('../stock/sku_costs/sku_cost.util');
 const {
   PO_TRANSITIONS, LINES_EDITABLE_STATUSES, HEADER_EDITABLE_STATUSES, RECEIVABLE_STATUSES,
   INCOMING_STATUSES, bad, assertUuid, isUuid, num, round, optText, parseNumber, parseDateOnly,
@@ -85,17 +86,29 @@ function formatItem(it) {
   };
 }
 
+/** Statut terminal (po_statuses.is_terminal : received, cancelled) → plus aucune modification. */
+const isTerminal = (status) => !!status?.is_terminal || ['received', 'cancelled'].includes(status?.code);
+
+function assertNotTerminal(po, action = 'modifié') {
+  if (isTerminal(po.status)) {
+    throw bad(`Le BC ${po.reference} est au statut terminal « ${po.status.name_fr} » : il ne peut plus être ${action}`);
+  }
+}
+
 function flags(po) {
   const code = po.status?.code;
   const anyReceived = (po.items || []).some((i) => N(i.qty_received) > 0);
   const deleted = !!po.is_deleted;
+  const locked = deleted || isTerminal(po.status);
   return {
-    allowed_transitions: deleted ? [] : (PO_TRANSITIONS[code] || []).filter((t) => t !== 'cancelled' || !anyReceived),
-    can_edit_lines: !deleted && LINES_EDITABLE_STATUSES.includes(code),
-    can_edit_header: !deleted && HEADER_EDITABLE_STATUSES.includes(code),
-    can_change_parties: !deleted && code === 'draft',
-    can_receive: !deleted && RECEIVABLE_STATUSES.includes(code),
-    can_cancel: !deleted && ['draft', 'sent', 'in_transit'].includes(code) && !anyReceived,
+    is_terminal: isTerminal(po.status),
+    allowed_transitions: locked ? [] : (PO_TRANSITIONS[code] || []).filter((t) => t !== 'cancelled' || !anyReceived),
+    can_edit_lines: !locked && LINES_EDITABLE_STATUSES.includes(code),
+    can_edit_header: !locked && HEADER_EDITABLE_STATUSES.includes(code),
+    can_change_parties: !locked && code === 'draft',
+    can_receive: !locked && RECEIVABLE_STATUSES.includes(code),
+    can_cancel: !locked && ['draft', 'sent', 'in_transit'].includes(code) && !anyReceived,
+    // Archivage (soft-delete) : encore possible pour un BC annulé, jamais après réception.
     can_delete: !deleted && !['partially_received', 'received'].includes(code) && !anyReceived,
   };
 }
@@ -287,22 +300,50 @@ async function list(query = {}) {
   };
 }
 
+const LOCATION_SELECT = {
+  id: true, label: true, aisle: true, shelf: true,
+  zone: { select: { id: true, code: true, name_fr: true } },
+  level: { select: { id: true, code: true, name_fr: true, sort_order: true } },
+};
+
 async function getById(id) {
   const po = await loadPo(id, prisma, { includeDeleted: true });
-  const [names, moves] = await Promise.all([
+  const itemIds = po.items.map((i) => i.id);
+  const skuIds = po.items.map((i) => i.sku_id);
+  const [names, moves, cumps, snapshots] = await Promise.all([
     userNames([po.created_by]),
     prisma.stockMove.findMany({
-      where: { reference: po.reference, node_id: po.node_id },
+      where: {
+        node_id: po.node_id,
+        OR: [{ reference: po.reference }, ...(itemIds.length ? [{ po_item_id: { in: itemIds } }] : [])],
+      },
       include: {
         lot: { select: { id: true, lot_number: true, expiry_date: true, cost_unit: true, qty_initial: true, qty_remaining: true } },
         sku: { select: { id: true, sku_code: true, name_fr: true } },
         move_type: { select: { code: true, name_fr: true } },
         operator: { select: { id: true, full_name: true } },
+        location: { select: LOCATION_SELECT },
+        cost_snapshots: { select: { id: true, cump: true, computed_at: true } },
       },
       orderBy: { created_at: 'desc' },
     }),
+    skuCost.latestBySkus(prisma, po.node_id, skuIds),
+    skuIds.length
+      ? prisma.skuCostSnapshot.findMany({
+        where: { node_id: po.node_id, sku_id: { in: skuIds } },
+        orderBy: { computed_at: 'desc' },
+        take: 200,
+        include: { triggered_by_move: { select: { id: true, reference: true, qty_delta: true, po_item_id: true } } },
+      })
+      : [],
   ]);
   const out = format(po, names);
+  const skuById = Object.fromEntries(po.items.map((i) => [i.sku_id, i.sku]));
+  out.items = out.items.map((i) => ({
+    ...i,
+    cump_current: cumps[i.sku_id]?.cump ?? null,
+    cump_computed_at: cumps[i.sku_id]?.computed_at ?? null,
+  }));
   out.receptions = moves.map((m) => ({
     id: m.id,
     created_at: m.created_at,
@@ -312,6 +353,9 @@ async function getById(id) {
     operator: m.operator,
     reason: m.reason,
     metadata: m.metadata,
+    po_item_id: m.po_item_id,
+    location: m.location,
+    cump_after: m.cost_snapshots?.[0] ? N(m.cost_snapshots[0].cump) : null,
     lot: m.lot ? {
       ...m.lot,
       expiry_date: fmtDate(m.lot.expiry_date),
@@ -320,7 +364,29 @@ async function getById(id) {
       qty_remaining: N(m.lot.qty_remaining),
     } : null,
   }));
+  // Historique CUMP (US-047) des SKU du BC sur le node de réception.
+  out.cump_history = snapshots.map((s) => ({
+    id: s.id,
+    sku_id: s.sku_id,
+    sku: skuById[s.sku_id] ? { id: s.sku_id, sku_code: skuById[s.sku_id].sku_code, name_fr: skuById[s.sku_id].name_fr } : null,
+    cump: N(s.cump),
+    computed_at: s.computed_at,
+    move: s.triggered_by_move ? { ...s.triggered_by_move, qty_delta: N(s.triggered_by_move.qty_delta) } : null,
+    from_this_po: !!(s.triggered_by_move?.po_item_id && itemIds.includes(s.triggered_by_move.po_item_id)),
+  }));
   return out;
+}
+
+/** Emplacements actifs d'un node (choix optionnel de l'emplacement de stockage à la réception). */
+async function nodeLocations(query = {}) {
+  const node_id = assertUuid(query.node_id, 'Node');
+  const rows = await prisma.warehouseLocation.findMany({
+    where: { node_id, is_deleted: false, is_active: true },
+    select: LOCATION_SELECT,
+  });
+  const cmp = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'fr', { numeric: true, sensitivity: 'base' });
+  return rows.sort((a, b) => cmp(a.zone?.code, b.zone?.code) || cmp(a.aisle, b.aisle) || cmp(a.shelf, b.shelf)
+    || (N(a.level?.sort_order) - N(b.level?.sort_order)));
 }
 
 // ─── Création / modification ─────────────────────────────────────────────────
@@ -347,6 +413,7 @@ async function create(body = {}, req) {
             supplier_id: supplier.id,
             node_id: node.id,
             status_id: (sent || draft).id,
+            ...(sent ? { ordered_at: new Date() } : {}),
             expected_at,
             notes,
             total_ht: totalOf(lines),
@@ -372,6 +439,7 @@ async function create(body = {}, req) {
 
 async function update(id, body = {}, req) {
   const before = await loadPo(id);
+  assertNotTerminal(before);
   const code = before.status.code;
   const data = {};
   let newLines = null;
@@ -445,6 +513,7 @@ async function changeStatus(id, body = {}, req) {
   const result = await prisma.$transaction(async (tx) => {
     await lockPo(tx, id);
     const po = await loadPo(id, tx);
+    assertNotTerminal(po, 'changé de statut');
     const from = po.status.code;
     const allowed = PO_TRANSITIONS[from] || [];
     if (!allowed.includes(target)) {
@@ -459,6 +528,7 @@ async function changeStatus(id, body = {}, req) {
       await assertSupplierUsable(po.supplier_id, tx);
       await assertNodeUsable(po.node_id, tx);
       await applyIncomingForPo(tx, po, +1);
+      data.ordered_at = new Date(); // purchase_orders.ordered_at = envoi au fournisseur
     } else if (target === 'cancelled') {
       if (anyReceived) throw bad('Annulation interdite : ce BC a déjà fait l\'objet d\'une réception');
       if (INCOMING_STATUSES.includes(from)) await applyIncomingForPo(tx, po, -1);
@@ -511,13 +581,16 @@ async function remove(id, req) {
 // ─── Réception (WF #2 / US-054) ──────────────────────────────────────────────
 
 /**
- * body = { lines: [{ item_id, qty_received, lot_number?, expiry_date?, cost_unit? }], received_at?, notes? }
+ * body = { lines: [{ item_id, qty_received, lot_number?, expiry_date?, cost_unit?, location_id? }], received_at?, notes? }
  * qty_received = quantité reçue LORS DE CETTE RÉCEPTION (unité d'achat), ≤ reliquat.
  *
  * Dans UNE transaction, pour chaque ligne : création stock_lots + stock_moves (type
  * « reception ») + mise à jour stock_levels (même logique que StockLevelRepository.applyReceipt :
  * +physique, allocation des backorders, −incoming, disponible = physique − réservé), puis
  * purchase_order_items.qty_received et statut du BC (partially_received / received).
+ * Le lot et le mouvement portent po_item_id et l'emplacement optionnel (location_id, qui
+ * alimente aussi sku_node_locations.qty_physical) ; le CUMP du couple SKU × node est
+ * recalculé (sku_cost_snapshots, voir stock/sku_costs/sku_cost.util.js).
  */
 async function receive(id, body = {}, req) {
   const rawLines = Array.isArray(body.lines) ? body.lines : Array.isArray(body.items) ? body.items : null;
@@ -541,6 +614,7 @@ async function receive(id, body = {}, req) {
       lot_number: optText(l.lot_number, 100, `Ligne ${n} : n° de lot`) ?? null,
       expiry_date: expiry,
       cost_unit: parseNumber(l.cost_unit, `Ligne ${n} : coût unitaire`, { min: 0 }),
+      location_id: l.location_id ? assertUuid(l.location_id, `Ligne ${n} : emplacement`) : null,
     };
   }).filter((l) => l.qty > 0);
   if (!parsed.length) throw bad('Saisissez une quantité reçue > 0 sur au moins une ligne');
@@ -551,6 +625,7 @@ async function receive(id, body = {}, req) {
   const result = await prisma.$transaction(async (tx) => {
     await lockPo(tx, id);
     const po = await loadPo(id, tx);
+    assertNotTerminal(po, 'réceptionné');
     const from = po.status.code;
     if (!RECEIVABLE_STATUSES.includes(from)) {
       throw bad(`Réception impossible : BC au statut « ${po.status.name_fr} » (réception possible en Envoyé, En transit ou Partiellement reçu)`);
@@ -558,6 +633,20 @@ async function receive(id, body = {}, req) {
     const itemsById = Object.fromEntries(po.items.map((i) => [i.id, i]));
     const seen = new Set();
     const created = [];
+
+    // Emplacements saisis : doivent appartenir au node de réception, actifs et non supprimés.
+    const locIds = [...new Set(parsed.map((l) => l.location_id).filter(Boolean))];
+    const locations = locIds.length
+      ? await tx.warehouseLocation.findMany({ where: { id: { in: locIds } }, select: { id: true, node_id: true, label: true, is_active: true, is_deleted: true } })
+      : [];
+    const locById = Object.fromEntries(locations.map((x) => [x.id, x]));
+    for (const l of parsed) {
+      if (!l.location_id) continue;
+      const loc = locById[l.location_id];
+      if (!loc || loc.is_deleted) throw bad(`Ligne ${l.n} : emplacement introuvable`);
+      if (loc.node_id !== po.node_id) throw bad(`Ligne ${l.n} : l'emplacement ${loc.label} n'appartient pas au node ${po.node?.name_fr || ''}`);
+      if (!loc.is_active) throw bad(`Ligne ${l.n} : l'emplacement ${loc.label} est inactif`);
+    }
 
     for (const l of parsed) {
       const item = itemsById[l.item_id];
@@ -593,6 +682,8 @@ async function receive(id, body = {}, req) {
       const lot = await tx.stockLot.create({
         data: {
           sku_id, node_id,
+          po_item_id: item.id,
+          location_id: l.location_id,
           qty_initial: stockQty,
           qty_remaining: stockQty,
           cost_unit: costUnit,
@@ -606,6 +697,8 @@ async function receive(id, body = {}, req) {
           node_id, sku_id,
           move_type_id: moveType?.id ?? null,
           lot_id: lot.id,
+          po_item_id: item.id,
+          location_id: l.location_id,
           qty_delta: stockQty,
           reference: po.reference,
           operator_id: operatorId,
@@ -620,6 +713,10 @@ async function receive(id, body = {}, req) {
             cost_unit_purchase: costPurchase,
             lot_number: l.lot_number,
             expiry_date: fmtDate(l.expiry_date),
+            location_id: l.location_id,
+            location_label: l.location_id ? locById[l.location_id].label : null,
+            qty_before: old_phys,
+            qty_after: new_phys,
           },
         },
       });
@@ -630,6 +727,29 @@ async function receive(id, body = {}, req) {
       });
       // ─────────────────────────────────────────────────────────────────────
 
+      // Emplacement de stockage (optionnel) : sku_node_locations.qty_physical, créé si absent.
+      if (l.location_id) {
+        const snl = await tx.skuNodeLocation.findUnique({
+          where: { sku_id_node_id_location_id: { sku_id, node_id, location_id: l.location_id } },
+        });
+        if (snl) {
+          await tx.skuNodeLocation.update({
+            where: { id: snl.id },
+            data: { qty_physical: q3(N(snl.qty_physical) + stockQty), is_active: true },
+          });
+        } else {
+          const hasPrimary = await tx.skuNodeLocation.count({ where: { sku_id, node_id, is_primary_location: true, is_active: true } });
+          await tx.skuNodeLocation.create({
+            data: { sku_id, node_id, location_id: l.location_id, qty_physical: stockQty, is_primary_location: hasPrimary === 0, is_active: true },
+          });
+        }
+      }
+
+      // CUMP (US-047) : recalcul pondéré + snapshot si méthode CUMP (ou sans règle).
+      const cost = await skuCost.recordReceiptCump(tx, {
+        sku_id, node_id, qty_before: old_phys, qty_received: stockQty, cost_unit: costUnit, move_id: move.id, lot_id: lot.id,
+      });
+
       const newReceived = q3(N(item.qty_received) + l.qty);
       await tx.purchaseOrderItem.update({ where: { id: item.id }, data: { qty_received: newReceived } });
       item.qty_received = newReceived;
@@ -637,6 +757,7 @@ async function receive(id, body = {}, req) {
       created.push({
         item_id: item.id, sku_code: item.sku.sku_code, qty_received: l.qty, stock_qty: stockQty,
         lot_id: lot.id, move_id: move.id, lot_number: l.lot_number, expiry_date: fmtDate(l.expiry_date), cost_unit: costUnit,
+        location_id: l.location_id, costing_method: cost.method, cump_before: cost.cump_before, cump: cost.cump, cost_snapshot_id: cost.snapshot_id,
       });
     }
 
@@ -660,4 +781,4 @@ async function receive(id, body = {}, req) {
   return { ...po, reception: result };
 }
 
-module.exports = { list, getById, create, update, changeStatus, remove, receive };
+module.exports = { list, getById, create, update, changeStatus, remove, receive, nodeLocations };

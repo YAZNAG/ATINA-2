@@ -14,6 +14,12 @@ class StockLevelController {
     catch (e) { next(e); }
   }
 
+  // GET /levels/cost?node_id=&sku_id=&limit=
+  async cost(req, res, next) {
+    try { return res.json({ success: true, data: await service.getCost(req.query) }); }
+    catch (e) { next(e); }
+  }
+
   // GET /levels/:id
   async getById(req, res, next) {
     try { return res.json({ success: true, data: await service.getById(req.params.id) }); }

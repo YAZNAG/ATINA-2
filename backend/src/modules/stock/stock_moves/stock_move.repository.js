@@ -8,6 +8,15 @@ const INCLUDE = {
   lot:       { select: { id: true, lot_number: true, cost_unit: true, expiry_date: true } },
   operator:  { select: { id: true, full_name: true } },
   order:     { select: { id: true } }, // Order has no human-readable reference field — id only for now
+  // Emplacement de stockage et BC d'origine (réception : stock_moves.po_item_id)
+  location:  {
+    select: {
+      id: true, label: true, aisle: true, shelf: true,
+      zone: { select: { id: true, code: true, name_fr: true } },
+      level: { select: { id: true, code: true, name_fr: true } },
+    },
+  },
+  po_item:   { select: { id: true, po: { select: { id: true, reference: true } } } },
   sku: {
     select: {
       id: true, sku_code: true, ean13: true, name_fr: true, name_ar: true,
@@ -33,11 +42,13 @@ const INCLUDE_DETAIL = {
   },
 };
 
-const buildWhere = ({ node_id, sku_id, move_type_id, operation, date_from, date_to, search, reference } = {}) => {
+const buildWhere = ({ node_id, sku_id, move_type_id, operation, date_from, date_to, search, reference, location_id, po_id } = {}) => {
   const where = {};
   if (node_id)      where.node_id      = node_id;
   if (sku_id)       where.sku_id       = sku_id;
   if (move_type_id) where.move_type_id = move_type_id;
+  if (location_id)  where.location_id  = location_id;
+  if (po_id)        where.po_item      = { po_id };
   if (date_from || date_to) {
     where.created_at = {};
     if (date_from) where.created_at.gte = new Date(date_from);
@@ -81,6 +92,14 @@ const findWithFilters = async ({ page = 1, limit = 50, ...filters } = {}) => {
 const sourceOf = (m) => {
   const meta = m.metadata && typeof m.metadata === 'object' ? m.metadata : {};
   if (meta.source === 'stock_count') return { code: 'stock_count', label: 'Comptage physique', reference: meta.session_reference ?? m.reference };
+  if (meta.source === 'purchase_order' || m.po_item_id) {
+    return {
+      code: 'purchase_order',
+      label: 'Réception bon de commande',
+      reference: m.po_item?.po?.reference ?? meta.po_reference ?? m.reference,
+      po_id: m.po_item?.po?.id ?? meta.po_id ?? null,
+    };
+  }
   if (meta.source) return { code: String(meta.source), label: String(meta.source), reference: m.reference };
   if (m.order_id) return { code: 'order', label: 'Commande', reference: m.order_id.slice(0, 8).toUpperCase() };
   const code = m.move_type?.code;

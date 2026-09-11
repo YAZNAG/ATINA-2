@@ -243,6 +243,8 @@ class StockCountService {
 
   async create(req, body = {}) {
     const { node_id, zone_id, category_id, notes } = body;
+    // Filtre par zone : option « Inclure les SKU sans emplacement » (ajoutés en fin de liste)
+    const includeUnlocated = [true, 'true', 1, '1'].includes(body.include_unlocated);
     if (!node_id) throw { statusCode: 400, message: 'Le node est obligatoire' };
 
     const node = await prisma.node.findFirst({ where: { id: node_id, is_deleted: false } });
@@ -289,24 +291,40 @@ class StockCountService {
       }
     }
 
+    // SKU « vivants » du node : exclut les lignes stock_levels « stub » jamais mouvementées ni comptées
+    const liveLevels = () => prisma.stockLevel.findMany({
+      where: {
+        node_id,
+        sku: skuFilter,
+        OR: [
+          { qty_physical: { not: 0 } },
+          { last_move_id: { not: null } },
+          { last_counted_at: { not: null } },
+        ],
+      },
+      select: { sku_id: true },
+    });
+
     let skuIds;
     if (zone_id) {
-      // Périmètre zone : uniquement les SKU affectés à un emplacement de cette zone
+      // Périmètre zone : les SKU affectés à un emplacement de cette zone…
       skuIds = Object.keys(locBySku);
+      if (includeUnlocated) {
+        // … + (option) les SKU du node sans aucun emplacement, placés en fin de liste
+        const [levels, located] = await Promise.all([
+          liveLevels(),
+          prisma.skuNodeLocation.findMany({
+            where: { node_id, is_active: true, location: { is_deleted: false } },
+            select: { sku_id: true },
+            distinct: ['sku_id'],
+          }),
+        ]);
+        const locatedSet = new Set(located.map((m) => m.sku_id));
+        const unlocated = levels.map((l) => l.sku_id).filter((id) => !locatedSet.has(id));
+        skuIds = [...new Set([...skuIds, ...unlocated])];
+      }
     } else {
-      const levels = await prisma.stockLevel.findMany({
-        where: {
-          node_id,
-          sku: skuFilter,
-          // exclut les lignes « stub » jamais mouvementées ni comptées
-          OR: [
-            { qty_physical: { not: 0 } },
-            { last_move_id: { not: null } },
-            { last_counted_at: { not: null } },
-          ],
-        },
-        select: { sku_id: true },
-      });
+      const levels = await liveLevels();
       skuIds = [...new Set([...levels.map((l) => l.sku_id), ...Object.keys(locBySku)])];
     }
 
@@ -375,6 +393,8 @@ class StockCountService {
             new_values: {
               reference: created.reference, node_id, zone_id: zone_id || null,
               category_id: category_id || null, lines: draftLines.length,
+              include_unlocated: zone_id ? includeUnlocated : null,
+              lines_without_location: draftLines.filter((l) => !l.location_id).length,
             },
           }, tx);
           return created;
@@ -462,7 +482,7 @@ class StockCountService {
 
       const session = await tx.stockCountSession.findUnique({
         where: { id },
-        include: { lines: { include: { sku: { select: { sku_code: true } } } } },
+        include: { lines: { include: { sku: { select: { sku_code: true } }, location: { select: { id: true, label: true } } } } },
       });
       const counted = session.lines.filter((l) => l.qty_counted !== null);
       if (!counted.length) throw { statusCode: 400, message: 'Aucune quantité comptée : saisissez au moins une ligne avant de valider' };
@@ -513,6 +533,7 @@ class StockCountService {
             node_id: session.node_id,
             sku_id: line.sku_id,
             move_type_id: applied > 0 ? moveIn.id : moveOut.id,
+            location_id: line.location_id ?? null,
             qty_delta: applied,
             reference: session.reference,
             operator_id: operatorId,
@@ -527,9 +548,27 @@ class StockCountService {
               gap,
               qty_before: oldPhys,
               qty_after: newPhys,
+              location_id: line.location_id ?? null,
+              location_label: line.location?.label ?? null,
             },
           },
         });
+        // Ligne comptée sur un emplacement : l'écart est aussi reporté sur sku_node_locations.
+        if (line.location_id) {
+          const snl = await tx.skuNodeLocation.findUnique({
+            where: { sku_id_node_id_location_id: { sku_id: line.sku_id, node_id: session.node_id, location_id: line.location_id } },
+          });
+          if (snl) {
+            await tx.skuNodeLocation.update({
+              where: { id: snl.id },
+              data: { qty_physical: round3(Math.max(0, N(snl.qty_physical) + applied)) },
+            });
+          } else if (applied > 0) {
+            await tx.skuNodeLocation.create({
+              data: { sku_id: line.sku_id, node_id: session.node_id, location_id: line.location_id, qty_physical: applied, is_active: true },
+            });
+          }
+        }
         await tx.stockLevel.upsert({
           where: { node_id_sku_id: { node_id: session.node_id, sku_id: line.sku_id } },
           update: { qty_physical: newPhys, qty_available: newAvail, last_move_id: move.id, last_counted_at: now },
@@ -540,7 +579,7 @@ class StockCountService {
         });
         adjustments.push({
           move_id: move.id, sku_id: line.sku_id, sku_code: line.sku.sku_code,
-          qty_delta: applied, qty_before: oldPhys, qty_after: newPhys,
+          qty_delta: applied, qty_before: oldPhys, qty_after: newPhys, location_id: line.location_id ?? null,
         });
       }
 

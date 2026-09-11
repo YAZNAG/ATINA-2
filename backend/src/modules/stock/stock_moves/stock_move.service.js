@@ -7,8 +7,8 @@ class StockMoveService {
   // Liste lecture seule (append-only). Tous les filtres sont optionnels ;
   // la pagination (limit ≤ 5000) borne le volume retourné.
   async getWithFilters(params = {}) {
-    const { node_id, sku_id, move_type_id } = params;
-    for (const [k, v] of Object.entries({ node_id, sku_id, move_type_id })) {
+    const { node_id, sku_id, move_type_id, location_id, po_id } = params;
+    for (const [k, v] of Object.entries({ node_id, sku_id, move_type_id, location_id, po_id })) {
       if (v && !UUID_RE.test(String(v))) throw { statusCode: 400, message: `Filtre ${k} invalide` };
     }
     if (node_id) {

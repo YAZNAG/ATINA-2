@@ -33,3 +33,6 @@ export const changePurchaseOrderStatus = (id, status, reason) =>
 export const cancelPurchaseOrder = (id, reason) => api.post(`${p}/purchase-orders/${id}/cancel`, { reason });
 export const deletePurchaseOrder = (id) => api.delete(`${p}/purchase-orders/${id}`);
 export const receivePurchaseOrder = (id, data) => api.post(`${p}/purchase-orders/${id}/receive`, data);
+
+// ——— Emplacements du node (réception : emplacement de stockage optionnel) ———
+export const getPurchasingLocations = (node_id) => api.get(`${p}/lookups/locations`, { params: { node_id } });

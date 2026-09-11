@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  RefreshCw, Download, LayoutGrid, Table2, Search, RotateCcw, ArrowRight, PackageX, AlertTriangle, Clock, Boxes,
+  RefreshCw, Download, LayoutGrid, Table2, Search, RotateCcw, ArrowRight, PackageX, AlertTriangle, Clock, Boxes, FileText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Modal from '../../components/Modal';
@@ -16,8 +16,9 @@ import {
 } from '../../api/reporting.api';
 import {
   KpiCard, Tabs, LoadingBlock, ErrorBlock, EmptyBlock, Pagination, SectionCard, StateBadge, heatColor,
-  fmtInt, fmtNum, fmtDec1, fmtPct, fmtCoverage, fmtDateTime, apiError, cleanParams, downloadCsv,
+  fmtInt, fmtNum, fmtDec1, fmtPct, fmtCoverage, fmtDateTime, apiError, cleanParams, downloadCsv as downloadCsvFile,
 } from './reportingShared';
+import { exportPdf } from '../../utils/pdfExport';
 
 const TABS = [
   { key: 'node', label: 'Couverture par Node' },
@@ -164,14 +165,46 @@ export default function StockDistributionPage() {
   const goReorder = (row) => navigate(`/stock/reorder-rules${buildQuery({ node_id: row?.node_id, sku_id: row?.sku_id })}`);
   const openNode = (nodeId) => { setFilters((f) => ({ ...f, node_id: nodeId })); setActiveTab('sku'); setView('table'); };
 
-  // ── Export ─────────────────────────────────────────────────────────────────
-  const exportCsv = async () => {
+  // Filtres appliqués (libellés) repris en tête de l'export PDF
+  const appliedFilters = () => {
+    const label = (list, id) => {
+      const o = (list || []).find((x) => x.id === id);
+      if (!o) return id;
+      return o.code ? `${o.code} — ${o.name_fr ?? ''}` : o.name_fr;
+    };
+    const tabLabel = TABS.find((t) => t.key === activeTab)?.label;
+    return [
+      ['Onglet', tabLabel],
+      ['Vue', view === 'heatmap' && activeTab !== 'alerts' ? 'Heatmap' : 'Tableau'],
+      ['Région', filters.region_id ? label(options.regions, filters.region_id) : ''],
+      ['Node', filters.node_id ? label(options.nodes, filters.node_id) : ''],
+      ['Famille', filters.family_id ? label(options.families, filters.family_id) : ''],
+      ['Catégorie', filters.category_id ? label(options.categories, filters.category_id) : ''],
+      ['Marque', filters.brand_id ? label(options.brands, filters.brand_id) : ''],
+      ['Recherche', filters.search],
+      ['Seuil de couverture', filters.coverage_threshold ? `${filters.coverage_threshold} j` : ''],
+      ...(activeTab === 'sku' ? [['Tri', SKU_SORTS.find((x) => x.value === skuSort)?.label ?? skuSort], ['Sous le seuil uniquement', onlyBelow ? 'Oui' : '']] : []),
+      ...(activeTab === 'alerts' ? [['Niveau', LEVELS.find((x) => x.value === level)?.label ?? level], ['Couverture max', coverageMax ? `${coverageMax} j` : '']] : []),
+    ];
+  };
+
+  // ── Export CSV / PDF (mêmes données) ───────────────────────────────────────
+  const exportCsv = async (format = 'csv') => {
     const date = new Date().toISOString().slice(0, 10);
+    const downloadCsv = format === 'pdf'
+      ? (name, [sec]) => exportPdf({
+        title: sec.title.split(' — ')[0] === 'Distribution Stock' ? sec.title : `Distribution Stock — ${sec.title}`,
+        filters: appliedFilters(),
+        sections: [{ headers: sec.headers, rows: sec.rows }],
+        orientation: 'landscape',
+        filename: name.replace(/\.csv$/i, '.pdf'),
+      })
+      : downloadCsvFile;
     setExporting(true);
     try {
       if (view === 'heatmap' && activeTab !== 'alerts' && data?.kind === 'matrix') {
         const cellMap = new Map(data.cells.map((c) => [`${c.sku_id}|${c.node_id}`, c]));
-        downloadCsv(`distribution-heatmap-${date}.csv`, [{
+        await downloadCsv(`distribution-heatmap-${date}.csv`, [{
           title: 'Distribution Stock — heatmap node × SKU (qté disponible / jours de couverture)',
           headers: ['SKU', 'Désignation', ...data.nodes.map((n) => n.node_code)],
           rows: data.skus.map((s) => [s.sku_code, s.sku_name, ...data.nodes.map((n) => {
@@ -180,7 +213,7 @@ export default function StockDistributionPage() {
           })]),
         }]);
       } else if (activeTab === 'node' && data?.kind === 'node') {
-        downloadCsv(`couverture-par-node-${date}.csv`, [{
+        await downloadCsv(`couverture-par-node-${date}.csv`, [{
           title: `Couverture par Node — seuil ${filters.coverage_threshold} j`,
           headers: ['Node', 'Nom', 'Région', 'Nb SKU', 'Disponibilité (%)', 'Qté physique', 'Qté réservée', 'Qté disponible', 'Ventes 30 j', 'Ventes / j', 'Jours de couverture', 'Ruptures', 'Alertes', 'Sous seuil de couverture'],
           rows: data.rows.map((r) => [r.node_code, r.node_name, r.region_name, r.sku_count, r.availability_rate, r.qty_physical, r.qty_reserved, r.qty_available,
@@ -188,7 +221,7 @@ export default function StockDistributionPage() {
         }]);
       } else if (activeTab === 'sku') {
         const { data: res } = await getCoverageBySku({ ...commonParams, sort: skuSort, only_below: onlyBelow ? 1 : '', page: 1, limit: 500 });
-        downloadCsv(`couverture-par-sku-${date}.csv`, [{
+        await downloadCsv(`couverture-par-sku-${date}.csv`, [{
           title: `Couverture par SKU — seuil ${filters.coverage_threshold} j`,
           headers: ['SKU', 'Désignation', 'Famille', 'Catégorie', 'Marque', 'Nb nodes', 'Disponibilité (%)', 'Qté physique', 'Qté réservée', 'Qté disponible', 'Ventes 30 j', 'Ventes / j', 'Jours de couverture', 'Rotation 30 j', 'Ruptures', 'Alertes'],
           rows: (res.data || []).map((r) => [r.sku_code, r.sku_name, r.family_name, r.category_name, r.brand_name, r.node_count, r.availability_rate,
@@ -196,7 +229,7 @@ export default function StockDistributionPage() {
         }]);
       } else if (activeTab === 'alerts') {
         const { data: res } = await getStockAlerts({ ...commonParams, level, coverage_max: coverageMax, page: 1, limit: 1000 });
-        downloadCsv(`ruptures-alertes-${date}.csv`, [{
+        await downloadCsv(`ruptures-alertes-${date}.csv`, [{
           title: 'Ruptures & Alertes',
           headers: ['Node', 'SKU', 'Désignation', 'Qté physique', 'Qté réservée', 'Qté disponible', 'Seuil de réappro', 'Stock de sécurité', 'Ventes / j', 'Jours de couverture', 'État'],
           rows: (res.data || []).map((r) => [r.node_code, r.sku_code, r.sku_name, r.qty_physical, r.qty_reserved, r.qty_available, r.reorder_point,
@@ -242,8 +275,11 @@ export default function StockDistributionPage() {
           <button type="button" className="btn-secondary" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Rafraîchir
           </button>
-          <button type="button" className="btn-secondary" onClick={exportCsv} disabled={exporting || !data}>
+          <button type="button" className="btn-secondary" onClick={() => exportCsv('csv')} disabled={exporting || !data}>
             <Download className="h-4 w-4" /> Exporter
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => exportCsv('pdf')} disabled={exporting || !data} title="Exporter la vue courante en PDF (filtres appliqués inclus)">
+            <FileText className="h-4 w-4" /> Exporter PDF
           </button>
         </div>
       </div>

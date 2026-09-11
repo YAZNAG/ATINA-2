@@ -15,7 +15,6 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const prisma = require('./config/database');
-const { ensureArticlesPrismaColumns } = require('./utils/articleSkuLink');
 const { ensureNodeTypesPrismaColumns } = require('./utils/ensureNodeTypesDb');
 const { ensureZonesLevelsTables } = require('./utils/ensureWarehouseZonesLevelsDb');
 const { ensureMoveTypesPrismaColumns } = require('./utils/ensureMoveTypesDb');
@@ -88,13 +87,14 @@ app.use(errorMiddleware);
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 async function start() {
-  try {
-    await ensureArticlesPrismaColumns(prisma);
-    await ensureNodeTypesPrismaColumns(prisma);
-    await ensureZonesLevelsTables(prisma);
-    await ensureMoveTypesPrismaColumns(prisma);
-  } catch (e) {
-    console.warn('[server] schema self-heal:', e?.message ?? e);
+  // Auto-réparation de schéma : chaque routine est isolée pour qu'un échec n'empêche pas les suivantes.
+  // (ensureArticlesPrismaColumns retiré : la table articles a été fusionnée dans skus, migration 0822.)
+  for (const [name, fn] of [
+    ['node_types', ensureNodeTypesPrismaColumns],
+    ['zones_levels', ensureZonesLevelsTables],
+    ['move_types', ensureMoveTypesPrismaColumns],
+  ]) {
+    try { await fn(prisma); } catch (e) { console.warn(`[server] schema self-heal ${name}:`, e?.message ?? e); }
   }
 
   const http = require('http');

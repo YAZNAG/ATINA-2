@@ -1,13 +1,17 @@
 const { Prisma } = require('@prisma/client');
 const prisma = require('../../config/database');
 const { audit } = require('../../utils/audit');
-const { parseLabel, recordPointsTxn, txnTypeLabel, TXN_TYPES } = require('./points-ledger.util');
+const { parseLabel, recordPointsTxn, txnTypeLabel, loadTxnTypes } = require('./points-ledger.util');
 
 /**
  * Livre des points (points_transactions) — WF#25 / WF#40, US-013 / US-014 / US-086.
  * Strictement en LECTURE (hors ajustement manuel). Pagination KEYSET sur
  * (created_at DESC, id DESC) — jamais d'OFFSET. Le solde d'un client est lu dans
  * customers.points_balance, jamais recalculé par SUM().
+ *
+ * Références lues dans les COLONNES (txn_type_id, points_rule_id, referral_id,
+ * game_play_id, reason) et leurs relations Prisma ; les balises du libellé
+ * (parseLabel) ne servent qu'aux anciennes lignes dont les colonnes sont vides.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,11 +42,24 @@ function buildConditions(query = {}, fixedCustomerId = null) {
     const like = `%${String(query.customer_search).trim()}%`;
     conds.push(Prisma.sql`t.customer_id IN (SELECT c.id FROM customers c WHERE c.name ILIKE ${like} OR c.phone_number ILIKE ${like})`);
   }
-  if (query.type) conds.push(Prisma.sql`t.type = ${String(query.type)}`);
+  if (query.type) {
+    // Code de points_txn_types ; les anciennes lignes sans txn_type_id sont filtrées sur la colonne texte.
+    const code = String(query.type).trim();
+    conds.push(Prisma.sql`(t.txn_type_id IN (SELECT ty.id FROM points_txn_types ty WHERE ty.code = ${code})
+      OR (t.txn_type_id IS NULL AND t.type = ${code}))`);
+  }
   if (query.direction === 'in') conds.push(Prisma.sql`t.points > 0`);
   if (query.direction === 'out') conds.push(Prisma.sql`t.points < 0`);
-  if (query.rule_id) conds.push(Prisma.sql`t.label ILIKE ${`%[rule:${uuidOrThrow(query.rule_id, 'Règle')}]%`}`);
-  if (query.referral_id) conds.push(Prisma.sql`t.label ILIKE ${`%[ref:${uuidOrThrow(query.referral_id, 'Parrainage')}]%`}`);
+  // Références : colonne, avec repli sur la balise du libellé pour les anciennes lignes.
+  const refCond = (col, tag, raw, label) => {
+    const id = uuidOrThrow(raw, label);
+    const c = Prisma.raw(`t.${col}`);
+    return Prisma.sql`(${c} = ${id}::uuid OR (${c} IS NULL AND t.label ILIKE ${`%[${tag}:${id}]%`}))`;
+  };
+  const ruleId = query.points_rule_id || query.rule_id;
+  if (ruleId) conds.push(refCond('points_rule_id', 'rule', ruleId, 'Règle'));
+  if (query.referral_id) conds.push(refCond('referral_id', 'ref', query.referral_id, 'Parrainage'));
+  if (query.game_play_id) conds.push(refCond('game_play_id', 'play', query.game_play_id, 'Partie de jeu'));
   if (query.order_id) conds.push(Prisma.sql`t.order_id = ${uuidOrThrow(query.order_id, 'Commande')}::uuid`);
   const from = parseDay(query.date_from, 'Date de début');
   const to = parseDay(query.date_to, 'Date de fin', true);
@@ -66,7 +83,23 @@ async function pageIds(conds, cursor, take) {
   return rows.map((r) => r.id);
 }
 
-/** Charge les lignes + les objets référencés (règle — même soft-deletée —, parrainage, partie de jeu). */
+const RULE_SELECT = {
+  id: true, points_value: true, per_mad_spent: true, is_deleted: true, is_active: true,
+  rule_type: { select: { code: true, name_fr: true } }, category: { select: { name_fr: true } },
+};
+const REFERRAL_SELECT = {
+  id: true, created_at: true,
+  referrer: { select: { id: true, name: true } },
+  referee: { select: { id: true, name: true } },
+  status: { select: { code: true, name_fr: true } },
+};
+const PLAY_SELECT = { id: true, played_at: true, result: true, game: { select: { id: true, name_fr: true } } };
+
+/**
+ * Charge les lignes + les objets référencés (règle — même soft-deletée —, parrainage,
+ * partie de jeu) par les relations Prisma des colonnes. Repli : balises du libellé
+ * pour les anciennes lignes sans colonnes.
+ */
 async function hydrate(ids) {
   if (!ids.length) return [];
   const rows = await prisma.pointsTransaction.findMany({
@@ -74,40 +107,44 @@ async function hydrate(ids) {
     include: {
       customer: { select: { id: true, name: true, phone_country: true, phone_number: true } },
       order: { select: { id: true, created_at: true, total_ttc: true } },
+      txn_type: { select: { code: true, name_fr: true, name_ar: true } },
+      points_rule: { select: RULE_SELECT },
+      referral: { select: REFERRAL_SELECT },
+      game_play: { select: PLAY_SELECT },
     },
   });
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const parsed = ids.map((id) => byId.get(id)).filter(Boolean).map((r) => ({ row: r, refs: parseLabel(r.label) }));
-
-  const ruleIds = [...new Set(parsed.map((p) => p.refs.points_rule_id).filter(Boolean))];
-  const refIds = [...new Set(parsed.map((p) => p.refs.referral_id).filter(Boolean))];
-  const playIds = [...new Set(parsed.map((p) => p.refs.game_play_id).filter(Boolean))];
-
-  const [rules, referrals, plays] = await Promise.all([
-    ruleIds.length ? prisma.pointsRule.findMany({
-      where: { id: { in: ruleIds } },
-      include: { rule_type: { select: { code: true, name_fr: true } }, category: { select: { name_fr: true } } },
-    }) : [],
-    refIds.length ? prisma.referral.findMany({
-      where: { id: { in: refIds } },
-      select: {
-        id: true, created_at: true,
-        referrer: { select: { id: true, name: true } },
-        referee: { select: { id: true, name: true } },
-        status: { select: { code: true, name_fr: true } },
+  const parsed = ids.map((id) => byId.get(id)).filter(Boolean).map((r) => {
+    const legacy = parseLabel(r.label);
+    return {
+      row: r,
+      refs: {
+        reason: r.reason ?? legacy.reason,
+        points_rule_id: r.points_rule_id ?? legacy.points_rule_id,
+        referral_id: r.referral_id ?? legacy.referral_id,
+        game_play_id: r.game_play_id ?? legacy.game_play_id,
       },
-    }) : [],
-    playIds.length ? prisma.gamificationPlay.findMany({
-      where: { id: { in: playIds } },
-      select: { id: true, played_at: true, result: true, game: { select: { id: true, name_fr: true } } },
-    }).catch(() => []) : [],
+    };
+  });
+
+  // Repli : références trouvées seulement dans le libellé (anciennes lignes).
+  const missing = (key) => [...new Set(parsed.filter((p) => !p.row[key] && p.refs[key]).map((p) => p.refs[key]))];
+  const ruleIds = missing('points_rule_id');
+  const refIds = missing('referral_id');
+  const playIds = missing('game_play_id');
+  const [rules, referrals, plays] = await Promise.all([
+    ruleIds.length ? prisma.pointsRule.findMany({ where: { id: { in: ruleIds } }, select: RULE_SELECT }) : [],
+    refIds.length ? prisma.referral.findMany({ where: { id: { in: refIds } }, select: REFERRAL_SELECT }) : [],
+    playIds.length ? prisma.gamificationPlay.findMany({ where: { id: { in: playIds } }, select: PLAY_SELECT }).catch(() => []) : [],
   ]);
   const ruleMap = new Map(rules.map((r) => [r.id, r]));
   const refMap = new Map(referrals.map((r) => [r.id, r]));
   const playMap = new Map(plays.map((p) => [p.id, p]));
 
   return parsed.map(({ row, refs }) => {
-    const rule = refs.points_rule_id ? ruleMap.get(refs.points_rule_id) : null;
+    const rule = row.points_rule ?? (refs.points_rule_id ? ruleMap.get(refs.points_rule_id) : null);
+    const referral = row.referral ?? (refs.referral_id ? refMap.get(refs.referral_id) ?? null : null);
+    const gamePlay = row.game_play ?? (refs.game_play_id ? playMap.get(refs.game_play_id) ?? null : null);
     let source = null;
     if (row.order_id) source = { kind: 'order', id: row.order_id, label: `Commande #${row.order_id.slice(0, 8).toUpperCase()}` };
     else if (refs.referral_id) source = { kind: 'referral', id: refs.referral_id, label: 'Parrainage' };
@@ -117,8 +154,9 @@ async function hydrate(ids) {
       created_at: row.created_at,
       customer_id: row.customer_id,
       customer: row.customer,
-      type: row.type,
-      type_label: txnTypeLabel(row.type),
+      type: row.txn_type?.code ?? row.type,
+      type_label: row.txn_type?.name_fr ?? txnTypeLabel(row.type),
+      type_label_ar: row.txn_type?.name_ar ?? null,
       amount: row.points,
       direction: row.points >= 0 ? 'in' : 'out',
       reason: refs.reason,
@@ -136,17 +174,18 @@ async function hydrate(ids) {
         is_active: rule.is_active,
       } : null,
       referral_id: refs.referral_id,
-      referral: refs.referral_id ? refMap.get(refs.referral_id) ?? null : null,
+      referral,
       game_play_id: refs.game_play_id,
-      game_play: refs.game_play_id ? playMap.get(refs.game_play_id) ?? null : null,
+      game_play: gamePlay,
       source,
     };
   });
 }
 
 class PointsLedgerService {
+  /** Types de transaction : référentiel points_txn_types (libellés FR/AR). */
   txnTypes() {
-    return TXN_TYPES;
+    return loadTxnTypes(prisma);
   }
 
   async list(query = {}, fixedCustomerId = null) {

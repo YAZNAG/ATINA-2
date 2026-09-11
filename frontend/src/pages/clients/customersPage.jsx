@@ -9,6 +9,7 @@ import {
   getCustomers, exportCustomers, getCustomer, blockCustomer, unblockCustomer, getCustomerBlockHistory, getAddresses,
   getPointsLedger, exportPointsLedger, adjustPointsBalance, getReferrals, getCustomerOrders,
 } from '../../api/customers.api';
+import { getLoyaltyMeta } from '../../api/loyalty.api';
 import { getCities } from '../../api/locationNode.api';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -390,8 +391,19 @@ const PointsTab = ({ customer, canAdjust, canLedgerDetail, initialType, onAdjust
   const [showAdjust, setShowAdjust] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [txnId, setTxnId] = useState(null);
+  // Types de transaction : référentiel points_txn_types (repli sur les libellés locaux).
+  const [txnTypes, setTxnTypes] = useState(
+    Object.entries(TXN_TYPE_LABELS).filter(([code]) => !['earn', 'redeem'].includes(code)).map(([code, name_fr]) => ({ code, name_fr })),
+  );
 
   useEffect(() => { setType(initialType || ''); }, [initialType]);
+  useEffect(() => {
+    let cancelled = false;
+    getLoyaltyMeta()
+      .then((res) => { const list = res?.data?.data?.txn_types; if (!cancelled && Array.isArray(list) && list.length) setTxnTypes(list); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const params = useMemo(() => {
     const p = { limit: 25 };
@@ -425,8 +437,10 @@ const PointsTab = ({ customer, canAdjust, canLedgerDetail, initialType, onAdjust
     try {
       const { data } = await exportPointsLedger(customer.id, params);
       const d = data?.data ?? {};
-      downloadCsv(`points-${customer.name}-${todayStamp()}.csv`, ['Date', 'Type', 'Montant', 'Motif', 'Règle', 'Source', 'ID transaction'],
-        (d.items ?? []).map((t) => [fmtDateTime(t.created_at), t.type_label ?? t.type, t.amount, t.reason ?? '', t.rule?.type_label ?? '', t.source?.label ?? '', t.id]));
+      downloadCsv(`points-${customer.name}-${todayStamp()}.csv`,
+        ['Date', 'Code type', 'Type', 'Montant', 'Motif', 'Règle', 'order_id', 'referral_id', 'game_play_id', 'ID transaction'],
+        (d.items ?? []).map((t) => [fmtDateTime(t.created_at), t.type ?? '', t.type_label ?? t.type, t.amount, t.reason ?? '', t.rule?.type_label ?? '',
+          t.order_id ?? '', t.referral_id ?? '', t.game_play_id ?? '', t.id]));
     } catch (err) {
       setError(apiError(err, 'Export impossible.'));
     } finally {
@@ -463,7 +477,7 @@ const PointsTab = ({ customer, canAdjust, canLedgerDetail, initialType, onAdjust
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <select value={type} onChange={(e) => setType(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs text-gray-700">
           <option value="">Tous les types</option>
-          {Object.entries(TXN_TYPE_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          {txnTypes.map((t) => <option key={t.code} value={t.code}>{t.name_fr}</option>)}
         </select>
         <PeriodInputs from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo} />
         <SmallBtn className="ml-auto" onClick={doExport} disabled={exporting}>{exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Exporter</SmallBtn>
@@ -656,7 +670,13 @@ const OrdersTab = ({ customer, onOpenOrder }) => {
 
 // ─── Parrainages du client (US-104) ─────────────────────────────────────────
 
-const ParrainagesTab = ({ customer, onViewCustomer, onOpenOrder, onOpenReferral, onShowReferralPoints }) => {
+const ParrainagesTab = ({ customer, onViewCustomer, onOpenOrder, onOpenReferral, onOpenTxn, onShowReferralPoints }) => {
+  // Clic sur une récompense versée : points → transaction du grand-livre (points_transactions.referral_id) ;
+  // code promo (ou droits insuffisants) → détail d'audit du parrainage.
+  const rewardClick = (r) => {
+    if (r.reward?.type === 'points' && r.reward_txn_id && onOpenTxn) return () => onOpenTxn(r.reward_txn_id);
+    return onOpenReferral ? () => onOpenReferral(r.id) : undefined;
+  };
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -796,7 +816,7 @@ const ParrainagesTab = ({ customer, onViewCustomer, onOpenOrder, onOpenReferral,
                     </td>
                     <td className="py-2.5 pr-2 text-xs text-gray-500 whitespace-nowrap">{fmtDate(r.validated_at)}</td>
                     <td className="py-2.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                      <RewardCell reward={r.reward} onClick={onOpenReferral ? () => onOpenReferral(r.id) : undefined} />
+                      <RewardCell reward={r.reward} onClick={rewardClick(r)} />
                     </td>
                   </tr>
                 ))}
@@ -828,6 +848,7 @@ const CustomerDrawer = ({ customer, tab, onTabChange, pointsType, onPointsType, 
   const { hasPermission } = useAuth();
   const [orderId, setOrderId] = useState(null);
   const [referralId, setReferralId] = useState(null);
+  const [rewardTxnId, setRewardTxnId] = useState(null);
   const style = avatarStyle(customer.id || customer.name || '?');
   const initial = (customer.name || '?').trim().charAt(0).toUpperCase();
   const canAdjust = hasPermission('customers.points.adjust') || hasPermission('customers.update');
@@ -896,12 +917,19 @@ const CustomerDrawer = ({ customer, tab, onTabChange, pointsType, onPointsType, 
             onViewCustomer={onViewCustomer}
             onOpenOrder={setOrderId}
             onOpenReferral={openReferral}
+            onOpenTxn={canLedgerDetail ? setRewardTxnId : null}
             onShowReferralPoints={() => { onPointsType('referral_reward'); onTabChange('fidelite'); }}
           />
         )}
       </div>
 
       <ReferralDetailModal referralId={referralId} onClose={() => setReferralId(null)} onOpenOrder={(id) => { setReferralId(null); setOrderId(id); }} />
+      <LedgerDetailModal
+        txnId={rewardTxnId}
+        onClose={() => setRewardTxnId(null)}
+        onOpenOrder={(id) => { setRewardTxnId(null); setOrderId(id); }}
+        onOpenReferral={openReferral ? (id) => { setRewardTxnId(null); setReferralId(id); } : undefined}
+      />
       <OrderDetailDrawer orderId={orderId} onClose={() => setOrderId(null)} onChanged={() => onChanged()} />
     </div>
   );

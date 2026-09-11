@@ -3,13 +3,14 @@ const response = require('../../utils/response');
 const rules = require('./points-rules.service');
 const ledger = require('./points-ledger.service');
 const referrals = require('./referrals.service');
+const reconciliation = require('./points-reconciliation.job');
 
 /** Contrôleur back-office Fidélité : règles de points, livre des points, parrainage. */
 class LoyaltyController {
   // ── Référentiels ───────────────────────────────────────────────────────────
   async meta(req, res, next) {
     try {
-      const [ruleTypes, rewardTypes, promoTypes, referralStatuses, categories] = await Promise.all([
+      const [ruleTypes, rewardTypes, promoTypes, referralStatuses, categories, txnTypes] = await Promise.all([
         prisma.pointsRuleType.findMany({
           where: { code: { in: ['per_spend', 'flat_bonus', 'category_multiplier', 'first_order'] } },
           orderBy: { code: 'asc' },
@@ -22,6 +23,7 @@ class LoyaltyController {
           select: { id: true, code: true, name_fr: true, name_ar: true, is_active: true },
           orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
         }),
+        ledger.txnTypes(),
       ]);
       return response.success(res, {
         rule_types: ruleTypes,
@@ -29,7 +31,7 @@ class LoyaltyController {
         promo_types: promoTypes,
         referral_statuses: referralStatuses,
         categories,
-        txn_types: ledger.txnTypes(),
+        txn_types: txnTypes,
       });
     } catch (err) { return next(err); }
   }
@@ -75,6 +77,17 @@ class LoyaltyController {
 
   async ledgerExport(req, res, next) {
     try { return response.success(res, await ledger.exportRows(req.query)); } catch (err) { return next(err); }
+  }
+
+  /** Rapprochement SUM(points) du livre / customers.points_balance, lancé à la demande. */
+  async reconciliationRun(req, res, next) {
+    try {
+      const summary = await reconciliation.runReconciliation({ req, trigger: 'manual' });
+      const msg = summary.gaps_count
+        ? `Rapprochement terminé : ${summary.gaps_count} écart(s) journalisé(s) dans l’audit`
+        : 'Rapprochement terminé : aucun écart';
+      return response.success(res, summary, msg);
+    } catch (err) { return next(err); }
   }
 
   async ledgerShow(req, res, next) {

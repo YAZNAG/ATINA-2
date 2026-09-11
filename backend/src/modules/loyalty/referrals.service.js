@@ -1,6 +1,6 @@
 const prisma = require('../../config/database');
 const { audit } = require('../../utils/audit');
-const { labelTagFilter } = require('./points-ledger.util');
+const { refFilter } = require('./points-ledger.util');
 
 /**
  * Programme de parrainage — WF#6 / WF#26 / WF#37, US-084 / US-085 / US-104.
@@ -8,7 +8,9 @@ const { labelTagFilter } = require('./points-ledger.util');
  *    immuable dès qu'un parrainage la référence ;
  *  - referrals : suivi en LECTURE ; la colonne « Récompense » est déduite de la
  *    configuration figée (config_id) et du statut, sans lire points_transactions
- *    ni promotions (ces tables ne sont lues qu'au détail, pour l'audit).
+ *    ni promotions (ces tables ne sont lues qu'au détail, pour l'audit, par la
+ *    colonne points_transactions.referral_id) ;
+ *  - liste paginée par KEYSET (created_at DESC, id DESC), jamais d'OFFSET.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -237,6 +239,29 @@ function referralWhere(query = {}) {
   return where;
 }
 
+/** Condition keyset : lignes strictement après le curseur dans l'ordre (created_at DESC, id DESC). */
+async function keysetAfter(cursor) {
+  if (!cursor) return null;
+  if (!UUID_RE.test(String(cursor))) throw bad('Curseur invalide.');
+  const c = await prisma.referral.findUnique({ where: { id: String(cursor) }, select: { id: true, created_at: true } });
+  if (!c) throw bad('Curseur invalide : parrainage introuvable.');
+  return { OR: [{ created_at: { lt: c.created_at } }, { created_at: c.created_at, id: { lt: c.id } }] };
+}
+
+/** Une page keyset de parrainages (take + 1 pour savoir s'il reste des lignes). */
+async function referralPage(where, cursor, limit) {
+  const after = await keysetAfter(cursor);
+  const rows = await prisma.referral.findMany({
+    where: after ? { AND: [where, after] } : where,
+    include: REFERRAL_INCLUDE,
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
+  });
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  return { rows: page, next_cursor: hasMore ? page[page.length - 1].id : null, has_more: hasMore };
+}
+
 function promoUsageStatus(p, now = new Date()) {
   if (p.is_deleted) return { code: 'deleted', label: 'Supprimé' };
   if (!p.is_active) return { code: 'disabled', label: 'Désactivé' };
@@ -369,26 +394,33 @@ class ReferralsService {
   }
 
   // ── Suivi des parrainages ──────────────────────────────────────────────────
+  /** Liste paginée par curseur (?cursor=<id du dernier parrainage affiché>), jamais d'OFFSET. */
   async listReferrals(query = {}) {
-    const page = Math.max(1, parseInt(query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 25));
     const where = referralWhere(query);
-    const [rows, total] = await Promise.all([
-      prisma.referral.findMany({
-        where, include: REFERRAL_INCLUDE, orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * limit, take: limit,
-      }),
+    const [pageRes, total] = await Promise.all([
+      referralPage(where, query.cursor || null, limit),
       prisma.referral.count({ where }),
     ]);
-    return { data: rows.map(decorateReferral), pagination: { total, page, limit, pages: Math.ceil(total / limit) || 1 } };
+    return {
+      data: pageRes.rows.map(decorateReferral),
+      pagination: { total, limit, next_cursor: pageRes.next_cursor, has_more: pageRes.has_more },
+    };
   }
 
+  /** Export : même périmètre que la liste filtrée, parcouru par keyset (plafond EXPORT_MAX lignes). */
   async exportReferrals(query = {}) {
     const where = referralWhere(query);
-    const rows = await prisma.referral.findMany({
-      where, include: REFERRAL_INCLUDE, orderBy: [{ created_at: 'desc' }, { id: 'desc' }], take: EXPORT_MAX,
-    });
-    return { items: rows.map(decorateReferral), truncated: rows.length >= EXPORT_MAX, max: EXPORT_MAX };
+    const out = [];
+    let cursor = null;
+    while (out.length < EXPORT_MAX) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await referralPage(where, cursor, Math.min(1000, EXPORT_MAX - out.length));
+      out.push(...res.rows.map(decorateReferral));
+      if (!res.has_more) break;
+      cursor = res.next_cursor;
+    }
+    return { items: out, truncated: out.length >= EXPORT_MAX, max: EXPORT_MAX };
   }
 
   /** Détail d'un parrainage : SEUL endroit où points_transactions et promotions sont lues. */
@@ -399,9 +431,14 @@ class ReferralsService {
     const base = decorateReferral(r);
 
     const [pointsTxns, promos] = await Promise.all([
+      // Récompenses versées : colonne points_transactions.referral_id (balise du libellé pour les anciennes lignes).
       prisma.pointsTransaction.findMany({
-        where: { type: 'referral_reward', ...labelTagFilter('referral_id', id) },
-        select: { id: true, customer_id: true, points: true, created_at: true, customer: { select: { id: true, name: true } } },
+        where: refFilter('referral_id', id),
+        select: {
+          id: true, customer_id: true, points: true, created_at: true, reason: true,
+          customer: { select: { id: true, name: true } },
+          txn_type: { select: { code: true, name_fr: true, name_ar: true } },
+        },
         orderBy: { created_at: 'asc' },
       }),
       prisma.promotion.findMany({
@@ -422,7 +459,8 @@ class ReferralsService {
     const rewards = [
       ...pointsTxns.map((t) => ({
         kind: 'points', role: roleOf(t.customer_id), beneficiary: t.customer, amount: t.points,
-        created_at: t.created_at, points_txn_id: t.id,
+        created_at: t.created_at, points_txn_id: t.id, reason: t.reason,
+        txn_type: t.txn_type?.code ?? null, txn_type_label: t.txn_type?.name_fr ?? null,
       })),
       ...promos.map((p) => ({
         kind: 'promo_code', role: roleOf(p.customer_id), beneficiary: p.customer, promotion_id: p.id,
@@ -474,16 +512,29 @@ class ReferralsService {
       prisma.referral.count({ where: { referrer_id: customerId, status: { code: 'validated' } } }),
     ]);
 
+    // Récompenses en points versées à CE client, lues par la colonne referral_id du livre
+    // (clic « récompense points » → détail de la transaction dans le grand-livre).
+    const refIds = [...rows.map((r) => r.id), ...(asReferee ? [asReferee.id] : [])];
+    const txns = refIds.length ? await prisma.pointsTransaction.findMany({
+      where: { customer_id: customerId, referral_id: { in: refIds } },
+      select: { id: true, referral_id: true, points: true },
+    }) : [];
+    const txnByRef = new Map(txns.map((t) => [t.referral_id, t]));
+    const withTxn = (d, reward) => {
+      const t = txnByRef.get(d.id);
+      return { ...d, reward, reward_txn_id: t?.id ?? null, reward_points: t?.points ?? null };
+    };
+
     // Pour la fiche du client consulté, la récompense affichée est celle du parrain (ce client).
     const filleuls = rows.map((r) => {
       const d = decorateReferral(r);
-      return { ...d, reward: d.referrer_reward };
+      return withTxn(d, d.referrer_reward);
     });
 
     return {
       customer: { id: customer.id, name: customer.name, referral_code: customer.referral_code },
       parrain,
-      parrainage_filleul: asReferee ? { ...decorateReferral(asReferee), reward: decorateReferral(asReferee).referee_reward } : null,
+      parrainage_filleul: asReferee ? (() => { const d = decorateReferral(asReferee); return withTxn(d, d.referee_reward); })() : null,
       filleuls,
       counters: { filleuls: total, valides: validated },
       pagination: { total: filteredTotal, page, limit, pages: Math.ceil(filteredTotal / limit) || 1 },

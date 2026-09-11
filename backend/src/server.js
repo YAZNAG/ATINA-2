@@ -113,6 +113,9 @@ async function start() {
   });
   require('./socket/packAvailability.listener').init(packsIo);
 
+  // Rapprochement nocturne livre des points / soldes clients (03:00 Casablanca)
+  require('./modules/loyalty/points-reconciliation.job').start();
+
   const LAN = getLanIP();
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ Backend démarré sur http://0.0.0.0:${PORT}`);

@@ -1,10 +1,12 @@
 const prisma = require('../../config/database');
 const { getRedemptionConfig } = require('../loyalty/loyalty.config');
 const { creditReward } = require('../loyalty/reward-credit.util');
+const { recordPointsTxn, parseLabel } = require('../loyalty/points-ledger.util');
 
+/** Libellé affiché dans l'app : motif (colonne reason), repli sur l'ancien libellé. */
 function labelFor(txn, pointsPerMad) {
-  if (txn.type === 'redeem') return `Coupon ${(txn.points * -1 / pointsPerMad).toFixed(0)} MAD utilisé`;
-  return txn.label;
+  if (txn.type === 'redeem' && !txn.txn_type_id) return `Coupon ${(txn.points * -1 / pointsPerMad).toFixed(0)} MAD utilisé`;
+  return txn.reason ?? parseLabel(txn.label).reason ?? txn.txn_type?.name_fr ?? txn.label;
 }
 
 class CustomerLoyaltyService {
@@ -41,7 +43,8 @@ class CustomerLoyaltyService {
 
     const txns = await prisma.pointsTransaction.findMany({
       where: { customer_id: customerId },
-      orderBy: { created_at: 'desc' },
+      include: { txn_type: { select: { code: true, name_fr: true, name_ar: true } } },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
@@ -49,7 +52,11 @@ class CustomerLoyaltyService {
     const hasMore = txns.length > limit;
     const items   = (hasMore ? txns.slice(0, limit) : txns).map(t => ({
       id:         t.id,
-      type:       t.type,
+      // L'app mobile distingue gain / rachat (« earn » | « redeem ») ; le type du classeur est dans txn_type.
+      type:       t.points < 0 ? 'redeem' : 'earn',
+      txn_type:   t.txn_type?.code ?? t.type,
+      txn_type_label: t.txn_type?.name_fr ?? null,
+      txn_type_label_ar: t.txn_type?.name_ar ?? null,
       points:     t.points,
       label:      labelFor(t, points_per_mad),
       created_at: t.created_at,
@@ -72,20 +79,15 @@ class CustomerLoyaltyService {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const upd = await tx.customer.update({
-      where: { id: customerId },
-      data:  { points_balance: { decrement: milestone_step } },
+    // Débit via le grand-livre : INSERT + cache de solde dans la même transaction,
+    // refus atomique si le solde est insuffisant (type sku_exchange = échange de points).
+    const debit = await recordPointsTxn(tx, {
+      customer_id: customerId,
+      amount:      -milestone_step,
+      type:        'sku_exchange',
+      reason:      `Rachat ${redeem_mad} MAD (${reward_type_code})`,
     });
-
-    await tx.pointsTransaction.create({
-      data: {
-        customer_id:   customerId,
-        type:          'redeem',
-        points:        -milestone_step,
-        balance_after: upd.points_balance,
-        label:         `Rachat ${redeem_mad} MAD (${reward_type_code})`,
-      },
-    });
+    const upd = { points_balance: debit.points_balance };
 
     // ── Coupon ──
     if (reward_type_code === 'COUPON') {

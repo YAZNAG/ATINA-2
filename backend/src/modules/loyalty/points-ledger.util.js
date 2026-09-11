@@ -55,8 +55,74 @@ function parseLabel(label) {
   return out;
 }
 
-/** Filtre SQL/Prisma : transactions dont le libellé référence l'objet donné. */
+/** Filtre SQL/Prisma : transactions dont le libellé référence l'objet donné (anciennes lignes uniquement). */
 const labelTagFilter = (key, id) => ({ label: { contains: `[${TAGS[key]}:${id}]`, mode: 'insensitive' } });
+
+/**
+ * Filtre Prisma sur une référence (points_rule_id, referral_id, game_play_id) :
+ * la colonne fait foi ; la balise du libellé n'est lue que pour les anciennes
+ * lignes dont la colonne est vide.
+ */
+const refFilter = (key, id) => ({ OR: [{ [key]: id }, { [key]: null, ...labelTagFilter(key, id) }] });
+
+/** Filtre Prisma sur le type (code de points_txn_types), anciennes lignes sans txn_type_id comprises. */
+const txnTypeFilter = (codes) => {
+  const list = [].concat(codes).map(String);
+  return { OR: [{ txn_type: { code: { in: list } } }, { txn_type_id: null, type: { in: list } }] };
+};
+
+/** Référentiel points_txn_types (FR/AR) lu en base, avec repli sur la liste statique. */
+async function loadTxnTypes(db) {
+  try {
+    const rows = await db.pointsTxnType.findMany({ select: { id: true, code: true, name_fr: true, name_ar: true } });
+    if (rows.length) {
+      const order = TXN_TYPES.map((t) => t.code);
+      return rows.sort((a, b) => {
+        const ia = order.indexOf(a.code); const ib = order.indexOf(b.code);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.code.localeCompare(b.code);
+      });
+    }
+  } catch (_) { /* référentiel indisponible : repli */ }
+  return TXN_TYPES.filter((t) => !t.legacy).map((t) => ({ id: null, code: t.code, name_fr: t.name_fr, name_ar: null }));
+}
+
+/** Violation d'unicité (P2002 Prisma / 23505 PostgreSQL). */
+const isUniqueViolation = (err) => err?.code === 'P2002' || err?.meta?.code === '23505'
+  || /unique constraint|23505/i.test(String(err?.message ?? ''));
+
+let savepointSeq = 0;
+
+/**
+ * recordPointsTxn « au plus une fois » : si l'index unique du livre
+ * ((order_id, points_rule_id) ou (referral_id, customer_id)) refuse la ligne,
+ * l'écriture (solde compris) est annulée via un SAVEPOINT et la fonction renvoie
+ * null (« déjà attribué ») sans faire échouer la transaction appelante.
+ */
+async function recordPointsTxnOnce(tx, args) {
+  if (typeof tx.$transaction === 'function') {
+    // Client global (hors transaction) : une transaction dédiée par écriture.
+    try {
+      return await tx.$transaction((t) => recordPointsTxn(t, args));
+    } catch (err) {
+      if (isUniqueViolation(err)) return null;
+      throw err;
+    }
+  }
+  savepointSeq = (savepointSeq + 1) % 1000000;
+  const sp = `points_txn_once_${savepointSeq}`;
+  await tx.$executeRawUnsafe(`SAVEPOINT ${sp}`);
+  try {
+    const res = await recordPointsTxn(tx, args);
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${sp}`);
+    return res;
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${sp}`);
+      return null;
+    }
+    throw err;
+  }
+}
 
 /**
  * Écrit une transaction de points et met à jour le cache de solde.
@@ -119,4 +185,7 @@ async function recordPointsTxn(tx, {
   return { txn, points_balance: after.points_balance, points_lifetime: after.points_lifetime };
 }
 
-module.exports = { TXN_TYPES, txnTypeLabel, buildLabel, parseLabel, labelTagFilter, recordPointsTxn };
+module.exports = {
+  TXN_TYPES, txnTypeLabel, buildLabel, parseLabel, labelTagFilter, refFilter, txnTypeFilter, loadTxnTypes,
+  isUniqueViolation, recordPointsTxn, recordPointsTxnOnce,
+};

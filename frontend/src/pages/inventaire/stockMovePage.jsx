@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, Download, Loader2, X, ChevronLeft, ChevronRight, ArrowLeft, RefreshCw } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Search, Download, Loader2, X, ChevronLeft, ChevronRight, ArrowLeft, RefreshCw, FileText } from 'lucide-react';
+import { exportPdf } from '../../utils/pdfExport';
 import { getStockMovesPaginated, getStockMoveById, getMoveTypesList } from '../../api/stock.api';
 import { getNodes } from '../../api/locationNode.api';
 import { getSkus, getSku } from '../../api/catalog.api';
@@ -32,6 +33,17 @@ const MOVE_TYPE_STYLES = [
   { test: /annulation|retour|r[ée]servation/i, className: 'bg-purple-100 text-purple-700' },
 ];
 const moveBadgeClass = (name) => MOVE_TYPE_STYLES.find((s) => s.test.test(name || ''))?.className ?? 'bg-gray-100 text-gray-700';
+
+/** Libellé d'emplacement (allée-rayon-niveau). */
+const locationLabel = (loc) => {
+  if (!loc) return '';
+  const path = [loc.aisle, loc.shelf, loc.level?.code].filter(Boolean).join('-');
+  return loc.label && loc.label !== path ? `${loc.label}${path ? ` (${path})` : ''}` : (loc.label || path);
+};
+
+/** BC d'origine d'un mouvement de réception (stock_moves.po_item_id → purchase_orders). */
+const poOf = (m) => m?.po_item?.po ?? (m?.source?.po_id ? { id: m.source.po_id, reference: m.source.reference } : null);
+const poUrl = (po) => `/purchasing/purchase-orders?tab=detail&id=${po.id}`;
 
 const TypeBadge = ({ name }) => (
   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${moveBadgeClass(name)}`}>{name ?? '—'}</span>
@@ -123,6 +135,7 @@ const SkuFilter = ({ value, onChange }) => {
 // ─── Onglet « Détail mouvement » ────────────────────────────────────────────
 
 function MoveDetail({ moveId, onBack }) {
+  const navigate = useNavigate();
   const [move, setMove] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -148,6 +161,7 @@ function MoveDetail({ moveId, onBack }) {
 
   const delta = N(move.qty_delta);
   const meta = move.metadata && typeof move.metadata === 'object' ? move.metadata : null;
+  const po = poOf(move);
 
   return (
     <div>
@@ -193,6 +207,12 @@ function MoveDetail({ moveId, onBack }) {
             <DetailRow label="Référence source" value={move.source?.reference ?? move.reference} />
             <DetailRow label="Référence / motif saisi" value={move.reference} />
             <DetailRow label="Commande" value={move.order?.id ? move.order.id.slice(0, 8).toUpperCase() : null} />
+            <DetailRow label="Bon de commande d'origine">
+              {po ? (
+                <button type="button" onClick={() => navigate(poUrl(po))} className="font-mono text-[#E10600] hover:underline">{po.reference}</button>
+              ) : null}
+            </DetailRow>
+            <DetailRow label="Emplacement" value={locationLabel(move.location) || null} />
             <DetailRow label="Lot" value={move.lot?.lot_number ?? (move.lot ? move.lot.id.slice(0, 8).toUpperCase() : null)} />
             {move.lot && (
               <>
@@ -225,7 +245,9 @@ export default function StockMovePage() {
   const [nodes, setNodes] = useState([]);
   const [moveTypes, setMoveTypes] = useState([]);
 
+  const navigate = useNavigate();
   const [nodeId, setNodeId] = useState(searchParams.get('node_id') || '');
+  const [poFilter, setPoFilter] = useState(searchParams.get('po_id') || '');
   const [sku, setSku] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
   const [period, setPeriod] = useState('tous');
@@ -257,8 +279,9 @@ export default function StockMovePage() {
     ...(nodeId ? { node_id: nodeId } : {}),
     ...(sku ? { sku_id: sku.id } : {}),
     ...(typeFilter ? { move_type_id: typeFilter } : {}),
+    ...(poFilter ? { po_id: poFilter } : {}),
     ...periodToDates(period, dateFrom, dateTo),
-  }), [nodeId, sku, typeFilter, period, dateFrom, dateTo]);
+  }), [nodeId, sku, typeFilter, poFilter, period, dateFrom, dateTo]);
 
   // Attend la résolution du SKU passé en URL avant la première recherche
   const waitingSku = !!searchParams.get('sku_id') && !sku;
@@ -282,18 +305,45 @@ export default function StockMovePage() {
   useEffect(() => { fetchMoves(); }, [fetchMoves]);
   useEffect(() => { setPage(1); }, [filters]);
 
-  const handleExport = async () => {
+  const EXPORT_HEADERS = ['Date', 'Type', 'Sens', 'Node', 'SKU', 'Nom', 'Qté', 'Lot', 'Emplacement', 'BC d\'origine', 'Référence', 'Raison', 'Opérateur'];
+  const exportRow = (m) => [
+    formatDateTime(m.created_at), m.move_type?.name_fr ?? '', N(m.qty_delta) > 0 ? 'Entrée' : N(m.qty_delta) < 0 ? 'Sortie' : 'Neutre',
+    m.node?.code ?? '', m.sku?.sku_code ?? '', m.sku?.name_fr ?? '', N(m.qty_delta), m.lot?.lot_number ?? '',
+    locationLabel(m.location), m.po_item?.po?.reference ?? '',
+    m.reference ?? '', m.reason ?? '', m.operator?.full_name ?? 'Système',
+  ];
+
+  // Filtres appliqués (libellés) — en-tête du PDF
+  const appliedFilters = () => {
+    const node = nodes.find((n) => n.id === nodeId);
+    const type = moveTypes.find((t) => t.id === typeFilter);
+    const per = PERIOD_OPTIONS.find((p) => p.value === period)?.label;
+    return [
+      ['Node', node ? `${node.code} — ${node.name_fr}` : 'Tous les nodes'],
+      ['SKU', sku ? `${sku.sku_code} — ${sku.name_fr}` : ''],
+      ['Type', type ? type.name_fr : 'Tous types'],
+      ['Période', period === 'custom' ? `${dateFrom || '…'} → ${dateTo || '…'}` : per],
+      ['BC d\'origine', poFilter ? (moves.find((m) => m.po_item?.po?.id === poFilter)?.po_item?.po?.reference ?? poFilter.slice(0, 8)) : ''],
+    ];
+  };
+
+  const handleExport = async (format = 'csv') => {
     setExporting(true);
     try {
       const res = await getStockMovesPaginated({ ...filters, page: 1, limit: 5000 });
       const list = asList(res);
-      downloadCsv(`mouvements-stock-${todayStamp()}.csv`,
-        ['Date', 'Type', 'Sens', 'Node', 'SKU', 'Nom', 'Qté', 'Lot', 'Référence', 'Raison', 'Opérateur'],
-        list.map((m) => [
-          formatDateTime(m.created_at), m.move_type?.name_fr ?? '', N(m.qty_delta) > 0 ? 'Entrée' : N(m.qty_delta) < 0 ? 'Sortie' : 'Neutre',
-          m.node?.code ?? '', m.sku?.sku_code ?? '', m.sku?.name_fr ?? '', N(m.qty_delta), m.lot?.lot_number ?? '',
-          m.reference ?? '', m.reason ?? '', m.operator?.full_name ?? 'Système',
-        ]));
+      if (format === 'pdf') {
+        await exportPdf({
+          title: 'Mouvements de stock',
+          subtitle: `${list.length} mouvement(s) — journal append-only (lecture seule)`,
+          filters: appliedFilters(),
+          sections: [{ headers: EXPORT_HEADERS.filter((h) => h !== 'Raison'), rows: list.map((m) => exportRow(m).filter((_, i) => i !== 11)), align: { 6: 'right' } }],
+          orientation: 'landscape',
+          filename: `mouvements-stock-${todayStamp()}.pdf`,
+        });
+      } else {
+        downloadCsv(`mouvements-stock-${todayStamp()}.csv`, EXPORT_HEADERS, list.map(exportRow));
+      }
     } catch (err) {
       setError(apiError(err, "Erreur lors de l'export."));
     } finally {
@@ -311,9 +361,14 @@ export default function StockMovePage() {
           <p className="text-sm text-gray-500 mt-1">Historique append-only : lecture seule, aucune modification ni suppression possible.</p>
         </div>
         {activeTab === 'liste' && (
-          <button onClick={handleExport} disabled={exporting || !pagination.total} className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Exporter
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => handleExport('csv')} disabled={exporting || !pagination.total} className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Exporter
+            </button>
+            <button onClick={() => handleExport('pdf')} disabled={exporting || !pagination.total} className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />} Exporter PDF
+            </button>
+          </div>
         )}
       </div>
 
@@ -346,6 +401,12 @@ export default function StockMovePage() {
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={selectCls} aria-label="Au" />
               </>
             )}
+            {poFilter && (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-red-50 text-[#E10600]">
+                BC : {moves.find((m) => m.po_item?.po?.id === poFilter)?.po_item?.po?.reference ?? poFilter.slice(0, 8)}
+                <button type="button" onClick={() => setPoFilter('')} title="Retirer le filtre BC"><X size={12} /></button>
+              </span>
+            )}
             <button onClick={fetchMoves} title="Rafraîchir" className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"><RefreshCw size={15} /></button>
           </div>
 
@@ -360,14 +421,15 @@ export default function StockMovePage() {
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium text-right">Qté</th>
                   <th className="px-4 py-3 font-medium">Lot</th>
+                  <th className="px-4 py-3 font-medium">Emplacement</th>
                   <th className="px-4 py-3 font-medium">Référence</th>
                   <th className="px-4 py-3 font-medium">Auteur</th>
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400"><Loader2 className="inline animate-spin mr-2" size={16} />Chargement...</td></tr>}
-                {!loading && error && <tr><td colSpan={9} className="px-4 py-10 text-center text-red-600">{error}</td></tr>}
-                {!loading && !error && moves.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">Aucun mouvement pour ces filtres.</td></tr>}
+                {loading && <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400"><Loader2 className="inline animate-spin mr-2" size={16} />Chargement...</td></tr>}
+                {!loading && error && <tr><td colSpan={10} className="px-4 py-10 text-center text-red-600">{error}</td></tr>}
+                {!loading && !error && moves.length === 0 && <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400">Aucun mouvement pour ces filtres.</td></tr>}
                 {!loading && !error && moves.map((m) => (
                   <tr key={m.id} onClick={() => openDetail(m)} className="border-b last:border-0 hover:bg-gray-50 cursor-pointer">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateTime(m.created_at)}</td>
@@ -377,7 +439,19 @@ export default function StockMovePage() {
                     <td className="px-4 py-3 text-gray-700"><span className="font-medium">{m.sku?.sku_code}</span><span className="block text-xs text-gray-400 truncate max-w-[220px]">{m.sku?.name_fr}</span></td>
                     <td className={`px-4 py-3 text-right font-semibold ${N(m.qty_delta) > 0 ? 'text-green-600' : N(m.qty_delta) < 0 ? 'text-red-600' : 'text-gray-500'}`}>{fmtSigned(m.qty_delta)}</td>
                     <td className="px-4 py-3 text-gray-600">{m.lot?.lot_number ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-700 truncate max-w-[200px]">{m.reference ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{locationLabel(m.location) || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700 truncate max-w-[200px]">
+                      {m.po_item?.po ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); navigate(poUrl(m.po_item.po)); }}
+                          title="Ouvrir le bon de commande d'origine"
+                          className="font-mono text-[#E10600] hover:underline"
+                        >
+                          {m.po_item.po.reference}
+                        </button>
+                      ) : (m.reference ?? '—')}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">{m.operator?.full_name ?? 'Système'}</td>
                   </tr>
                 ))}

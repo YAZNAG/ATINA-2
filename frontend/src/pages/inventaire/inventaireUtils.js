@@ -55,3 +55,11 @@ export const asList = (res) => {
 export const apiError = (err, fallback) => err?.response?.data?.message || fallback;
 
 export const todayStamp = () => new Date().toISOString().slice(0, 10);
+
+/** Montant (coût unitaire / CUMP) : 2 décimales minimum, jusqu'à `max` (4 par défaut). */
+export const fmtMoney4 = (v, max = 4) => {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: max }).format(n);
+};

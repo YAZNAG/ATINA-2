@@ -23,6 +23,7 @@ const PRICE_WRITE = perm.permAny(['suppliers.create', 'suppliers.update']);
 // Référentiels
 router.get('/lookups', ANY_VIEW, ctrl.lookups.bind(ctrl));
 router.get('/lookups/skus', perm.permAny(['suppliers.view', 'purchase_orders.view', 'skus.view']), ctrl.searchSkus.bind(ctrl));
+router.get('/lookups/locations', perm.permAny(['purchase_orders.view', 'purchase_orders.receive']), ctrl.locations.bind(ctrl));
 
 // Fournisseurs
 router.get('/suppliers', perm.permAny(['suppliers.view', 'purchase_orders.view']), ctrl.suppliersIndex.bind(ctrl));

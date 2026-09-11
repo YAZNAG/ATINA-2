@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  RefreshCw, Download, CalendarDays, Printer, ShoppingCart, Wallet, HandCoins, PackageX, Ban,
+  RefreshCw, Download, CalendarDays, FileText, ShoppingCart, Wallet, HandCoins, PackageX, Ban,
   ClipboardCheck, Timer, ShoppingBasket, AlertTriangle, Activity, ArrowRight, RotateCcw, Boxes, Clock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -16,8 +16,9 @@ import {
 } from '../../api/reporting.api';
 import {
   KpiCard, Tabs, LoadingBlock, ErrorBlock, EmptyBlock, Pagination, TrendBars, HBars, SectionCard, StateBadge,
-  fmtInt, fmtMoney, fmtPct, fmtNum, fmtDec1, fmtCoverage, fmtDateTime, fmtDate, apiError, cleanParams, downloadCsv, statusHex,
+  fmtInt, fmtMoney, fmtPct, fmtNum, fmtDec1, fmtCoverage, fmtDateTime, fmtDate, apiError, cleanParams, downloadCsv as downloadCsvFile, statusHex,
 } from './reportingShared';
+import { exportSectionsPdf } from '../../utils/pdfExport';
 
 const TABS = [
   { key: 'global', label: 'Vue Globale' },
@@ -176,8 +177,11 @@ export default function KpiOverview() {
   const drill = (path, extra = {}) => navigate(`${path}${buildQuery({ node_id: filters.node_id, ...extra })}`);
   const drillOrders = (extra = {}) => drill('/orders-mgmt', { status: filters.status, ...periodParams, ...extra });
 
-  // ── Export CSV ─────────────────────────────────────────────────────────────
-  const exportCsv = async () => {
+  // ── Export CSV / PDF (mêmes blocs de données) ──────────────────────────────
+  const exportData = async (format = 'csv') => {
+    const downloadCsv = format === 'pdf'
+      ? (name, sections) => exportSectionsPdf(name, sections, { orientation: 'landscape' })
+      : downloadCsvFile;
     const d = data[activeTab];
     const stamp = filters.period === 'custom' ? `${filters.from}_${filters.to}` : filters.period;
     const header = [
@@ -187,7 +191,7 @@ export default function KpiOverview() {
       setExporting(true);
       if (activeTab === 'global' && d) {
         const k = d.kpis;
-        downloadCsv(`kpi-vue-globale-${stamp}.csv`, [
+        await downloadCsv(`kpi-vue-globale-${stamp}.csv`, [
           ...header,
           {
             title: 'Indicateurs',
@@ -205,7 +209,7 @@ export default function KpiOverview() {
         ]);
       } else if (activeTab === 'orders' && d) {
         const s = d.summary;
-        downloadCsv(`kpi-commandes-${stamp}.csv`, [
+        await downloadCsv(`kpi-commandes-${stamp}.csv`, [
           ...header,
           {
             title: 'Synthèse', headers: ['Indicateur', 'Valeur'],
@@ -219,7 +223,7 @@ export default function KpiOverview() {
         ]);
       } else if (activeTab === 'stock') {
         const { data: res } = await getOverviewStock({ ...stockParams, page: 1, limit: 1000 });
-        downloadCsv(`kpi-stock-rupture-${new Date().toISOString().slice(0, 10)}.csv`, [
+        await downloadCsv(`kpi-stock-rupture-${new Date().toISOString().slice(0, 10)}.csv`, [
           { title: 'KPI Overview — Stock & Rupture', rows: [['Périmètre', scopeLabel]] },
           {
             headers: ['Node', 'SKU', 'Désignation', 'Qté physique', 'Qté réservée', 'Qté disponible', 'Seuil de réappro', 'Ventes 30 j', 'Jours de couverture', 'État'],
@@ -229,7 +233,7 @@ export default function KpiOverview() {
         ]);
       } else if (activeTab === 'preparation' && d) {
         const s = d.summary;
-        downloadCsv(`kpi-preparation-${stamp}.csv`, [
+        await downloadCsv(`kpi-preparation-${stamp}.csv`, [
           ...header,
           {
             title: 'Synthèse', headers: ['Indicateur', 'Valeur'],
@@ -271,11 +275,11 @@ export default function KpiOverview() {
           <button type="button" className="btn-secondary" onClick={() => load(activeTab)} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Rafraîchir
           </button>
-          <button type="button" className="btn-secondary" onClick={exportCsv} disabled={exporting || (!current && activeTab !== 'stock')}>
+          <button type="button" className="btn-secondary" onClick={() => exportData('csv')} disabled={exporting || (!current && activeTab !== 'stock')}>
             <Download className="h-4 w-4" /> Exporter CSV
           </button>
-          <button type="button" className="btn-secondary" onClick={() => window.print()} title="Exporter en PDF via l'impression du navigateur">
-            <Printer className="h-4 w-4" /> PDF
+          <button type="button" className="btn-secondary" onClick={() => exportData('pdf')} disabled={exporting || (!current && activeTab !== 'stock')} title="Exporter l'onglet courant en PDF (filtres appliqués inclus)">
+            <FileText className="h-4 w-4" /> Exporter PDF
           </button>
         </div>
       </div>

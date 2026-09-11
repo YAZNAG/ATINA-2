@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { getStockLots, getStockLotAlerts, createStockLot, deleteStockLot } from '../../api/stock.api';
 import { getNodes } from '../../api/locationNode.api';
 
@@ -61,8 +62,15 @@ const TABS = [
   { key: 'EXHAUSTED',label: 'Épuisés' },
 ];
 
+/** Libellé d'emplacement de stockage (stock_lots.location_id). */
+const locationLabel = (loc) => {
+  if (!loc) return '';
+  const path = [loc.aisle, loc.shelf, loc.level?.code].filter(Boolean).join('-');
+  return loc.label && loc.label !== path ? `${loc.label}${path ? ` (${path})` : ''}` : (loc.label || path);
+};
+
 function exportCSV(rows) {
-  const headers = ['N° Lot','Code SKU','Article','Entrepôt','Qté initiale','Qté restante','Coût unitaire (MAD)','Date réception','Date expiration','Jours restants','Statut'];
+  const headers = ['N° Lot','Code SKU','Article','Entrepôt','Emplacement','BC d\'origine','Fournisseur','Qté initiale','Qté restante','Coût unitaire (MAD)','Date réception','Date expiration','Jours restants','Statut'];
   const lines = rows.map((l) => {
     const art  = l.sku;
     const days = daysUntil(l.expiry_date);
@@ -71,6 +79,9 @@ function exportCSV(rows) {
       art?.sku_code ?? '',
       art?.name_fr ?? '',
       l.node?.name_fr ?? '',
+      locationLabel(l.location),
+      l.po_item?.po?.reference ?? '',
+      l.po_item?.po?.supplier?.name_fr ?? '',
       Number(l.qty_initial),
       Number(l.qty_remaining),
       Number(l.cost_unit),
@@ -78,9 +89,9 @@ function exportCSV(rows) {
       fmtDate(l.expiry_date) ?? '',
       days != null ? days : '',
       LOT_STATUS[getLotStatus(l)]?.label ?? '',
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';');
   });
-  const csv  = [headers.join(','), ...lines].join('\n');
+  const csv  = [headers.join(';'), ...lines].join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -150,7 +161,9 @@ export default function StockLotsPage() {
         return r.lot_number?.toLowerCase().includes(q)
           || a?.name_fr?.toLowerCase().includes(q)
           || a?.sku_code?.toLowerCase().includes(q)
-          || a?.ean13?.toLowerCase().includes(q);
+          || a?.ean13?.toLowerCase().includes(q)
+          || r.po_item?.po?.reference?.toLowerCase().includes(q)
+          || r.location?.label?.toLowerCase().includes(q);
       });
     }
     return list;
@@ -385,7 +398,11 @@ export default function StockLotsPage() {
                   </th>
                   <th className="text-left px-3 py-3 font-semibold">
                     Entrepôt
-                    <div className="font-normal normal-case text-[10px] text-slate-400 tracking-normal">Emplacement physique</div>
+                    <div className="font-normal normal-case text-[10px] text-slate-400 tracking-normal">Node / emplacement de stockage</div>
+                  </th>
+                  <th className="text-left px-3 py-3 font-semibold">
+                    BC d'origine
+                    <div className="font-normal normal-case text-[10px] text-slate-400 tracking-normal">Réception fournisseur</div>
                   </th>
                   <th className="text-center px-3 py-3 font-semibold">
                     Qté initiale
@@ -455,6 +472,30 @@ export default function StockLotsPage() {
                       <td className="px-3 py-3">
                         <span className="text-xs font-medium text-slate-700">{lot.node?.name_fr ?? '—'}</span>
                         <p className="text-[10px] text-slate-400">{lot.node?.code}</p>
+                        {lot.location ? (
+                          <p className="mt-0.5 inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="Emplacement de stockage">
+                            {locationLabel(lot.location)}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] italic text-slate-300">Sans emplacement</p>
+                        )}
+                      </td>
+                      {/* BC d'origine */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {lot.po_item?.po ? (
+                          <>
+                            <Link
+                              to={`/purchasing/purchase-orders?tab=detail&id=${lot.po_item.po.id}`}
+                              className="font-mono text-xs font-semibold text-red-600 hover:underline"
+                              title="Ouvrir le bon de commande d'origine"
+                            >
+                              {lot.po_item.po.reference}
+                            </Link>
+                            {lot.po_item.po.supplier?.name_fr && <p className="text-[10px] text-slate-400">{lot.po_item.po.supplier.name_fr}</p>}
+                          </>
+                        ) : (
+                          <span className="text-xs italic text-slate-300">Saisie manuelle</span>
+                        )}
                       </td>
                       {/* Qté initiale */}
                       <td className="px-3 py-3 text-center">
@@ -521,7 +562,7 @@ export default function StockLotsPage() {
                 })}
                 {filtered.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={11} className="text-center py-16 text-slate-400">
+                    <td colSpan={12} className="text-center py-16 text-slate-400">
                       <Icon d={PATHS.box} className="w-10 h-10 mx-auto mb-3 opacity-20" />
                       <p className="font-medium">Aucun lot trouvé</p>
                       <p className="text-xs mt-1">Sélectionnez un entrepôt ou créez votre premier lot</p>

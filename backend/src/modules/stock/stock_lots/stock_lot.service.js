@@ -9,7 +9,14 @@ const _validate = (body) => {
                              throw { statusCode: 400, message: 'cost_unit requis (≥ 0)' };
 };
 
-const getWithFilters = (params)  => repo.findWithFilters(params);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const getWithFilters = (params = {}) => {
+  for (const k of ['node_id', 'sku_id', 'location_id', 'po_id']) {
+    if (params[k] && !UUID_RE.test(String(params[k]))) throw { statusCode: 400, message: `Filtre ${k} invalide` };
+  }
+  return repo.findWithFilters(params);
+};
 const getById        = (id)      => repo.findById(id);
 const getAlerts      = (node_id) => repo.getAlerts(node_id);
 

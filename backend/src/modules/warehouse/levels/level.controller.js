@@ -9,13 +9,13 @@ class LevelController {
     try { return response.success(res, await service.getById(req.params.id)); } catch (e) { next(e); }
   }
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body), 'Niveau créé', 201); } catch (e) { next(e); }
+    try { return response.success(res, await service.create(req.body, req), 'Niveau créé', 201); } catch (e) { next(e); }
   }
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body), 'Niveau mis à jour'); } catch (e) { next(e); }
+    try { return response.success(res, await service.update(req.params.id, req.body, req), 'Niveau mis à jour'); } catch (e) { next(e); }
   }
   async destroy(req, res, next) {
-    try { await service.delete(req.params.id); return response.success(res, null, 'Niveau supprimé'); } catch (e) { next(e); }
+    try { await service.delete(req.params.id, req); return response.success(res, null, 'Niveau supprimé'); } catch (e) { next(e); }
   }
 }
 

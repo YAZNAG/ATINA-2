@@ -12,6 +12,8 @@ export const getCity = (id) => api.get(`/cities/${id}`);
 export const createCity = (data) => api.post('/cities', data);
 export const updateCity = (id, data) => api.put(`/cities/${id}`, data);
 export const deleteCity = (id) => api.delete(`/cities/${id}`);
+// Rattacher / déplacer une ville vers une autre région (les nodes de la ville suivent)
+export const moveCity = (id, regionId) => api.patch(`/cities/${id}/region`, { region_id: regionId });
 
 export const getNodeTypes = () => api.get('/node-types');
 export const getActiveNodeTypes = () => api.get('/node-types/active');
@@ -25,6 +27,8 @@ export const getNode = (id) => api.get(`/nodes/${id}`);
 export const createNode = (data) => api.post('/nodes', data);
 export const updateNode = (id, data) => api.put(`/nodes/${id}`, data);
 export const deleteNode = (id) => api.delete(`/nodes/${id}`);
+// Dépendances bloquant la suppression : { active_orders, active_stock, can_delete }
+export const getNodeDependencies = (id) => api.get(`/nodes/${id}/dependencies`);
 
 // Créneaux d'un node pour une date précise — { date: 'YYYY-MM-DD' }
 export const getNodeSlots = (nodeId, date) => api.get(`/nodes/${nodeId}/slots`, { params: { date } });

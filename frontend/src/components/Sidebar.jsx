@@ -186,7 +186,7 @@ const SECTIONS = [
         ],
       },
       { label: 'Comptes Back-Office',     path: '/users',                       permission: 'users.view', icon: ICONS.users },
-      { label: 'App Configs & Paiement',  path: '/admin/settings',              anyPermissions: ['app_configs.view', 'app_configs.manage'], icon: ICONS.sliders },
+      { label: 'App Configs & Méthodes de paiement', path: '/admin/settings', anyPermissions: ['app_configs.view', 'app_configs.manage'], icon: ICONS.sliders },
       { label: 'Log & Audit',             path: '/admin/audit',                 anyPermissions: ['audit_logs.view', 'notifications.view'], icon: ICONS.log },
       {
         label: 'Lookups', key: 'lookups', icon: ICONS.gear,

@@ -3,6 +3,30 @@ const repo = require('./sku.repository');
 const { INCLUDE } = require('./sku.repository');
 const guard = require('./skuReferential.guard');
 const skuImageService = require('../skuImages/skuImage.service');
+const { audit } = require('../../../utils/audit');
+
+/** Valeur sérialisable (Decimal / Date) pour le journal d'audit. */
+const plain = (v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object' && typeof v.toNumber === 'function') return v.toNumber();
+  if (v instanceof Date) return v.toISOString();
+  return v;
+};
+
+/** Diff avant / après limité aux champs réellement modifiés. */
+const diffSku = (before, payload) => {
+  const old_values = {};
+  const new_values = {};
+  Object.entries(payload).forEach(([k, v]) => {
+    const b = plain(before?.[k]);
+    const a = plain(v);
+    if (JSON.stringify(b) !== JSON.stringify(a)) {
+      old_values[k] = b;
+      new_values[k] = a;
+    }
+  });
+  return { old_values, new_values };
+};
 
 const REF_KEYS = ['sku_family_id', 'sku_subfamily_id'];
 
@@ -49,7 +73,7 @@ class SkuService {
     return item;
   }
 
-  async create(data) {
+  async create(data, req = null) {
     const mapped = this._mapData(data);
     if (!mapped.sku_code || !String(mapped.sku_code).trim()) {
       throw { statusCode: 400, message: 'Code SKU requis' };
@@ -71,10 +95,12 @@ class SkuService {
     }
 
     const payload = this._toPrismaPayload(mapped);
-    return repo.create(payload);
+    const created = await repo.create(payload);
+    await audit(req, { action: 'CREATE', resource: 'skus', resource_id: created.id, new_values: payload });
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
 
@@ -110,10 +136,17 @@ class SkuService {
 
     const prismaPayload = this._toPrismaPayload(updateData);
     await repo.update(id, prismaPayload);
+    const { old_values, new_values } = diffSku(item, prismaPayload);
+    const changed = Object.keys(new_values);
+    if (changed.length) {
+      let action = 'UPDATE';
+      if (changed.length === 1 && changed[0] === 'is_active') action = new_values.is_active ? 'ACTIVATE' : 'DEACTIVATE';
+      await audit(req, { action, resource: 'skus', resource_id: id, old_values, new_values });
+    }
     return repo.findById(id);
   }
 
-  async delete(id) {
+  async delete(id, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
     // US-028 : suppression refusée si le SKU est référencé par un pack ou une offre.
@@ -129,6 +162,13 @@ class SkuService {
     }
     await skuImageService.softDeleteAllForSku(id);
     await repo.softDelete(id);
+    await audit(req, {
+      action: 'DELETE',
+      resource: 'skus',
+      resource_id: id,
+      old_values: { sku_code: item.sku_code, name_fr: item.name_fr, is_active: item.is_active, is_deleted: false },
+      new_values: { is_deleted: true },
+    });
   }
 
   _mergeReferentialSnapshot(existing, mapped) {
@@ -240,17 +280,33 @@ class SkuService {
     return data;
   }
 
-  async toggleStatus(id) {
+  async toggleStatus(id, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
-    return repo.update(id, { is_active: !item.is_active });
+    const row = await repo.update(id, { is_active: !item.is_active });
+    await audit(req, {
+      action: item.is_active ? 'DEACTIVATE' : 'ACTIVATE',
+      resource: 'skus',
+      resource_id: id,
+      old_values: { is_active: item.is_active },
+      new_values: { is_active: !item.is_active },
+    });
+    return row;
   }
 
-  async restore(id) {
+  async restore(id, req = null) {
     const item = await repo.findByIdIncludingDeleted(id);
     if (!item) throw { statusCode: 404, message: 'SKU introuvable' };
     if (!item.deleted_at && !item.is_deleted) throw { statusCode: 400, message: "Ce SKU n'est pas supprimé" };
-    return repo.restore(id);
+    const row = await repo.restore(id);
+    await audit(req, {
+      action: 'RESTORE',
+      resource: 'skus',
+      resource_id: id,
+      old_values: { is_deleted: true },
+      new_values: { is_deleted: false },
+    });
+    return row;
   }
 }
 

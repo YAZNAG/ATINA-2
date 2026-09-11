@@ -9,16 +9,16 @@ class LocationController {
     try { return response.success(res, await service.getById(req.params.id)); } catch (e) { next(e); }
   }
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body), 'Emplacement créé', 201); } catch (e) { next(e); }
+    try { return response.success(res, await service.create(req.body, req), 'Emplacement créé', 201); } catch (e) { next(e); }
   }
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body), 'Emplacement mis à jour'); } catch (e) { next(e); }
+    try { return response.success(res, await service.update(req.params.id, req.body, req), 'Emplacement mis à jour'); } catch (e) { next(e); }
   }
   async destroy(req, res, next) {
-    try { await service.delete(req.params.id); return response.success(res, null, 'Emplacement supprimé'); } catch (e) { next(e); }
+    try { await service.delete(req.params.id, req); return response.success(res, null, 'Emplacement supprimé'); } catch (e) { next(e); }
   }
   async bulkGenerate(req, res, next) {
-    try { return response.success(res, await service.bulkGenerate(req.body), 'Génération terminée', 201); } catch (e) { next(e); }
+    try { return response.success(res, await service.bulkGenerate(req.body, req), 'Génération terminée', 201); } catch (e) { next(e); }
   }
 }
 

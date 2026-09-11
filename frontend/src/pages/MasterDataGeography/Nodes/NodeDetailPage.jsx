@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Lock, Power, PowerOff, Trash2, MapPin } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, Power, PowerOff, Trash2, MapPin, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { getNode, updateNode, deleteNode } from '../../../api/locationNode.api';
+import { getNode, updateNode, deleteNode, getNodeDependencies } from '../../../api/locationNode.api';
 import NodeInfoTab from './NodeInfoTab';
 import NodeLocationTab from './NodeLocationTab';
 import NodeHoursTab from './NodeHoursTab';
+import NodeCoverageTab from './NodeCoverageTab';
 
 const TABS = [
   { key: 'info', label: 'Informations' },
   { key: 'location', label: 'Localisation' },
   { key: 'hours', label: 'Horaires' },
+  { key: 'coverage', label: 'Zones de couverture' },
 ];
+
+const fmtMad = (v) => `${Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`;
 
 function StatusBadge({ item }) {
   if (item.is_deleted) {
@@ -37,6 +41,8 @@ export default function NodeDetailPage() {
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deps, setDeps] = useState(null);
+  const [depsLoading, setDepsLoading] = useState(false);
 
   const [toast, setToast] = useState(null);
   const showToast = (type, message) => {
@@ -68,6 +74,20 @@ export default function NodeDetailPage() {
       showToast('error', err?.response?.data?.message || 'Erreur lors du changement de statut');
     } finally {
       setToggling(false);
+    }
+  };
+
+  const openDelete = async () => {
+    setDeleteConfirm(true);
+    setDeps(null);
+    setDepsLoading(true);
+    try {
+      const { data } = await getNodeDependencies(node.id);
+      setDeps(data.data || data);
+    } catch {
+      setDeps(null);
+    } finally {
+      setDepsLoading(false);
     }
   };
 
@@ -131,6 +151,14 @@ export default function NodeDetailPage() {
               {[node.city?.name_fr, node.region?.name_fr].filter(Boolean).join(', ') || '—'}
             </span>
           </div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-md bg-neutral-100 px-2 py-1 text-neutral-600">Frais de livraison : <b>{fmtMad(node.delivery_fee)}</b></span>
+            <span className="rounded-md bg-neutral-100 px-2 py-1 text-neutral-600">Minimum de commande : <b>{Number(node.min_order_amount ?? 0) > 0 ? fmtMad(node.min_order_amount) : 'aucun'}</b></span>
+            <span className="rounded-md bg-neutral-100 px-2 py-1 text-neutral-600">Créneau client : <b>{node.slot_selection_enabled ? 'activé' : 'désactivé'}</b></span>
+            {node.delivery_radius_km != null && (
+              <span className="rounded-md bg-neutral-100 px-2 py-1 text-neutral-600">Rayon : <b>{Number(node.delivery_radius_km)} km</b></span>
+            )}
+          </div>
         </div>
 
         {!isDeleted && (
@@ -145,7 +173,7 @@ export default function NodeDetailPage() {
               </button>
             )}
             {canDelete && (
-              <button onClick={() => setDeleteConfirm(true)}
+              <button onClick={openDelete}
                 className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-500 hover:border-red-200 hover:bg-red-50 hover:text-[#E10600]">
                 <Trash2 size={14} />
                 Supprimer
@@ -177,6 +205,15 @@ export default function NodeDetailPage() {
         {tab === 'hours' && (
           <NodeHoursTab node={node} canUpdate={canUpdate && !isDeleted} onSaved={fetchNode} showToast={showToast} />
         )}
+        {tab === 'coverage' && (
+          <NodeCoverageTab
+            node={node}
+            canUpdate={canUpdate && !isDeleted}
+            onSaved={fetchNode}
+            showToast={showToast}
+            onGoToLocation={() => setTab('location')}
+          />
+        )}
       </div>
 
       {deleteConfirm && (
@@ -184,12 +221,22 @@ export default function NodeDetailPage() {
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
             <h3 className="font-poppins text-base font-semibold text-neutral-900">Supprimer ce node ?</h3>
             <p className="mt-2 text-sm text-neutral-500">
-              <span className="font-medium text-neutral-700">{node.name_fr}</span> passera au statut "Supprimé".
+              <span className="font-medium text-neutral-700">{node.name_fr}</span> passera au statut "Supprimé" (suppression logique, historique conservé).
             </p>
+            {depsLoading ? (
+              <p className="mt-3 flex items-center gap-2 text-xs text-neutral-400"><Loader2 size={12} className="animate-spin" /> Vérification des commandes et du stock…</p>
+            ) : deps && !deps.can_delete ? (
+              <div className="mt-3 flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>
+                  Suppression impossible : {deps.active_orders} commande(s) active(s) et {deps.active_stock} SKU avec du stock. Désactivez plutôt le node.
+                </span>
+              </div>
+            ) : null}
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setDeleteConfirm(false)} disabled={deleting}
                 className="rounded-lg px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Annuler</button>
-              <button onClick={confirmDelete} disabled={deleting}
+              <button onClick={confirmDelete} disabled={deleting || depsLoading || (deps && !deps.can_delete)}
                 className="flex items-center gap-2 rounded-lg bg-[#E10600] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#c00500] disabled:opacity-60">
                 {deleting && <Loader2 size={14} className="animate-spin" />}
                 Supprimer

@@ -15,8 +15,9 @@ const EMPTY_FORM = {
   name_ar: '',
   region_id: '',
   city_id: '',
-  phone_number: '',
-  address: '',
+  phone: '',
+  address_line1: '',
+  quartier: '',
   postal_code: '',
   timezone: 'Africa/Casablanca',
   lat: '',
@@ -25,7 +26,7 @@ const EMPTY_FORM = {
   delivery_radius_km: '5',
   delivery_fee: '15',
   min_order_amount: '100',
-  allow_customer_slot_selection: true,
+  slot_selection_enabled: true,
   is_active: true,
 };
 
@@ -101,6 +102,28 @@ export default function CreateNodeDrawer({
     onCityReset: resetCity,
   });
 
+  // Référentiels : types de node actifs + régions actives (la ville est filtrée par région).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [typesRes, regionsRes] = await Promise.all([
+          getActiveNodeTypes(),
+          getRegions({ limit: 500, is_active: true, is_deleted: false }),
+        ]);
+        if (cancelled) return;
+        setNodeTypes(typesRes.data?.data || typesRes.data || []);
+        setRegions(regionsRes.data?.data || regionsRes.data || []);
+      } catch (error) {
+        if (!cancelled) {
+          showToast?.('error', error?.response?.data?.message || 'Erreur lors du chargement des référentiels');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
   if (!editNode) {
     setForm({ ...EMPTY_FORM });
@@ -130,8 +153,9 @@ export default function CreateNodeDrawer({
       editNode.city?.id ??
       '',
 
-    phone_number: editNode.phone_number ?? '',
-    address: editNode.address ?? '',
+    phone: editNode.phone ?? '',
+    address_line1: editNode.address_line1 ?? '',
+    quartier: editNode.quartier ?? '',
     postal_code: editNode.postal_code ?? '',
 
     timezone:
@@ -157,8 +181,8 @@ export default function CreateNodeDrawer({
       editNode.min_order_amount ??
       '100',
 
-    allow_customer_slot_selection:
-      editNode.allow_customer_slot_selection ??
+    slot_selection_enabled:
+      editNode.slot_selection_enabled ??
       true,
 
     is_active:
@@ -218,12 +242,23 @@ export default function CreateNodeDrawer({
     if (
       !form.code.trim() ||
       !form.name_fr.trim() ||
+      !form.name_ar.trim() ||
       !form.node_type_id ||
       !form.city_id
     ) {
       showToast?.(
         'error',
-        'Code, Nom FR, Type et Ville sont requis'
+        'Code, Nom FR, Nom AR, Type et Ville sont requis'
+      );
+
+      return;
+    }
+
+    const negative = (v) => v !== '' && v !== null && v !== undefined && Number(v) < 0;
+    if (negative(form.delivery_fee) || negative(form.min_order_amount)) {
+      showToast?.(
+        'error',
+        'Les frais de livraison et le montant minimum de commande doivent être supérieurs ou égaux à 0 MAD'
       );
 
       return;
@@ -235,15 +270,16 @@ export default function CreateNodeDrawer({
       const payload = {
         code: form.code.trim().toUpperCase(),
         name_fr: form.name_fr.trim(),
-        name_ar: form.name_ar.trim() || null,
+        name_ar: form.name_ar.trim(),
 
         node_type_id: form.node_type_id,
         region_id: form.region_id || null,
         city_id: form.city_id,
 
-        phone_number: form.phone_number.trim() || null,
-        address: form.address.trim() || null,
-        postal_code: form.postal_code.trim() || null,
+        phone: String(form.phone ?? '').trim() || null,
+        address_line1: String(form.address_line1 ?? '').trim() || null,
+        quartier: String(form.quartier ?? '').trim() || null,
+        postal_code: String(form.postal_code ?? '').trim() || null,
         timezone: form.timezone.trim() || 'Africa/Casablanca',
 
         lat: numberOrNull(form.lat),
@@ -251,11 +287,11 @@ export default function CreateNodeDrawer({
 
         max_daily_orders: numberOrNull(form.max_daily_orders),
         delivery_radius_km: numberOrNull(form.delivery_radius_km),
-        delivery_fee: numberOrNull(form.delivery_fee),
-        min_order_amount: numberOrNull(form.min_order_amount),
+        delivery_fee: numberOrNull(form.delivery_fee) ?? 0,
+        min_order_amount: numberOrNull(form.min_order_amount) ?? 0,
 
-        allow_customer_slot_selection:
-          form.allow_customer_slot_selection,
+        slot_selection_enabled:
+          form.slot_selection_enabled,
 
         is_active: form.is_active,
       };
@@ -364,13 +400,39 @@ showToast?.(
                   />
                 </Field>
 
-                <Field label="Nom AR">
+                <Field label="Nom AR" required>
                   <input
                     dir="rtl"
                     className={inputClass}
                     value={form.name_ar}
                     onChange={update('name_ar')}
+                    required
                   />
+                </Field>
+
+                <Field label="Région" required>
+                  <select
+                    className={inputClass}
+                    value={form.region_id}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setForm((previous) => ({ ...previous, region_id: value, city_id: '' }));
+                    }}
+                    required
+                  >
+                    <option value="">
+                      Sélectionner
+                    </option>
+
+                    {regions.map((region) => (
+                      <option
+                        key={region.id}
+                        value={region.id}
+                      >
+                        {region.name_fr}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Ville" required>
@@ -378,6 +440,7 @@ showToast?.(
                     className={inputClass}
                     value={form.city_id}
                     onChange={update('city_id')}
+                    disabled={!form.region_id}
                     required
                   >
                     <option value="">
@@ -398,20 +461,28 @@ showToast?.(
                 <Field label="Téléphone">
                   <input
                     className={inputClass}
-                    value={form.phone_number}
-                    onChange={update('phone_number')}
+                    value={form.phone}
+                    onChange={update('phone')}
                     placeholder="+212 6..."
                   />
                 </Field>
 
+                <Field label="Quartier">
+                  <input
+                    className={inputClass}
+                    value={form.quartier}
+                    onChange={update('quartier')}
+                  />
+                </Field>
+
                 <Field
-                  label="Adresse"
+                  label="Adresse (rue)"
                   className="col-span-2"
                 >
                   <input
                     className={inputClass}
-                    value={form.address}
-                    onChange={update('address')}
+                    value={form.address_line1}
+                    onChange={update('address_line1')}
                   />
                 </Field>
 
@@ -521,12 +592,12 @@ showToast?.(
                 </div>
 
                 <Toggle
-                  checked={form.allow_customer_slot_selection}
+                  checked={form.slot_selection_enabled}
                   onChange={() =>
                     setForm((previous) => ({
                       ...previous,
-                      allow_customer_slot_selection:
-                        !previous.allow_customer_slot_selection,
+                      slot_selection_enabled:
+                        !previous.slot_selection_enabled,
                     }))
                   }
                 />

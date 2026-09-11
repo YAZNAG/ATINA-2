@@ -13,13 +13,13 @@ class BrandController {
     try { return response.success(res, await service.getById(req.params.id)); } catch (err) { next(err); }
   }
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body, req.files), 'Marque créée', 201); } catch (err) { next(err); }
+    try { return response.success(res, await service.create(req.body, req.files, req), 'Marque créée', 201); } catch (err) { next(err); }
   }
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body, req.files), 'Marque mise à jour'); } catch (err) { next(err); }
+    try { return response.success(res, await service.update(req.params.id, req.body, req.files, req), 'Marque mise à jour'); } catch (err) { next(err); }
   }
   async destroy(req, res, next) {
-    try { await service.delete(req.params.id); return response.success(res, null, 'Marque supprimée'); } catch (err) { next(err); }
+    try { await service.delete(req.params.id, req); return response.success(res, null, 'Marque supprimée'); } catch (err) { next(err); }
   }
 }
 

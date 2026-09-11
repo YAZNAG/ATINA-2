@@ -14,16 +14,22 @@ class CityController {
   }
 
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body), 'Ville créée', 201); } catch (err) { next(err); }
+    try { return response.success(res, await service.create(req.body, req), 'Ville créée', 201); } catch (err) { next(err); }
   }
 
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body), 'Ville mise à jour'); } catch (err) { next(err); }
+    try { return response.success(res, await service.update(req.params.id, req.body, req), 'Ville mise à jour'); } catch (err) { next(err); }
+  }
+
+  async move(req, res, next) {
+    try {
+      return response.success(res, await service.move(req.params.id, req.body?.region_id, req), 'Ville rattachée à la nouvelle région');
+    } catch (err) { next(err); }
   }
 
   async destroy(req, res, next) {
     try {
-      await service.delete(req.params.id);
+      await service.delete(req.params.id, req);
       return response.success(res, null, 'Ville supprimée');
     } catch (err) {
       next(err);

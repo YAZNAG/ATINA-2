@@ -9,6 +9,8 @@ router.use(auth);
 
 router.get('/', perm('nodes.view'), ctrl.index.bind(ctrl));
 router.post('/', perm('nodes.create'), createValidator, ctrl.store.bind(ctrl));
+// Dépendances bloquantes pour la suppression (commandes actives, stock) — US-033
+router.get('/:id/dependencies', perm('nodes.view'), ctrl.dependencies.bind(ctrl));
 router.get('/:id', perm('nodes.view'), ctrl.show.bind(ctrl));
 router.put('/:id', perm('nodes.update'), updateValidator, ctrl.update.bind(ctrl));
 router.delete('/:id', perm('nodes.delete'), ctrl.destroy.bind(ctrl));

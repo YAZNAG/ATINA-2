@@ -122,6 +122,8 @@ import GameDetailPage from '../pages/offres/gamification/GameDetailPage';
 import PointsExchangePage from '../pages/offres/pointsExchange/PointsExchangePage';
 import PointsConfigPage from '../pages/offres/loyalty/PointsConfigPage';
 import ReferralPage from '../pages/offres/loyalty/ReferralPage';
+import AuditLogPage from '../pages/admin/AuditLogPage';
+import AppSettingsPage from '../pages/admin/AppSettingsPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -282,6 +284,8 @@ export default function AppRoutes() {
           <Route path="/offres/points-exchange"       element={<PointsExchangePage />} />
           <Route path="/offres/points"                element={<PointsConfigPage />} />
           <Route path="/offres/parrainage"            element={<ReferralPage />} />
+          <Route path="/admin/audit"                  element={<AuditLogPage />} />
+          <Route path="/admin/settings"               element={<AppSettingsPage />} />
           
         </Route>
       </Route>

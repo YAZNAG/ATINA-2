@@ -21,7 +21,7 @@ class SkuController {
 
   async store(req, res, next) {
     try {
-      return response.success(res, await service.create(req.body), 'SKU créé', 201);
+      return response.success(res, await service.create(req.body, req), 'SKU créé', 201);
     } catch (err) {
       next(err);
     }
@@ -29,7 +29,7 @@ class SkuController {
 
   async update(req, res, next) {
     try {
-      return response.success(res, await service.update(req.params.id, req.body), 'SKU mis à jour');
+      return response.success(res, await service.update(req.params.id, req.body, req), 'SKU mis à jour');
     } catch (err) {
       next(err);
     }
@@ -37,7 +37,7 @@ class SkuController {
 
   async destroy(req, res, next) {
     try {
-      await service.delete(req.params.id);
+      await service.delete(req.params.id, req);
       return response.success(res, null, 'SKU supprimé');
     } catch (err) {
       next(err);
@@ -46,14 +46,14 @@ class SkuController {
 
   async toggleStatus(req, res, next) {
     try {
-      const row = await service.toggleStatus(req.params.id);
+      const row = await service.toggleStatus(req.params.id, req);
       response.success(res, row, 'Statut mis à jour');
     } catch (e) { next(e); }
   }
 
   async restore(req, res, next) {
     try {
-      const row = await service.restore(req.params.id);
+      const row = await service.restore(req.params.id, req);
       response.success(res, row, 'SKU restauré');
     } catch (e) { next(e); }
   }

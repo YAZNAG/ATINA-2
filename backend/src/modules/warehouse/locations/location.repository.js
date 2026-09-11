@@ -10,7 +10,7 @@ const INCLUDE = {
 const buildWhere = ({ search, node_id, zone_id, level_id, is_active } = {}) => ({
   is_deleted: false,
   ...(node_id && { node_id }),
-  ...(zone_id && { zone_id }),
+  ...(zone_id && { zone_id: zone_id === 'none' ? null : zone_id }),
   ...(level_id && { level_id }),
   ...(is_active !== undefined && { is_active: is_active === 'true' || is_active === true }),
   ...(search && {

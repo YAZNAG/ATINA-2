@@ -329,7 +329,7 @@ showToast?.(
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-4">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-800">
-              Fiche Nœud
+              Fiche node
             </h2>
 
             <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-500">

@@ -392,6 +392,9 @@ export default function DriverDetailsPage() {
                 {driver.is_active
                   ? <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">Actif</span>
                   : <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">Inactif</span>}
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title={driver.role?.name_ar || ''}>
+                  Rôle : {driver.role?.name_fr || driver.role?.name || 'Driver'}{driver.role?.code ? ` (${driver.role.code})` : ''}
+                </span>
               </div>
               <p className="text-sm text-gray-500 font-mono">
                 {driver.phone_country} {driver.phone_number}
@@ -460,6 +463,7 @@ export default function DriverDetailsPage() {
                 <InfoRow icon={SVG.truck} label="Nom complet" value={driver.name} />
                 <InfoRow icon={SVG.phone} label="Téléphone" value={`${driver.phone_country} ${driver.phone_number}`} mono />
                 <InfoRow icon={SVG.node}  label="Node affecté" value={`${driver.node?.name_fr} (${driver.node?.code})`} />
+                <InfoRow icon={SVG.truck} label="Rôle" value={driver.role ? `${driver.role.name_fr || driver.role.name} (${driver.role.code})` : 'Driver'} />
                 <InfoRow icon={SVG.calendar} label="Date création" value={formatDate(driver.created_at)} />
                 <InfoRow icon={SVG.calendar} label="Dernière modification" value={formatDate(driver.updated_at)} />
               </div>

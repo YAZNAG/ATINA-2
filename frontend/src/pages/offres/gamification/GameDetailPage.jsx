@@ -15,7 +15,7 @@ import {
 } from './gamificationUtils';
 
 const TABS = [
-  { key: 'configuration', label: 'Configuration' },
+  { key: 'configuration', label: 'Configuration jeu' },
   { key: 'lots', label: 'Lots' },
   { key: 'participations', label: 'Participations' },
 ];

@@ -14,6 +14,8 @@ export const updateCity = (id, data) => api.put(`/cities/${id}`, data);
 export const deleteCity = (id) => api.delete(`/cities/${id}`);
 // Rattacher / déplacer une ville vers une autre région (les nodes de la ville suivent)
 export const moveCity = (id, regionId) => api.patch(`/cities/${id}/region`, { region_id: regionId });
+// Réordonnancement ↑↓ d'une ville dans sa région (direction : 'up' | 'down')
+export const reorderCity = (id, direction) => api.patch(`/cities/${id}/sort`, { direction });
 
 export const getNodeTypes = () => api.get('/node-types');
 export const getActiveNodeTypes = () => api.get('/node-types/active');

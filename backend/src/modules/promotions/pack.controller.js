@@ -1,5 +1,21 @@
 const service  = require('./pack.service');
 const response = require('../../utils/response');
+const { getFilePath, toPublicUrl } = require('../../utils/fileStorage');
+
+/**
+ * Corps d'une requête pack : JSON classique, ou multipart (champ fichier `image`
+ * jpg/png/webp ≤ 5 Mo + champs texte, `items` sérialisé en JSON). Le fichier
+ * envoyé remplace l'URL d'image saisie.
+ */
+function packBody(req) {
+  const body = { ...(req.body || {}) };
+  if (typeof body.items === 'string') {
+    try { body.items = JSON.parse(body.items); } catch { throw { statusCode: 400, message: 'Composition (items) illisible' }; }
+  }
+  const file = req.files?.image?.[0];
+  if (file) body.image_url = toPublicUrl(getFilePath(file, 'packs'));
+  return body;
+}
 
 /** Erreur métier avec détails (ex. raisons du gel de composition) : renvoyée telle quelle. */
 function handle(err, res, next) {
@@ -33,13 +49,23 @@ class AdminPacksController {
   }
 
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body, req), 'Pack créé', 201); }
+    try { return response.success(res, await service.create(packBody(req), req), 'Pack créé', 201); }
     catch (err) { handle(err, res, next); }
   }
 
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body, req), 'Pack mis à jour'); }
+    try { return response.success(res, await service.update(req.params.id, packBody(req), req), 'Pack mis à jour'); }
     catch (err) { handle(err, res, next); }
+  }
+
+  /** POST /packs/:id/image — envoi du fichier image (champ `image`), autorisé même composition gelée. */
+  async uploadImage(req, res, next) {
+    try {
+      const file = req.files?.image?.[0];
+      if (!file) throw { statusCode: 400, message: 'Aucun fichier image reçu (jpg, png ou webp, 5 Mo max)' };
+      const image_url = toPublicUrl(getFilePath(file, 'packs'));
+      return response.success(res, await service.update(req.params.id, { image_url }, req), 'Image du pack mise à jour');
+    } catch (err) { handle(err, res, next); }
   }
 
   async activate(req, res, next) {

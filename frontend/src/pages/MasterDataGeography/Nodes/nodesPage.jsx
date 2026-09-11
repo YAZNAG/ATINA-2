@@ -180,7 +180,7 @@ export default function NodesPage() {
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Noeuds</h1>
+          <h1 className="font-poppins text-2xl font-semibold text-neutral-900">Liste des nodes</h1>
           <p className="mt-1 text-sm text-neutral-500">Entrepôts, dark stores et points relais du réseau logistique.</p>
         </div>
         {canCreate && (

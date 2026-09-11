@@ -208,8 +208,8 @@ async function listGames(query = {}) {
       where,
       include: {
         ...gameInclude,
-        _count: { select: { plays: true, prizes: true } },
-        prizes: { select: { is_active: true, prize_type_id: true } },
+        _count: { select: { plays: true, prizes: { where: { is_deleted: false } } } },
+        prizes: { where: { is_deleted: false }, select: { is_active: true, prize_type_id: true } },
       },
       orderBy: [{ created_at: 'desc' }],
       skip: (page - 1) * limit,
@@ -257,6 +257,7 @@ async function getGame(id) {
     include: {
       ...gameInclude,
       prizes: {
+        where: { is_deleted: false },
         include: { prize_type: { select: lkSelect }, coupon_promo_type: { select: lkSelect } },
         orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
       },
@@ -426,7 +427,7 @@ async function updateGame(req, id, body = {}) {
     }
   }
   const node = await assertNode(data.node_id);
-  const prizes = await prisma.gamificationPrize.findMany({ where: { game_id: existing.id } });
+  const prizes = await prisma.gamificationPrize.findMany({ where: { game_id: existing.id, is_deleted: false } });
   const warnings = [...thresholdWarning(data, node), ...await assertPrizeSet(prizes, data)];
 
   const diffOld = {};
@@ -456,7 +457,7 @@ async function activateGame(req, id) {
     throw bad('La date de fin du jeu est dépassée : modifiez la date de fin avant de l’activer.');
   }
   const node = await assertNode(data.node_id);
-  const prizes = await prisma.gamificationPrize.findMany({ where: { game_id: existing.id } });
+  const prizes = await prisma.gamificationPrize.findMany({ where: { game_id: existing.id, is_deleted: false } });
   const warnings = [...thresholdWarning(data, node), ...await assertPrizeSet(prizes, data, prisma, 'Activation impossible : ')];
   if (new Date(existing.starts_at) > new Date()) {
     warnings.push('Le jeu sera visible dans l’app à partir de sa date de début.');
@@ -537,7 +538,7 @@ function prizeToPayload(p) {
 
 async function findPrizeOr404(game, prizeId) {
   const pid = R.uuid(prizeId, 'Lot', { required: true });
-  const prize = await prisma.gamificationPrize.findFirst({ where: { id: pid, game_id: game.id } });
+  const prize = await prisma.gamificationPrize.findFirst({ where: { id: pid, game_id: game.id, is_deleted: false } });
   if (!prize) throw bad('Lot introuvable pour ce jeu', 404);
   return prize;
 }
@@ -565,7 +566,7 @@ async function addPrize(req, gameId, body = {}) {
   await assertPrizeRefs(data, code, game.node_id);
   const warnings = [];
   applyStockLimit(data, 0, warnings);
-  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id } });
+  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id, is_deleted: false } });
   warnings.push(...await checkSetAfterChange(game, [...others, data]));
   const prize = await prisma.$transaction(async (tx) => {
     const created = await tx.gamificationPrize.create({ data: { ...data, game_id: game.id } });
@@ -599,7 +600,7 @@ async function updatePrize(req, gameId, prizeId, body = {}) {
   if (body.is_active === true || body.is_active === 'true') {
     if (!data.is_active) throw bad('Impossible de réactiver ce lot : son stock max est atteint. Augmentez le stock max.');
   }
-  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id, id: { not: existing.id } } });
+  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id, is_deleted: false, id: { not: existing.id } } });
   warnings.push(...await checkSetAfterChange(game, [...others, { ...existing, ...data }]));
 
   const diffOld = {};
@@ -622,9 +623,9 @@ async function updatePrize(req, gameId, prizeId, body = {}) {
 
 /**
  * DELETE /gamification/games/:id/prizes/:prizeId — refusé pour un lot déjà
- * attribué (US-080 D). Un lot jamais attribué ni référencé par une partie est
- * une simple ligne de configuration : la table n'ayant pas de colonne de
- * soft-delete, il est retiré (aucun historique n'est perdu).
+ * attribué (US-080 D). Sinon SOFT-DELETE (is_deleted + deleted_at, et
+ * is_active = false) : le lot sort des listes, du calcul des poids /
+ * pourcentages et du tirage (le moteur ne tire que des lots actifs).
  */
 async function deletePrize(req, gameId, prizeId) {
   const game = await findGameOr404(gameId);
@@ -633,11 +634,21 @@ async function deletePrize(req, gameId, prizeId) {
   if (existing.awarded_count > 0 || playsOnPrize > 0) {
     throw bad(`Lot déjà attribué (${Math.max(existing.awarded_count, playsOnPrize)}) : suppression impossible. Désactivez-le à la place.`, 409);
   }
-  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id, id: { not: existing.id } } });
+  const others = await prisma.gamificationPrize.findMany({ where: { game_id: game.id, is_deleted: false, id: { not: existing.id } } });
   const warnings = await checkSetAfterChange(game, others);
   await prisma.$transaction(async (tx) => {
-    await tx.gamificationPrize.delete({ where: { id: existing.id } });
-    await audit(req, { action: 'DELETE', resource: RESOURCE_PRIZE, resource_id: existing.id, old_values: { game_id: game.id, ...prizeToPayload(existing) } }, tx);
+    const deletedAt = new Date();
+    await tx.gamificationPrize.update({
+      where: { id: existing.id },
+      data: { is_deleted: true, deleted_at: deletedAt, is_active: false },
+    });
+    await audit(req, {
+      action: 'DELETE',
+      resource: RESOURCE_PRIZE,
+      resource_id: existing.id,
+      old_values: { game_id: game.id, ...prizeToPayload(existing), is_deleted: false },
+      new_values: { is_deleted: true, is_active: false, deleted_at: deletedAt.toISOString() },
+    }, tx);
   });
   return { id: existing.id, game: await getGame(game.id), warnings };
 }

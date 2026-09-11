@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowDown, ArrowUp, Copy, ImageOff, Lock, Package, Plus, Save, Trash2 } from 'lucide-react';
-import { getPack, createPack, updatePack, activatePack, deactivatePack, getPackEligibleSkus } from '../../../api/packs.api';
+import { getPack, createPack, updatePack, activatePack, deactivatePack, getPackEligibleSkus, uploadPackImage } from '../../../api/packs.api';
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const IMAGE_MAX = 5 * 1024 * 1024;
 import { DuplicatePackModal, DeletePackModal } from './PackDialogs';
 import { money, nodeLabel, apiError, StatusBadge, VisibilityBadge, ComponentBadge, Toggle, formatDateTime } from './packUi';
 
@@ -86,6 +89,27 @@ export default function PackDetail({
   const [skuOptions, setSkuOptions] = useState([]);
   const [selectedSkuId, setSelectedSkuId] = useState('');
   const [addQty, setAddQty] = useState(1);
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  useEffect(() => () => { if (imagePreview) URL.revokeObjectURL(imagePreview); }, [imagePreview]);
+
+  function pickImage(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!IMAGE_TYPES.includes(file.type)) { setError('Format non autorisé : jpg, png ou webp uniquement'); return; }
+    if (file.size > IMAGE_MAX) { setError("L'image dépasse 5 Mo"); return; }
+    setError(null);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearPickedImage() {
+    setImageFile(null);
+    setImagePreview(null);
+  }
 
   const [dupOpen, setDupOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -228,7 +252,17 @@ export default function PackDetail({
     if (isNew) { payload.node_id = form.node_id; payload.is_active = !!form.is_active; }
     try {
       const { data } = isNew ? await createPack(payload) : await updatePack(packId, payload);
-      const saved = data.data;
+      let saved = data.data;
+      // Fichier image choisi : envoyé après l'enregistrement (remplace l'URL saisie).
+      if (imageFile && saved?.id) {
+        try {
+          const up = await uploadPackImage(saved.id, imageFile);
+          saved = up.data.data || saved;
+          clearPickedImage();
+        } catch (upErr) {
+          setError(apiError(upErr, "Pack enregistré, mais l'envoi de l'image a échoué"));
+        }
+      }
       setInfo(isNew ? 'Pack créé' : 'Pack enregistré');
       if (!isNew) { setPack(saved); setForm(formFromPack(saved)); }
       onSaved?.(saved, { created: isNew });
@@ -354,8 +388,24 @@ export default function PackDetail({
               <textarea className="form-textarea" dir="rtl" value={form.description_ar} disabled={!canEdit} onChange={set('description_ar')} />
             </div>
             <div className="sm:col-span-2">
-              <label className="form-label">Image du pack (URL, bannière app)</label>
-              <input className="form-input" value={form.image_url} disabled={!canEdit} onChange={set('image_url')} placeholder="https://…" />
+              <label className="form-label">Image du pack (bannière app) — URL ou fichier</label>
+              <input className="form-input" value={form.image_url} disabled={!canEdit || !!imageFile} onChange={set('image_url')} placeholder="https://…" />
+              {canEdit && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                  <label className="btn-secondary cursor-pointer text-xs">
+                    Choisir un fichier…
+                    <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" className="hidden" onChange={pickImage} />
+                  </label>
+                  {imageFile ? (
+                    <>
+                      <span className="truncate text-xs text-slate-600">{imageFile.name} ({(imageFile.size / 1024 / 1024).toFixed(2)} Mo) — envoyé à l'enregistrement</span>
+                      <button type="button" className="text-xs font-medium text-red-600 hover:underline" onClick={clearPickedImage}>Retirer</button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-400">jpg, png ou webp — 5 Mo maximum</span>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="form-label">Validité — début</label>
@@ -387,7 +437,9 @@ export default function PackDetail({
           {/* Aperçu app : vignette + prix barré + prix pack */}
           <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
-              {form.image_url ? <img src={form.image_url} alt="" className="h-full w-full object-cover" /> : <ImageOff size={18} className="text-slate-400" />}
+              {imagePreview || form.image_url
+                ? <img src={imagePreview || form.image_url} alt="" className="h-full w-full object-cover" />
+                : <ImageOff size={18} className="text-slate-400" />}
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-800">{form.name_fr || 'Nom du pack'}</p>

@@ -48,7 +48,7 @@ export default function RoleList() {
     <div className="page-shell">
       <div className="page-header">
         <h1 className="page-title">
-          Rôles <span className="text-slate-400 font-normal">({roles.length})</span>
+          Liste des rôles <span className="text-slate-400 font-normal">({roles.length})</span>
         </h1>
         {hasPermission('roles.create') && (
           <Link to="/roles/new" className="btn-primary text-sm">
@@ -81,7 +81,10 @@ export default function RoleList() {
                 </tr>
               ) : roles.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="table-td font-medium text-gray-900">{r.name}</td>
+                  <td className="table-td font-medium text-gray-900">
+                    {r.name_fr || r.name}
+                    {r.name_ar && <span className="block text-xs font-normal text-gray-400" dir="rtl">{r.name_ar}</span>}
+                  </td>
                   <td className="table-td">
                     <code className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
                       {r.code}

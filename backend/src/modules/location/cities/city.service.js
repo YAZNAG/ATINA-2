@@ -2,7 +2,7 @@ const prisma = require('../../../config/database');
 const repo = require('./city.repository');
 const { audit } = require('../../../utils/audit');
 
-const FIELDS = ['code', 'name_fr', 'name_ar', 'postal_code', 'is_active', 'region_id'];
+const FIELDS = ['code', 'name_fr', 'name_ar', 'postal_code', 'is_active', 'region_id', 'sort_order'];
 const toBool = (v) => v === true || v === 'true' || v === 1 || v === '1';
 
 /** Payload partiel : seules les clés envoyées sont retenues (whitelist). */
@@ -18,6 +18,11 @@ const pick = (body = {}) => {
   }
   if (out.is_active !== undefined) out.is_active = toBool(out.is_active);
   if (out.region_id === '' || out.region_id === null) delete out.region_id;
+  if (out.sort_order !== undefined) {
+    const n = Number(out.sort_order);
+    if (out.sort_order === '' || out.sort_order === null || Number.isNaN(n)) delete out.sort_order;
+    else out.sort_order = Math.max(0, Math.trunc(n));
+  }
   return out;
 };
 
@@ -70,6 +75,8 @@ class CityService {
         message: exists.is_deleted ? 'Ce code est déjà utilisé par une ville supprimée' : 'Ce code ville existe déjà',
       };
     }
+    if (data.sort_order === undefined) data.sort_order = await repo.nextSortOrder(data.region_id);
+    data.created_by = req?.user?.id ?? null;
     const created = await repo.create(data);
     await audit(req, { action: 'CREATE', resource: 'cities', resource_id: created.id, new_values: data });
     return created;
@@ -96,6 +103,7 @@ class CityService {
       // Changement de région = déplacement (les nodes de la ville suivent).
       await this._assertRegion(data.region_id);
       const { region_id, ...rest } = data;
+      if (rest.sort_order === undefined) rest.sort_order = await repo.nextSortOrder(region_id);
       const moved = await repo.moveToRegion(id, region_id, rest);
       updated = moved.city;
       nodesUpdated = moved.nodes_updated;
@@ -126,7 +134,8 @@ class CityService {
     if (!regionId) throw { statusCode: 400, message: 'Région cible requise' };
     if (regionId === item.region_id) throw { statusCode: 400, message: 'La ville est déjà rattachée à cette région' };
     const target = await this._assertRegion(regionId);
-    const { city, nodes_updated } = await repo.moveToRegion(id, regionId);
+    const sort_order = await repo.nextSortOrder(regionId);
+    const { city, nodes_updated } = await repo.moveToRegion(id, regionId, { sort_order });
     await audit(req, {
       action: 'MOVE_CITY',
       resource: 'cities',
@@ -137,25 +146,52 @@ class CityService {
     return { ...city, nodes_updated };
   }
 
+  /** Réordonnancement ↑↓ d'une ville dans sa région (sort_order). */
+  async reorder(id, direction, req = null) {
+    const item = await repo.findById(id);
+    if (!item) throw { statusCode: 404, message: 'Ville introuvable' };
+    if (!['up', 'down'].includes(direction)) throw { statusCode: 400, message: 'Direction invalide (up ou down)' };
+    const { moved, rows } = await repo.reorderInRegion(id, item.region_id, direction);
+    if (!moved) {
+      throw {
+        statusCode: 400,
+        message: direction === 'up' ? 'La ville est déjà en tête de liste' : 'La ville est déjà en fin de liste',
+      };
+    }
+    const newOrder = rows.find((r) => r.id === id)?.sort_order ?? null;
+    await audit(req, {
+      action: 'REORDER',
+      resource: 'cities',
+      resource_id: id,
+      old_values: { sort_order: item.sort_order },
+      new_values: { sort_order: newOrder, direction },
+    });
+    return { id, sort_order: newOrder, order: rows };
+  }
+
   async delete(id, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Ville introuvable' };
-    const nodeCount = await repo.countNodes(id);
-    if (nodeCount > 0) {
+    // Suppression bloquée tant que des nodes, clients ou adresses actifs y sont rattachés.
+    const deps = await repo.countDependencies(id);
+    const parts = [];
+    if (deps.nodes > 0) parts.push(`${deps.nodes} node(s)`);
+    if (deps.customers > 0) parts.push(`${deps.customers} client(s)`);
+    if (deps.addresses > 0) parts.push(`${deps.addresses} adresse(s)`);
+    if (parts.length) {
       throw {
         statusCode: 400,
-        message: `Impossible de supprimer : ${nodeCount} node(s) sont rattachés à cette ville. Désactivez-la à la place.`,
+        message: `Impossible de supprimer : ${parts.join(', ')} actif(s) sont rattaché(s) à cette ville. Désactivez-la à la place.`,
       };
     }
-    // Soft-delete : la ville disparaît des listes déroulantes mais reste référencée
-    // par les clients et adresses existants (US-097).
+    // Soft-delete (is_deleted + deleted_at) : la ville disparaît des listes.
     await repo.softDelete(id);
     await audit(req, {
       action: 'DELETE',
       resource: 'cities',
       resource_id: id,
       old_values: { code: item.code, name_fr: item.name_fr, region_id: item.region_id, is_deleted: false },
-      new_values: { is_deleted: true, is_active: false },
+      new_values: { is_deleted: true, is_active: false, deleted_at: new Date().toISOString() },
     });
   }
 }

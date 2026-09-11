@@ -4,9 +4,9 @@ import Header from '../components/Header';
 
 const pageTitles = {
   '/dashboard': 'Tableau de bord',
-  '/users': 'Gestion des utilisateurs',
-  '/users/new': 'Nouvel utilisateur',
-  '/roles': 'Gestion des rôles',
+  '/users': 'Liste des comptes',
+  '/users/new': 'Nouveau compte',
+  '/roles': 'Liste des rôles',
   '/roles/new': 'Nouveau rôle',
   '/permissions': 'Permissions système',
   '/customers': 'Clients',

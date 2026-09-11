@@ -16,9 +16,12 @@ const INCLUDE = {
   unit_purchase_ref: { select: { id: true, name_fr: true, code: true } },
   unit_sale_ref: { select: { id: true, name_fr: true, code: true } },
   packaging_type: { select: { id: true, name_fr: true, code: true, quantity: true } },
+  sku_status: { select: { id: true, code: true, name_fr: true, name_ar: true } },
 };
 
-const buildWhere = ({ search, status, sku_family_id, sku_subfamily_id, category_id, brand_id }) => {
+const SKU_STATUS_CODES = ['draft', 'active', 'inactive', 'discontinued'];
+
+const buildWhere = ({ search, status, status_id, status_code, sku_status, sku_family_id, sku_subfamily_id, category_id, brand_id }) => {
   let base;
   if (status === 'deleted') {
     base = { deleted_at: { not: null } };
@@ -29,6 +32,10 @@ const buildWhere = ({ search, status, sku_family_id, sku_subfamily_id, category_
   } else {
     base = { deleted_at: null, is_deleted: false };
   }
+  // Filtre par statut du référentiel sku_statuses (uuid ou code).
+  const code = status_code || sku_status || (['draft', 'discontinued'].includes(status) ? status : null);
+  if (status_id) base.status_id = String(status_id);
+  else if (code && SKU_STATUS_CODES.includes(String(code))) base.sku_status = { code: String(code) };
 
   return {
     ...base,

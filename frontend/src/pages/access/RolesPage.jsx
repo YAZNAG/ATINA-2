@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getRoles, createRole, updateRole, deleteRole, assignPermissions, getRolePermissions } from '../../api/roles.api';
+import { getRoles, createRole, updateRole, deleteRole, activateRole, deactivateRole } from '../../api/roles.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 
@@ -12,6 +12,7 @@ const SVG = {
   x:      'M6 18L18 6M6 6l12 12',
   lock:   'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
   perms:  'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  power:  'M5.636 5.636a9 9 0 1012.728 0M12 3v9',
 };
 
 function Icon({ d, className = 'w-5 h-5' }) {
@@ -31,7 +32,7 @@ function Fld({ label, req, children }) {
   );
 }
 
-const EMPTY = { name: '', name_fr: '', name_ar: '', code: '', description: '' };
+const EMPTY = { name: '', name_fr: '', name_ar: '', code: '', description: '', status: 'active' };
 
 function DeleteModal({ role, onCancel, onConfirm, loading }) {
   return (
@@ -52,7 +53,10 @@ function DeleteModal({ role, onCancel, onConfirm, loading }) {
               <Icon d={SVG.trash} className="w-7 h-7 text-red-600" />
             </div>
             <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Supprimer le rôle ?</h3>
-            <p className="text-sm text-gray-500 text-center mb-6">Le rôle <strong>«{role?.name_fr || role?.name}»</strong> sera supprimé définitivement.</p>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Le rôle <strong>«{role?.name_fr || role?.name}»</strong> sera supprimé. La suppression est refusée s'il est encore
+              assigné à des comptes : désactivez-le alors (il ne sera plus assignable).
+            </p>
             <div className="flex gap-3">
               <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50">Annuler</button>
               <button onClick={onConfirm} disabled={loading} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
@@ -75,6 +79,7 @@ function Drawer({ editRole, onClose, onSaved }) {
     setForm(editRole ? {
       name: editRole.name ?? '', name_fr: editRole.name_fr ?? '', name_ar: editRole.name_ar ?? '',
       code: editRole.code ?? '', description: editRole.description ?? '',
+      status: editRole.is_active && editRole.status === 'active' ? 'active' : 'inactive',
     } : { ...EMPTY });
   }, [editRole]);
 
@@ -137,6 +142,13 @@ function Drawer({ editRole, onClose, onSaved }) {
           <Fld label="Description">
             <textarea name="description" className={inp} value={form.description} onChange={hc} rows={3} placeholder="Description du rôle…" />
           </Fld>
+          <Fld label="Statut">
+            <select name="status" className={inp} value={form.status} onChange={hc}>
+              <option value="active">Actif (assignable)</option>
+              <option value="inactive">Inactif (non assignable)</option>
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Un rôle inactif n'est plus assignable ; les comptes existants le conservent.</p>
+          </Fld>
         </form>
         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100">Annuler</button>
@@ -155,6 +167,9 @@ export default function RolesPage() {
   const [drawer, setDrawer]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
 
@@ -166,6 +181,26 @@ export default function RolesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggleActive = async (r) => {
+    const active = r.is_active && r.status === 'active';
+    setTogglingId(r.id);
+    try {
+      if (active) await deactivateRole(r.id); else await activateRole(r.id);
+      toast.success(active ? 'Rôle désactivé' : 'Rôle activé');
+      load();
+    } catch (err) { toast.error(getErrorMessage(err)); }
+    finally { setTogglingId(null); }
+  };
+
+  const visibleRoles = roles.filter((r) => {
+    const active = r.is_active && r.status === 'active';
+    if (statusFilter === 'active' && !active) return false;
+    if (statusFilter === 'inactive' && active) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [r.code, r.name, r.name_fr, r.name_ar].some((v) => String(v || '').toLowerCase().includes(q));
+  });
 
   const handleDelete = async () => {
     if (deleting?.is_system) { setDeleting(null); return; }
@@ -187,7 +222,7 @@ export default function RolesPage() {
               <span>Utilisateurs & Accès</span><span>›</span>
               <span className="text-purple-600 font-medium">Rôles</span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Rôles</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Liste des rôles</h1>
             <p className="text-sm text-gray-400 mt-0.5">{roles.length} rôle{roles.length !== 1 ? 's' : ''} — dont {roles.filter(r => r.is_system).length} système</p>
           </div>
           {hasPermission('roles.create') && (
@@ -199,6 +234,16 @@ export default function RolesPage() {
       </div>
 
       <div className="px-6 py-6">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher (code, nom FR/AR)…"
+            className="min-w-[240px] flex-1 max-w-sm px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <option value="">Tous les statuts</option>
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+          </select>
+        </div>
         {loading ? (
           <div className="flex justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" /></div>
         ) : (
@@ -210,15 +255,16 @@ export default function RolesPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Code</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nom arabe</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Permissions</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Comptes</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Statut</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {roles.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">Aucun rôle</td></tr>
-                ) : roles.map(r => (
+                {visibleRoles.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">Aucun rôle</td></tr>
+                ) : visibleRoles.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-5 py-3.5">
                       <p className="font-semibold text-gray-900">{r.name_fr || r.name}</p>
@@ -233,6 +279,7 @@ export default function RolesPage() {
                         {r.role_permissions?.length ?? 0}
                       </span>
                     </td>
+                    <td className="px-5 py-3.5 text-center text-xs text-gray-600">{r.users_count ?? '—'}</td>
                     <td className="px-5 py-3.5 text-center">
                       {r.is_system
                         ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"><Icon d={SVG.lock} className="w-3 h-3" />Système</span>
@@ -253,6 +300,13 @@ export default function RolesPage() {
                         {hasPermission('roles.update') && (
                           <button onClick={() => setDrawer(r)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg" title="Modifier">
                             <Icon d={SVG.edit} className="w-4 h-4" />
+                          </button>
+                        )}
+                        {hasPermission('roles.update') && (
+                          <button onClick={() => toggleActive(r)} disabled={togglingId === r.id}
+                            title={r.is_active && r.status === 'active' ? 'Désactiver' : 'Activer'}
+                            className={`p-1.5 rounded-lg disabled:opacity-50 ${r.is_active && r.status === 'active' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+                            <Icon d={SVG.power} className="w-4 h-4" />
                           </button>
                         )}
                         {hasPermission('roles.delete') && (

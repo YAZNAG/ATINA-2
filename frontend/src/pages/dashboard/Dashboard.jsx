@@ -27,7 +27,7 @@ function LegacyHome() {
       try {
         if (hasPermission('users.view')) {
           const res = await getUsers();
-          next.users = res.data.data.length;
+          next.users = res.data.pagination?.total ?? res.data.data.length;
         }
         if (hasPermission('roles.view')) {
           const res = await getRoles();

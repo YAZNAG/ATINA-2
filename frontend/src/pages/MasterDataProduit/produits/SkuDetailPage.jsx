@@ -4,7 +4,8 @@ import {
   ArrowLeft, ImageOff, Image as ImageIcon, Loader2, Package, Tag, ClipboardList, Star, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import api from '../../../api/axios';
-import { getSku, getSkuImages } from '../../../api/catalog.api';
+import { getSku, getSkuImages, getSkuStatuses, updateSku, toggleSkuStatus } from '../../../api/catalog.api';
+import { useAuth } from '../../../context/AuthContext';
 import { getSellingRulesBySku, upsertSellingRule } from '../../../api/stock.api';
 import { Truck } from 'lucide-react';
 import SkuSupplierPricesPanel from '../../purchasing/components/SkuSupplierPricesPanel';
@@ -25,6 +26,23 @@ const TABS = [
   { key: 'selling', label: 'Règles de vente', icon: ClipboardList },
   { key: 'supplier_prices', label: 'Prix fournisseurs', icon: Truck },
 ];
+
+const SKU_STATUS_STYLE = {
+  draft: 'bg-amber-50 text-amber-700',
+  active: 'bg-emerald-50 text-emerald-700',
+  inactive: 'bg-neutral-100 text-neutral-500',
+  discontinued: 'bg-red-50 text-red-600',
+};
+
+function SkuStatusBadge({ status, code }) {
+  const c = status?.code || code;
+  if (!c) return null;
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${SKU_STATUS_STYLE[c] || 'bg-neutral-100 text-neutral-600'}`}>
+      {status?.name_fr || c}
+    </span>
+  );
+}
 
 function InfoRow({ label, value }) {
   return (
@@ -50,6 +68,44 @@ export default function SkuDetailPage() {
   const [sellingRules, setSellingRules] = useState([]);
   const [sellingLoading, setSellingLoading] = useState(false);
   const [savingRuleId, setSavingRuleId] = useState(null);
+
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission('skus.update');
+  const [skuStatuses, setSkuStatuses] = useState([]);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState('');
+
+  useEffect(() => {
+    getSkuStatuses().then(({ data }) => setSkuStatuses(data.data || [])).catch(() => setSkuStatuses([]));
+  }, []);
+
+  const handleStatusChange = async (e) => {
+    const status_id = e.target.value;
+    if (!status_id || status_id === sku?.status_id) return;
+    setStatusSaving(true);
+    setStatusError('');
+    try {
+      const { data } = await updateSku(sku.id, { status_id });
+      setSku((prev) => ({ ...prev, ...(data.data || {}) }));
+    } catch (err) {
+      setStatusError(err?.response?.data?.message || 'Erreur lors du changement de statut');
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const handleToggleActive = async () => {
+    setStatusSaving(true);
+    setStatusError('');
+    try {
+      await toggleSkuStatus(sku.id);
+      setSku((prev) => ({ ...prev, is_active: !prev.is_active }));
+    } catch (err) {
+      setStatusError(err?.response?.data?.message || "Erreur lors de l'activation");
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const fetchSku = useCallback(async () => {
     setLoading(true);
@@ -172,8 +228,39 @@ export default function SkuDetailPage() {
             {sku.sku_code}
             {sku.ean13 && <span className="ml-2 text-neutral-400">· EAN {sku.ean13}</span>}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <SkuStatusBadge status={sku.sku_status} code={sku.status} />
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${sku.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'}`}>
+              {sku.is_active ? 'Activé' : 'Désactivé'}
+            </span>
+          </div>
         </div>
+        {canUpdate && (
+          <div className="ml-auto flex flex-wrap items-end gap-2">
+            <label className="text-xs text-neutral-500">
+              <span className="mb-1 block">Statut SKU</span>
+              <select
+                value={sku.status_id || sku.sku_status?.id || ''}
+                onChange={handleStatusChange}
+                disabled={statusSaving}
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-[#E10600] focus:ring-2 focus:ring-[#E10600]/15 disabled:opacity-50"
+              >
+                <option value="">— Choisir —</option>
+                {skuStatuses.map((st) => <option key={st.id} value={st.id}>{st.name_fr} — {st.name_ar}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleToggleActive}
+              disabled={statusSaving}
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              {statusSaving ? <Loader2 size={14} className="inline animate-spin" /> : sku.is_active ? 'Désactiver' : 'Activer'}
+            </button>
+          </div>
+        )}
       </div>
+      {statusError && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{statusError}</p>}
 
       <div className="mb-4 flex gap-1 border-b border-neutral-200">
         {TABS.map((t) => {
@@ -201,7 +288,8 @@ export default function SkuDetailPage() {
             <h3 className="mb-2 text-sm font-semibold text-neutral-800">Général</h3>
             <InfoRow label="Nom (AR)" value={<span dir="rtl">{sku.name_ar}</span>} />
             <InfoRow label="Taxe" value={sku.tax ? `${sku.tax.name_fr} (${sku.tax.rate}%)` : null} />
-            <InfoRow label="Statut" value={sku.is_active ? 'Actif' : 'Inactif'} />
+            <InfoRow label="Statut SKU" value={<SkuStatusBadge status={sku.sku_status} code={sku.status} />} />
+            <InfoRow label="Activation" value={sku.is_active ? 'Actif' : 'Inactif'} />
           </div>
 
           <div className="rounded-xl border border-neutral-200 bg-white p-4">

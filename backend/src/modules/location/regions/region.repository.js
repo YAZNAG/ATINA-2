@@ -59,7 +59,7 @@ const softDeleteCascade = async (regionId, userId) => {
     });
     const cityResult = await tx.city.updateMany({
       where: { region_id: regionId, is_deleted: false },
-      data: { is_deleted: true, is_active: false },
+      data: { is_deleted: true, is_active: false, deleted_at: new Date() },
     });
 
     await tx.region.update({

@@ -5,9 +5,40 @@ const walletService = require('../wallet/wallet.service');
 const PAID_STATUS_CODES = ['paid', 'collected'];
 const COD_METHOD_CODES  = ['COD', 'CASH'];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Plus de relation sku.article : nom / TVA / images sont sur le SKU, le prix de vente
+// est la règle de vente (selling_rules.price, TTC) du node de la ligne de commande.
+const SKU_SELECT = {
+  id: true, name_fr: true, name_ar: true, price: true, vat_rate: true,
+  tax:           { select: { rate: true } },
+  images: {
+    where:   { deleted_at: null },
+    orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }],
+    take:    1,
+    select:  { url: true },
+  },
+  selling_rules: { select: { node_id: true, price: true } },
+};
+
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+/** Prix TTC d'un SKU sur un node : règle de vente, sinon skus.price (HT) + TVA, sinon null. */
+function skuNodePrice(sku, nodeId) {
+  if (!sku) return null;
+  const rule = (sku.selling_rules ?? []).find((r) => r.node_id === nodeId);
+  if (rule && Number(rule.price) > 0) return round2(rule.price);
+  if (sku.price != null) {
+    const vat = Number(sku.tax?.rate ?? sku.vat_rate ?? 20);
+    return round2(Number(sku.price) * (1 + vat / 100));
+  }
+  return null;
+}
+
 class CustomerSubstitutionService {
 
   async getOrderSubstitutions(customerId, orderId) {
+    if (!UUID_RE.test(String(orderId))) throw { statusCode: 404, message: 'Commande introuvable' };
     const order = await prisma.order.findUnique({
       where:  { id: orderId },
       select: { id: true, customer_id: true },
@@ -24,20 +55,10 @@ class CustomerSubstitutionService {
         status: { select: { code: true, name_fr: true } },
         order_item: {
           include: {
-            sku: {
-              include: {
-                article: { select: { name_fr: true, name_ar: true, price: true } },
-                images:  { where: { is_primary: true }, take: 1 },
-              },
-            },
+            sku: { select: SKU_SELECT },
           },
         },
-        substitute_sku: {
-          include: {
-            article: { select: { name_fr: true, name_ar: true, price: true } },
-            images:  { where: { is_primary: true }, take: 1 },
-          },
-        },
+        substitute_sku: { select: SKU_SELECT },
       },
       orderBy: { picked_at: 'desc' },
     });
@@ -59,20 +80,10 @@ class CustomerSubstitutionService {
         order_item: {
           include: {
             order: { select: { id: true } },
-            sku: {
-              include: {
-                article: { select: { name_fr: true, name_ar: true, price: true } },
-                images:  { where: { is_primary: true }, take: 1 },
-              },
-            },
+            sku: { select: SKU_SELECT },
           },
         },
-        substitute_sku: {
-          include: {
-            article: { select: { name_fr: true, name_ar: true, price: true } },
-            images:  { where: { is_primary: true }, take: 1 },
-          },
-        },
+        substitute_sku: { select: SKU_SELECT },
       },
       orderBy: { picked_at: 'desc' },
     });
@@ -85,26 +96,19 @@ class CustomerSubstitutionService {
       throw { statusCode: 400, message: 'Statut invalide. Utiliser: accepted ou refused' };
     }
 
+    if (!UUID_RE.test(String(sessionItemId))) throw { statusCode: 404, message: 'Substitution introuvable' };
+
     const item = await prisma.pickingSessionItem.findUnique({
       where:  { id: sessionItemId },
       include: {
         order_item: {
           include: {
             order: { select: { id: true, customer_id: true, total_ttc: true, subtotal_ht: true } },
+            sku:   { select: SKU_SELECT },
           },
         },
         status: { select: { code: true } },
-        substitute_sku: {
-          include: {
-            article: {
-              select: {
-                price:    true,
-                vat_rate: true,
-                tax:      { select: { rate: true } },
-              },
-            },
-          },
-        },
+        substitute_sku: { select: SKU_SELECT },
       },
     });
 
@@ -124,11 +128,13 @@ class CustomerSubstitutionService {
 
     let walletCredited = 0;
 
+    if (status === 'accepted' && !item.substitute_sku) {
+      throw { statusCode: 422, message: 'Aucun produit de substitution associé' };
+    }
+
     if (status === 'accepted') {
       const originalPrice = Number(item.order_item.unit_price_sold);
-      const substitutePrice = item.substitute_sku.article.price != null
-        ? Number(item.substitute_sku.article.price)
-        : originalPrice;
+      const substitutePrice = skuNodePrice(item.substitute_sku, item.order_item.node_id) ?? originalPrice;
       const qty = Number(item.order_item.qty);
 
       const isCheaper = substitutePrice < originalPrice;
@@ -137,7 +143,7 @@ class CustomerSubstitutionService {
         ? parseFloat(((originalPrice - substitutePrice) * qty).toFixed(2))
         : 0;
 
-      const vatRate = Number(item.substitute_sku.article.tax?.rate ?? item.substitute_sku.article.vat_rate ?? 20);
+      const vatRate = Number(item.substitute_sku.tax?.rate ?? item.substitute_sku.vat_rate ?? 20);
       const diffHt = diffTotal > 0
         ? parseFloat((diffTotal / (1 + vatRate / 100)).toFixed(2))
         : 0;
@@ -251,16 +257,16 @@ class CustomerSubstitutionService {
         status: { select: { code: true, name_fr: true } },
         order_item: {
           include: {
-            sku: { include: { article: { select: { name_fr: true, price: true } }, images: { where: { is_primary: true }, take: 1 } } },
+            sku: { select: SKU_SELECT },
           },
         },
-        substitute_sku: {
-          include: { article: { select: { name_fr: true, price: true } }, images: { where: { is_primary: true }, take: 1 } },
-        },
+        substitute_sku: { select: SKU_SELECT },
       },
     });
 
     const formatted = this._formatItem(updated, status);
+    // après acceptation, order_item.sku_id pointe sur le substitut : on renvoie le SKU d'origine
+    formatted.original_sku = this._formatItem(item, status).original_sku;
     if (walletCredited > 0) formatted.wallet_credited = walletCredited;
     return formatted;
   }
@@ -282,36 +288,36 @@ class CustomerSubstitutionService {
 
   // ── Formatte un PickingSessionItem en objet "Substitution" pour le frontend ──
   _formatItem(item, overrideStatus) {
-    const originalArticle    = item.order_item?.sku?.article;
-    const substituteArticle  = item.substitute_sku?.article;
+    const nodeId        = item.order_item?.node_id ?? null;
+    const originalSku   = item.order_item?.sku ?? null;
+    const substituteSku = item.substitute_sku ?? null;
 
     let status = 'pending';
     if (overrideStatus) status = overrideStatus;
     else if (item.status?.code === 'missing')     status = 'refused';
     else if (item.status?.code === 'substituted') status = 'pending';
 
+    const fmtSku = (sku, fallbackPrice = null) => (sku ? {
+      id:        sku.id,
+      name_fr:   sku.name_fr,
+      name_ar:   sku.name_ar,
+      price:     skuNodePrice(sku, nodeId) ?? fallbackPrice,
+      image_url: toPublicUrl(sku.images?.[0]?.url),
+    } : null);
+
+    const soldPrice = item.order_item?.unit_price_sold != null ? Number(item.order_item.unit_price_sold) : null;
+
     return {
       id:              item.id,
       session_item_id: item.id,
       status,
-      original_sku: originalArticle ? {
-        id:        item.order_item.sku.id,
-        name_fr:   originalArticle.name_fr,
-        name_ar:   originalArticle.name_ar,
-        price:     originalArticle.price ? Number(originalArticle.price) : null,
-        image_url: toPublicUrl(item.order_item.sku.images?.[0]?.url),
-      } : null,
-      substitute_sku: substituteArticle ? {
-        id:        item.substitute_sku.id,
-        name_fr:   substituteArticle.name_fr,
-        name_ar:   substituteArticle.name_ar,
-        price:     substituteArticle.price ? Number(substituteArticle.price) : null,
-        image_url: toPublicUrl(item.substitute_sku.images?.[0]?.url),
-      } : null,
+      original_sku:    fmtSku(originalSku, soldPrice),
+      substitute_sku:  fmtSku(substituteSku),
       reason:     null,
       created_at: item.picked_at ?? null,
     };
   }
+
 }
 
 module.exports = new CustomerSubstitutionService();

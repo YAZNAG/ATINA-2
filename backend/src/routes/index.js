@@ -71,6 +71,8 @@ router.use('/customer/wallet', customerWalletRoutes);
 router.use('/customer/loyalty',customerLoyaltyRoutes );
 router.use('/customer/substitutions', customerSubstitutionRoutes);
 router.use('/customer/orders', customerOrderSubstitutionRoutes);
+router.use('/customer/points-exchange', require('../modules/points_exchange/customer_points_exchange.routes'));
+router.use('/customer/games', require('../modules/customer_games/customer_games.routes'));
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
 router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
 

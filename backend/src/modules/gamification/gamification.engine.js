@@ -1,8 +1,8 @@
 /**
- * Gamification — MOTEUR DE JEU (côté app client). NON BRANCHÉ sur les routes :
- * le déclenchement (jouer / réclamer) relève de l'app mobile et d'un futur
- * module customer_gamification. Ce service est prêt à être appelé depuis une
- * route client authentifiée (customer_auth.middleware) :
+ * Gamification — MOTEUR DE JEU (côté app client). Branché sur les routes client
+ * du module customer_games (GET /customer/games, POST /customer/games/:id/play) ;
+ * la réclamation des lots free_sku / free_pack passe par le checkout client
+ * (claim_play_ids → gamification.claims.js). Appel type :
  *
  *   const engine = require('../gamification/gamification.engine');
  *   // app_login / signup : aucune commande
@@ -24,16 +24,17 @@
  *    une partie perdue consomme le quota ; aucune participation n'est reportée ;
  *  - tirage pondéré parmi les lots actifs non épuisés ; no_prize → result = lose, prize_id NULL ;
  *  - gain : awarded_count + 1 (désactivation automatique à stock_limit) ;
- *      points    → points_transactions (type prize_award, append-only) + solde client, réclamé immédiatement ;
+ *      points    → recordPointsTxn (type prize_award, game_play_id = la partie, append-only), réclamé immédiatement ;
  *      coupon    → code promo nominatif (is_gamification, customer_id, play_id, uses_max 1,
  *                  uses_count 0, is_combined false, uses_per_user_max 1, valid_to = gain + coupon_validity_days) ;
- *      free_sku / free_pack → à réclamer dans l'app avant expires_at (ligne de commande créée à la réclamation,
- *                  hors périmètre de ce service).
+ *      free_sku / free_pack → à réclamer dans l'app avant expires_at : ligne de commande à 0 MAD
+ *                  (order_items.game_play_id) créée au checkout client, voir gamification.claims.js.
  * game_plays est APPEND-ONLY fonctionnellement : ce service n'insère que des lignes.
  */
 const crypto = require('crypto');
 const prisma = require('../../config/database');
 const R = require('./gamification.rules');
+const { recordPointsTxn } = require('../loyalty/points-ledger.util');
 
 const { bad } = R;
 const CLAIM_DAYS = Math.max(1, parseInt(process.env.GAMIFICATION_CLAIM_DAYS, 10) || 7);
@@ -149,7 +150,7 @@ async function play(customerId, gameId, { orderId = null, now = new Date(), rng 
     const { game } = elig;
 
     // Tirage parmi les lots actifs non épuisés (re-tirage si un plafond est atteint en concurrence).
-    let pool = game.prizes.filter((p) => p.is_active && !R.isExhausted(p));
+    let pool = game.prizes.filter((p) => p.is_active && !p.is_deleted && !R.isExhausted(p));
     if (pool.length === 0) throw bad('Aucun lot disponible pour ce jeu', 409);
     let prize = null;
     while (pool.length) {
@@ -193,22 +194,17 @@ async function play(customerId, gameId, { orderId = null, now = new Date(), rng 
     let reward = null;
     if (code === 'points') {
       const points = Math.round(Number(prize.value));
-      const c = await tx.customer.update({
-        where: { id: customerId },
-        data: { points_balance: { increment: points }, points_lifetime: { increment: points } },
-        select: { points_balance: true },
+      if (!(points > 0)) throw bad('Lot « points » mal configuré (valeur ≤ 0)', 500);
+      // Grand-livre des points (append-only) : une seule écriture prize_award rattachée à la partie.
+      const { points_balance } = await recordPointsTxn(tx, {
+        customer_id: customerId,
+        amount: points,
+        type: 'prize_award',
+        reason: `Partie — ${game.name_fr}`,
+        order_id: elig.order?.id ?? null,
+        game_play_id: playRow.id,
       });
-      await tx.pointsTransaction.create({
-        data: {
-          customer_id: customerId,
-          order_id: elig.order?.id ?? null,
-          type: 'prize_award',
-          points,
-          balance_after: c.points_balance,
-          label: `Partie ${playRow.id} — ${game.name_fr}`.slice(0, 255),
-        },
-      });
-      reward = { type: 'points', points, balance_after: c.points_balance };
+      reward = { type: 'points', points, balance_after: points_balance };
     } else if (code === 'coupon') {
       let promo = null;
       for (let i = 0; i < 5 && !promo; i += 1) {

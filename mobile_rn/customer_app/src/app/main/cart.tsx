@@ -15,6 +15,9 @@ import {
 import PageHeader   from '../../components/ui/PageHeader';
 import { CartService, CartItem, Cart } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
+import { ProfileService } from '../../services/profile.service';
+import { GamesService, CustomerGame } from '../../services/games.service';
+import { RewardsCart, useRewardsCart, RewardsCartState } from '../../store/rewardsCartStore';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -252,6 +255,89 @@ const PackCartRow = React.memo(({
   </View>
 ));
 
+/**
+ * Lignes « récompenses » du panier : produits échangés contre des points (coût indicatif,
+ * solde projeté informatif — rien n'est débité avant la confirmation, WF #19 A) et lots
+ * gagnés à réclamer (0 MAD, avant expiration).
+ */
+const RewardsSection = ({
+  rewards, pointsBalance, onOpenExchange,
+}: {
+  rewards: RewardsCartState;
+  pointsBalance: number | null;
+  onOpenExchange: () => void;
+}) => {
+  const pts = rewards.exchange.reduce((s, l) => s + l.points_cost * l.qty, 0);
+  const projected = pointsBalance != null ? pointsBalance - pts : null;
+  return (
+    <View style={{ marginTop: 4 }}>
+      {rewards.exchange.length > 0 && (
+        <View style={styles.rewardBlock}>
+          <View style={styles.rewardHeader}>
+            <Feather name="repeat" size={14} color="#B45309" />
+            <Text style={styles.rewardTitle}>Produits échangés</Text>
+            <Text style={styles.rewardPts}>{pts.toLocaleString('fr-FR')} pts</Text>
+          </View>
+          {rewards.exchange.map((l) => (
+            <View key={l.sku_id} style={styles.rewardRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rewardName} numberOfLines={1}>{l.name_fr}</Text>
+                <Text style={styles.rewardSub}>{l.points_cost} pts × {l.qty} • 0,00 MAD</Text>
+              </View>
+              <View style={styles.qtyRow}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={() => RewardsCart.setExchangeQty(l.sku_id, l.qty - 1)} activeOpacity={0.7}>
+                  <Feather name="minus" size={14} color="#1a1a1a" />
+                </TouchableOpacity>
+                <View style={styles.qtyValueBox}><Text style={styles.qtyText}>{l.qty}</Text></View>
+                <TouchableOpacity
+                  style={[styles.qtyBtnPlus, l.max_qty_per_order != null && l.qty >= l.max_qty_per_order && { opacity: 0.4 }]}
+                  disabled={l.max_qty_per_order != null && l.qty >= l.max_qty_per_order}
+                  onPress={() => RewardsCart.setExchangeQty(l.sku_id, l.qty + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="plus" size={14} color="#1a1a1a" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          {projected != null && (
+            <Text style={[styles.rewardInfo, projected < 0 && { color: RED }]}>
+              Solde projeté : {projected.toLocaleString('fr-FR')} pts (débit à la confirmation de la commande)
+            </Text>
+          )}
+        </View>
+      )}
+      {rewards.claims.length > 0 && (
+        <View style={styles.rewardBlock}>
+          <View style={styles.rewardHeader}>
+            <Feather name="gift" size={14} color="#15803D" />
+            <Text style={styles.rewardTitle}>Lots gagnés à réclamer</Text>
+          </View>
+          {rewards.claims.map((c) => (
+            <View key={c.play_id} style={styles.rewardRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rewardName} numberOfLines={1}>{c.name_fr}</Text>
+                <Text style={styles.rewardSub}>
+                  {c.type === 'free_pack' ? 'Pack offert' : 'Produit offert'} • 0,00 MAD
+                  {c.expires_at ? ` • avant le ${new Date(c.expires_at).toLocaleDateString('fr-FR')}` : ''}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.deleteBtn} onPress={() => RewardsCart.removeClaim(c.play_id)} activeOpacity={0.7}>
+                <Feather name="x" size={16} color={RED} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+      <TouchableOpacity style={styles.rewardLink} onPress={onOpenExchange} activeOpacity={0.8}>
+        <Feather name="star" size={14} color={RED} />
+        <Text style={styles.rewardLinkText}>Échanger mes points contre des produits</Text>
+        <Feather name="chevron-right" size={14} color={RED} />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function CartScreen() {
   const router = useRouter();
   const { applyCart } = useCartActions();
@@ -266,6 +352,12 @@ export default function CartScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const rewards = useRewardsCart();
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  // Jauge « Plus que X MAD pour jouer » (jeu order_delivered avec seuil — feuille Déblocage, S1)
+  const [thresholdGame, setThresholdGame] = useState<CustomerGame | null>(null);
+  const hasRewards = rewards.exchange.length > 0 || rewards.claims.length > 0;
+  const exchangePoints = rewards.exchange.reduce((s, l) => s + l.points_cost * l.qty, 0);
 
   const setCartAndSync = useCallback((c: Cart) => {
     setCart(c);
@@ -279,6 +371,12 @@ export default function CartScreen() {
   };
 
   useEffect(() => { loadCart(); }, []);
+  useEffect(() => {
+    ProfileService.getProfile().then((p: any) => setPointsBalance(Number(p?.points_balance ?? 0))).catch(() => {});
+    GamesService.list()
+      .then((g) => setThresholdGame(g.games.find((x) => x.condition === 'order_delivered' && Number(x.unlock_min_amount ?? 0) > 0) ?? null))
+      .catch(() => {});
+  }, []);
   const onRefresh = useCallback(() => { setRefreshing(true); loadCart(); }, []);
 
   const handleIncrease = useCallback(async (item: CartItem) => {
@@ -395,7 +493,7 @@ export default function CartScreen() {
           <ActivityIndicator size="large" color={RED} />
         </View>
 
-      ) : cart.items.length === 0 ? (
+      ) : cart.items.length === 0 && !hasRewards ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyBadge}>
             <Feather name="star" size={14} color={RED} />
@@ -432,6 +530,13 @@ export default function CartScreen() {
     />
   }
   renderItem={renderItem}
+  ListFooterComponent={
+    <RewardsSection
+      rewards={rewards}
+      pointsBalance={pointsBalance}
+      onOpenExchange={() => router.push('/rewards/exchange' as any)}
+    />
+  }
   getItemLayout={(data, index) => {
     let offset = 0;
     for (let i = 0; i < index; i++) offset += getEntryRowHeight(data![i]);
@@ -445,10 +550,26 @@ export default function CartScreen() {
 />
 
           <View style={styles.summary}>
+            {thresholdGame && (
+              <View style={styles.gauge}>
+                <Feather name="play-circle" size={14} color={RED} />
+                <Text style={styles.gaugeText}>
+                  {cart.total < Number(thresholdGame.unlock_min_amount)
+                    ? `Plus que ${(Number(thresholdGame.unlock_min_amount) - cart.total).toFixed(2)} MAD pour gagner un tour « ${thresholdGame.name_fr} »`
+                    : `Seuil atteint — tour « ${thresholdGame.name_fr} » débloqué à la livraison`}
+                </Text>
+              </View>
+            )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>SOUS-TOTAL</Text>
               <Text style={styles.summaryValue}>{cart.total.toFixed(2)} DH</Text>
             </View>
+            {exchangePoints > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>POINTS ÉCHANGÉS</Text>
+                <Text style={[styles.summaryValue, { color: '#F59E0B', fontSize: 14 }]}>{exchangePoints.toLocaleString('fr-FR')} pts</Text>
+              </View>
+            )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>LIVRAISON</Text>
               <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 14 }]}>Calculée au checkout</Text>
@@ -496,6 +617,18 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
+  gauge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF0F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  gaugeText: { flex: 1, fontSize: 12, color: RED, fontWeight: '600' },
+  rewardBlock: { backgroundColor: '#FFFBEB', borderRadius: 16, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FEF3C7' },
+  rewardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  rewardTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
+  rewardPts: { fontSize: 14, fontWeight: '800', color: '#F59E0B' },
+  rewardRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FEF3C7' },
+  rewardName: { fontSize: 13, fontWeight: '700', color: '#1a1a1a' },
+  rewardSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  rewardInfo: { fontSize: 12, color: '#92400E', marginTop: 6 },
+  rewardLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+  rewardLinkText: { fontSize: 13, fontWeight: '700', color: RED },
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   flex:     { flex: 1 },
 

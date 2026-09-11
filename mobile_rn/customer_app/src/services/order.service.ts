@@ -57,6 +57,28 @@ export interface CreateOrderPayload {
   wallet_used?:        number;
   referral_code?:      string;
   promo_code?:         string;
+  /** Lignes « échange de points » (WF #19) — débitées uniquement à la confirmation. */
+  exchange_items?:     ExchangeItemPayload[];
+  /** Lots gagnés (free_sku / free_pack) réclamés dans cette commande (0 MAD). */
+  claim_play_ids?:     string[];
+}
+
+export interface ExchangeItemPayload {
+  sku_id: string;
+  qty:    number;
+}
+
+export interface ExchangePreview {
+  lines:             { sku_id: string; name_fr: string; qty: number; points_cost: number; points_spent: number; unit_price_ttc: number }[];
+  points_total:      number;
+  points_balance:    number | null;
+  projected_balance: number | null;
+  error:             string | null;
+}
+
+export interface ClaimsPreview {
+  lines: { play_id: string; type: 'free_sku' | 'free_pack'; sku_id: string | null; pack_id: string | null; name_fr: string; expires_at: string | null; unit_price_ttc: number }[];
+  error: string | null;
 }
 
 export interface OrderCreated {
@@ -77,6 +99,9 @@ export interface OrderCalculation {
   total_ttc:        number;
   cod_amount:       number;
   currency:         string;
+  paid_subtotal_ttc?: number;
+  exchange?:        ExchangePreview | null;
+  claims?:          ClaimsPreview | null;
 }
 
 export interface DeliverySlotsResult {
@@ -171,6 +196,8 @@ export async function calculateOrder(params: {
   payment_method_code?: string;
   wallet_used?:         number;
   promo_code?:          string;
+  exchange_items?:      ExchangeItemPayload[];
+  claim_play_ids?:      string[];
 }): Promise<OrderCalculation> {
   const res = await api.post('/customer/checkout/calculate', params);
   return unwrap<OrderCalculation>(res.data);

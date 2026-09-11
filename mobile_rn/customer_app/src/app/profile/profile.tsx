@@ -8,6 +8,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ProfileService, Profile } from '../../services/profile.service';
+import { GamesService } from '../../services/games.service';
 import * as SecureStore from 'expo-secure-store';
 import { CONFIG } from '../../constants/config';
 import PageHeader from '../../components/ui/PageHeader';
@@ -72,6 +73,7 @@ export default function ProfileScreen() {
   const [loading,      setLoading]      = useState(true);
   const [totalSpent,   setTotalSpent]   = useState(0);
   const [orderCount,   setOrderCount]   = useState(0);
+  const [gamesBadge,   setGamesBadge]   = useState(0);
   const LANG_LABELS: Record<string, string> = {
   fr: 'Français (FR)',
   ar: 'العربية (AR)',
@@ -98,6 +100,10 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
       }
     })();
     refreshNotifCount();
+    // Badge « Jeux » : tours disponibles + lots à réclamer (feuille Déblocage : badge sur l'onglet)
+    GamesService.list()
+      .then((g) => { if (active) setGamesBadge((g.badge_count ?? 0) + (g.prizes_to_claim ?? 0)); })
+      .catch(() => {});
     return () => { active = false; };
   }, []));
 
@@ -214,6 +220,25 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
             rightContent={
               <RedBadge text={`${(profile?.points_balance ?? 0).toLocaleString()} pts`} />
             }
+          />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="repeat"
+            label="Échanger mes points"
+            onPress={() => router.push('/rewards/exchange' as any)}
+          />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="play-circle"
+            label="Jeux"
+            onPress={() => router.push('/games' as any)}
+            rightContent={gamesBadge > 0 ? <RedBadge text={`${gamesBadge} dispo`} /> : undefined}
+          />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="award"
+            label="Mes gains"
+            onPress={() => router.push('/games/prizes' as any)}
           />
           <View style={styles.divider} />
           <MenuRow

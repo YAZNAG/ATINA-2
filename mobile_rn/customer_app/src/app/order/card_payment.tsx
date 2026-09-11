@@ -19,6 +19,7 @@ import {
 import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '../../components/ui/CheckoutStepper';
 import { createOrder, CartItem } from '../../services/order.service';
+import { RewardsCart } from '../../store/rewardsCartStore';
 import { CartService } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
 
@@ -101,7 +102,9 @@ export default function CardPaymentScreen() {
         payment_method_code: params.payment_method_code ?? 'card',
         wallet_used:         walletAmount > 0 ? walletAmount : undefined,
         promo_code:          params.promo_code || undefined,
+        ...RewardsCart.payload(),
       });
+      RewardsCart.clear();
       const cart = await CartService.clearCart();
       applyCart(cart);
       if (router.canDismiss()) {

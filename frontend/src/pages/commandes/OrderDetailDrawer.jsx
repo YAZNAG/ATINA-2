@@ -318,6 +318,7 @@ function DetailTab({ order, transitions, busy, onChangeStatus, onAskCancel, onSa
                         {item.flash_sale && <Badge tone="bg-amber-50 text-amber-700"><Zap size={11} className="mr-0.5" />{item.flash_sale.name_fr || 'Vente flash'}</Badge>}
                         {Number(item.qty_backordered) > 0 && <Badge tone="bg-rose-50 text-rose-600">Rupture : {Number(item.qty_backordered)}</Badge>}
                         {item.is_points_exchange && <Badge tone="bg-blue-50 text-blue-600">Échange points</Badge>}
+                        {item.game_play_id && <Badge tone="bg-amber-50 text-amber-700">Lot gagné</Badge>}
                         {st === 'cancelled' && <Badge>Annulée</Badge>}
                         {st === 'substituted' && <Badge tone="bg-sky-50 text-sky-700">{replacedIds.has(item.id) ? 'Remplacée' : 'Substituée (préparation)'}</Badge>}
                         {st === 'out_of_stock' && <Badge tone="bg-orange-50 text-orange-600">Rupture préparation</Badge>}

@@ -8,6 +8,8 @@ router.use(auth);
 
 // Specific named paths before /:id
 router.get('/by-node/:node_id',  perm('stock.view'),   ctrl.byNode.bind(ctrl));
+router.get('/alerts',            perm('stock.view'),   ctrl.alerts.bind(ctrl));
+router.get('/thresholds',        perm('stock.view'),   ctrl.thresholds.bind(ctrl));
 router.get('/refs',              perm('stock.view'),   ctrl.refs.bind(ctrl));
 router.get('/suggested-qty',     perm('stock.view'),   ctrl.suggestedQty.bind(ctrl));
 router.get('/',                  perm('stock.view'),   ctrl.list.bind(ctrl));

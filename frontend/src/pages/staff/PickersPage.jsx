@@ -33,7 +33,7 @@ function Fld({ label, req, children }) {
   );
 }
 
-const EMPTY = { node_id: '', phone_country: '+212', phone_number: '', name: '', password: '' };
+const EMPTY = { node_id: '', phone_country: '+212', phone_number: '', email: '', name: '', password: '' };
 
 function Drawer({ editItem, nodes, onClose, onSaved }) {
   const isEdit = !!editItem;
@@ -42,7 +42,7 @@ function Drawer({ editItem, nodes, onClose, onSaved }) {
 
   useEffect(() => {
     setForm(editItem
-      ? { node_id: editItem.node_id ?? '', phone_country: editItem.phone_country ?? '+212', phone_number: editItem.phone_number ?? '', name: editItem.name ?? '', password: '' }
+      ? { node_id: editItem.node_id ?? '', phone_country: editItem.phone_country ?? '+212', phone_number: editItem.phone_number ?? '', email: editItem.email ?? '', name: editItem.name ?? '', password: '' }
       : { ...EMPTY });
   }, [editItem]);
 
@@ -52,7 +52,8 @@ function Drawer({ editItem, nodes, onClose, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      if (isEdit) await updatePicker(editItem.id, { node_id: form.node_id, name: form.name, is_active: true });
+      // Le statut (actif/inactif) se gère via Activer/Désactiver : la modification ne le touche pas.
+      if (isEdit) await updatePicker(editItem.id, { node_id: form.node_id, name: form.name, phone_country: form.phone_country, phone_number: form.phone_number, email: form.email });
       else        await createPicker(form);
       toast.success(isEdit ? 'Picker mis à jour' : 'Picker créé');
       onSaved();
@@ -88,20 +89,21 @@ function Drawer({ editItem, nodes, onClose, onSaved }) {
           <Fld label="Nom complet" req>
             <input name="name" className={inp} value={form.name} onChange={hc} required placeholder="Ahmed Belhaj" />
           </Fld>
-          {!isEdit && (
-            <div className="grid grid-cols-3 gap-3">
-              <Fld label="Indicatif">
-                <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
-                  <option value="+212">+212</option><option value="+33">+33</option>
-                </select>
+          <div className="grid grid-cols-3 gap-3">
+            <Fld label="Indicatif">
+              <select name="phone_country" className={inp} value={form.phone_country} onChange={hc}>
+                <option value="+212">+212</option><option value="+33">+33</option><option value="+213">+213</option>
+              </select>
+            </Fld>
+            <div className="col-span-2">
+              <Fld label="Téléphone" req>
+                <input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required placeholder="601234567" />
               </Fld>
-              <div className="col-span-2">
-                <Fld label="Téléphone" req>
-                  <input name="phone_number" className={`${inp} font-mono`} value={form.phone_number} onChange={hc} required placeholder="601234567" />
-                </Fld>
-              </div>
             </div>
-          )}
+          </div>
+          <Fld label="Email">
+            <input type="email" name="email" className={inp} value={form.email} onChange={hc} placeholder="optionnel" />
+          </Fld>
           {!isEdit && (
             <Fld label="Mot de passe" req>
               <input type="password" name="password" className={inp} value={form.password} onChange={hc} required minLength={6} placeholder="min 6 caractères" />
@@ -221,9 +223,11 @@ export default function PickersPage() {
             <form onSubmit={e => { e.preventDefault(); pf('search', searchInput); }} className="flex items-center gap-2">
               <div className="relative">
                 <Icon d={SVG.search} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Nom ou téléphone…"
+                <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Nom, téléphone ou email…"
                   className="pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 w-56" />
               </div>
+              <button type="submit" className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-xl">Filtrer</button>
+              {filters.search && <button type="button" onClick={() => { pf('search', ''); setSearchInput(''); }} className="px-2 py-2 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50" title="Effacer la recherche">✕</button>}
             </form>
             <select value={filters.node_id} onChange={e => pf('node_id', e.target.value)}
               className="text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500">
@@ -248,8 +252,9 @@ export default function PickersPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Picker</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Téléphone</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Node</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Sessions en cours</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Statut</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Créé le</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
@@ -257,7 +262,7 @@ export default function PickersPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {items.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-12 text-gray-400">Aucun picker</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12 text-gray-400">Aucun picker</td></tr>
                   ) : items.map(item => (
                     <tr key={item.id} onClick={() => navigate(`/staff/pickers/${item.id}`)} className="hover:bg-violet-50/50 transition-colors group cursor-pointer">
                       <td className="px-5 py-3.5">
@@ -268,8 +273,19 @@ export default function PickersPage() {
                           <p className="font-semibold text-gray-900">{item.name}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-gray-600">{item.phone_country} {item.phone_number}</td>
-                      <td className="px-4 py-3.5"><span className="text-xs font-mono font-semibold text-gray-700">{item.node?.code}</span></td>
+                      <td className="px-4 py-3.5 text-xs text-gray-600">
+                        <p className="font-mono">{item.phone_country} {item.phone_number}</p>
+                        {item.email && <p className="text-gray-400">{item.email}</p>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="text-xs font-mono font-semibold text-gray-700">{item.node?.code}</span>
+                        <p className="text-[11px] text-gray-400">{item.node?.name_fr}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        {item.active_sessions > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">{item.active_sessions}</span>
+                          : <span className="text-gray-300 text-xs">0</span>}
+                      </td>
                       <td className="px-4 py-3.5 text-center">
                         {item.is_active
                           ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Actif</span>

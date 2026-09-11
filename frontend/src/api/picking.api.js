@@ -28,3 +28,9 @@ export const substituteItem       = (id)               => api.patch(`${b}/items/
 export const outOfStockItem       = (id)               => api.patch(`${b}/items/${id}/out-of-stock`);
 
 export const getPickers           = (params)           => api.get(`${b}/pickers`, { params });
+
+// ── Supervision (onglets Sessions en cours / Historique) ─────────────────────
+// params : scope ('active'|'history'), node_id, picker_id, status_code, date_from, date_to, with_counts
+export const exportPickingSessions = (params)          => api.get(`${b}/sessions/export`, { params });
+// US-067 : réassignation auditée tant que la session n'est pas terminée
+export const reassignPicker       = (id, picker_id, reason) => api.patch(`${b}/sessions/${id}/picker`, { picker_id, reason });

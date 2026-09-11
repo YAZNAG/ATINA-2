@@ -3,8 +3,21 @@ import { useAuth } from '../../context/AuthContext';
 import { getUsers } from '../../api/users.api';
 import { getRoles } from '../../api/roles.api';
 import { getPermissions } from '../../api/permissions.api';
+import KpiOverview from '../reporting/KpiOverview';
 
+/**
+ * Écran d'accueil du back-office.
+ * - Utilisateur habilité (reporting.view ou dashboard.view) : KPI Overview (Reporting / Supervision).
+ * - Sinon : page d'accueil historique (compteurs utilisateurs / rôles / permissions).
+ */
 export default function Dashboard() {
+  const { hasPermission } = useAuth();
+  const canReport = hasPermission('reporting.view') || hasPermission('dashboard.view');
+  if (canReport) return <KpiOverview />;
+  return <LegacyHome />;
+}
+
+function LegacyHome() {
   const { user, hasPermission } = useAuth();
   const [stats, setStats] = useState({ users: '—', roles: '—', permissions: '—' });
 

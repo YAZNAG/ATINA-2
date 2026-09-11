@@ -12,10 +12,14 @@ const router = Router();
 router.use(auth);
 
 router.get('/',                 canView,   ctrl.index.bind(ctrl));
+router.get('/eligible-skus',    canView,   ctrl.eligibleSkus.bind(ctrl));
 router.get('/:id',              canView,   ctrl.show.bind(ctrl));
+router.get('/:id/lock',         canView,   ctrl.lock.bind(ctrl));
 router.post('/',                canCreate, ctrl.store.bind(ctrl));
 router.post('/:id/duplicate',   canCreate, ctrl.duplicate.bind(ctrl));
 router.put('/:id',              canUpdate, ctrl.update.bind(ctrl));
+router.patch('/:id/activate',   canUpdate, ctrl.activate.bind(ctrl));
+router.patch('/:id/deactivate', canUpdate, ctrl.deactivate.bind(ctrl));
 router.delete('/:id',           canDelete, ctrl.destroy.bind(ctrl));
 
 module.exports = router;

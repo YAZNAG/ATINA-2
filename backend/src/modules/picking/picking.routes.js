@@ -10,6 +10,8 @@ router.use(auth);
 
 const canView    = perm.permAny(['picking.read','picking.view','dashboard.view']);
 const canManage  = perm.permAny(['picking.update','dashboard.view']);
+// US-067 : réassignation du picker d'une session non terminée
+const canReassign = perm.permAny(['picking.update','picking.reassign','dashboard.view']);
 const canCfg     = perm.permAny(['dashboard.view']);
 
 // Statuts picking
@@ -31,12 +33,13 @@ router.delete('/item-statuses/:id', canCfg, pisCtrl.destroy.bind(pisCtrl));
 // Opérationnel
 router.get('/pickers',               canView,   ctrl.listPickers.bind(ctrl));
 router.get('/sessions',              canView,   ctrl.listSessions.bind(ctrl));
+router.get('/sessions/export',       canView,   ctrl.exportSessions.bind(ctrl));
 router.post('/sessions',             canManage, ctrl.createSession.bind(ctrl));
 router.get('/sessions/:id',          canView,   ctrl.getSession.bind(ctrl));
 router.patch('/sessions/:id/start',    canManage, ctrl.startSession.bind(ctrl));
 router.patch('/sessions/:id/complete', canManage, ctrl.completeSession.bind(ctrl));
 router.patch('/sessions/:id/cancel',   canManage, ctrl.cancelSession.bind(ctrl));
-router.patch('/sessions/:id/picker',   canManage, ctrl.assignPicker.bind(ctrl));
+router.patch('/sessions/:id/picker',   canReassign, ctrl.assignPicker.bind(ctrl));
 router.patch('/items/:id/pick',        canManage, ctrl.pickItem.bind(ctrl));
 router.patch('/items/:id/substitute',  canManage, ctrl.substituteItem.bind(ctrl));
 router.patch('/items/:id/out-of-stock',canManage, ctrl.outOfStock.bind(ctrl));

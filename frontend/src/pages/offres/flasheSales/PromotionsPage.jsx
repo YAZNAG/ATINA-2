@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Zap, Tag, Trash2, Pencil, Power, PowerOff, Lock, Search, ImageOff } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { getPromotions, updatePromotion, deletePromotion } from '../../../api/offres.api';
+import { getPromotions, deletePromotion, setFlashSaleActive } from '../../../api/offres.api';
 
 const TABS = [
   { key: 'flash', label: 'Ventes Flash', icon: Zap, scopes: ['sku', 'pack'] },
@@ -30,10 +31,13 @@ function StatusBadge({ promo }) {
 
 export default function PromotionsPage() {
   const { hasPermission } = useAuth();
-  const canView = hasPermission('promotions.view');
-  const canCreate = hasPermission('promotions.create');
-  const canUpdate = hasPermission('promotions.update');
-  const canDelete = hasPermission('promotions.delete');
+  const navigate = useNavigate();
+  // Les codes promotions.* n'existent pas en base : on accepte aussi flash_sales.* et dashboard.view (accès historique).
+  const any = (codes) => codes.some((c) => hasPermission(c));
+  const canView = any(['promotions.view', 'flash_sales.view', 'flash_sales.manage', 'dashboard.view']);
+  const canCreate = any(['promotions.create', 'flash_sales.manage', 'dashboard.view']);
+  const canUpdate = any(['promotions.update', 'flash_sales.manage', 'dashboard.view']);
+  const canDelete = any(['promotions.delete', 'flash_sales.manage', 'dashboard.view']);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +79,7 @@ export default function PromotionsPage() {
   async function handleToggleStatus(promo) {
     setTogglingId(promo.id);
     try {
-      await updatePromotion(promo.id, { is_active: !promo.is_active });
+      await setFlashSaleActive(promo.id, !promo.is_active);
       fetchAll();
     } catch (err) {
       alert(err?.response?.data?.message ?? 'Erreur');
@@ -113,7 +117,10 @@ export default function PromotionsPage() {
         {canCreate && (
           <button
             className="flex items-center gap-2 rounded-lg bg-[#E10600] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#c00500] active:scale-[0.98]"
-            onClick={() => {/* ouvrir drawer création, scope pré-rempli selon activeTab */}}
+            onClick={() => {
+              if (activeTab === 'flash') navigate('/offres/flash-sales');
+              /* promotions catégorie / marque : formulaire de création non encore disponible */
+            }}
           >
             <Plus size={18} />
             {activeTab === 'flash' ? 'Nouvelle vente flash' : 'Nouvelle promotion'}
@@ -146,6 +153,13 @@ export default function PromotionsPage() {
           );
         })}
       </div>
+
+      {activeTab === 'flash' && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span>Les ventes flash (produit ou pack) se créent, se modifient et se suppriment dans l'écran dédié « Flash Sales » (garde-fous de stock, états, commandes liées).</span>
+          <Link to="/offres/flash-sales" className="font-medium underline">Ouvrir Flash Sales →</Link>
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -254,7 +268,10 @@ export default function PromotionsPage() {
                         )}
                         {!isDeleted && canUpdate && (
                           <button
-                            onClick={() => {/* ouvrir drawer édition avec promo */}}
+                            onClick={() => {
+                              if (activeTab === 'flash') navigate(`/offres/flash-sales?id=${promo.id}`);
+                              /* promotions catégorie / marque : formulaire d'édition non encore disponible */
+                            }}
                             className="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
                             title="Modifier"
                           >

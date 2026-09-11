@@ -59,7 +59,14 @@ function computeCouponDiscount(promo, subtotal, deliveryFee = 0) {
   throw { statusCode: 400, message: 'Type de coupon inconnu' };
 }
 
-async function validateCoupon(code, customerId, subtotal = 0) {
+/**
+ * Validation d'un code au checkout.
+ * @param {object} [opts] contrôles optionnels (US-076) — non appliqués si non fournis :
+ *   opts.node_id         node de la commande : un code rattaché à un autre node est refusé (node_id NULL = global) ;
+ *   opts.has_other_offer TRUE si le panier bénéficie déjà d'une flash sale ou d'un pack remisé :
+ *                        refus si le code n'est pas cumulable (is_combined = FALSE).
+ */
+async function validateCoupon(code, customerId, subtotal = 0, opts = {}) {
   const promo = await prisma.promotion.findFirst({
     where:   { code, is_deleted: false },
     include: PROMO_INCLUDE,
@@ -78,6 +85,14 @@ async function validateCoupon(code, customerId, subtotal = 0) {
 
   if (promo.customer_id && promo.customer_id !== customerId) {
     throw { statusCode: 403, message: 'Ce code promo ne vous est pas destiné' };
+  }
+
+  if (opts.node_id && promo.node_id && promo.node_id !== opts.node_id) {
+    throw { statusCode: 400, message: "Ce code promo n'est pas valable sur ce point de vente" };
+  }
+
+  if (opts.has_other_offer && !promo.is_combined) {
+    throw { statusCode: 400, message: "Ce code promo n'est pas cumulable avec les offres déjà présentes dans votre panier" };
   }
 
   if (promo.uses_max != null && promo.uses_count >= promo.uses_max) {

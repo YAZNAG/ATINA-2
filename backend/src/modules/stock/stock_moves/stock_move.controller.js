@@ -1,11 +1,11 @@
 const service = require('./stock_move.service');
 
 class StockMoveController {
-  // GET /?node_id=&sku_id=&move_type_id=&operation=&date_from=&date_to=&page=&limit=
+  // GET /?node_id=&sku_id=&move_type_id=&operation=&date_from=&date_to=&search=&reference=&page=&limit=
   async list(req, res, next) {
     try {
       const { data, total, page, limit, pages } = await service.getWithFilters(req.query);
-      return res.json({ success: true, data, total, page, limit, pages });
+      return res.json({ success: true, message: 'Success', data, total, page, limit, pages, pagination: { total, page, limit, pages } });
     } catch (e) { next(e); }
   }
 

@@ -2,12 +2,13 @@ const prisma = require('../../config/database');
 
 const REVIEW_INCLUDE = {
   customer: { select: { id: true, name: true } },
-  article:  { select: { id: true, name_fr: true, sku_code: true } },
+  sku:      { select: { id: true, name_fr: true, sku_code: true } },
 };
 
 async function getAll(query = {}) {
   const where = { is_deleted: false };
-  if (query.article_id) where.article_id = Number(query.article_id);
+  // Les avis portent sur un SKU depuis la fusion article → sku (article_id accepté pour compatibilité).
+  if (query.sku_id || query.article_id) where.sku_id = String(query.sku_id ?? query.article_id);
   if (query.rating)     where.rating     = Number(query.rating);
 
   const page  = Math.max(1, parseInt(query.page  ?? '1', 10));
@@ -21,7 +22,7 @@ async function getAll(query = {}) {
 
   return {
     data: items.map(r => ({
-      id: r.id, article: r.article, customer: r.customer,
+      id: r.id, article: r.sku, sku: r.sku, customer: r.customer,
       rating: r.rating, comment: r.comment, created_at: r.created_at,
     })),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },

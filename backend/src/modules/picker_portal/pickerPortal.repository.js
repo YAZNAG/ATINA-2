@@ -29,11 +29,7 @@ const SESSION_INCLUDE = {
       location: { select: { id: true, label: true, aisle: true, shelf: true } },
       order_item: {
         include: {
-          sku: {
-            include: {
-              article: { select: { id: true, name_fr: true, ean13: true } },
-            },
-          },
+          sku: { select: { id: true, name_fr: true, name_ar: true, ean13: true, sku_code: true } },
           status: { select: { code: true, name_fr: true } },
         },
       },
@@ -60,26 +56,37 @@ const getAvailableOrders = async (nodeId) => {
   });
 };
 
+
+// Depuis la fusion article → sku, les champs sont sur sku. On garde l'alias
+// `sku.article` attendu par les écrans picker existants.
+const aliasItem = (it) => {
+  const sku = it?.order_item?.sku;
+  if (sku && !sku.article) sku.article = { id: sku.id, name_fr: sku.name_fr, name_ar: sku.name_ar, ean13: sku.ean13 };
+  return it;
+};
+const aliasSession = (sess) => { if (sess?.items) sess.items.forEach(aliasItem); return sess; };
+
 // ── Mes sessions (par picker) ─────────────────────────────────────────────────
 const getMyOrders = async (pickerId) => {
-  return prisma.pickingSession.findMany({
+  const rows = await prisma.pickingSession.findMany({
     where:   { picker_id: pickerId },
     include: SESSION_INCLUDE,
     orderBy: { created_at: 'desc' },
   });
+  return rows.map(aliasSession);
 };
 
 // ── Détail d'une session ──────────────────────────────────────────────────────
 const getSessionById = async (sessionId) => {
-  return prisma.pickingSession.findUnique({
+  return aliasSession(await prisma.pickingSession.findUnique({
     where:   { id: sessionId },
     include: SESSION_INCLUDE,
-  });
+  }));
 };
 
 // ── Item picking avec session incluse ─────────────────────────────────────────
 const getItemWithSession = async (itemId) => {
-  return prisma.pickingSessionItem.findUnique({
+  const it = await prisma.pickingSessionItem.findUnique({
     where: { id: itemId },
     include: {
       session: {
@@ -93,13 +100,14 @@ const getItemWithSession = async (itemId) => {
       },
       order_item: {
         include: {
-          sku:    { include: { article: { select: { id: true, name_fr: true, ean13: true } } } },
+          sku:    { select: { id: true, name_fr: true, name_ar: true, ean13: true, sku_code: true } },
           status: { select: { code: true, name_fr: true } },
         },
       },
       status: { select: { code: true, name_fr: true } },
     },
   });
+  return aliasItem(it);
 };
 
 module.exports = {

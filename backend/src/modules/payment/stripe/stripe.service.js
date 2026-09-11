@@ -82,7 +82,7 @@ async function createCheckoutSession(order_id, success_url, cancel_url) {
     include: {
       customer: { select: { id: true, name: true } },
       payments: { include: { payment_method: true, status: true } },
-      items:    { include: { sku: { select: { article: { select: { name_fr: true } } } } } },
+      items:    { include: { sku: { select: { name_fr: true } } } },
     },
   });
   if (!order) throw { statusCode: 404, message: 'Commande introuvable' };

@@ -8,23 +8,23 @@ const findWithFilters = async ({
   node_id, sku_id, category_id,
   backorderable, limit_reached, out_of_stock, sellable,
 } = {}) => {
-  const articleWhere = { is_active: true, is_deleted: false, sku_uuid: { not: null } };
-  if (category_id) articleWhere.category_id = category_id;
-  if (sku_id)      articleWhere.sku_uuid = sku_id;
+  // Depuis la fusion article → sku (migration 0822), tout est porté par skus.
+  const skuWhere = { is_active: true, is_deleted: false };
+  if (category_id) skuWhere.category_id = category_id;
+  if (sku_id)      skuWhere.id = sku_id;
 
-  const articles = await prisma.article.findMany({
-    where: articleWhere,
+  const skus = await prisma.sku.findMany({
+    where: skuWhere,
     include: {
-      catalog_sku: { include: { images: { where: { is_primary: true }, take: 1 } } },
-      images:       { where: { is_main: true }, take: 1 },
-      family:       { select: { id: true, name_fr: true, code: true } },
-      category:     { select: { id: true, name_fr: true, code: true } },
-      sub_category: { select: { id: true, name_fr: true, code: true } },
+      images:        { where: { deleted_at: null }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], take: 1 },
+      sku_family:    { select: { id: true, name_fr: true, code: true } },
+      sku_subfamily: { select: { id: true, name_fr: true, code: true } },
+      category:      { select: { id: true, name_fr: true, code: true } },
     },
     orderBy: { name_fr: 'asc' },
   });
 
-  const skuIds = articles.map((a) => a.sku_uuid).filter(Boolean);
+  const skuIds = skus.map((s) => s.id);
   if (!skuIds.length) return [];
 
   const levelWhere  = { sku_id: { in: skuIds } };
@@ -39,17 +39,16 @@ const findWithFilters = async ({
   const levelsMap = Object.fromEntries(levels.map((l) => [l.sku_id, l]));
   const rulesMap  = Object.fromEntries(rules.map((r)  => [r.sku_id, r]));
 
-  let rows = articles
-    .filter((a) => a.catalog_sku)
-    .map((a) => {
-      const level = levelsMap[a.sku_uuid] ?? null;
-      const rule  = rulesMap[a.sku_uuid]  ?? null;
+  let rows = skus.map((a) => {
+      const level = levelsMap[a.id] ?? null;
+      const rule  = rulesMap[a.id]  ?? null;
       const price = N(rule?.price);
       const is_sellable = rule?.is_sellable ?? true;
+      const images = a.images.map((i) => ({ ...i, image_path: i.url, is_main: i.is_primary }));
       return {
         rule_id:              rule?.id ?? null,
         node_id:              node_id ?? rule?.node_id ?? null,
-        sku_id:               a.sku_uuid,
+        sku_id:               a.id,
         is_sellable,
         price,
         is_vendable:          Boolean(is_sellable && price > 0),
@@ -64,18 +63,19 @@ const findWithFilters = async ({
         qty_backordered:      N(level?.qty_backordered),
         has_stock_level:      level !== null,
         sku: {
-          id:     a.catalog_sku.id,
-          images: a.catalog_sku.images,
+          id:     a.id,
+          images,
+          // Forme historique conservée pour l'écran (ancien objet article)
           article: {
             id:           a.id,
             sku_code:     a.sku_code,
             ean13:        a.ean13,
             name_fr:      a.name_fr,
             name_ar:      a.name_ar,
-            family:       a.family,
+            family:       a.sku_family,
             category:     a.category,
-            sub_category: a.sub_category,
-            images:       a.images,
+            sub_category: a.sku_subfamily,
+            images,
           },
         },
       };

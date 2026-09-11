@@ -5,13 +5,10 @@ const INCLUDE = {
   sku: {
     select: {
       id: true,
-      images: { where: { is_primary: true }, take: 1, select: { url: true } },
-      article: {
-        select: {
-          id: true, name_fr: true, name_ar: true, sku_code: true, ean13: true,
-          category: { select: { id: true, name_fr: true } },
-        },
-      },
+      images: { where: { is_primary: true, deleted_at: null }, take: 1, select: { url: true } },
+      // Champs portés par skus depuis la fusion article → sku (migration 0822)
+      name_fr: true, name_ar: true, sku_code: true, ean13: true,
+      category: { select: { id: true, name_fr: true } },
     },
   },
 };

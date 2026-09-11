@@ -1,6 +1,6 @@
 type Listener = () => void;
 
-let favoriteIds = new Set<number>();
+let favoriteIds = new Set<string | number>();
 const listeners = new Set<Listener>();
 
 function emit() {
@@ -8,17 +8,17 @@ function emit() {
 }
 
 export const favoritesStore = {
-  getIds(): Set<number> {
+  getIds(): Set<string | number> {
     return favoriteIds;
   },
-  setIds(ids: Set<number>) {
+  setIds(ids: Set<string | number>) {
     favoriteIds = new Set(ids);
     emit();
   },
-  isFavorite(id: number): boolean {
+  isFavorite(id: string | number): boolean {
     return favoriteIds.has(id);
   },
-  toggle(id: number, next: boolean) {
+  toggle(id: string | number, next: boolean) {
     const s = new Set(favoriteIds);
     if (next) s.add(id); else s.delete(id);
     favoriteIds = s;

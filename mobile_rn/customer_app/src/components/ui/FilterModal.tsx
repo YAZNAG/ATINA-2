@@ -43,7 +43,7 @@ export default function FilterModal({
   }, [visible]);
 
   //Catégories
-  const toggle = (id: number) => {
+  const toggle = (id: string | number) => {
     setChecked(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -56,7 +56,7 @@ export default function FilterModal({
   const allChecked = checked.length === categories.length && categories.length > 0;
 
   // Sous-catégories
-  const toggleSub = (id: number) => {
+  const toggleSub = (id: string | number) => {
     setCheckedSubs(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );

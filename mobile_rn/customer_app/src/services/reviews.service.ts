@@ -8,7 +8,7 @@ export interface ReviewCustomer {
 
 export interface Review {
   id: string;
-  article_id: number;
+  article_id: string | number;
   customer_id: string;
   customer: ReviewCustomer | null;
   rating: number;
@@ -55,7 +55,7 @@ export interface UpdateReviewPayload {
 
 
 async function listByArticle(
-  articleId: number,
+  articleId: string | number,
   params?: ListReviewsParams
 ): Promise<ListReviewsResponse> {
   try {
@@ -70,7 +70,7 @@ async function listByArticle(
 }
 
 
-async function getMyReview(articleId: number): Promise<Review | null> {
+async function getMyReview(articleId: string | number): Promise<Review | null> {
   try {
     const { data } = await api.get(`/customer/reviews/articles/${articleId}/me`);
     return data.data;

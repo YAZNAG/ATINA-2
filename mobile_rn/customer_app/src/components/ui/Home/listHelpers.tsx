@@ -1,6 +1,6 @@
 export const HORIZONTAL_LIST_LIMIT = 7;
 
-export function withSeeAllSentinel<T extends { id: number }>(
+export function withSeeAllSentinel<T extends { id: string | number }>(
   items: T[],
   limit: number = HORIZONTAL_LIST_LIMIT
 ) {

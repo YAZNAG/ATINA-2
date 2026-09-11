@@ -81,7 +81,7 @@ export default function CategoryProductsScreen() {
       if (reset) {
         setLoading(true);
         const [subs, cats] = await Promise.all([
-          CatalogService.getSubCategories(Number(catId)),
+          CatalogService.getSubCategories(String(catId)),
           CatalogService.getCategories(),
         ]);
         setSubCategories(subs);
@@ -91,7 +91,7 @@ export default function CategoryProductsScreen() {
       }
 
       const result: ArticlesResponse = await CatalogService.getArticlesByCategory(
-        Number(catId),
+        String(catId),
         { page: pageNum, limit: 20, search: search || undefined }
       );
 

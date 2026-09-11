@@ -2,7 +2,7 @@ import { useSyncExternalStore, useCallback } from 'react';
 import { favoritesStore } from './favoritesStore';
 import { ProfileService } from '../services/profile.service';
 
-export function useIsFavorite(articleId: number): boolean {
+export function useIsFavorite(articleId: string | number): boolean {
   return useSyncExternalStore(
     favoritesStore.subscribe,
     () => favoritesStore.isFavorite(articleId)
@@ -10,7 +10,7 @@ export function useIsFavorite(articleId: number): boolean {
 }
 
 // Bascule optimiste + appel API + rollback en cas d'échec.
-export function useToggleFavorite(articleId: number) {
+export function useToggleFavorite(articleId: string | number) {
   return useCallback(async () => {
     const current = favoritesStore.isFavorite(articleId);
     const next = !current;

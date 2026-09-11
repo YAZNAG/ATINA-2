@@ -12,7 +12,7 @@ export interface PromotionProduct {
   discount_pct: number;
   saved_amount: number;
   weight_g:     number | null;
-  brand:        { id: number; name_fr: string; name_ar: string } | null;
+  brand:        { id: string | number; name_fr: string; name_ar: string } | null;
 }
 
 export interface FlashSaleDetail {
@@ -57,8 +57,8 @@ export interface BestDeal {
   discount_pct:  number;
   vat_rate:      number;
   image_url:     string | null;
-  brand:         { id: number; name_fr: string; name_ar: string } | null;
-  category:      { id: number; name_fr: string; name_ar: string } | null;
+  brand:         { id: string | number; name_fr: string; name_ar: string } | null;
+  category:      { id: string | number; name_fr: string; name_ar: string } | null;
 }
 
 export interface EndingSoonResponse {

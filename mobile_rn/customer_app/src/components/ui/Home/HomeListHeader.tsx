@@ -31,7 +31,7 @@ interface HomeListHeaderProps {
   topRated: Article[];
   suggestions: Article[];
 
-  onPressProduct: (articleId: number) => void;
+  onPressProduct: (articleId: string | number) => void;
 
   activeCategoryName: string | null;
   onClearCategoryFilter: () => void;

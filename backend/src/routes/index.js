@@ -113,5 +113,7 @@ router.use('/stock-counts',    require('../modules/stock_counts/stock_counts.rou
 router.use('/purchasing',      require('../modules/purchasing/purchasing.routes'));
 router.use('/quality-checks',  require('../modules/quality/quality.routes'));
 router.use('/gamification',    require('../modules/gamification/gamification.routes'));
+router.use('/admin/audit',     require('../modules/admin_audit/admin_audit.routes'));
+router.use('/admin/settings',  require('../modules/app_settings/app_settings.routes'));
 
 module.exports = router;

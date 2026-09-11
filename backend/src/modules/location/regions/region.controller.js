@@ -15,13 +15,13 @@ class RegionController {
 
   async store(req, res, next) {
     try {
-      return response.success(res, await service.create(req.body, req.user.id), 'Région créée', 201);
+      return response.success(res, await service.create(req.body, req.user.id, req), 'Région créée', 201);
     } catch (err) { next(err); }
   }
 
   async update(req, res, next) {
     try {
-      return response.success(res, await service.update(req.params.id, req.body, req.user.id), 'Région mise à jour');
+      return response.success(res, await service.update(req.params.id, req.body, req.user.id, req), 'Région mise à jour');
     } catch (err) { next(err); }
   }
 
@@ -33,8 +33,8 @@ class RegionController {
 
   async destroy(req, res, next) {
     try {
-      await service.delete(req.params.id, req.user.id);
-      return response.success(res, null, 'Région supprimée');
+      const result = await service.delete(req.params.id, req.user.id, req);
+      return response.success(res, result, 'Région supprimée');
     } catch (err) { next(err); }
   }
 }

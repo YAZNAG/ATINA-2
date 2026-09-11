@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Loader2, Lock, Power, PowerOff,
-  Map, Building2, ChevronRight, ArrowLeft,
+  Map, Building2, ChevronRight, ArrowLeft, ArrowRightLeft,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getRegions, createRegion, updateRegion, deleteRegion, getRegionStats,
-  getCities, createCity, updateCity, deleteCity,
+  getCities, createCity, updateCity, deleteCity, moveCity,
 } from '../../../api/locationNode.api';
 
 
@@ -134,6 +134,11 @@ export default function GeographyPage({ embedded = false }){
   // Bascule statut
   const [togglingId, setTogglingId] = useState(null);
 
+  // Rattachement / déplacement Ville -> Région
+  const [activeRegions, setActiveRegions] = useState([]);
+  const [moveTarget, setMoveTarget] = useState(null); // { item, region_id }
+  const [moving, setMoving] = useState(false);
+
   const [mobileStep, setMobileStep] = useState('region');
 
   const [toast, setToast] = useState(null);
@@ -159,6 +164,19 @@ export default function GeographyPage({ embedded = false }){
       setLoading((l) => ({ ...l, region: false }));
     }
   }, [search.region, status.region, canView]);
+
+  // Régions actives (cibles de rattachement d'une ville)
+  const fetchActiveRegions = useCallback(async () => {
+    if (!canView) return;
+    try {
+      const { data } = await getRegions({ limit: LIST_LIMIT, is_active: true, is_deleted: false });
+      setActiveRegions(data.data || data || []);
+    } catch {
+      setActiveRegions([]);
+    }
+  }, [canView]);
+
+  useEffect(() => { fetchActiveRegions(); }, [fetchActiveRegions]);
 
   const fetchCities = useCallback(async (regionId) => {
     if (!regionId || !PERMS.city.view) {
@@ -202,7 +220,9 @@ export default function GeographyPage({ embedded = false }){
   //drawer creation / edition
   const openCreate = (level) => {
     setFormErrors({});
-    setDrawer({ level, mode: 'create', id: null, form: { ...LEVELS[level].emptyForm } });
+    const form = { ...LEVELS[level].emptyForm };
+    if (level === 'city') form.region_id = selectedRegion?.id || '';
+    setDrawer({ level, mode: 'create', id: null, form });
     setDrawerOpen(true);
   };
 
@@ -211,7 +231,8 @@ export default function GeographyPage({ embedded = false }){
     const cfg = LEVELS[level];
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] ?? ''; });
-    setDrawer({ level, mode: 'edit', id: item.id, form });
+    if (level === 'city') form.region_id = item.region_id || selectedRegion?.id || '';
+    setDrawer({ level, mode: 'edit', id: item.id, form, original_region_id: item.region_id });
     setDrawerOpen(true);
   };
 
@@ -233,6 +254,9 @@ export default function GeographyPage({ embedded = false }){
         errs[f.name] = `${f.label} requis`;
       }
     });
+    if (drawer.level === 'city' && !drawer.form.region_id) {
+      errs.region_id = 'La région parente est obligatoire';
+    }
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -243,13 +267,15 @@ export default function GeographyPage({ embedded = false }){
 
     const cfg = LEVELS[drawer.level];
     const payload = { ...drawer.form };
-    if (cfg.parentKey === 'region_id') payload.region_id = selectedRegion.id;
+    if (cfg.parentKey === 'region_id') payload.region_id = drawer.form.region_id || selectedRegion?.id;
+    const movedToOtherRegion =
+      drawer.level === 'city' && drawer.mode === 'edit' && payload.region_id !== drawer.original_region_id;
 
     setSaving(true);
     try {
       if (drawer.mode === 'edit') {
         await cfg.api.update(drawer.id, payload);
-        showToast('success', `${cfg.label} mise à jour`);
+        showToast('success', movedToOtherRegion ? 'Ville mise à jour et rattachée à la nouvelle région' : `${cfg.label} mise à jour`);
       } else {
         await cfg.api.create(payload);
         showToast('success', `${cfg.label} créée`);
@@ -268,8 +294,28 @@ export default function GeographyPage({ embedded = false }){
   };
 
   const refreshLevel = (level) => {
-    if (level === 'region') fetchRegions();
-    if (level === 'city') fetchCities(selectedRegion?.id);
+    if (level === 'region') { fetchRegions(); fetchActiveRegions(); }
+    if (level === 'city') { fetchCities(selectedRegion?.id); fetchRegions(); }
+  };
+
+  const confirmMove = async () => {
+    if (!moveTarget?.region_id) return;
+    setMoving(true);
+    try {
+      const { data } = await moveCity(moveTarget.item.id, moveTarget.region_id);
+      const nodesUpdated = data?.data?.nodes_updated ?? 0;
+      const target = activeRegions.find((r) => r.id === moveTarget.region_id);
+      showToast(
+        'success',
+        `${moveTarget.item.name_fr} rattachée à ${target?.name_fr || 'la région cible'}${nodesUpdated ? ` (${nodesUpdated} node(s) mis à jour)` : ''}`,
+      );
+      setMoveTarget(null);
+      refreshLevel('city');
+    } catch (err) {
+      showToast('error', err?.response?.data?.message || 'Erreur lors du rattachement');
+    } finally {
+      setMoving(false);
+    }
   };
 
   // activation / désactivation
@@ -424,6 +470,7 @@ export default function GeographyPage({ embedded = false }){
           onEdit={(item) => openEdit('city', item)}
           onDelete={(item) => prepareDeleteTarget({ level: 'city', item })}
           onToggle={(item) => toggleActive('city', item)}
+          onMove={PERMS.city.update ? (item) => setMoveTarget({ item, region_id: '' }) : undefined}
           disabled={!selectedRegion}
           disabledMessage="Sélectionnez une région pour voir ses villes."
           onBack={() => setMobileStep('region')}
@@ -460,9 +507,23 @@ export default function GeographyPage({ embedded = false }){
             <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto px-5 py-4">
                 {drawer.level === 'city' && (
-                  <p className="mb-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-                    Région parente : <span className="font-medium text-neutral-700">{selectedRegion?.name_fr}</span>
-                  </p>
+                  <Field label="Région parente *" error={formErrors.region_id} className="mb-3">
+                    <select
+                      value={drawer.form.region_id || ''}
+                      onChange={handleFieldChange('region_id')}
+                      className={inputClass(formErrors.region_id)}
+                    >
+                      <option value="">Sélectionner une région…</option>
+                      {activeRegions.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name_fr} ({r.code})</option>
+                      ))}
+                    </select>
+                    {drawer.mode === 'edit' && drawer.form.region_id !== drawer.original_region_id && (
+                      <span className="mt-1 block text-xs text-amber-700">
+                        La ville sera déplacée vers cette région ; les nodes de la ville suivront.
+                      </span>
+                    )}
+                  </Field>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
@@ -528,18 +589,20 @@ export default function GeographyPage({ embedded = false }){
               </p>
               {deleteTarget.level === 'region' ? (
                 <div className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
-                  <p className="font-semibold">Pour supprimer cette région, vous devez d'abord supprimer ses villes.</p>
                   {deleteStatsLoading ? (
-                    <p className="mt-2">Chargement des dépendances...</p>
+                    <p>Chargement des dépendances…</p>
                   ) : deleteStatsError ? (
-                    <p className="mt-2 text-red-700">{deleteStatsError}</p>
-                  ) : (
-                    deleteStats && (
-                      <p className="mt-2">
-                        {deleteStats.city_count} ville{deleteStats.city_count > 1 ? 's' : ''}
-                      </p>
-                    )
-                  )}
+                    <p className="text-red-700">{deleteStatsError}</p>
+                  ) : deleteStats && deleteStats.node_count > 0 ? (
+                    <p className="font-semibold">
+                      Suppression impossible : {deleteStats.node_count} node(s) sont rattachés à cette région. Déplacez ou supprimez-les d'abord.
+                    </p>
+                  ) : deleteStats ? (
+                    <p>
+                      Ses <b>{deleteStats.city_count}</b> ville{deleteStats.city_count > 1 ? 's' : ''} seront également supprimée{deleteStats.city_count > 1 ? 's' : ''} (suppression logique).
+                      Les clients et adresses existants conservent leur ville.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -557,11 +620,50 @@ export default function GeographyPage({ embedded = false }){
               </button>
               <button
                 onClick={confirmDelete}
-                disabled={deleting}
+                disabled={deleting || (deleteTarget.level === 'region' && (deleteStatsLoading || deleteStats?.node_count > 0))}
                 className="flex items-center gap-2 rounded-lg bg-[#E10600] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#c00500] disabled:opacity-60"
               >
                 {deleting && <Loader2 size={14} className="animate-spin" />}
                 Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Rattachement / déplacement Ville -> Région */}
+      {moveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="font-poppins text-base font-semibold text-neutral-900">Rattacher la ville à une autre région</h3>
+            <p className="mt-2 text-sm text-neutral-500">
+              Ville : <span className="font-medium text-neutral-700">{moveTarget.item.name_fr}</span>
+              {' '}— région actuelle : <span className="font-medium text-neutral-700">{moveTarget.item.region?.name_fr || selectedRegion?.name_fr}</span>
+            </p>
+            <label className="mt-4 block text-sm">
+              <span className="mb-1 block font-medium text-neutral-700">Région cible</span>
+              <select
+                value={moveTarget.region_id}
+                onChange={(e) => setMoveTarget((m) => ({ ...m, region_id: e.target.value }))}
+                className={inputClass(false)}
+              >
+                <option value="">Sélectionner…</option>
+                {activeRegions
+                  .filter((r) => r.id !== moveTarget.item.region_id)
+                  .map((r) => <option key={r.id} value={r.id}>{r.name_fr} ({r.code})</option>)}
+              </select>
+            </label>
+            <p className="mt-3 rounded-lg bg-neutral-50 p-3 text-xs text-neutral-500">
+              Impact aval : les nodes de cette ville ({moveTarget.item._count?.nodes ?? 0}) seront rattachés à la nouvelle région.
+              Les clients et adresses ne référencent que la ville : ils ne sont pas modifiés.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setMoveTarget(null)} disabled={moving}
+                className="rounded-lg px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Annuler</button>
+              <button onClick={confirmMove} disabled={moving || !moveTarget.region_id}
+                className="flex items-center gap-2 rounded-lg bg-[#E10600] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#c00500] disabled:opacity-60">
+                {moving && <Loader2 size={14} className="animate-spin" />}
+                Rattacher
               </button>
             </div>
           </div>
@@ -578,7 +680,7 @@ export default function GeographyPage({ embedded = false }){
 function Column({
   level, title, icon: Icon, items, loading, search, onSearchChange, status, onStatusChange,
   selectedId, onSelect, canView = true, canCreate, canUpdate, canDelete, togglingId,
-  onCreate, onEdit, onDelete, onToggle, disabled, disabledMessage,
+  onCreate, onEdit, onDelete, onToggle, onMove, disabled, disabledMessage,
   onBack, emptyLabel, mobileVisible = true, selectable = true,
 }) {
   if (!canView) {
@@ -683,6 +785,12 @@ function Column({
                         <span className="font-mono">{item.code}</span>
                         <span dir="rtl">{item.name_ar}</span>
                         {item.postal_code && <span>· {item.postal_code}</span>}
+                        {level === 'region' && item._count?.cities !== undefined && (
+                          <span>· {item._count.cities} ville{item._count.cities > 1 ? 's' : ''}</span>
+                        )}
+                        {level === 'city' && item._count?.nodes > 0 && (
+                          <span>· {item._count.nodes} node{item._count.nodes > 1 ? 's' : ''}</span>
+                        )}
                       </div>
                     </div>
 
@@ -704,6 +812,15 @@ function Column({
                             ) : (
                               <PowerOff size={14} />
                             )}
+                          </button>
+                        )}
+                        {onMove && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onMove(item); }}
+                            title="Rattacher / déplacer vers une autre région"
+                            className="rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+                          >
+                            <ArrowRightLeft size={14} />
                           </button>
                         )}
                         {canUpdate && (

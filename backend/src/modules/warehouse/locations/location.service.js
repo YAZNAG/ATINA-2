@@ -1,5 +1,6 @@
 const prisma = require('../../../config/database');
 const repo = require('./location.repository');
+const { audit } = require('../../../utils/audit');
 
 const genLabel = (aisle, shelf, levelCode) =>
   `${String(aisle).toUpperCase()}-${String(shelf).padStart(2, '0')}-${levelCode}`;
@@ -28,13 +29,28 @@ class LocationService {
     return item;
   }
 
-  async create(data) {
+  async _assertNode(nodeId) {
+    const node = await prisma.node.findFirst({ where: { id: nodeId, is_deleted: false }, select: { id: true } });
+    if (!node) throw { statusCode: 400, message: 'Node introuvable ou supprimé' };
+  }
+
+  async _assertZone(zoneId) {
+    if (!zoneId) return;
+    const zone = await prisma.zone.findUnique({ where: { id: zoneId }, select: { id: true } });
+    if (!zone) throw { statusCode: 400, message: 'Zone introuvable' };
+  }
+
+  async create(data, req = null) {
     const payload = pick(data);
+    if (payload.aisle !== undefined) payload.aisle = String(payload.aisle).trim().toUpperCase();
+    if (payload.shelf !== undefined) payload.shelf = String(payload.shelf).trim();
     if (!payload.node_id) throw { statusCode: 400, message: 'Node requis' };
     if (!payload.aisle) throw { statusCode: 400, message: 'Allée requise' };
     if (!payload.shelf) throw { statusCode: 400, message: 'Rayon requis' };
     if (!payload.level_id) throw { statusCode: 400, message: 'Niveau requis' };
 
+    await this._assertNode(payload.node_id);
+    await this._assertZone(payload.zone_id);
     const level = await prisma.level.findUnique({ where: { id: payload.level_id } });
     if (!level) throw { statusCode: 400, message: 'Niveau introuvable' };
 
@@ -42,13 +58,19 @@ class LocationService {
     if (dup) throw { statusCode: 409, message: `L'emplacement ${genLabel(payload.aisle, payload.shelf, level.code)} existe déjà dans ce node` };
 
     payload.label = genLabel(payload.aisle, payload.shelf, level.code);
-    return repo.create(payload);
+    const created = await repo.create(payload);
+    await audit(req, { action: 'CREATE', resource: 'locations', resource_id: created.id, new_values: payload });
+    return created;
   }
 
-  async update(id, data) {
+  async update(id, data, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Emplacement introuvable' };
     const payload = pick(data);
+    delete payload.node_id; // un emplacement ne change pas de node
+    if (payload.aisle !== undefined) payload.aisle = String(payload.aisle).trim().toUpperCase();
+    if (payload.shelf !== undefined) payload.shelf = String(payload.shelf).trim();
+    await this._assertZone(payload.zone_id);
 
     const aisle = payload.aisle ?? item.aisle;
     const shelf = payload.shelf ?? item.shelf;
@@ -63,22 +85,37 @@ class LocationService {
       payload.label = genLabel(aisle, shelf, level.code);
     }
 
-    return repo.update(id, payload);
+    const updated = await repo.update(id, payload);
+    const old_values = {};
+    Object.keys(payload).forEach((k) => { old_values[k] = item[k] ?? null; });
+    await audit(req, { action: 'UPDATE', resource: 'locations', resource_id: id, old_values, new_values: payload });
+    return updated;
   }
 
-  async delete(id) {
+  async delete(id, req = null) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Emplacement introuvable' };
     const skuCount = await prisma.skuNodeLocation.count({ where: { location_id: id, is_active: true } });
     if (skuCount > 0) throw { statusCode: 409, message: `Cet emplacement a ${skuCount} SKU(s) affecté(s). Retirez les affectations d'abord.` };
     await repo.softDelete(id);
+    await audit(req, {
+      action: 'DELETE',
+      resource: 'locations',
+      resource_id: id,
+      old_values: { label: item.label, node_id: item.node_id, is_deleted: false },
+      new_values: { is_deleted: true },
+    });
   }
 
-  async bulkGenerate({ node_id, aisles, shelves, level_ids, zone_id }) {
+  async bulkGenerate({ node_id, aisles, shelves, level_ids, zone_id }, req = null) {
     if (!node_id) throw { statusCode: 400, message: 'Node requis' };
     if (!aisles?.length) throw { statusCode: 400, message: 'Au moins une allée requise' };
     if (!shelves?.length) throw { statusCode: 400, message: 'Au moins un rayon requis' };
     if (!level_ids?.length) throw { statusCode: 400, message: 'Au moins un niveau requis' };
+    await this._assertNode(node_id);
+    await this._assertZone(zone_id || null);
+    aisles = aisles.map((a) => String(a).trim().toUpperCase()).filter(Boolean);
+    shelves = shelves.map((sh) => String(sh).trim()).filter(Boolean);
 
     const levels = await prisma.level.findMany({ where: { id: { in: level_ids } } });
     const levelMap = Object.fromEntries(levels.map((l) => [l.id, l]));
@@ -105,6 +142,14 @@ class LocationService {
       }
     }
 
+    if (created.length) {
+      await audit(req, {
+        action: 'BULK_CREATE',
+        resource: 'locations',
+        resource_id: node_id,
+        new_values: { node_id, zone_id: zone_id || null, created },
+      });
+    }
     return { created: created.length, skipped: skipped.length, errors: errors.length, details: { created, skipped, errors } };
   }
 }

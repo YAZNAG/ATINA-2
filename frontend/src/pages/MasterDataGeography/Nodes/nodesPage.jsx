@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Search, Loader2, Lock, Power, PowerOff, MapPin, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Loader2, Lock, Power, PowerOff, MapPin, Eye, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { getNodes, updateNode, deleteNode, getRegions, getActiveNodeTypes } from '../../../api/locationNode.api';
+import { getNodes, updateNode, deleteNode, getRegions, getActiveNodeTypes, getNodeDependencies } from '../../../api/locationNode.api';
 import { useCascadeGeo } from './useCascadeGeo';
 import NodeDrawer from './NodeDrawer';
 
@@ -62,6 +62,22 @@ export default function NodesPage() {
   const [drawer, setDrawer] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteDeps, setDeleteDeps] = useState(null);
+  const [deleteDepsLoading, setDeleteDepsLoading] = useState(false);
+
+  const openDelete = async (item) => {
+    setDeleteTarget(item);
+    setDeleteDeps(null);
+    setDeleteDepsLoading(true);
+    try {
+      const { data } = await getNodeDependencies(item.id);
+      setDeleteDeps(data.data || data);
+    } catch {
+      setDeleteDeps(null);
+    } finally {
+      setDeleteDepsLoading(false);
+    }
+  };
   const [togglingId, setTogglingId] = useState(null);
 
   const [toast, setToast] = useState(null);
@@ -76,7 +92,7 @@ export default function NodesPage() {
       try {
         const [typesRes, regionsRes] = await Promise.all([
           getActiveNodeTypes(),
-          getRegions({ limit: 500, is_active: true }),
+          getRegions({ limit: 500, is_active: true, is_deleted: false }),
         ]);
         setNodeTypes(typesRes.data.data || typesRes.data || []);
         setAllRegions(regionsRes.data.data || regionsRes.data || []);
@@ -215,16 +231,17 @@ export default function NodesPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Code</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Nom</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Localisation</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Ville / Région</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-500">Frais / Min. (MAD)</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500">Statut</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {loading ? (
-                <tr><td colSpan={6} className="py-16 text-center text-neutral-400"><Loader2 size={20} className="mx-auto animate-spin" /></td></tr>
+                <tr><td colSpan={7} className="py-16 text-center text-neutral-400"><Loader2 size={20} className="mx-auto animate-spin" /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={6} className="py-16 text-center text-sm text-neutral-400">Aucun node trouvé.</td></tr>
+                <tr><td colSpan={7} className="py-16 text-center text-sm text-neutral-400">Aucun node trouvé pour ces filtres.</td></tr>
               ) : (
                 rows.map((item) => {
                   const isDeleted = Boolean(item.is_deleted);
@@ -232,7 +249,10 @@ export default function NodesPage() {
                     <tr key={item.id} className={`transition hover:bg-neutral-50 ${isDeleted ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 font-mono text-sm text-neutral-700">{item.code}</td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-neutral-800">{item.name_fr}</div>
+                        <button type="button" onClick={() => navigate(`/nodes/${item.id}`)}
+                          className="text-left text-sm font-medium text-neutral-800 hover:text-[#E10600] hover:underline">
+                          {item.name_fr}
+                        </button>
                         <div className="text-xs text-neutral-400" dir="rtl">{item.name_ar}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-600">{item.node_type?.name_fr || '—'}</td>
@@ -243,6 +263,9 @@ export default function NodesPage() {
                             {[item.city?.name_fr, item.region?.name_fr].filter(Boolean).join(', ') || '—'}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm tabular-nums text-neutral-600">
+                        {Number(item.delivery_fee ?? 0).toFixed(2)} / {Number(item.min_order_amount ?? 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-3"><StatusBadge item={item} /></td>
                       <td className="px-4 py-3">
@@ -265,7 +288,7 @@ export default function NodesPage() {
                             </button>
                           )}
                           {!isDeleted && canDelete && (
-                            <button onClick={() => setDeleteTarget(item)} title="Supprimer"
+                            <button onClick={() => openDelete(item)} title="Supprimer"
                               className="rounded-md p-1.5 text-neutral-500 hover:bg-red-50 hover:text-[#E10600]">
                               <Trash2 size={14} />
                             </button>
@@ -311,12 +334,22 @@ export default function NodesPage() {
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
             <h3 className="font-poppins text-base font-semibold text-neutral-900">Supprimer ce node ?</h3>
             <p className="mt-2 text-sm text-neutral-500">
-              <span className="font-medium text-neutral-700">{deleteTarget.name_fr}</span> passera au statut "Supprimé".
+              <span className="font-medium text-neutral-700">{deleteTarget.name_fr}</span> passera au statut "Supprimé" (suppression logique, historique conservé).
             </p>
+            {deleteDepsLoading ? (
+              <p className="mt-3 flex items-center gap-2 text-xs text-neutral-400"><Loader2 size={12} className="animate-spin" /> Vérification des commandes et du stock…</p>
+            ) : deleteDeps && !deleteDeps.can_delete ? (
+              <div className="mt-3 flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>
+                  Suppression impossible : {deleteDeps.active_orders} commande(s) active(s) et {deleteDeps.active_stock} SKU avec du stock. Désactivez plutôt le node.
+                </span>
+              </div>
+            ) : null}
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setDeleteTarget(null)} disabled={deleting}
                 className="rounded-lg px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Annuler</button>
-              <button onClick={confirmDelete} disabled={deleting}
+              <button onClick={confirmDelete} disabled={deleting || deleteDepsLoading || (deleteDeps && !deleteDeps.can_delete)}
                 className="flex items-center gap-2 rounded-lg bg-[#E10600] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#c00500] disabled:opacity-60">
                 {deleting && <Loader2 size={14} className="animate-spin" />}
                 Supprimer

@@ -9,13 +9,13 @@ class ZoneController {
     try { return response.success(res, await service.getById(req.params.id)); } catch (e) { next(e); }
   }
   async store(req, res, next) {
-    try { return response.success(res, await service.create(req.body), 'Zone créée', 201); } catch (e) { next(e); }
+    try { return response.success(res, await service.create(req.body, req), 'Zone créée', 201); } catch (e) { next(e); }
   }
   async update(req, res, next) {
-    try { return response.success(res, await service.update(req.params.id, req.body), 'Zone mise à jour'); } catch (e) { next(e); }
+    try { return response.success(res, await service.update(req.params.id, req.body, req), 'Zone mise à jour'); } catch (e) { next(e); }
   }
   async destroy(req, res, next) {
-    try { await service.delete(req.params.id); return response.success(res, null, 'Zone supprimée'); } catch (e) { next(e); }
+    try { await service.delete(req.params.id, req); return response.success(res, null, 'Zone supprimée'); } catch (e) { next(e); }
   }
 }
 

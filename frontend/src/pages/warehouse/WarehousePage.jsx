@@ -9,6 +9,16 @@ import {
 import { getNodes } from '../../api/locationNode.api';
 import { getSkus } from '../../api/catalog.api';
 import { getErrorMessage } from '../../utils/helpers';
+import { Link } from 'react-router-dom';
+import SkuMappingTab from './SkuMappingTab';
+import LayoutTab from './LayoutTab';
+
+// Onglets du sous-module « Emplacements & Mapping » (classeur Excel)
+const TABS = [
+  { key: 'locations', label: 'Emplacements par node' },
+  { key: 'mapping',   label: 'Mapping SKU→Emplacement' },
+  { key: 'layout',    label: 'Plan / Layout' },
+];
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -800,6 +810,8 @@ export default function WarehousePage() {
 
   const [nodeSearch, setNodeSearch] = useState('');
   const [locSearch, setLocSearch]   = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [activeTab, setActiveTab]   = useState('locations');
 
   const [locModal, setLocModal]           = useState(null);
   const [bulkModal, setBulkModal]         = useState(false);
@@ -851,6 +863,8 @@ export default function WarehousePage() {
   });
 
   const filteredLocs = locations.filter((l) => {
+    if (zoneFilter === 'none' && l.zone_id) return false;
+    if (zoneFilter && zoneFilter !== 'none' && l.zone_id !== zoneFilter) return false;
     if (!locSearch.trim()) return true;
     const q = locSearch.toLowerCase();
     return l.label?.toLowerCase().includes(q) || l.aisle?.toLowerCase().includes(q) || l.shelf?.toLowerCase().includes(q);
@@ -899,10 +913,22 @@ export default function WarehousePage() {
       {/* Page Header */}
       <div className="bg-white border-b border-gray-100 shadow-sm px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Entrepôt</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Emplacements &amp; affectation des articles</p>
+          <h1 className="text-2xl font-bold text-gray-900">Emplacements &amp; Mapping</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Emplacements physiques par node et mapping SKU→emplacement (optionnel, sert au picking).
+            Emplacement ≠ Disponibilité ≠ Vendabilité.
+          </p>
         </div>
-        {selectedNode && canManage && (
+        <div className="flex items-center gap-3">
+          <Link to="/warehouse/zones"
+            className="px-3 py-2.5 text-sm font-semibold text-gray-600 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 transition-colors">
+            Zones
+          </Link>
+          <Link to="/warehouse/levels"
+            className="px-3 py-2.5 text-sm font-semibold text-gray-600 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 transition-colors">
+            Niveaux
+          </Link>
+        {selectedNode && canManage && activeTab === 'locations' && (
           <div className="flex items-center gap-3">
             <button onClick={() => setBulkModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 transition-colors">
@@ -910,10 +936,11 @@ export default function WarehousePage() {
             </button>
             <button onClick={() => setLocModal({ location: null })}
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm">
-              <Icon d={SVG.plus} className="w-4 h-4" />Créer emplacement
+              <Icon d={SVG.plus} className="w-4 h-4" />Nouvel emplacement
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Main layout: sidebar + content */}
@@ -947,7 +974,7 @@ export default function WarehousePage() {
               const color = node.node_type?.color_badge || '#dc2626';
               const isSelected = selectedNode?.id === node.id;
               return (
-                <button key={node.id} onClick={() => { setSelectedNode(node); setLocSearch(''); }}
+                <button key={node.id} onClick={() => { setSelectedNode(node); setLocSearch(''); setZoneFilter(''); }}
                   className={`w-full text-left rounded-xl p-3 flex items-center gap-3 transition-all border ${
                     isSelected ? 'border-red-200 bg-red-50 shadow-sm' : 'border-transparent hover:bg-gray-50 hover:border-gray-200'
                   }`}>
@@ -1032,6 +1059,40 @@ export default function WarehousePage() {
                 </div>
               </div>
 
+              {/* Onglets */}
+              <div className="bg-white border-b border-gray-100 px-6 flex items-center gap-1 flex-shrink-0">
+                {TABS.map((t) => (
+                  <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
+                    className={`px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                      activeTab === t.key ? 'border-red-600 text-red-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'mapping' && (
+                <SkuMappingTab
+                  key={`map-${selectedNode.id}`}
+                  node={selectedNode}
+                  zones={zones}
+                  locations={locations}
+                  canManage={canManage}
+                  onChanged={() => loadLocations(selectedNode.id)}
+                />
+              )}
+
+              {activeTab === 'layout' && (
+                <LayoutTab
+                  key={`layout-${selectedNode.id}`}
+                  node={selectedNode}
+                  zones={zones}
+                  locations={locations}
+                  onOpenLocation={(loc) => setArticleDrawer(loc)}
+                />
+              )}
+
+              {activeTab === 'locations' && (<>
               {/* Search bar */}
               <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
                 <div className="relative flex-1 max-w-sm">
@@ -1043,6 +1104,12 @@ export default function WarehousePage() {
                     className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
                   />
                 </div>
+                <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer">
+                  <option value="">Toutes les zones</option>
+                  <option value="none">Sans zone</option>
+                  {zones.map((z) => <option key={z.id} value={z.id}>{z.name_fr}</option>)}
+                </select>
                 <span className="text-xs text-gray-400 ml-auto">
                   {filteredLocs.length} emplacement{filteredLocs.length !== 1 ? 's' : ''}
                 </span>
@@ -1062,13 +1129,13 @@ export default function WarehousePage() {
                     </div>
                     <div className="text-center">
                       <p className="text-gray-600 font-semibold">
-                        {locSearch ? 'Aucun emplacement trouvé' : 'Aucun emplacement pour ce nœud'}
+                        {locSearch || zoneFilter ? 'Aucun emplacement trouvé' : 'Aucun emplacement pour ce nœud'}
                       </p>
                       <p className="text-gray-400 text-sm mt-1">
-                        {locSearch ? 'Modifiez votre recherche.' : 'Créez des emplacements ou utilisez la génération en lot.'}
+                        {locSearch || zoneFilter ? 'Modifiez votre recherche ou le filtre de zone.' : 'Créez des emplacements ou utilisez la génération en lot.'}
                       </p>
                     </div>
-                    {!locSearch && canManage && (
+                    {!locSearch && !zoneFilter && canManage && (
                       <div className="flex gap-3">
                         <button onClick={() => setBulkModal(true)}
                           className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100">
@@ -1076,7 +1143,7 @@ export default function WarehousePage() {
                         </button>
                         <button onClick={() => setLocModal({ location: null })}
                           className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl">
-                          <Icon d={SVG.plus} className="w-4 h-4" />Créer emplacement
+                          <Icon d={SVG.plus} className="w-4 h-4" />Nouvel emplacement
                         </button>
                       </div>
                     )}
@@ -1105,6 +1172,7 @@ export default function WarehousePage() {
                   </div>
                 )}
               </div>
+              </>)}
             </>
           )}
         </div>

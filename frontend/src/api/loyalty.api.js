@@ -18,6 +18,8 @@ export const deletePointsRule = (id) => api.delete(`${b}/points-rules/${id}`);
 export const getPointsLedger = (params) => api.get(`${b}/ledger`, { params });
 export const exportPointsLedger = (params) => api.get(`${b}/ledger/export`, { params });
 export const getPointsTransaction = (id) => api.get(`${b}/ledger/${id}`);
+// Rapprochement SUM(points) du livre / customers.points_balance (écarts journalisés dans l'audit)
+export const runPointsReconciliation = () => api.post(`${b}/reconciliation/run`);
 
 // Parrainage : configurations
 export const getReferralConfigs = () => api.get(`${b}/referral-configs`);

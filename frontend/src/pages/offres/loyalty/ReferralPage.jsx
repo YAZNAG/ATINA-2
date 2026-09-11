@@ -389,8 +389,9 @@ function SuiviTab({ meta, initialFilters, showToast }) {
   const [filters, setFilters] = useState({ status: '', date_from: '', date_to: '', search: '', config_id: '', ...initialFilters });
   const [searchInput, setSearchInput] = useState('');
   const [rows, setRows] = useState([]);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
-  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, next_cursor: null });
+  // Pagination par curseur (keyset created_at DESC, id DESC) : pile des curseurs des pages visitées.
+  const [cursorStack, setCursorStack] = useState([null]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -409,24 +410,37 @@ function SuiviTab({ meta, initialFilters, showToast }) {
     return p;
   }, [filters]);
 
-  useEffect(() => { setPage(1); }, [params]);
-
-  const load = useCallback(async () => {
+  const load = useCallback(async (cursor = null) => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await getReferralsList({ ...params, page, limit: 25 });
+      const { data } = await getReferralsList({ ...params, limit: 25, ...(cursor ? { cursor } : {}) });
       setRows(data?.data ?? []);
-      setPagination(data?.pagination ?? { total: 0, page: 1, pages: 1 });
+      setPagination(data?.pagination ?? { total: 0, next_cursor: null });
     } catch (err) {
       setError(apiError(err, 'Erreur lors du chargement des parrainages.'));
       setRows([]);
+      setPagination({ total: 0, next_cursor: null });
     } finally {
       setLoading(false);
     }
-  }, [params, page]);
+  }, [params]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setCursorStack([null]); load(null); }, [load]);
+
+  const pageNo = cursorStack.length;
+  const reloadCurrent = () => load(cursorStack[cursorStack.length - 1]);
+  const goNext = () => {
+    if (!pagination.next_cursor) return;
+    setCursorStack((s) => [...s, pagination.next_cursor]);
+    load(pagination.next_cursor);
+  };
+  const goPrev = () => {
+    if (cursorStack.length <= 1) return;
+    const s = cursorStack.slice(0, -1);
+    setCursorStack(s);
+    load(s[s.length - 1]);
+  };
 
   const doExport = async () => {
     setExporting(true);
@@ -503,15 +517,16 @@ function SuiviTab({ meta, initialFilters, showToast }) {
               <th className="px-4 py-3 font-medium">Commande qualifiante</th>
               <th className="px-4 py-3 font-medium">Récompense parrain</th>
               <th className="px-4 py-3 font-medium">Récompense filleul</th>
+              <th className="px-4 py-3 font-medium">Configuration</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
-              <tr><td colSpan={8}><Spinner /></td></tr>
+              <tr><td colSpan={9}><Spinner /></td></tr>
             ) : error ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-red-600">{error}</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-red-600">{error}</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-neutral-400">Aucun parrainage pour ces filtres.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-neutral-400">Aucun parrainage pour ces filtres.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id} onClick={() => setDetailId(r.id)} className="cursor-pointer hover:bg-neutral-50">
                 <td className="px-4 py-3">{person(r.referrer)}</td>
@@ -534,6 +549,14 @@ function SuiviTab({ meta, initialFilters, showToast }) {
                   <div className="text-[10px] uppercase text-neutral-400">{REWARD_TYPE_LABELS[r.referee_reward_type?.code] ?? ''}</div>
                   <RewardCell reward={r.referee_reward} />
                 </td>
+                <td className="px-4 py-3 text-xs" title="Configuration figée à l’inscription (config_id) — cliquer la ligne pour le détail">
+                  {r.config ? (
+                    <>
+                      <span className="font-mono text-neutral-700">#{r.config.id.slice(0, 8)}</span>
+                      <div className="text-[10px] text-neutral-400">{Number(r.config.min_order_amount) > 0 ? `min ${fmtMAD(r.config.min_order_amount)}` : 'sans minimum'}</div>
+                    </>
+                  ) : <span className="text-neutral-400">—</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -541,18 +564,22 @@ function SuiviTab({ meta, initialFilters, showToast }) {
       </div>
 
       <div className="mt-3 flex items-center justify-between text-sm text-neutral-500">
-        <span>{pagination.total} parrainage{pagination.total > 1 ? 's' : ''}</span>
-        {pagination.pages > 1 && (
+        <span>{pagination.total ?? 0} parrainage{(pagination.total ?? 0) > 1 ? 's' : ''}</span>
+        {(pageNo > 1 || pagination.next_cursor) && (
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-neutral-200 p-1.5 disabled:opacity-40"><ChevronLeft size={16} /></button>
-            <span>{page} / {pagination.pages}</span>
-            <button type="button" disabled={page >= pagination.pages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-neutral-200 p-1.5 disabled:opacity-40"><ChevronRight size={16} /></button>
+            <button type="button" disabled={pageNo <= 1 || loading} onClick={goPrev} className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-3 py-1.5 disabled:opacity-40">
+              <ChevronLeft size={15} /> Précédent
+            </button>
+            <span>Page {pageNo}</span>
+            <button type="button" disabled={!pagination.next_cursor || loading} onClick={goNext} className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-3 py-1.5 disabled:opacity-40">
+              Suivant <ChevronRight size={15} />
+            </button>
           </div>
         )}
       </div>
 
       <ReferralDetailModal referralId={detailId} onClose={() => setDetailId(null)} onOpenOrder={(id) => { setDetailId(null); setOrderId(id); }} />
-      <OrderDetailDrawer orderId={orderId} onClose={() => setOrderId(null)} onChanged={load} />
+      <OrderDetailDrawer orderId={orderId} onClose={() => setOrderId(null)} onChanged={reloadCurrent} />
     </>
   );
 }

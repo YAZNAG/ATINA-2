@@ -18,6 +18,7 @@ const ctrl = require('./loyalty.controller');
  *  Livre des points     GET    /ledger                  (points_ledger.view) — keyset ?cursor=
  *                       GET    /ledger/export
  *                       GET    /ledger/:id
+ *  Rapprochement        POST   /reconciliation/run      (points_ledger.view) — SUM(livre) vs points_balance
  *  Parrainage config    GET    /referral-configs        (referrals.view)
  *                       GET    /referral-configs/:id
  *                       POST   /referral-configs        (referrals.manage)
@@ -87,6 +88,7 @@ bo.delete('/points-rules/:id', canRulesManage, wrap(ctrl.rulesDestroy));
 bo.get('/ledger', canLedgerView, wrap(ctrl.ledgerIndex));
 bo.get('/ledger/export', canLedgerView, wrap(ctrl.ledgerExport));
 bo.get('/ledger/:id', canLedgerView, wrap(ctrl.ledgerShow));
+bo.post('/reconciliation/run', canLedgerView, wrap(ctrl.reconciliationRun));
 
 bo.get('/referral-configs', canRefView, wrap(ctrl.configsIndex));
 bo.get('/referral-configs/:id', canRefView, wrap(ctrl.configsShow));

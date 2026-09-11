@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, Power, PowerOff, Loader2, Download, Search, X, ChevronLeft, ChevronRight, Lock, Eye, BookOpen,
+  Scale,
 } from 'lucide-react';
 import Modal from '../../../components/Modal';
 import { useAuth } from '../../../context/AuthContext';
 import OrderDetailDrawer from '../../commandes/OrderDetailDrawer';
 import {
   getLoyaltyMeta, getPointsRules, getPointsRule, createPointsRule, updatePointsRule, activatePointsRule,
-  deactivatePointsRule, deletePointsRule, getPointsLedger, exportPointsLedger,
+  deactivatePointsRule, deletePointsRule, getPointsLedger, exportPointsLedger, runPointsReconciliation,
 } from '../../../api/loyalty.api';
 import {
   unwrap, apiError, fmtDate, fmtDateTime, fmtNumber, fmtMAD, toInputDateTime, downloadCsv, todayStamp, orderRef,
@@ -55,7 +56,7 @@ function RuleStatusBadge({ rule }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Onglet « Configuration des points »
 // ═══════════════════════════════════════════════════════════════════════════
-function RulesTab({ meta, canManage, showToast, onOpenLedgerForRule }) {
+function RulesTab({ meta, canManage, showToast, onOpenLedgerForRule, initialRuleId }) {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
   const [page, setPage] = useState(1);
@@ -70,8 +71,10 @@ function RulesTab({ meta, canManage, showToast, onOpenLedgerForRule }) {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const [detailId, setDetailId] = useState(null);
+  const [detailId, setDetailId] = useState(initialRuleId || null);
   const [detail, setDetail] = useState(null);
+  // Lien « ouvrir la règle » depuis le détail d'une transaction du livre (?tab=rules&rule=<id>)
+  useEffect(() => { if (initialRuleId) setDetailId(initialRuleId); }, [initialRuleId]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -440,10 +443,75 @@ function RulesTab({ meta, canManage, showToast, onOpenLedgerForRule }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Onglet « Livre des points » (lecture seule, pagination keyset)
 // ═══════════════════════════════════════════════════════════════════════════
+/** Résumé du rapprochement SUM(points) du livre / customers.points_balance. */
+function ReconciliationModal({ summary, onClose }) {
+  if (!summary) return null;
+  return (
+    <Modal open onClose={onClose} title="Rapprochement du livre des points" size="lg"
+      subtitle="Comparaison, pour chaque client, de la somme des transactions et du solde customers.points_balance"
+      footer={<button type="button" className="btn-secondary" onClick={onClose}>Fermer</button>}>
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          ['Clients contrôlés', fmtNumber(summary.customers_checked)],
+          ['Écarts', fmtNumber(summary.gaps_count)],
+          ['Écart total', `${summary.total_gap > 0 ? '+' : ''}${fmtNumber(summary.total_gap)} pts`],
+          ['Durée', `${fmtNumber(summary.duration_ms)} ms`],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-neutral-200 p-3 text-center">
+            <p className="text-lg font-semibold text-neutral-900">{value}</p>
+            <p className="text-xs text-neutral-500">{label}</p>
+          </div>
+        ))}
+      </div>
+      {summary.gaps_count === 0 ? (
+        <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Aucun écart : tous les soldes correspondent au livre des points.</p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-amber-700">
+            Chaque écart est journalisé dans l’audit (action POINTS_RECONCILIATION_GAP). Aucun solde n’a été modifié : corrigez si besoin par un ajustement manuel motivé.
+          </p>
+          <div className="max-h-80 overflow-auto rounded-lg border border-neutral-200">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Client</th>
+                  <th className="px-3 py-2 text-right font-medium">Solde (cache)</th>
+                  <th className="px-3 py-2 text-right font-medium">Somme du livre</th>
+                  <th className="px-3 py-2 text-right font-medium">Écart</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {summary.gaps.map((g) => (
+                  <tr key={g.customer_id}>
+                    <td className="px-3 py-2">
+                      <Link to={customerUrl(g.customer_id, 'fidelite')} className="text-[#E10600] hover:underline">{g.name ?? g.customer_id.slice(0, 8)}</Link>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtNumber(g.points_balance)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtNumber(g.ledger_sum)}</td>
+                    <td className="px-3 py-2 text-right"><PointsAmount value={g.gap} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {summary.gaps_truncated && <p className="mt-2 text-xs text-neutral-500">Seuls les {summary.gaps.length} premiers écarts sont affichés ; la liste complète est dans l’audit.</p>}
+        </>
+      )}
+      <p className="mt-3 text-xs text-neutral-400">
+        Exécuté le {fmtDateTime(summary.finished_at)}. Le rapprochement automatique a lieu chaque nuit à 03:00 (heure de Casablanca)
+        {summary.next_run_at ? ` — prochaine exécution : ${fmtDateTime(summary.next_run_at)}` : ''}.
+      </p>
+    </Modal>
+  );
+}
+
 function LedgerTab({ meta, initialFilters, showToast }) {
   const [filters, setFilters] = useState({
-    customer_search: '', customer_id: '', type: '', direction: '', rule_id: '', date_from: '', date_to: '', ...initialFilters,
+    customer_search: '', customer_id: '', type: '', direction: '', rule_id: '', referral_id: '', game_play_id: '', order_id: '',
+    date_from: '', date_to: '', ...initialFilters,
   });
+  const [reconciling, setReconciling] = useState(false);
+  const [reconSummary, setReconSummary] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [rules, setRules] = useState([]);
   const [items, setItems] = useState([]);
@@ -504,18 +572,32 @@ function LedgerTab({ meta, initialFilters, showToast }) {
     load(s[s.length - 1]);
   };
 
+  const doReconcile = async () => {
+    setReconciling(true);
+    try {
+      const res = await runPointsReconciliation();
+      setReconSummary(unwrap(res));
+      showToast(unwrap(res)?.gaps_count ? 'error' : 'success', res?.data?.message ?? 'Rapprochement terminé.');
+    } catch (err) {
+      showToast('error', apiError(err, 'Rapprochement impossible.'));
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   const doExport = async () => {
     setExporting(true);
     try {
       const d = unwrap(await exportPointsLedger(params)) ?? {};
       const rows = (d.items ?? []).map((t) => [
         fmtDateTime(t.created_at), t.customer?.name ?? '', `${t.customer?.phone_country ?? ''} ${t.customer?.phone_number ?? ''}`.trim(),
-        t.type_label ?? t.type, t.amount, t.amount >= 0 ? 'Crédit' : 'Débit', t.reason ?? '',
-        t.rule ? `${t.rule.type_label} (${t.rule.id.slice(0, 8)})${t.rule.is_deleted ? ' [supprimée]' : ''}` : '',
-        t.source?.label ?? '', t.order_id ?? t.referral_id ?? t.game_play_id ?? '', t.id,
+        t.type ?? '', t.type_label ?? t.type, t.amount, t.amount >= 0 ? 'Crédit' : 'Débit', t.reason ?? '',
+        t.points_rule_id ?? '', t.rule ? `${t.rule.type_label}${t.rule.is_deleted ? ' [supprimée]' : ''}` : '',
+        t.order_id ?? '', t.referral_id ?? '', t.game_play_id ?? '', t.id,
       ]);
       downloadCsv(`livre-des-points-${todayStamp()}.csv`,
-        ['Date', 'Client', 'Téléphone', 'Type', 'Montant', 'Sens', 'Motif', 'Règle appliquée', 'Source', 'Réf. source', 'ID transaction'], rows);
+        ['Date', 'Client', 'Téléphone', 'Code type', 'Type', 'Montant', 'Sens', 'Motif', 'points_rule_id', 'Règle appliquée',
+          'order_id', 'referral_id', 'game_play_id', 'ID transaction'], rows);
       if (d.truncated) showToast('error', `Export limité aux ${d.max} premières lignes : affinez les filtres.`);
     } catch (err) {
       showToast('error', apiError(err, 'Export impossible.'));
@@ -541,6 +623,16 @@ function LedgerTab({ meta, initialFilters, showToast }) {
             <input className="form-input pl-9" placeholder="Client (nom ou téléphone)" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
         )}
+        {[
+          ['referral_id', 'Parrainage'],
+          ['game_play_id', 'Partie de jeu'],
+          ['order_id', 'Commande'],
+        ].filter(([k]) => filters[k]).map(([k, label]) => (
+          <span key={k} className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm">
+            {label} : <span className="font-mono text-xs">{k === 'order_id' ? orderRef(filters[k]) : filters[k].slice(0, 8)}</span>
+            <button type="button" onClick={() => setFilters((f) => ({ ...f, [k]: '' }))} className="text-neutral-400 hover:text-neutral-700" title="Retirer ce filtre"><X size={14} /></button>
+          </span>
+        ))}
         <select className="form-select w-auto" value={filters.type} onChange={setF('type')}>
           <option value="">Tous les types</option>
           {(meta?.txn_types ?? []).map((t) => <option key={t.code} value={t.code}>{t.name_fr}</option>)}
@@ -562,9 +654,15 @@ function LedgerTab({ meta, initialFilters, showToast }) {
           <label className="mb-1 block text-xs text-neutral-500">Au</label>
           <input type="date" className="form-input" value={filters.date_to} onChange={setF('date_to')} />
         </div>
-        <button type="button" onClick={doExport} disabled={exporting} className="ml-auto inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
-          {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Exporter
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button type="button" onClick={doReconcile} disabled={reconciling} title="Compare, pour chaque client, la somme du livre et customers.points_balance ; les écarts sont journalisés dans l’audit"
+            className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+            {reconciling ? <Loader2 size={15} className="animate-spin" /> : <Scale size={15} />} Lancer le rapprochement
+          </button>
+          <button type="button" onClick={doExport} disabled={exporting} className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+            {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Exporter
+          </button>
+        </div>
       </div>
 
       <div className="mb-2 flex items-center gap-2 text-xs text-neutral-500">
@@ -579,17 +677,18 @@ function LedgerTab({ meta, initialFilters, showToast }) {
               <th className="px-4 py-3 font-medium">Client</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 text-right font-medium">Montant ±</th>
+              <th className="px-4 py-3 font-medium">Motif</th>
               <th className="px-4 py-3 font-medium">Règle appliquée</th>
               <th className="px-4 py-3 font-medium">Source</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
-              <tr><td colSpan={6}><Spinner /></td></tr>
+              <tr><td colSpan={7}><Spinner /></td></tr>
             ) : error ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-red-600">{error}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-red-600">{error}</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-neutral-400">Aucune transaction de points pour ces filtres.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-neutral-400">Aucune transaction de points pour ces filtres.</td></tr>
             ) : items.map((t) => (
               <tr key={t.id} onClick={() => setTxnId(t.id)} className="cursor-pointer hover:bg-neutral-50">
                 <td className="whitespace-nowrap px-4 py-3 text-neutral-600">{fmtDateTime(t.created_at)}</td>
@@ -601,6 +700,7 @@ function LedgerTab({ meta, initialFilters, showToast }) {
                 </td>
                 <td className="px-4 py-3"><TxnTypeBadge type={t.type} label={t.type_label} /></td>
                 <td className="px-4 py-3 text-right"><PointsAmount value={t.amount} /></td>
+                <td className="max-w-[240px] truncate px-4 py-3 text-xs text-neutral-600" title={t.reason ?? ''}>{t.reason ?? '—'}</td>
                 <td className="px-4 py-3 text-xs text-neutral-600">
                   {t.rule ? (
                     <>
@@ -616,8 +716,8 @@ function LedgerTab({ meta, initialFilters, showToast }) {
                   {t.source?.kind === 'referral' && (
                     <button type="button" onClick={(e) => { e.stopPropagation(); setReferralId(t.referral_id); }} className="text-[#E10600] hover:underline">Parrainage</button>
                   )}
-                  {t.source?.kind === 'game_play' && <span className="text-neutral-600">Partie de jeu</span>}
-                  {!t.source && <span className="text-neutral-400">{t.reason ?? '—'}</span>}
+                  {t.source?.kind === 'game_play' && <span className="text-neutral-600">Partie de jeu{t.game_play?.game?.name_fr ? ` — ${t.game_play.game.name_fr}` : ''}</span>}
+                  {!t.source && <span className="text-neutral-400">—</span>}
                 </td>
               </tr>
             ))}
@@ -643,6 +743,7 @@ function LedgerTab({ meta, initialFilters, showToast }) {
       />
       <ReferralDetailModal referralId={referralId} onClose={() => setReferralId(null)} onOpenOrder={(id) => { setReferralId(null); setOrderId(id); }} />
       <OrderDetailDrawer orderId={orderId} onClose={() => setOrderId(null)} onChanged={() => load(cursorStack[cursorStack.length - 1])} />
+      <ReconciliationModal summary={reconSummary} onClose={() => setReconSummary(null)} />
     </>
   );
 }
@@ -662,7 +763,7 @@ export default function PointsConfigPage() {
 
   const ledgerInitial = useMemo(() => {
     const f = {};
-    ['customer_id', 'rule_id', 'type', 'direction'].forEach((k) => { if (searchParams.get(k)) f[k] = searchParams.get(k); });
+    ['customer_id', 'rule_id', 'referral_id', 'game_play_id', 'order_id', 'type', 'direction'].forEach((k) => { if (searchParams.get(k)) f[k] = searchParams.get(k); });
     return f;
   }, [searchParams]);
 
@@ -701,7 +802,7 @@ export default function PointsConfigPage() {
       </div>
 
       {activeTab === 'rules' && (
-        <RulesTab meta={meta} canManage={canManage} showToast={showToast}
+        <RulesTab meta={meta} canManage={canManage} showToast={showToast} initialRuleId={searchParams.get('rule')}
           onOpenLedgerForRule={(ruleId) => setSearchParams({ tab: 'ledger', rule_id: ruleId })} />
       )}
       {activeTab === 'ledger' && <LedgerTab meta={meta} initialFilters={ledgerInitial} showToast={showToast} />}

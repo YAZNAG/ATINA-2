@@ -354,7 +354,10 @@ export function LedgerDetailModal({ txnId, onClose, onOpenOrder, onOpenReferral 
           <Section title="Transaction (lecture seule — table append-only)">
             <Field label="Identifiant"><span className="font-mono text-xs">{data.id}</span></Field>
             <Field label="Date">{fmtDateTime(data.created_at)}</Field>
-            <Field label="Type"><TxnTypeBadge type={data.type} label={data.type_label} /></Field>
+            <Field label="Type">
+              <TxnTypeBadge type={data.type} label={data.type_label} />
+              {data.type_label_ar && <span dir="rtl" lang="ar" className="ml-2 text-xs text-neutral-500">{data.type_label_ar}</span>}
+            </Field>
             <Field label="Montant"><PointsAmount value={data.amount} /> <span className="text-xs text-neutral-400">({data.amount >= 0 ? 'crédit' : 'débit'})</span></Field>
             <Field label="Motif">{data.reason || '—'}</Field>
           </Section>
@@ -372,10 +375,23 @@ export function LedgerDetailModal({ txnId, onClose, onOpenOrder, onOpenReferral 
             <Field label="Règle">
               {data.rule ? (
                 <span>
-                  {data.rule.rule_type?.name_fr ?? '—'} — {ruleSummary(data.rule)}
+                  <Link to={`${PATHS.points}?tab=rules&rule=${data.rule.id}`} onClick={onClose} className="text-[#E10600] hover:underline" title="Ouvrir la règle">
+                    {data.rule.rule_type?.name_fr ?? '—'} — {ruleSummary(data.rule)}
+                  </Link>
                   {data.rule.is_deleted && <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-600">Supprimée</span>}
+                  <Link to={`${PATHS.points}?tab=ledger&rule_id=${data.rule.id}`} onClick={onClose} className="ml-2 inline-flex items-center gap-1 text-xs text-neutral-500 hover:underline">
+                    Transactions de cette règle <ExternalLink size={11} />
+                  </Link>
                 </span>
               ) : '—'}
+            </Field>
+            <Field label="Références">
+              <span className="font-mono text-[11px] leading-5 text-neutral-500">
+                points_rule_id : {data.points_rule_id ?? '—'}<br />
+                order_id : {data.order_id ?? '—'}<br />
+                referral_id : {data.referral_id ?? '—'}<br />
+                game_play_id : {data.game_play_id ?? '—'}
+              </span>
             </Field>
             <Field label="Source">
               {data.source?.kind === 'order' && (

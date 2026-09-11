@@ -1,5 +1,5 @@
 const prisma = require('../../config/database');
-const { recordPointsTxn, labelTagFilter } = require('./points-ledger.util');
+const { recordPointsTxnOnce, refFilter, txnTypeFilter } = require('./points-ledger.util');
 
 /**
  * Moteur d'attribution à la livraison (WF#38 C / US-116 « CUMUL ») :
@@ -105,15 +105,18 @@ async function calculatePoints(customer_id, order) {
 
 /**
  * Crédite les points d'une commande livrée, dans la transaction de livraison.
- * Idempotent : si la commande a déjà des lignes order_payment, rien n'est rejoué
- * (équivalent applicatif de l'index unique (order_id, points_rule_id)).
+ * Idempotent :
+ *  - raccourci : commande déjà créditée (points_earned > 0 ou lignes order_payment) → rien ;
+ *  - garantie : l'index unique (order_id, points_rule_id) du livre. Une ligne déjà
+ *    présente pour une règle lève P2002 : elle est ignorée (« déjà attribué ») via
+ *    un SAVEPOINT, sans faire échouer la livraison.
  */
 async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId) {
   if (!order?.id || !customer_id) return 0;
   if (Number(order.points_earned ?? 0) > 0) return 0;
 
   const already = await tx.pointsTransaction.count({
-    where: { order_id: order.id, type: { in: ['order_payment', 'earn'] } },
+    where: { order_id: order.id, ...txnTypeFilter(['order_payment', 'earn']) },
   });
   if (already > 0) return 0;
 
@@ -121,8 +124,10 @@ async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId)
   if (!gains.length) return 0;
 
   let total = 0;
+  let applied = 0;
   for (const g of gains) {
-    await recordPointsTxn(tx, {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await recordPointsTxnOnce(tx, {
       customer_id,
       amount: g.points,
       type: 'order_payment',
@@ -130,10 +135,16 @@ async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId)
       order_id: order.id,
       points_rule_id: g.rule.id,
     });
+    if (!res) {
+      console.warn(`[loyalty] points déjà attribués : commande ${orderRef(order.id)}, règle ${String(g.rule.id).slice(0, 8)}`);
+      continue;
+    }
     total += g.points;
+    applied += 1;
   }
+  if (total <= 0) return 0;
 
-  await tx.order.update({ where: { id: order.id }, data: { points_earned: total } });
+  await tx.order.update({ where: { id: order.id }, data: { points_earned: { increment: total } } });
 
   if (deliveredStatusId) {
     await tx.orderHistory.create({
@@ -141,7 +152,7 @@ async function creditPointsOnDelivery(tx, customer_id, order, deliveredStatusId)
         order_id: order.id,
         status_id: deliveredStatusId,
         changed_by: null,
-        note: `Points fidélité crédités : +${total} pts (${gains.length} règle${gains.length > 1 ? 's' : ''})`,
+        note: `Points fidélité crédités : +${total} pts (${applied} règle${applied > 1 ? 's' : ''})`,
       },
     }).catch(() => {});
   }
@@ -166,11 +177,12 @@ async function grantReferralReward(tx, { referral, config, beneficiary_id, role,
   if (!(value > 0)) throw new Error(`Valeur de récompense ${role} invalide`);
 
   if (typeCode === 'points') {
+    // Une seule récompense par (parrainage, bénéficiaire) : colonne referral_id + index unique.
     const dup = await tx.pointsTransaction.count({
-      where: { customer_id: beneficiary_id, type: 'referral_reward', ...labelTagFilter('referral_id', referral.id) },
+      where: { customer_id: beneficiary_id, AND: [txnTypeFilter('referral_reward'), refFilter('referral_id', referral.id)] },
     });
     if (dup > 0) return null;
-    return recordPointsTxn(tx, {
+    return recordPointsTxnOnce(tx, {
       customer_id: beneficiary_id,
       amount: Math.round(value),
       type: 'referral_reward',

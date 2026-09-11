@@ -24,7 +24,7 @@ const toWebPath = (rawPath) => {
   const normalized = rawPath.replace(/\\/g, '/');
   const idx = normalized.indexOf('storage/');
   const relative = idx >= 0 ? normalized.slice(idx) : normalized.replace(/^(\.\.\/)+/, '');
-  return `${API_ORIGIN}/${relative}`;
+  return `${API_ORIGIN}/${relative.replace(/^\/+/, '')}`;
 };
 
 const EMPTY_FORM = {

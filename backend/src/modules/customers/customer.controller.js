@@ -22,6 +22,36 @@ class CustomerController {
     }
   }
 
+  async exportList(req, res, next) {
+    try {
+      const data = await service.exportList(req.query);
+      return response.success(res, data);
+    } catch (err) {
+      if (err.statusCode) return response.error(res, err.message, err.statusCode);
+      return handleTableError(err, res, next);
+    }
+  }
+
+  async orders(req, res, next) {
+    try {
+      const data = await service.orders(req.params.id, req.query);
+      return response.success(res, data);
+    } catch (err) {
+      if (err.statusCode) return response.error(res, err.message, err.statusCode);
+      return handleTableError(err, res, next);
+    }
+  }
+
+  async blockHistory(req, res, next) {
+    try {
+      const data = await service.blockHistory(req.params.id);
+      return response.success(res, data);
+    } catch (err) {
+      if (err.statusCode) return response.error(res, err.message, err.statusCode);
+      return handleTableError(err, res, next);
+    }
+  }
+
   async show(req, res, next) {
     try {
       const data = await service.getById(req.params.id);
@@ -34,7 +64,7 @@ class CustomerController {
 
   async store(req, res, next) {
     try {
-      const data = await service.create(req.body);
+      const data = await service.create(req.body, req);
       return response.success(res, data, 'Client créé', 201);
     } catch (err) {
       if (err.statusCode) return response.error(res, err.message, err.statusCode);
@@ -44,7 +74,7 @@ class CustomerController {
 
   async update(req, res, next) {
     try {
-      const data = await service.update(req.params.id, req.body);
+      const data = await service.update(req.params.id, req.body, req);
       return response.success(res, data, 'Client mis à jour');
     } catch (err) {
       if (err.statusCode) return response.error(res, err.message, err.statusCode);
@@ -54,7 +84,7 @@ class CustomerController {
 
   async block(req, res, next) {
     try {
-      const data = await service.block(req.params.id);
+      const data = await service.block(req, req.params.id, req.body || {});
       return response.success(res, data, 'Client bloqué');
     } catch (err) {
       if (err.statusCode) return response.error(res, err.message, err.statusCode);
@@ -64,7 +94,7 @@ class CustomerController {
 
   async unblock(req, res, next) {
     try {
-      const data = await service.unblock(req.params.id);
+      const data = await service.unblock(req, req.params.id, req.body || {});
       return response.success(res, data, 'Client débloqué');
     } catch (err) {
       if (err.statusCode) return response.error(res, err.message, err.statusCode);
@@ -74,7 +104,7 @@ class CustomerController {
 
   async destroy(req, res, next) {
     try {
-      await service.softDelete(req.params.id);
+      await service.softDelete(req.params.id, req);
       return response.success(res, null, 'Client supprimé (logique)');
     } catch (err) {
       if (err.statusCode) return response.error(res, err.message, err.statusCode);

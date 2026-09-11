@@ -1,3 +1,5 @@
+const { recordPointsTxn } = require('./points-ledger.util');
+
 async function creditReward(tx, customer_id, rewardTypeCode, amount, walletTxnType, note) {
   const value = Number(amount ?? 0);
   if (value <= 0) return null;
@@ -20,12 +22,15 @@ async function creditReward(tx, customer_id, rewardTypeCode, amount, walletTxnTy
     return { type: 'wallet', amount: value };
   }
 
-  if (rewardTypeCode === 'POINTS') {
-    const updated = await tx.customer.update({
-      where: { id: customer_id },
-      data: { points_balance: { increment: Math.round(value) }, points_lifetime: { increment: Math.round(value) } },
+  if (rewardTypeCode === 'POINTS' || rewardTypeCode === 'points') {
+    // Toute écriture de points passe par le grand-livre (INSERT + cache de solde dans la même transaction).
+    const res = await recordPointsTxn(tx, {
+      customer_id,
+      amount: Math.round(value),
+      type: 'promo_credit',
+      reason: note || 'Crédit de points',
     });
-    return { type: 'points', amount: Math.round(value), balance_after: updated.points_balance };
+    return { type: 'points', amount: Math.round(value), balance_after: res.points_balance };
   }
 
   return null;

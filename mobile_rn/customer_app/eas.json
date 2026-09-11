@@ -1,23 +1,40 @@
 {
   "cli": {
-    "version": ">= 13.0.0"
+    "version": ">= 13.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-staging.darkstore.ma/api",
-        "EXPO_PUBLIC_STORAGE_URL": "https://api-staging.darkstore.ma"
+        "EXPO_PUBLIC_API_URL": "https://atina2.atina.ma/api",
+        "EXPO_PUBLIC_STORAGE_URL": "https://atina2.atina.ma"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
+      "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.darkstore.ma/api",
-        "EXPO_PUBLIC_STORAGE_URL": "https://api.darkstore.ma"
+        "EXPO_PUBLIC_API_URL": "https://atina2.atina.ma/api",
+        "EXPO_PUBLIC_STORAGE_URL": "https://atina2.atina.ma"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       }
     }
   }

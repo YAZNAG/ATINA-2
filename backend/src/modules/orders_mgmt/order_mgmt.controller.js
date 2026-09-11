@@ -55,6 +55,14 @@ class OrderMgmtController {
     try { resp.success(res, await svc.updateItem(req.params.id, req.params.itemId, req.body || {}, req), 'Ligne mise à jour'); } catch (e) { fail(res, next, e); }
   }
 
+  async addItem(req, res, next) {
+    try { resp.success(res, await svc.addItem(req.params.id, req.body || {}, req), 'Ligne ajoutée', 201); } catch (e) { fail(res, next, e); }
+  }
+
+  async substituteItem(req, res, next) {
+    try { resp.success(res, await svc.substituteItem(req.params.id, req.params.itemId, req.body || {}, req), 'Ligne substituée'); } catch (e) { fail(res, next, e); }
+  }
+
   async collectPayment(req, res, next) {
     try { resp.success(res, await svc.collectPayment(req.params.id, req.body || {}, req), 'Encaissement enregistré'); } catch (e) { fail(res, next, e); }
   }

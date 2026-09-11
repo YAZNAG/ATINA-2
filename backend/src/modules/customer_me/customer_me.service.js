@@ -156,7 +156,8 @@ const ORDER_LIST_INCLUDE = {
   status:        { select: { id: true, code: true, name_fr: true, name_ar: true, color: true } },
   delivery_type: { select: { id: true, code: true, name_fr: true } },
   node:          { select: { id: true, name_fr: true } },
-  _count:        { select: { items: true } },
+  // Lignes de premier niveau : produits seuls + en-têtes de pack (les composants sont regroupés sous leur pack)
+  _count:        { select: { items: { where: { parent_item_id: null } } } },
   payments: {
     take: 1,
     orderBy: { created_at: 'desc' },
@@ -187,6 +188,7 @@ const ORDER_DETAIL_INCLUDE = {
         },
       },
       pack: { select: { id: true, name_fr: true, image_url: true } },
+      status: { select: { code: true, name_fr: true } },
     },
   },
   payments: {
@@ -242,6 +244,51 @@ function formatOrderList(o) {
   };
 }
 
+function formatOrderItem(item) {
+  const qty       = Number(item.qty ?? 1);
+  const unitPrice = Number(item.unit_price_sold ?? 0);
+  return {
+    id:         item.id,
+    sku_id:     item.sku_id,
+    pack_id:    item.pack_id,
+    sku_code:   item.sku?.sku_code ?? null,
+    ean13:      item.sku?.ean13 ?? null,
+    name_fr:    item.sku?.name_fr ?? item.pack?.name_fr ?? 'Article',
+    name_ar:    item.sku?.name_ar ?? null,
+    qty,
+    unit_price: unitPrice,
+    vat_rate:   Number(item.vat_rate ?? 0),
+    total_ttc:  Math.round(unitPrice * qty * 100) / 100,
+    image_url:  primaryImageUrl(item.sku) ?? toPublicUrl(item.pack?.image_url ?? null),
+    status_code: item.status?.code ?? null,
+    parent_item_id: item.parent_item_id ?? null,
+  };
+}
+
+/**
+ * Lignes de premier niveau (produits seuls + en-têtes de pack) ; les composants d'un pack
+ * (parent_item_id → en-tête) sont regroupés dans `components` sous leur pack.
+ * Anciennes commandes (composants sans en-tête) : lignes laissées à plat.
+ */
+function groupOrderItems(items) {
+  const ids = new Set(items.map((i) => i.id));
+  const children = {};
+  for (const it of items) {
+    if (it.parent_item_id && ids.has(it.parent_item_id)) (children[it.parent_item_id] ||= []).push(it);
+  }
+  return items
+    .filter((it) => !(it.parent_item_id && ids.has(it.parent_item_id)))
+    .map((it) => {
+      const base = formatOrderItem(it);
+      const isPack = !!it.pack_id && !it.sku_id;
+      return {
+        ...base,
+        is_pack:    isPack,
+        components: isPack ? (children[it.id] ?? []).map(formatOrderItem) : [],
+      };
+    });
+}
+
 function formatOrderDetail(o, pendingSubstitutionsCount = 0) {
   const payment = o.payments?.[0];
   const slot    = o.confirmed_slot;
@@ -268,24 +315,7 @@ function formatOrderDetail(o, pendingSubstitutionsCount = 0) {
       .filter(Boolean).join(', '),
     slot_name:     slot?.name_fr,
     slot_date:     slot?.specific_date ? new Date(slot.specific_date).toISOString().slice(0, 10) : null,
-    items: (o.items ?? []).map(item => {
-      const qty       = Number(item.qty ?? 1);
-      const unitPrice = Number(item.unit_price_sold ?? 0);
-      return {
-        id:         item.id,
-        sku_id:     item.sku_id,
-        pack_id:    item.pack_id,
-        sku_code:   item.sku?.sku_code ?? null,
-        ean13:      item.sku?.ean13 ?? null,
-        name_fr:    item.sku?.name_fr ?? item.pack?.name_fr ?? 'Article',
-        name_ar:    item.sku?.name_ar ?? null,
-        qty,
-        unit_price: unitPrice,
-        vat_rate:   Number(item.vat_rate ?? 0),
-        total_ttc:  Math.round(unitPrice * qty * 100) / 100,
-        image_url:  primaryImageUrl(item.sku) ?? toPublicUrl(item.pack?.image_url ?? null),
-      };
-    }),
+    items: groupOrderItems(o.items ?? []),
     timeline: (o.history ?? []).map(h => ({
       status_code: h.status?.code,
       name_fr:     h.status?.name_fr,

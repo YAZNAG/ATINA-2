@@ -37,7 +37,7 @@ const findAll = async ({ page = 1, limit = 100, all, ...filters } = {}) => {
 const findById  = (id) => prisma.deliverySlot.findUnique({ where: { id }, include: INCLUDE });
 const create    = (data, db = prisma) => db.deliverySlot.create({ data });
 const update    = (id, data) => prisma.deliverySlot.update({ where: { id }, data });
-const remove    = (id) => prisma.deliverySlot.delete({ where: { id } });
+// Aucune suppression physique d'un créneau : le retrait = is_active = false (voir service.delete).
 const countUsage = async (id) => {
   const [orders, prefs] = await Promise.all([
     prisma.order.count({ where: { confirmed_slot_id: id } }),
@@ -81,4 +81,4 @@ const findConfirmedOrders = (slot_id) =>
     orderBy: { created_at: 'asc' },
   });
 
-module.exports = { findAll, findById, create, update, remove, countUsage, findDuplicate, findPreferences, findConfirmedOrders };
+module.exports = { findAll, findById, create, update, countUsage, findDuplicate, findPreferences, findConfirmedOrders };

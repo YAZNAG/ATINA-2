@@ -7,6 +7,10 @@ const loyalty = require('../loyalty/loyalty.service');
 const { notifyOrderReady, notifyInDelivery, notifyDelivered } = require('../../utils/notify');
 const L = require('./order_lifecycle');
 
+/** Statuts où les lignes restent modifiables (US-059) : jusqu'à la fin de la préparation. */
+const LINE_EDITABLE = ['pending', 'awaiting_stock', 'confirmed', 'picking'];
+const round3 = (v) => Math.round(Number(v || 0) * 1000) / 1000;
+
 function normalizeCode(code) {
   return String(code || '').trim().toUpperCase();
 }
@@ -23,8 +27,11 @@ class OrderMgmtService {
     const order = await repo.findById(id);
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
     const users = await repo.getUsersByIds([order.slot_assigned_by]);
+    // Lignes remplacées par une substitution back-office (US-059) : affichées barrées, hors montant.
+    const replaced = await L.replacedLineIds(order.items || []);
     return {
       ...order,
+      replaced_item_ids: [...replaced],
       slot_assigned_by_user: order.slot_assigned_by ? users[order.slot_assigned_by] ?? null : null,
       can_cancel: L.CANCELLABLE.includes(L.normStatus(order.status?.code)),
       can_change_slot: !L.CLOSED.includes(L.normStatus(order.status?.code)),
@@ -137,6 +144,8 @@ class OrderMgmtService {
       CANCEL_ORDER: 'Annulation',
       UPDATE: 'Commande modifiée',
       UPDATE_ORDER_LINE: 'Ligne de commande ajustée',
+      ADD_ORDER_LINE: 'Ligne de commande ajoutée',
+      SUBSTITUTE_ORDER_LINE: 'Ligne de commande substituée',
       REDEEM_COUPON: 'Code promo appliqué',
       DELIVER_ORDER: 'Sortie de stock (livraison)',
       COLLECT_PAYMENT: 'Encaissement enregistré',
@@ -271,8 +280,8 @@ class OrderMgmtService {
       if (prefs.length && confirmed && rejected) {
         const chosen = prefs.filter((p) => p.slot_id === slot.id).map((p) => p.id);
         const others = prefs.filter((p) => p.slot_id !== slot.id).map((p) => p.id);
-        if (chosen.length) await tx.orderSlotPreference.updateMany({ where: { id: { in: chosen } }, data: { status_id: confirmed.id } });
-        if (others.length) await tx.orderSlotPreference.updateMany({ where: { id: { in: others } }, data: { status_id: rejected.id } });
+        if (chosen.length) await tx.orderSlotPreference.updateMany({ where: { id: { in: chosen } }, data: { status_id: confirmed.id, updated_at: new Date() } });
+        if (others.length) await tx.orderSlotPreference.updateMany({ where: { id: { in: others } }, data: { status_id: rejected.id, updated_at: new Date() } });
       }
       await audit(req, {
         action: 'ASSIGN_SLOT',
@@ -331,117 +340,399 @@ class OrderMgmtService {
     return this.getById(id);
   }
 
+  // ── Gestion des lignes (US-059, WF #28) ───────────────────────────────────
+  /** Charge la commande (dans tx) et vérifie qu'elle est encore modifiable ligne à ligne. */
+  async _loadEditable(tx, order_id) {
+    const order = await tx.order.findFirst({
+      where: { id: order_id, is_deleted: false },
+      include: {
+        status: true,
+        items: { include: { status: { select: { code: true } } } },
+        payments: { include: { status: true } },
+      },
+    });
+    if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
+    const code = L.normStatus(order.status?.code);
+    if (order.status?.is_terminal || !LINE_EDITABLE.includes(code)) {
+      throw { statusCode: 422, message: `Commande « ${order.status?.name_fr} » : les lignes ne sont modifiables qu'avant la fin de la préparation.` };
+    }
+    const live = await L.liveItems(order.items, tx);
+    return { order, code, live, liveIds: new Set(live.map((i) => i.id)) };
+  }
+
+  /** Session de picking active (open / in_progress) de la commande, avec ses lignes. */
+  async _activePicking(tx, order_id) {
+    return tx.pickingSession.findFirst({
+      where: { order_id, status: { code: { in: ['open', 'in_progress'] } } },
+      include: { items: { include: { status: { select: { code: true } } } } },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async _primaryLocation(tx, node_id, sku_id) {
+    const m = await tx.skuNodeLocation.findFirst({
+      where: { node_id, sku_id, is_primary_location: true, is_active: true },
+      select: { location_id: true },
+    });
+    return m?.location_id ?? null;
+  }
+
+  /**
+   * Libère `delta` unités d'une ligne SKU : la part en rupture d'abord, puis la réservation.
+   * Aucune écriture stock_moves (le physique ne bouge qu'à la livraison).
+   */
+  async _releaseLine(tx, order, item, delta, req, action) {
+    const qb = Number(item.qty_backordered || 0);
+    if (!item.sku_id || !(delta > 0)) return { resRelease: 0, boRelease: 0, qbAfter: qb };
+    const boRelease = Math.min(qb, delta);
+    const resRelease = Math.max(0, delta - boRelease);
+    await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${order.node_id}::uuid AND sku_id = ${item.sku_id}::uuid FOR UPDATE`;
+    const level = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } } });
+    if (level) {
+      const oldRes = Number(level.qty_reserved);
+      const newRes = Math.max(0, oldRes - resRelease);
+      const data = {
+        qty_reserved: round3(newRes),
+        qty_available: round3(Number(level.qty_available) + (oldRes - newRes)),
+        qty_backordered: round3(Math.max(0, Number(level.qty_backordered) - boRelease)),
+      };
+      await tx.stockLevel.update({ where: { id: level.id }, data });
+      await audit(req, {
+        action, resource: 'stock_levels', resource_id: level.id,
+        old_values: { qty_reserved: oldRes, qty_available: Number(level.qty_available), qty_backordered: Number(level.qty_backordered) },
+        new_values: { ...data, order_item_id: item.id },
+      }, tx);
+    }
+    if (boRelease > 0) {
+      const rule = await tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } } });
+      if (rule) {
+        await tx.sellingRule.update({ where: { id: rule.id }, data: { backordered_quantity: round3(Math.max(0, Number(rule.backordered_quantity) - boRelease)) } });
+      }
+    }
+    return { resRelease, boRelease, qbAfter: round3(Math.max(0, qb - boRelease)) };
+  }
+
+  /**
+   * Réserve `qty` unités d'un SKU sur le node de la commande (US-108) : SKU vendable
+   * (selling_rules), réservation du disponible, le reste en rupture si la vente en
+   * rupture est autorisée (dans la limite backorder_limit). Renvoie { reserved, backordered }.
+   */
+  async _reserveSku(tx, order, sku_id, qty, name) {
+    await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${order.node_id}::uuid AND sku_id = ${sku_id}::uuid FOR UPDATE`;
+    const [level, rule] = await Promise.all([
+      tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id } } }),
+      tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id } } }),
+    ]);
+    if (!rule || !rule.is_sellable) throw { statusCode: 422, message: `« ${name} » n'est pas vendable sur ce nœud.` };
+    const avail = level ? Math.max(0, Number(level.qty_available)) : 0;
+    const reserved = Math.min(qty, avail);
+    const backordered = round3(qty - reserved);
+    if (backordered > 0) {
+      const limit = Number(rule.backorder_limit ?? 0);
+      const already = Number(rule.backordered_quantity ?? 0);
+      if (!rule.is_backorderable) {
+        throw { statusCode: 422, message: `Stock insuffisant pour « ${name} » (disponible ${avail}, demandé ${qty}) : la vente en rupture n'est pas autorisée.` };
+      }
+      if (limit > 0 && already + backordered > limit) {
+        throw { statusCode: 422, message: `Stock insuffisant pour « ${name} » (disponible ${avail}, demandé ${qty}) : plafond de rupture atteint (${already}/${limit}).` };
+      }
+    }
+    if (level) {
+      await tx.stockLevel.update({
+        where: { id: level.id },
+        data: { qty_reserved: { increment: reserved }, qty_available: { decrement: reserved }, qty_backordered: { increment: backordered } },
+      });
+    } else if (backordered > 0) {
+      await tx.stockLevel.create({ data: { node_id: order.node_id, sku_id, qty_backordered: backordered } });
+    }
+    if (backordered > 0) {
+      await tx.sellingRule.update({ where: { id: rule.id }, data: { backordered_quantity: { increment: backordered } } });
+    }
+    return { reserved, backordered };
+  }
+
+  /** Rend `n` unités (ou packs) au quota d'une vente flash (stock_flash jamais modifié). */
+  async _returnFlash(tx, flash_sale_id, n, req, action) {
+    if (!flash_sale_id || !(n > 0)) return;
+    const fs = await tx.flashSale.findUnique({ where: { id: flash_sale_id }, select: { sold_count: true } });
+    if (!fs) return;
+    const after = Math.max(0, fs.sold_count - Math.max(1, Math.round(n)));
+    await tx.flashSale.update({ where: { id: flash_sale_id }, data: { sold_count: after } });
+    await audit(req, { action, resource: 'flash_sales', resource_id: flash_sale_id, old_values: { sold_count: fs.sold_count }, new_values: { sold_count: after } }, tx);
+  }
+
+  /** Prix du node pour une nouvelle ligne (ou prix flash, quota consommé). */
+  async _priceNewLine(tx, order, sku_id, qty) {
+    const { resolveSkuPrice } = require('../checkout/pricing.shared');
+    const p = await resolveSkuPrice(order.node_id, sku_id);
+    let unit = p.unit_price;
+    let flashId = null;
+    if (p.flash_sale_id) {
+      const n = Math.max(1, Math.round(qty));
+      const rows = await tx.$queryRaw`
+        UPDATE flash_sales SET sold_count = sold_count + ${n}::int, updated_at = now()
+         WHERE id = ${p.flash_sale_id}::uuid AND (stock_flash IS NULL OR sold_count + ${n}::int <= stock_flash)
+        RETURNING sold_count`;
+      if (rows.length) {
+        flashId = p.flash_sale_id;
+      } else {
+        // Quota flash épuisé : prix du node (selling_rules) sans remise flash.
+        const base = await tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id } }, select: { price: true } });
+        if (base && Number(base.price) > 0) unit = Math.round(Number(base.price) * 100) / 100;
+      }
+    }
+    return { unit_price: unit, vat_rate: p.vat_rate, name_fr: p.name_fr, flash_sale_id: flashId };
+  }
+
+  /**
+   * Recalcule les montants sur les lignes de PREMIER NIVEAU encore engagées
+   * (produits seuls + en-têtes de pack ; composants exclus = aucun double comptage ;
+   * lignes annulées / remplacées exclues) et met à jour le paiement à encaisser.
+   */
+  async _recalc(tx, order_id) {
+    const order = await tx.order.findUnique({
+      where: { id: order_id },
+      include: { items: { include: { status: { select: { code: true } } } }, payments: { include: { status: true } } },
+    });
+    const live = await L.liveItems(order.items, tx);
+    let ht = 0; let ttc = 0;
+    for (const l of live) {
+      if (l.parent_item_id) continue;
+      const lineTtc = Number(l.unit_price_sold) * Number(l.qty) - Number(l.discount_amount || 0);
+      ttc += lineTtc;
+      ht += lineTtc / (1 + Number(l.vat_rate || 0) / 100);
+    }
+    const subtotal_ttc = Math.round(ttc * 100) / 100;
+    const vat_amount = Math.round((ttc - ht) * 100) / 100;
+    const subtotal_ht = Math.round((subtotal_ttc - vat_amount) * 100) / 100;
+    const discount = Math.min(Number(order.discount_amount || 0), subtotal_ttc);
+    const total_ttc = Math.round(Math.max(0, subtotal_ttc + Number(order.delivery_fee || 0) - discount - Number(order.wallet_used || 0)) * 100) / 100;
+    const isCod = Number(order.cod_amount || 0) > 0;
+    await tx.order.update({
+      where: { id: order_id },
+      data: { subtotal_ht, vat_amount, discount_amount: discount, total_ttc, ...(isCod ? { cod_amount: total_ttc } : {}) },
+    });
+    const pending = order.payments.find((p) => String(p.status?.code).toLowerCase() === 'pending');
+    if (pending) await tx.payment.update({ where: { id: pending.id }, data: { amount: total_ttc } });
+    return { old_total_ttc: Number(order.total_ttc), total_ttc, subtotal_ht, vat_amount };
+  }
+
   /**
    * Ajustement d'une ligne (US-059, WF #28) : réduction de quantité ou annulation
-   * de la ligne (qty = 0) tant que la commande n'est pas prête. Libère la
-   * réservation (rupture d'abord), rend le quota flash, recalcule les montants
-   * et le paiement à encaisser. Les lignes composant un pack ne s'ajustent pas
-   * individuellement (annuler la commande ou la recréer).
+   * (qty = 0) tant que la préparation n'est pas terminée. Libère la réservation
+   * (rupture d'abord), rend le quota flash, recalcule les montants et le paiement.
+   * Pack : l'ajustement se fait sur la ligne d'EN-TÊTE (nombre de packs) ; les
+   * composants suivent au prorata de la recette et packs.sold_count est décrémenté.
    */
   async updateItem(order_id, item_id, { qty, reason } = {}, req = null) {
     const newQty = Number(qty);
     if (!Number.isFinite(newQty) || newQty < 0) throw { statusCode: 400, message: 'Quantité invalide (≥ 0)' };
     const motif = String(reason ?? '').trim();
-
-    const [cancelledItemStatus] = await Promise.all([L.byCode('orderItemStatus', 'cancelled')]);
+    const cancelledItemStatus = await L.byCode('orderItemStatus', 'cancelled');
+    if (!cancelledItemStatus) throw { statusCode: 500, message: 'Statut de ligne « cancelled » introuvable' };
 
     await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findFirst({
-        where: { id: order_id, is_deleted: false },
-        include: {
-          status: true,
-          items: { include: { status: { select: { code: true } } } },
-          payments: { include: { status: true } },
-        },
-      });
-      if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
-      const code = L.normStatus(order.status?.code);
-      if (!['pending', 'awaiting_stock', 'confirmed', 'picking'].includes(code)) {
-        throw { statusCode: 422, message: `Commande « ${order.status?.name_fr} » : les lignes ne sont modifiables qu'avant la fin de la préparation.` };
-      }
+      const { order, live, liveIds } = await this._loadEditable(tx, order_id);
       const item = order.items.find((i) => i.id === item_id);
       if (!item) throw { statusCode: 404, message: 'Ligne introuvable' };
-      if (String(item.status?.code).toLowerCase() === 'cancelled') throw { statusCode: 422, message: 'Ligne déjà annulée' };
-      if (item.pack_id) throw { statusCode: 422, message: "Ligne d'un pack : ajustez le pack en annulant la commande (la recette d'un pack ne se modifie pas ligne par ligne)." };
+      if (!liveIds.has(item.id)) throw { statusCode: 422, message: 'Ligne déjà annulée ou remplacée' };
+      if (item.parent_item_id) throw { statusCode: 422, message: "Composant d'un pack : ajustez la ligne du pack (nombre de packs), la recette ne se modifie pas ligne par ligne." };
+      const header = L.isHeader(item);
       const oldQty = Number(item.qty);
-      if (newQty >= oldQty) throw { statusCode: 422, message: 'Seule une réduction de quantité est possible (ajout : créer une nouvelle commande).' };
-      if (newQty === 0 && !cancelledItemStatus) throw { statusCode: 500, message: 'Statut de ligne « cancelled » introuvable' };
-      const activeLeft = order.items.filter((i) => i.id !== item.id && String(i.status?.code).toLowerCase() !== 'cancelled');
-      if (newQty === 0 && !activeLeft.length) throw { statusCode: 422, message: 'Dernière ligne active : utilisez « Annuler la commande » (motif obligatoire).' };
+      if (header && !Number.isInteger(newQty)) throw { statusCode: 400, message: 'Nombre de packs invalide (entier attendu)' };
+      if (newQty >= oldQty) throw { statusCode: 422, message: 'Seule une réduction de quantité est possible ici (utilisez « Ajouter une ligne » pour ajouter un produit).' };
+      const topLeft = live.filter((i) => !i.parent_item_id && i.id !== item.id);
+      if (newQty === 0 && !topLeft.length) throw { statusCode: 422, message: 'Dernière ligne active : utilisez « Annuler la commande » (motif obligatoire).' };
 
-      const delta = oldQty - newQty;
-      const qb = Number(item.qty_backordered || 0);
-      const boRelease = Math.min(qb, delta);
-      const resRelease = delta - boRelease;
+      const session = await this._activePicking(tx, order_id);
+      const syncPick = async (lineId, qtyAfter) => {
+        const si = session?.items.find((x) => x.order_item_id === lineId && x.status?.code === 'pending');
+        if (si) await tx.pickingSessionItem.update({ where: { id: si.id }, data: { qty_expected: qtyAfter } });
+      };
 
-      if (item.sku_id) {
-        await tx.$queryRaw`SELECT id FROM stock_levels WHERE node_id = ${order.node_id}::uuid AND sku_id = ${item.sku_id}::uuid FOR UPDATE`;
-        const level = await tx.stockLevel.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } } });
-        if (level) {
-          const oldRes = Number(level.qty_reserved);
-          const newRes = Math.max(0, oldRes - resRelease);
-          const data = {
-            qty_reserved: newRes,
-            qty_available: Number(level.qty_available) + (oldRes - newRes),
-            qty_backordered: Math.max(0, Number(level.qty_backordered) - boRelease),
-          };
-          await tx.stockLevel.update({ where: { id: level.id }, data });
-          await audit(req, {
-            action: 'UPDATE_ORDER_LINE', resource: 'stock_levels', resource_id: level.id,
-            old_values: { qty_reserved: oldRes, qty_available: Number(level.qty_available), qty_backordered: Number(level.qty_backordered) },
-            new_values: { ...data, order_item_id: item.id },
-          }, tx);
+      // Lignes portant le stock : la ligne elle-même, ou les composants de l'en-tête.
+      const targets = header
+        ? live.filter((c) => c.parent_item_id === item.id).map((c) => ({ line: c, after: round3((Number(c.qty) / oldQty) * newQty) }))
+        : [{ line: item, after: newQty }];
+
+      const released = [];
+      let itemQbAfter = Number(item.qty_backordered || 0);
+      for (const { line, after } of targets) {
+        const delta = round3(Number(line.qty) - after);
+        const r = await this._releaseLine(tx, order, line, delta, req, 'UPDATE_ORDER_LINE');
+        released.push({ order_item_id: line.id, sku_id: line.sku_id, reserved: r.resRelease, backordered: r.boRelease });
+        if (line.id === item.id) {
+          itemQbAfter = r.qbAfter;
+        } else {
+          await tx.orderItem.update({
+            where: { id: line.id },
+            data: after === 0 ? { status_id: cancelledItemStatus.id, qty_backordered: r.qbAfter } : { qty: after, qty_backordered: r.qbAfter },
+          });
         }
-        if (boRelease > 0) {
-          const rule = await tx.sellingRule.findUnique({ where: { node_id_sku_id: { node_id: order.node_id, sku_id: item.sku_id } } });
-          if (rule) {
-            await tx.sellingRule.update({ where: { id: rule.id }, data: { backordered_quantity: Math.max(0, Number(rule.backordered_quantity) - boRelease) } });
-          }
-        }
+        await syncPick(line.id, after);
       }
 
-      if (item.flash_sale_id) {
-        const fs = await tx.flashSale.findUnique({ where: { id: item.flash_sale_id }, select: { sold_count: true } });
-        if (fs) {
-          const after = Math.max(0, fs.sold_count - Math.max(1, Math.round(delta)));
-          await tx.flashSale.update({ where: { id: item.flash_sale_id }, data: { sold_count: after } });
-          await audit(req, { action: 'UPDATE_ORDER_LINE', resource: 'flash_sales', resource_id: item.flash_sale_id, old_values: { sold_count: fs.sold_count }, new_values: { sold_count: after } }, tx);
-        }
-      }
+      await this._returnFlash(tx, item.flash_sale_id, oldQty - newQty, req, 'UPDATE_ORDER_LINE');
 
       await tx.orderItem.update({
         where: { id: item.id },
         data: newQty === 0
-          ? { status_id: cancelledItemStatus.id, qty_backordered: Math.max(0, qb - boRelease) }
-          : { qty: newQty, qty_backordered: Math.max(0, qb - boRelease) },
+          ? { status_id: cancelledItemStatus.id, qty_backordered: itemQbAfter }
+          : { qty: newQty, qty_backordered: itemQbAfter },
       });
 
-      // Recalcul des montants sur les lignes actives
-      const lines = await tx.orderItem.findMany({ where: { order_id }, include: { status: { select: { code: true } } } });
-      let ht = 0; let vat = 0;
-      for (const l of lines) {
-        if (String(l.status?.code).toLowerCase() === 'cancelled') continue;
-        const ttc = Number(l.unit_price_sold) * Number(l.qty) - Number(l.discount_amount || 0);
-        const lineHt = ttc / (1 + Number(l.vat_rate || 0) / 100);
-        ht += lineHt; vat += ttc - lineHt;
+      let packSold = null;
+      if (header) {
+        const { adjustPackSoldCount } = require('../pack/pack.shared');
+        const before = await tx.pack.findUnique({ where: { id: item.pack_id }, select: { sold_count: true } });
+        const res = await adjustPackSoldCount(item.pack_id, -(oldQty - newQty), tx);
+        packSold = { before: before?.sold_count ?? null, after: res.sold_count };
+        await audit(req, {
+          action: 'UPDATE_ORDER_LINE', resource: 'packs', resource_id: item.pack_id,
+          old_values: { sold_count: packSold.before }, new_values: { sold_count: res.sold_count, packs_retires: oldQty - newQty },
+        }, tx);
       }
-      const subtotal_ht = Math.round(ht * 100) / 100;
-      const vat_amount = Math.round(vat * 100) / 100;
-      const subtotal_ttc = subtotal_ht + vat_amount;
-      const discount = Math.min(Number(order.discount_amount || 0), subtotal_ttc);
-      const total_ttc = Math.round(Math.max(0, subtotal_ttc + Number(order.delivery_fee || 0) - discount - Number(order.wallet_used || 0)) * 100) / 100;
-      const isCod = Number(order.cod_amount || 0) > 0;
-      await tx.order.update({
-        where: { id: order_id },
-        data: { subtotal_ht, vat_amount, discount_amount: discount, total_ttc, ...(isCod ? { cod_amount: total_ttc } : {}) },
-      });
-      const pending = order.payments.find((p) => String(p.status?.code).toLowerCase() === 'pending');
-      if (pending) await tx.payment.update({ where: { id: pending.id }, data: { amount: total_ttc } });
 
+      const totals = await this._recalc(tx, order_id);
       await audit(req, {
         action: 'UPDATE_ORDER_LINE', resource: 'orders', resource_id: order_id,
-        old_values: { item_id, qty: oldQty, total_ttc: Number(order.total_ttc) },
-        new_values: { item_id, qty: newQty, cancelled: newQty === 0, total_ttc, reason: motif || null, released: { reserved: resRelease, backordered: boRelease } },
+        old_values: { item_id, qty: oldQty, total_ttc: totals.old_total_ttc },
+        new_values: {
+          item_id, qty: newQty, cancelled: newQty === 0, pack_id: header ? item.pack_id : null,
+          total_ttc: totals.total_ttc, reason: motif || null, released, pack_sold_count: packSold,
+        },
+      }, tx);
+    }, { timeout: 30000 });
+
+    return this.getById(order_id);
+  }
+
+  /**
+   * Ajout d'une ligne (US-059) : SKU vendable du node (selling_rules), prix du node
+   * (ou prix flash), contrôle de stock / vente en rupture, réservation, recalcul du
+   * montant et du paiement à encaisser, motif obligatoire + audit. Si la préparation
+   * est en cours, une tâche de prélèvement est ajoutée à la session active.
+   */
+  async addItem(order_id, { sku_id, qty, reason } = {}, req = null) {
+    if (!sku_id) throw { statusCode: 400, message: 'Produit (sku_id) requis' };
+    const q = Number(qty);
+    if (!Number.isFinite(q) || q <= 0) throw { statusCode: 400, message: 'Quantité invalide (> 0)' };
+    const motif = String(reason ?? '').trim();
+    if (!motif) throw { statusCode: 400, message: "Le motif de l'ajout est obligatoire." };
+    const activeItem = await L.mustCode('orderItemStatus', 'active', 'statut de ligne');
+
+    await prisma.$transaction(async (tx) => {
+      const { order } = await this._loadEditable(tx, order_id);
+      const sku = await tx.sku.findFirst({ where: { id: sku_id, is_deleted: false }, select: { id: true, name_fr: true, is_active: true } });
+      if (!sku || !sku.is_active) throw { statusCode: 422, message: 'Produit introuvable ou inactif' };
+
+      const res = await this._reserveSku(tx, order, sku.id, q, sku.name_fr);
+      const price = await this._priceNewLine(tx, order, sku.id, q);
+      const created = await tx.orderItem.create({
+        data: {
+          order_id, sku_id: sku.id, pack_id: null, status_id: activeItem.id, qty: q,
+          unit_price_sold: price.unit_price, discount_amount: 0, vat_rate: price.vat_rate,
+          node_id: order.node_id, flash_sale_id: price.flash_sale_id, qty_backordered: res.backordered,
+        },
+      });
+
+      const session = await this._activePicking(tx, order_id);
+      if (session) {
+        const pending = await L.mustCode('pickItemStatus', 'pending', 'statut de prélèvement', tx);
+        await tx.pickingSessionItem.create({
+          data: {
+            session_id: session.id, order_item_id: created.id, status_id: pending.id,
+            qty_expected: q, qty_picked: 0, location_id: await this._primaryLocation(tx, order.node_id, sku.id),
+          },
+        });
+      }
+
+      const totals = await this._recalc(tx, order_id);
+      await audit(req, {
+        action: 'ADD_ORDER_LINE', resource: 'orders', resource_id: order_id,
+        old_values: { total_ttc: totals.old_total_ttc },
+        new_values: {
+          item_id: created.id, sku_id: sku.id, name: sku.name_fr, qty: q, unit_price_sold: price.unit_price,
+          flash_sale_id: price.flash_sale_id, reserved: res.reserved, backordered: res.backordered,
+          total_ttc: totals.total_ttc, reason: motif, picking_session_id: session?.id ?? null,
+        },
+      }, tx);
+    }, { timeout: 30000 });
+
+    return this.getById(order_id);
+  }
+
+  /**
+   * Substitution d'une ligne (US-059) : l'ancienne ligne passe au statut « substituted »
+   * (réservation / rupture libérées, quota flash rendu), une nouvelle ligne active porte
+   * le produit de remplacement (vendable sur le node, stock réservé), montants et paiement
+   * recalculés, motif obligatoire, audit. Pendant la préparation, la tâche de prélèvement
+   * encore « en attente » est reportée sur la nouvelle ligne.
+   */
+  async substituteItem(order_id, item_id, { sku_id, qty, reason } = {}, req = null) {
+    if (!sku_id) throw { statusCode: 400, message: 'Produit de remplacement (sku_id) requis' };
+    const motif = String(reason ?? '').trim();
+    if (!motif) throw { statusCode: 400, message: 'Le motif de la substitution est obligatoire.' };
+    const [activeItem, substituted] = await Promise.all([
+      L.mustCode('orderItemStatus', 'active', 'statut de ligne'),
+      L.mustCode('orderItemStatus', 'substituted', 'statut de ligne'),
+    ]);
+
+    await prisma.$transaction(async (tx) => {
+      const { order, liveIds } = await this._loadEditable(tx, order_id);
+      const item = order.items.find((i) => i.id === item_id);
+      if (!item) throw { statusCode: 404, message: 'Ligne introuvable' };
+      if (!liveIds.has(item.id) || String(item.status?.code).toLowerCase() !== 'active') {
+        throw { statusCode: 422, message: 'Seule une ligne active peut être substituée.' };
+      }
+      if (L.isHeader(item) || item.parent_item_id) throw { statusCode: 422, message: "Ligne de pack : la composition d'un pack ne se substitue pas ligne par ligne." };
+      if (item.is_points_exchange || item.game_play_id) throw { statusCode: 422, message: "Ligne d'échange de points ou lot gagné : substitution impossible." };
+      if (item.sku_id === sku_id) throw { statusCode: 422, message: 'Choisissez un produit différent du produit actuel.' };
+      const q = qty !== undefined && qty !== null && qty !== '' ? Number(qty) : Number(item.qty);
+      if (!Number.isFinite(q) || q <= 0) throw { statusCode: 400, message: 'Quantité invalide (> 0)' };
+
+      const session = await this._activePicking(tx, order_id);
+      const pickItem = session?.items.find((x) => x.order_item_id === item.id) || null;
+      if (pickItem && pickItem.status?.code !== 'pending') {
+        throw { statusCode: 422, message: 'Produit déjà traité par le préparateur : utilisez la substitution de la session de picking.' };
+      }
+
+      const sku = await tx.sku.findFirst({ where: { id: sku_id, is_deleted: false }, select: { id: true, name_fr: true, is_active: true } });
+      if (!sku || !sku.is_active) throw { statusCode: 422, message: 'Produit de remplacement introuvable ou inactif' };
+
+      // 1) Ancienne ligne : stock libéré, quota flash rendu, statut « substituted »
+      const rel = await this._releaseLine(tx, order, item, Number(item.qty), req, 'SUBSTITUTE_ORDER_LINE');
+      await this._returnFlash(tx, item.flash_sale_id, Number(item.qty), req, 'SUBSTITUTE_ORDER_LINE');
+      await tx.orderItem.update({ where: { id: item.id }, data: { status_id: substituted.id, qty_backordered: 0 } });
+
+      // 2) Nouvelle ligne : réservation, prix du node
+      const res = await this._reserveSku(tx, order, sku.id, q, sku.name_fr);
+      const price = await this._priceNewLine(tx, order, sku.id, q);
+      const created = await tx.orderItem.create({
+        data: {
+          order_id, sku_id: sku.id, pack_id: null, status_id: activeItem.id, qty: q,
+          unit_price_sold: price.unit_price, discount_amount: 0, vat_rate: price.vat_rate,
+          node_id: order.node_id, flash_sale_id: price.flash_sale_id, qty_backordered: res.backordered,
+        },
+      });
+
+      // 3) Préparation en cours : la tâche en attente vise désormais la nouvelle ligne
+      if (pickItem) {
+        await tx.pickingSessionItem.update({
+          where: { id: pickItem.id },
+          data: { order_item_id: created.id, qty_expected: q, location_id: await this._primaryLocation(tx, order.node_id, sku.id) },
+        });
+      }
+
+      const totals = await this._recalc(tx, order_id);
+      await audit(req, {
+        action: 'SUBSTITUTE_ORDER_LINE', resource: 'orders', resource_id: order_id,
+        old_values: { item_id: item.id, sku_id: item.sku_id, qty: Number(item.qty), unit_price_sold: Number(item.unit_price_sold), total_ttc: totals.old_total_ttc },
+        new_values: {
+          item_id: created.id, sku_id: sku.id, name: sku.name_fr, qty: q, unit_price_sold: price.unit_price,
+          released: { reserved: rel.resRelease, backordered: rel.boRelease },
+          reserved: res.reserved, backordered: res.backordered, total_ttc: totals.total_ttc, reason: motif,
+        },
       }, tx);
     }, { timeout: 30000 });
 

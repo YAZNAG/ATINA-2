@@ -145,9 +145,12 @@ router.get('/stops/:stopId', async (req, res, next) => {
               include: { payment_method: { select: { code: true, name_fr: true } }, status: { select: { code: true, name_fr: true } } },
             },
             items: {
+              where: { status: { code: { not: 'cancelled' } } },
               include: {
                 sku:  { select: DRIVER_SKU_SELECT },
                 pack: { select: { id: true, name_fr: true } },
+                status: { select: { code: true, name_fr: true } },
+                parent_item: { select: { id: true, pack: { select: { id: true, name_fr: true } } } },
               },
             },
           },
@@ -157,11 +160,22 @@ router.get('/stops/:stopId', async (req, res, next) => {
     if (!stop) return resp.error(res, 'Stop introuvable', 404);
     if (stop.order) {
       const nodeId = stop.order.node_id;
-      stop.order.items = (stop.order.items ?? []).map((it) => ({
+      // Pack : ligne d'en-tête (pack_id, sku_id NULL) puis ses composants (parent_item_id) juste dessous.
+      const { replacedLineIds } = require('../orders_mgmt/order_lifecycle');
+      const replaced = await replacedLineIds(stop.order.items ?? []);
+      const rows = (stop.order.items ?? []).filter((it) => !replaced.has(it.id)).map((it) => ({
         ...it,
         name_fr: it.sku?.name_fr ?? it.pack?.name_fr ?? 'Article',
+        is_pack_header: !!it.pack_id && !it.sku_id,
+        pack: it.pack ?? it.parent_item?.pack ?? null,
         sku: formatDriverSku(it.sku, nodeId),
       }));
+      const byParent = {};
+      for (const r of rows) if (r.parent_item_id) (byParent[r.parent_item_id] ||= []).push(r);
+      const ids = new Set(rows.map((r) => r.id));
+      stop.order.items = rows
+        .filter((r) => !(r.parent_item_id && ids.has(r.parent_item_id)))
+        .flatMap((r) => [r, ...(byParent[r.id] ?? [])]);
     }
     resp.success(res, stop);
   } catch(e) { E(res, next, e); }
@@ -196,10 +210,18 @@ router.post('/stops/:stopId/scan', async (req, res, next) => {
     if (!sku) return resp.error(res, `Aucun produit ne correspond au code EAN ${ean}`, 404);
 
     const order = await prisma.order.findUnique({ where: { id: stop.order_id }, select: { node_id: true } });
-    const lines = await prisma.orderItem.findMany({
-      where:   { order_id: stop.order_id, sku_id: sku.id },
-      include: { status: { select: { code: true, name_fr: true } }, pack: { select: { id: true, name_fr: true } } },
+    const allLines = await prisma.orderItem.findMany({
+      where:   { order_id: stop.order_id, sku_id: sku.id, status: { code: { not: 'cancelled' } } },
+      include: {
+        status: { select: { code: true, name_fr: true } },
+        pack: { select: { id: true, name_fr: true } },
+        parent_item: { select: { pack: { select: { id: true, name_fr: true } } } },
+      },
     });
+    // Lignes remplacées (substitution back-office) exclues ; composant de pack → pack de l'en-tête.
+    const { replacedLineIds } = require('../orders_mgmt/order_lifecycle');
+    const replaced = await replacedLineIds(allLines);
+    const lines = allLines.filter((l) => !replaced.has(l.id)).map((l) => ({ ...l, pack: l.pack ?? l.parent_item?.pack ?? null }));
     const qtyOrdered = lines.reduce((s, l) => s + Number(l.qty ?? 0), 0);
 
     resp.success(res, {

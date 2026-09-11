@@ -29,7 +29,8 @@ const LIST_INCLUDE = {
   status:        { select: { id: true, code: true, name_fr: true, color: true, is_terminal: true, sort_order: true } },
   delivery_type: { select: { id: true, code: true, name_fr: true } },
   node:          { select: { id: true, code: true, name_fr: true } },
-  _count:        { select: { items: true, slot_preferences: true } },
+  // Lignes de premier niveau (produits seuls + en-têtes de pack)
+  _count:        { select: { items: { where: { parent_item_id: null } }, slot_preferences: true } },
   picking_sessions: PICKING_SESSION_SUMMARY,
   confirmed_slot: {
     select: { id: true, specific_date: true, slot_start: true, slot_end: true, name_fr: true },

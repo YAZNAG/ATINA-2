@@ -26,7 +26,7 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
       status: true,
       items:  {
         where: { status: { code: { notIn: ['cancelled', 'CANCELLED'] } } },
-        include: { sku: { select: { id: true } } },
+        include: { sku: { select: { id: true } }, status: { select: { code: true } } },
       },
     },
   });
@@ -55,8 +55,14 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
     getOrderStatusId('picking'),
   ]);
 
-  // 5. Récupérer les emplacements primaires des SKUs dans ce node
-  const skuIds = order.items.filter(i => i.sku_id).map(i => i.sku_id);
+  // 5. Lignes à prélever : produits seuls et COMPOSANTS de pack (sku_id renseigné).
+  //    Jamais la ligne d'en-tête d'un pack (sku_id NULL) ni une ligne remplacée (substitution back-office).
+  const { liveItems } = require('../modules/orders_mgmt/order_lifecycle');
+  const pickLines = (await liveItems(order.items)).filter(i => i.sku_id);
+  if (!pickLines.length) throw { statusCode: 422, message: 'Aucun produit à préparer pour cette commande' };
+
+  // Emplacements primaires des SKUs dans ce node
+  const skuIds = pickLines.map(i => i.sku_id);
   const skuLocations = skuIds.length
     ? await prisma.skuNodeLocation.findMany({
         where: { sku_id: { in: skuIds }, node_id: order.node_id, is_primary_location: true, is_active: true },
@@ -89,12 +95,12 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
         status_id: openStatusId,
         error_count: 0,
         items: {
-          create: order.items.map(item => ({
+          create: pickLines.map(item => ({
             order_item_id: item.id,
             status_id:     pendingItemStatusId,
             qty_expected:  item.qty,
             qty_picked:    0,
-            location_id:   item.sku_id ? (locationMap[item.sku_id] ?? null) : null,
+            location_id:   locationMap[item.sku_id] ?? null,
           })),
         },
       },
@@ -143,11 +149,7 @@ async function createPickingSessionForOrder(orderId, pickerId, actor = null, act
           location:   { select: { id: true, label: true, aisle: true, shelf: true } },
           order_item: {
             include: {
-              sku: {
-                include: {
-                  article: { select: { id: true, name_fr: true, ean13: true } },
-                },
-              },
+              sku: { select: { id: true, name_fr: true, sku_code: true, ean13: true } },
             },
           },
         },

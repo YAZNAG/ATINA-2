@@ -135,4 +135,68 @@ async function resolvePackItemPrice(node_id, pack_id, sku_id) {
   };
 }
 
-module.exports = { resolveItemPrice, resolveSkuPrice, resolvePackItemPrice, getActiveFlashSalesForNode };
+/**
+ * Prix d'UN pack (ligne d'en-tête order_items : pack_id renseigné, sku_id NULL).
+ * Prix = packs.total_price, remplacé par le prix flash si une vente flash du node cible le pack.
+ * Renvoie aussi la recette (composants) et, pour la TVA, la contribution de chaque composant
+ * au prix du pack (au prorata de unit_price_in_pack × qty) : la TVA de l'en-tête est la TVA
+ * pondérée de ses composants. Les lignes composants sont stockées à 0 (aucun double comptage).
+ */
+async function resolvePackPrice(node_id, pack_id) {
+  const now  = new Date();
+  const pack = await getPackWithItems(pack_id);
+  if (!pack || !pack.is_active || pack.is_deleted)
+    throw { statusCode: 404, message: `Pack introuvable ou inactif: ${pack_id}` };
+  if (pack.valid_from && new Date(pack.valid_from) > now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'est pas encore disponible` };
+  if (pack.valid_to   && new Date(pack.valid_to)   < now) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » est expiré` };
+  const items = pack.pack_items ?? [];
+  if (!items.length) throw { statusCode: 422, message: `Le pack « ${pack.name_fr} » n'a aucun composant` };
+
+  const packFlash = (await getActiveFlashSalesForNode(pack.node_id || node_id)).find((fs) => fs.pack_id === pack_id) || null;
+  const basePackTotal = Number(pack.total_price ?? 0);
+  let total = basePackTotal;
+  if (packFlash) {
+    const f = packFlash.flash_price != null
+      ? Number(packFlash.flash_price)
+      : applyDiscount(basePackTotal, packFlash.discount_type, packFlash.discount_value);
+    if (f < basePackTotal) total = f;
+  }
+  total = Math.round(total * 100) / 100;
+  const appliedPackFlash = packFlash && total < basePackTotal ? packFlash : null;
+
+  const originalSum = items.reduce((s, it) => s + Number(it.unit_price_in_pack ?? 0) * Number(it.qty ?? 1), 0);
+  const qtySum = items.reduce((s, it) => s + Number(it.qty ?? 1), 0);
+  let ht = 0;
+  const components = items.map((it) => {
+    const qty = Number(it.qty ?? 1);
+    const share = originalSum > 0
+      ? (Number(it.unit_price_in_pack ?? 0) * qty) / originalSum
+      : (qtySum > 0 ? qty / qtySum : 0);
+    const contribution = total * share; // part TTC du composant dans UN pack
+    const vatRate = Number(it.sku?.tax?.rate ?? it.sku?.vat_rate ?? 20);
+    ht += contribution / (1 + vatRate / 100);
+    return {
+      sku_id: it.sku_id,
+      qty,
+      name_fr: it.sku?.name_fr ?? pack.name_fr,
+      vat_rate: vatRate,
+      contribution_ttc: Math.round(contribution * 100) / 100,
+    };
+  });
+  const vatRate = ht > 0 ? Math.round(((total / ht) - 1) * 10000) / 100 : 20;
+
+  return {
+    unit_price: total,
+    unit_price_ht: ht,
+    vat_rate: vatRate,
+    name_fr: pack.name_fr,
+    source: appliedPackFlash ? `flash_sale:pack:${pack_id}` : `pack:${pack_id}`,
+    flash_sale_id: appliedPackFlash ? appliedPackFlash.id : null,
+    flash_sale: appliedPackFlash,
+    pack_discounted: Number(pack.original_price ?? 0) > basePackTotal,
+    pack,
+    components,
+  };
+}
+
+module.exports = { resolveItemPrice, resolveSkuPrice, resolvePackItemPrice, resolvePackPrice, getActiveFlashSalesForNode };

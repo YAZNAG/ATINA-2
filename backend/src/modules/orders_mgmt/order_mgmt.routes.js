@@ -20,6 +20,8 @@ router.get('/:id/history',            canView,   ctrl.history.bind(ctrl));
 router.get('/:id/slots',              canView,   ctrl.slots.bind(ctrl));
 router.get('/:id/cancel-preview',     canView,   ctrl.cancelPreview.bind(ctrl));
 router.patch('/:id/status',           canUpdate, ctrl.changeStatus.bind(ctrl));
+router.post('/:id/items',             canUpdate, ctrl.addItem.bind(ctrl));
+router.post('/:id/items/:itemId/substitute', canUpdate, ctrl.substituteItem.bind(ctrl));
 router.patch('/:id/items/:itemId',    canUpdate, ctrl.updateItem.bind(ctrl));
 router.patch('/:id/cancel',           canUpdate, ctrl.cancel.bind(ctrl));
 router.patch('/:id/slot',             canUpdate, ctrl.updateSlot.bind(ctrl));

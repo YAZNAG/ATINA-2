@@ -82,7 +82,7 @@ class PickingService {
       where: { id: order_id },
       include: {
         status: { select: { code: true } },
-        items:  { select: { id: true, sku_id: true, qty: true } },
+        items:  { select: { id: true, sku_id: true, pack_id: true, parent_item_id: true, qty: true, status: { select: { code: true } } } },
       },
     });
     if (!order) throw { statusCode: 404, message: 'Commande introuvable' };
@@ -100,8 +100,10 @@ class PickingService {
     if (!openStatus)        throw { statusCode: 500, message: 'Statut "open" introuvable — seed picking_statuses' };
     if (!pendingItemStatus) throw { statusCode: 500, message: 'Statut "pending" introuvable — seed pick_item_statuses' };
 
-    // Seules les lignes portant un SKU se prélèvent (les lignes « pack » parentes n'ont pas de SKU).
-    const lines = order.items.filter((item) => item.sku_id);
+    // Seules les lignes portant un SKU se prélèvent : produits seuls et COMPOSANTS de pack.
+    // Jamais la ligne d'en-tête d'un pack (sku_id NULL), ni une ligne annulée ou remplacée.
+    const { liveItems } = require('../orders_mgmt/order_lifecycle');
+    const lines = (await liveItems(order.items)).filter((item) => item.sku_id);
     const mappings = await repo.findSkuNodeLocations(order.node_id, [...new Set(lines.map((l) => l.sku_id))]);
     const primaryLoc = {};
     for (const m of mappings) if (!primaryLoc[m.sku_id]) primaryLoc[m.sku_id] = m.location.id;

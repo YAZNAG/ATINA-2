@@ -29,7 +29,7 @@ class DeliverySlotController {
   }
 
   async destroy(req, res, next) {
-    try { await svc.delete(req.params.id, req); resp.success(res, null, 'Créneau supprimé'); } catch (e) { fail(res, next, e); }
+    try { const r = await svc.delete(req.params.id, req); resp.success(res, r, r.message); } catch (e) { fail(res, next, e); }
   }
 }
 

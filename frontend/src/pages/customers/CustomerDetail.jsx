@@ -75,8 +75,13 @@ export default function CustomerDetail() {
   useEffect(() => { load(); }, [load]);
 
   const act = async (fn, msg) => {
+    // Motif obligatoire pour le blocage, recommandé pour le déblocage (conservé dans audit_logs)
+    const blocking = fn === blockCustomer;
+    const reason = window.prompt(blocking ? 'Motif du blocage (obligatoire) : fraude, litige, abus…' : 'Motif du déblocage (recommandé) :', '');
+    if (reason === null) return;
+    if (blocking && !reason.trim()) { toast.error('Le motif du blocage est obligatoire.'); return; }
     setActing(true);
-    try { await fn(id); toast.success(msg); load(); }
+    try { await fn(id, reason.trim() || undefined); toast.success(msg); load(); }
     catch (e) { toast.error(getErrorMessage(e)); }
     finally { setActing(false); }
   };

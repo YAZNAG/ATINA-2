@@ -1,5 +1,7 @@
 const prisma = require('../../config/database');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const LIST_SELECT = {
   id: true,
   phone_country: true,
@@ -13,6 +15,8 @@ const LIST_SELECT = {
   points_balance: true,
   points_lifetime: true,
   city: true,
+  city_id: true,
+  city_ref: { select: { id: true, code: true, name_fr: true, name_ar: true } },
   lat: true,
   lng: true,
   is_active: true,
@@ -28,6 +32,7 @@ function buildListWhere(query) {
     search,
     phone,
     city,
+    city_id,
     preferred_lang,
     is_active,
     is_deleted,
@@ -56,9 +61,28 @@ function buildListWhere(query) {
     where.phone_number = { contains: String(phone).trim(), mode: 'insensitive' };
   }
 
-  if (city && String(city).trim()) {
-    where.city = { contains: String(city).trim(), mode: 'insensitive' };
+  const AND = [];
+
+  // Ville : référentiel cities (customers.city_id) ; l'ancienne colonne texte city
+  // reste prise en compte pour les clients non encore rattachés au référentiel.
+  if (city_id && UUID_RE.test(String(city_id))) {
+    const cityName = query._city_name_fr;
+    AND.push({
+      OR: [
+        { city_id: String(city_id) },
+        ...(cityName ? [{ city_id: null, city: { equals: cityName, mode: 'insensitive' } }] : []),
+      ],
+    });
+  } else if (city && String(city).trim()) {
+    const c = String(city).trim();
+    AND.push({
+      OR: [
+        { city: { contains: c, mode: 'insensitive' } },
+        { city_ref: { name_fr: { contains: c, mode: 'insensitive' } } },
+      ],
+    });
   }
+  if (AND.length) where.AND = AND;
 
   if (preferred_lang === 'fr' || preferred_lang === 'ar') {
     where.preferred_lang = preferred_lang;
@@ -98,12 +122,24 @@ const findManyForList = (query, { skip, take }) => {
 
 const countForList = (query) => prisma.customer.count({ where: buildListWhere(query) });
 
+const findAllForExport = (query, max) =>
+  prisma.customer.findMany({
+    where: buildListWhere(query),
+    orderBy: { created_at: 'desc' },
+    take: max,
+    select: LIST_SELECT,
+  });
+
+const findCityName = (id) =>
+  prisma.city.findUnique({ where: { id }, select: { id: true, name_fr: true } }).catch(() => null);
+
 const findByIdWithIncludes = (id) =>
   prisma.customer.findUnique({
     where: { id },
     include: {
-      referred_by: { select: { id: true, name: true, referral_code: true, phone_number: true } },
-      _count: { select: { orders: true, addresses: true } },
+      referred_by: { select: { id: true, name: true, referral_code: true, phone_country: true, phone_number: true } },
+      city_ref: { select: { id: true, code: true, name_fr: true, name_ar: true } },
+      _count: { select: { orders: true, addresses: true, referrals_as_referrer: true } },
     },
   });
 
@@ -144,6 +180,8 @@ module.exports = {
   LIST_SELECT,
   findManyForList,
   countForList,
+  findAllForExport,
+  findCityName,
   findByIdWithIncludes,
   findActiveByPhone,
   findByReferralCode,

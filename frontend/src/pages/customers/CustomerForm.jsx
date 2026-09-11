@@ -83,7 +83,7 @@ export default function CustomerForm() {
           city:         form.city.trim() || null,
           lat:          form.lat  === '' ? null : Number(form.lat),
           lng:          form.lng  === '' ? null : Number(form.lng),
-          is_active:    form.is_active,
+          // Statut : uniquement via Bloquer / Débloquer (motif obligatoire, audit_logs)
         });
         toast.success('Client mis à jour');
         navigate(`/customers/${id}`);
@@ -222,21 +222,15 @@ export default function CustomerForm() {
             </div>
           )}
 
-          {/* Active toggle (edit only) */}
+          {/* Statut (lecture seule) : blocage / déblocage avec motif depuis la fiche client */}
           {isEdit && (
-            <div className={`flex items-center justify-between p-4 rounded-2xl border transition-colors ${form.is_active ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-              <div>
-                <p className={`text-sm font-semibold ${form.is_active ? 'text-emerald-800' : 'text-amber-800'}`}>
-                  {form.is_active ? 'Compte actif' : 'Compte bloqué'}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {form.is_active ? 'Le client peut se connecter à l\'application' : 'Le client ne peut pas se connecter'}
-                </p>
-              </div>
-              <div onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
-                className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${form.is_active ? 'bg-emerald-500' : 'bg-amber-400'}`}>
-                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.is_active ? 'translate-x-6' : ''}`} />
-              </div>
+            <div className={`p-4 rounded-2xl border ${form.is_active ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+              <p className={`text-sm font-semibold ${form.is_active ? 'text-emerald-800' : 'text-amber-800'}`}>
+                {form.is_active ? 'Compte actif' : 'Compte bloqué'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Le statut se modifie via les actions « Bloquer » / « Débloquer » de la fiche client (motif obligatoire, tracé dans le journal d'audit).
+              </p>
             </div>
           )}
 

@@ -112,8 +112,17 @@ export default function CustomerList() {
   const reset = () => { setFilters(FILTERS_INIT); setApplied(FILTERS_INIT); setSearchInput(''); setPage(1); };
 
   const act = async (id, fn, successMsg) => {
+    let reason;
+    if (fn === blockCustomer || fn === unblockCustomer) {
+      // Motif obligatoire pour le blocage, recommandé pour le déblocage (conservé dans audit_logs)
+      const blocking = fn === blockCustomer;
+      const input = window.prompt(blocking ? 'Motif du blocage (obligatoire) : fraude, litige, abus…' : 'Motif du déblocage (recommandé) :', '');
+      if (input === null) return;
+      if (blocking && !input.trim()) { toast.error('Le motif du blocage est obligatoire.'); return; }
+      reason = input.trim() || undefined;
+    }
     setActing(a => ({ ...a, [id]: true }));
-    try { await fn(id); toast.success(successMsg); load(); loadStats(); }
+    try { await (reason !== undefined ? fn(id, reason) : fn(id)); toast.success(successMsg); load(); loadStats(); }
     catch (err) { toast.error(getErrorMessage(err)); }
     finally { setActing(a => ({ ...a, [id]: false })); }
   };

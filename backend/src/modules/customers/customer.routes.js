@@ -14,10 +14,13 @@ const canUpdate = perm.permAny(['customers.update',  'dashboard.view']);
 const canDelete = perm.permAny(['customers.delete',  'dashboard.view']);
 
 router.get('/',    canView,   ctrl.index.bind(ctrl));
+router.get('/export', canView, ctrl.exportList.bind(ctrl));
 router.post('/',   canCreate, createValidator, ctrl.store.bind(ctrl));
 
 router.put('/:id/block',   canUpdate, ...uuidParam, ctrl.block.bind(ctrl));
 router.put('/:id/unblock', canUpdate, ...uuidParam, ctrl.unblock.bind(ctrl));
+router.get('/:id/block-history', canView, ...uuidParam, ctrl.blockHistory.bind(ctrl));
+router.get('/:id/orders', perm.permAny(['customers.view', 'orders.view', 'dashboard.view']), ...uuidParam, ctrl.orders.bind(ctrl));
 
 router.use('/:customer_id/addresses', addressNestedRouter);
 

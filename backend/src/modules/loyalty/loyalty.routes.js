@@ -1,31 +1,41 @@
 const { Router } = require('express');
-const svc  = require('./loyalty.service');
 const resp = require('../../utils/response');
 const auth = require('../../middlewares/auth.middleware');
 const perm = require('../../middlewares/permission.middleware');
 const customerAuth = require('../../middlewares/customer_auth.middleware');
+const ctrl = require('./loyalty.controller');
+
+/**
+ * /api/loyalty — back-office Fidélité (+ une route app mobile historique).
+ *
+ *  Référentiels         GET    /meta
+ *  Règles de points     GET    /points-rules            (points_rules.view)
+ *                       GET    /points-rules/:id
+ *                       POST   /points-rules            (points_rules.manage)
+ *                       PUT    /points-rules/:id
+ *                       PATCH  /points-rules/:id/activate | /deactivate
+ *                       DELETE /points-rules/:id        (soft-delete)
+ *  Livre des points     GET    /ledger                  (points_ledger.view) — keyset ?cursor=
+ *                       GET    /ledger/export
+ *                       GET    /ledger/:id
+ *  Parrainage config    GET    /referral-configs        (referrals.view)
+ *                       GET    /referral-configs/:id
+ *                       POST   /referral-configs        (referrals.manage)
+ *                       PUT    /referral-configs/:id    (refusé si déjà référencée)
+ *                       PATCH  /referral-configs/:id/activate | /deactivate
+ *  Parrainage suivi     GET    /referrals               (referrals.view)
+ *                       GET    /referrals/export
+ *                       GET    /referrals/:id
+ *  Fiche client         GET    /customers/:id/ledger    (customers.view | points_ledger.view)
+ *                       GET    /customers/:id/ledger/export
+ *                       POST   /customers/:id/adjust    (customers.points.adjust | customers.update)
+ *                       GET    /customers/:id/referrals (customers.view | referrals.view)
+ */
 
 const router = Router();
-const E = (res, next, e) => e.statusCode ? resp.error(res, e.message, e.statusCode) : next(e);
+const E = (res, next, e) => (e.statusCode ? resp.error(res, e.message, e.statusCode) : next(e));
 
-// ── Admin: list referrals ──────────────────────────────────────────────────────
-router.get('/referrals', auth, perm.permAny(['dashboard.view']), async (req, res, next) => {
-  try {
-    const prisma = require('../../config/database');
-    const data = await prisma.referral.findMany({
-      include: {
-        referrer: { select: { id: true, name: true, phone_number: true } },
-        referee:  { select: { id: true, name: true, phone_number: true } },
-        status:   { select: { code: true, name_fr: true } },
-      },
-      orderBy: { created_at: 'desc' },
-      take: 100,
-    });
-    resp.success(res, data);
-  } catch(e) { E(res, next, e); }
-});
-
-// ── Customer: my referrals ─────────────────────────────────────────────────────
+// ── App mobile : mes parrainages (inchangé) ────────────────────────────────────
 router.get('/my-referrals', customerAuth, async (req, res, next) => {
   try {
     const prisma = require('../../config/database');
@@ -33,123 +43,67 @@ router.get('/my-referrals', customerAuth, async (req, res, next) => {
       where: { OR: [{ referrer_id: req.customerId }, { referee_id: req.customerId }] },
       include: {
         referrer: { select: { id: true, name: true } },
-        referee:  { select: { id: true, name: true } },
-        status:   { select: { code: true, name_fr: true } },
+        referee: { select: { id: true, name: true } },
+        status: { select: { code: true, name_fr: true } },
       },
       orderBy: { created_at: 'desc' },
     });
     resp.success(res, data);
-  } catch(e) { E(res, next, e); }
-});
-
-// ── Admin: grand-livre de points d'un client ───────────────────────────────────
-router.get('/customers/:id/ledger', auth, perm.permAny(['dashboard.view']), async (req, res, next) => {
-  try {
-    const prisma = require('../../config/database');
-    const { id } = req.params;
-    const page  = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25));
-    const skip  = (page - 1) * limit;
-
-    const [items, total] = await Promise.all([
-      prisma.pointsTransaction.findMany({
-        where: { customer_id: id },
-        orderBy: { created_at: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.pointsTransaction.count({ where: { customer_id: id } }),
-    ]);
-
-    resp.success(res, {
-      items,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 0 },
-    });
   } catch (e) { E(res, next, e); }
 });
 
-// ── Admin: ajustement manuel du solde de points ────────────────────────────────
-router.post('/customers/:id/adjust', auth, perm.permAny(['customers.points.adjust']), async (req, res, next) => {
-  try {
-    const prisma = require('../../config/database');
-    const { id } = req.params;
-    const points = Number(req.body.points);
-    const label  = (req.body.label && String(req.body.label).trim()) || '';
+// ── Back-office ────────────────────────────────────────────────────────────────
+const bo = Router();
+bo.use(auth);
 
-    if (!Number.isFinite(points) || points === 0) {
-      return resp.error(res, 'Montant de points invalide', 400);
-    }
-    if (!label) {
-      return resp.error(res, 'Motif requis', 400);
-    }
+const canRulesView = perm.permAny(['points_rules.view', 'points_rules.manage']);
+const canRulesManage = perm('points_rules.manage');
+const canLedgerView = perm('points_ledger.view');
+const canRefView = perm.permAny(['referrals.view', 'referrals.manage']);
+const canRefManage = perm('referrals.manage');
+const canCustomerLedger = perm.permAny(['customers.view', 'points_ledger.view', 'dashboard.view']);
+const canCustomerAdjust = perm.permAny(['customers.points.adjust', 'customers.update']);
+const canCustomerReferrals = perm.permAny(['customers.view', 'referrals.view', 'dashboard.view']);
+const canMeta = perm.permAny([
+  'points_rules.view', 'points_rules.manage', 'points_ledger.view', 'referrals.view', 'referrals.manage',
+  'customers.view', 'dashboard.view',
+]);
 
-    const customer = await prisma.customer.findUnique({
-      where: { id },
-      select: { id: true, points_balance: true, is_deleted: true },
-    });
-    if (!customer || customer.is_deleted) return resp.error(res, 'Client introuvable', 404);
+// Erreurs métier { statusCode, message } → réponse JSON propre
+const wrap = (fn) => async (req, res, next) => {
+  try { await fn.call(ctrl, req, res, (err) => (err && err.statusCode ? resp.error(res, err.message, err.statusCode) : next(err))); } catch (e) { E(res, next, e); }
+};
 
-    const newBalance = Number(customer.points_balance ?? 0) + points;
-    if (newBalance < 0) return resp.error(res, 'Solde de points insuffisant pour cet ajustement', 400);
+bo.get('/meta', canMeta, wrap(ctrl.meta));
 
-    const [updated, txn] = await prisma.$transaction(async (tx) => {
-      const upd = await tx.customer.update({
-        where: { id },
-        data: {
-          points_balance: { increment: points },
-          // points_lifetime ne compte que les points gagnés, jamais les retraits
-          ...(points > 0 ? { points_lifetime: { increment: points } } : {}),
-        },
-      });
+bo.get('/points-rules', canRulesView, wrap(ctrl.rulesIndex));
+bo.get('/points-rules/:id', canRulesView, wrap(ctrl.rulesShow));
+bo.post('/points-rules', canRulesManage, wrap(ctrl.rulesStore));
+bo.put('/points-rules/:id', canRulesManage, wrap(ctrl.rulesUpdate));
+bo.patch('/points-rules/:id/activate', canRulesManage, wrap(ctrl.rulesActivate));
+bo.patch('/points-rules/:id/deactivate', canRulesManage, wrap(ctrl.rulesDeactivate));
+bo.delete('/points-rules/:id', canRulesManage, wrap(ctrl.rulesDestroy));
 
-      const created = await tx.pointsTransaction.create({
-        data: {
-          customer_id: id,
-          order_id: null,
-          type: 'manual_adjustment',
-          points,
-          balance_after: upd.points_balance,
-          label,
-        },
-      });
+bo.get('/ledger', canLedgerView, wrap(ctrl.ledgerIndex));
+bo.get('/ledger/export', canLedgerView, wrap(ctrl.ledgerExport));
+bo.get('/ledger/:id', canLedgerView, wrap(ctrl.ledgerShow));
 
-      return [upd, created];
-    });
+bo.get('/referral-configs', canRefView, wrap(ctrl.configsIndex));
+bo.get('/referral-configs/:id', canRefView, wrap(ctrl.configsShow));
+bo.post('/referral-configs', canRefManage, wrap(ctrl.configsStore));
+bo.put('/referral-configs/:id', canRefManage, wrap(ctrl.configsUpdate));
+bo.patch('/referral-configs/:id/activate', canRefManage, wrap(ctrl.configsActivate));
+bo.patch('/referral-configs/:id/deactivate', canRefManage, wrap(ctrl.configsDeactivate));
 
-    resp.success(res, { points_balance: updated.points_balance, transaction: txn }, 'Solde ajusté');
-  } catch (e) { E(res, next, e); }
-});
+bo.get('/referrals', canRefView, wrap(ctrl.referralsIndex));
+bo.get('/referrals/export', canRefView, wrap(ctrl.referralsExport));
+bo.get('/referrals/:id', canRefView, wrap(ctrl.referralsShow));
 
-// ── Admin: parrainages d'un client (parrain + filleuls) ────────────────────────
-router.get('/customers/:id/referrals', auth, perm.permAny(['dashboard.view']), async (req, res, next) => {
-  try {
-    const prisma = require('../../config/database');
-    const { id } = req.params;
+bo.get('/customers/:id/ledger', canCustomerLedger, wrap(ctrl.customerLedger));
+bo.get('/customers/:id/ledger/export', canCustomerLedger, wrap(ctrl.customerLedgerExport));
+bo.post('/customers/:id/adjust', canCustomerAdjust, wrap(ctrl.customerAdjust));
+bo.get('/customers/:id/referrals', canCustomerReferrals, wrap(ctrl.customerReferrals));
 
-    const [customer, filleuls] = await Promise.all([
-      prisma.customer.findUnique({
-        where: { id },
-        select: {
-          referred_by: { select: { id: true, name: true, phone_number: true, referral_code: true } },
-        },
-      }),
-      prisma.referral.findMany({
-        where: { referrer_id: id },
-        include: {
-          referee: { select: { id: true, name: true, phone_number: true } },
-          status:  { select: { code: true, name_fr: true } },
-        },
-        orderBy: { created_at: 'desc' },
-      }),
-    ]);
-
-    if (!customer) return resp.error(res, 'Client introuvable', 404);
-
-    resp.success(res, {
-      parrain: customer.referred_by ?? null,
-      filleuls,
-    });
-  } catch (e) { E(res, next, e); }
-});
+router.use(bo);
 
 module.exports = router;

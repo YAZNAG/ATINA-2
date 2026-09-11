@@ -16,6 +16,7 @@ const createValidator = [
   body('preferred_lang').optional().isIn(['fr', 'ar']).withMessage('Langue : fr ou ar'),
   body('city').optional({ values: 'null' }).isLength({ max: 100 }).withMessage('Ville trop longue'),
   body('referred_by_id').optional({ values: 'null' }).isUUID().withMessage('Parrain invalide'),
+  body('city_id').optional({ values: 'falsy' }).isUUID().withMessage('Ville invalide'),
   validate,
 ];
 
@@ -40,6 +41,7 @@ const updateValidator = [
   body('name').optional().notEmpty().isLength({ max: 150 }),
   body('preferred_lang').optional().isIn(['fr', 'ar']),
   body('city').optional({ values: 'null' }),
+  body('city_id').optional({ values: 'falsy' }).isUUID().withMessage('Ville invalide'),
   ...latLngValidators,
   body('is_active').optional().isBoolean(),
   validate,

@@ -64,7 +64,7 @@ class CategoryService {
     if (!item) throw { statusCode: 404, message: 'Catégorie introuvable' };
     const articleCount = await repo.countArticles(id);
     if (articleCount > 0) {
-      throw { statusCode: 400, message: 'Impossible de supprimer : des articles sont encore rattachés à cette catégorie' };
+      throw { statusCode: 400, message: `Impossible de supprimer : ${articleCount} produit(s) sont rattachés à cette catégorie` };
     }
     await repo.softDelete(id);
     removeCategoryMediaFolder(id);

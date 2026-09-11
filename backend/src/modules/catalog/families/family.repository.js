@@ -52,7 +52,7 @@ const countSubfamilies = (familyId) =>
   prisma.skuSubFamily.count({ where: { family_id: familyId, is_deleted: false } });
 
 const countArticles = (familyId) =>
-  prisma.article.count({ where: { sku_family_id: familyId, is_deleted: false } });
+  prisma.sku.count({ where: { sku_family_id: familyId, is_deleted: false } });
 
 const create = (data) => prisma.skuFamily.create({ data });
 const update = (id, data) => prisma.skuFamily.update({ where: { id }, data });

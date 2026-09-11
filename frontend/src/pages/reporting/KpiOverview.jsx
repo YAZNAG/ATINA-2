@@ -409,7 +409,7 @@ function GlobalTab({ d, drill, drillOrders, goTab }) {
           sub={`${fmtInt(k.stock_rupture_skus)} SKU distinct(s) · ${fmtInt(k.stock_alerts)} alerte(s) sous seuil`}
           icon={PackageX}
           tone="red"
-          onClick={() => drill('/stock/levels', { tab: 'alerts' })}
+          onClick={() => drill('/stock/levels', { tab: 'alertes' })}
           title="Couples node × SKU dont la quantité disponible est ≤ 0"
         />
         <KpiCard label="Taux d'annulation" value={fmtPct(k.cancel_rate)} sub={`${fmtInt(k.cancelled)} commande(s) annulée(s)`} icon={Ban} tone="red" onClick={() => drillOrders({ status: 'cancelled' })} />

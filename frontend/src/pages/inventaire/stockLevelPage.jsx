@@ -710,7 +710,11 @@ export default function StockLevelsPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('stock.manage');
 
-  const initialTab = TABS.some((t) => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'niveaux';
+  const urlSku = searchParams.get('sku_id');
+  const urlNode = searchParams.get('node_id');
+  const initialTab = TABS.some((t) => t.key === searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : (urlSku && urlNode ? 'detail' : 'niveaux');
   const [activeTab, setActiveTab] = useState(initialTab);
   const [nodeFilter, setNodeFilter] = useState(searchParams.get('node_id') || '');
   const [familyFilter, setFamilyFilter] = useState('');
@@ -728,7 +732,7 @@ export default function StockLevelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [selectedKey, setSelectedKey] = useState(null);
+  const [selectedKey, setSelectedKey] = useState(urlSku && urlNode ? keyOf(urlNode, urlSku) : null);
   const [adjustInitial, setAdjustInitial] = useState(null);
 
   useEffect(() => {

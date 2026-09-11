@@ -58,7 +58,7 @@ const findByCode = (code, excludeId) =>
 const findFamilyById = (id) => prisma.skuFamily.findFirst({ where: { id, deleted_at: null } });
 
 const countArticles = (subfamilyId) =>
-  prisma.article.count({ where: { sku_subfamily_id: subfamilyId, is_deleted: false } });
+  prisma.sku.count({ where: { sku_subfamily_id: subfamilyId, is_deleted: false } });
 
 const create = (data) => prisma.skuSubFamily.create({ data, include: INCLUDE });
 const update = (id, data) => prisma.skuSubFamily.update({ where: { id }, data, include: INCLUDE });

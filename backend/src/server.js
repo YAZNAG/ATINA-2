@@ -105,6 +105,14 @@ async function start() {
   setupPickerSocket(httpServer);
   setupSupportSocket(httpServer);
 
+  // Disponibilité des packs en temps réel (WF #23) : PG NOTIFY → Socket.IO /socket/packs
+  const { Server: PacksIoServer } = require('socket.io');
+  const packsIo = new PacksIoServer(httpServer, { cors: { origin: '*' }, path: '/socket/packs' });
+  packsIo.on('connection', (socket) => {
+    socket.on('join_node', (nodeId) => { if (nodeId) socket.join(`node:${nodeId}`); });
+  });
+  require('./socket/packAvailability.listener').init(packsIo);
+
   const LAN = getLanIP();
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ Backend démarré sur http://0.0.0.0:${PORT}`);

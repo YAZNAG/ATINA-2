@@ -108,6 +108,20 @@ import OrdersPage from '../pages/commandes/OrdersPage';
 import DeliverySlotsPage from '../pages/commandes/DeliverySlotsPage';
 import CustomersPage from '../pages/clients/customersPage';
 import PacksPage from '../pages/offres/packs/PacksPage';
+// ── Conformité classeur Excel (sept. 2026) ──
+import StockDistributionPage from '../pages/reporting/StockDistributionPage';
+import StockCountPage from '../pages/inventaire/StockCountPage';
+import SuppliersPage from '../pages/purchasing/SuppliersPage';
+import PurchaseOrdersPage from '../pages/purchasing/PurchaseOrdersPage';
+import QualityChecksPage from '../pages/quality/QualityChecksPage';
+import QualityCheckDetailPage from '../pages/quality/QualityCheckDetailPage';
+import FlashSalesPage from '../pages/offres/flasheSales/FlashSalesPage';
+import CouponsPage from '../pages/offres/coupons/CouponsPage';
+import GamesPage from '../pages/offres/gamification/GamesPage';
+import GameDetailPage from '../pages/offres/gamification/GameDetailPage';
+import PointsExchangePage from '../pages/offres/pointsExchange/PointsExchangePage';
+import PointsConfigPage from '../pages/offres/loyalty/PointsConfigPage';
+import ReferralPage from '../pages/offres/loyalty/ReferralPage';
 
 export default function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
@@ -253,6 +267,21 @@ export default function AppRoutes() {
           <Route path="/orders/delivery-slots"      element={<DeliverySlotsPage />} />
           <Route path="/customers"      element={<CustomersPage />} />
           <Route path="/offres/packs"      element={<PacksPage />} />
+
+          {/* ── Conformité classeur Excel ── */}
+          <Route path="/reporting/stock-distribution" element={<StockDistributionPage />} />
+          <Route path="/stock/counts"                 element={<StockCountPage />} />
+          <Route path="/purchasing/suppliers"         element={<SuppliersPage />} />
+          <Route path="/purchasing/purchase-orders"   element={<PurchaseOrdersPage />} />
+          <Route path="/quality/checks"               element={<QualityChecksPage />} />
+          <Route path="/quality/checks/:id"           element={<QualityCheckDetailPage />} />
+          <Route path="/offres/flash-sales"           element={<FlashSalesPage />} />
+          <Route path="/offres/codes-promo"           element={<CouponsPage />} />
+          <Route path="/offres/gamification"          element={<GamesPage />} />
+          <Route path="/offres/gamification/:id"      element={<GameDetailPage />} />
+          <Route path="/offres/points-exchange"       element={<PointsExchangePage />} />
+          <Route path="/offres/points"                element={<PointsConfigPage />} />
+          <Route path="/offres/parrainage"            element={<ReferralPage />} />
           
         </Route>
       </Route>

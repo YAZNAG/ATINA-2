@@ -268,7 +268,7 @@ async function getCompositionLock(packId, db = prisma) {
       name: fs.name_fr || 'Vente flash',
       state,
       message: `La vente flash « ${fs.name_fr || fs.id} » (${state}) cible ce pack : son plafond a été validé sur la composition actuelle.`,
-      link: `/offres/promotions?flash_sale_id=${fs.id}`,
+      link: `/offres/flash-sales?id=${fs.id}`,
     });
   }
 

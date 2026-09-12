@@ -14,13 +14,13 @@ class FamilyController {
   }
   async store(req, res, next) {
     try {
-      const data = await service.create(req.body);
+      const data = await service.create(req.body, req.files);
       return response.success(res, data, 'Famille créée', 201);
     } catch (err) { next(err); }
   }
   async update(req, res, next) {
     try {
-      const data = await service.update(req.params.id, req.body);
+      const data = await service.update(req.params.id, req.body, req.files);
       return response.success(res, data, 'Famille mise à jour');
     } catch (err) { next(err); }
   }

@@ -18,7 +18,13 @@ const LIST_INCLUDE = {
   user_roles: {
     include: { role: { select: { id: true, code: true, name: true, name_fr: true, name_ar: true, is_active: true, status: true } } },
   },
-  backoffice_admin: { select: { id: true, node_id: true, created_by: true, created_at: true } },
+  // US-124 : périmètre node du compte (NULL = tous les nœuds)
+  backoffice_admin: {
+    select: {
+      id: true, node_id: true, created_by: true, created_at: true,
+      node: { select: { id: true, code: true, name_fr: true, name_ar: true } },
+    },
+  },
 };
 
 /** Retire le hash et expose un statut lisible (active / inactive / deleted). */
@@ -30,6 +36,9 @@ const safe = (user) => {
     ...u,
     account_status,
     roles: (u.user_roles || []).map((ur) => ur.role),
+    // US-124 : périmètre node, remonté à plat pour la fiche compte
+    node_id: u.backoffice_admin?.node_id ?? null,
+    node: u.backoffice_admin?.node ?? null,
   };
 };
 
@@ -37,6 +46,13 @@ const toIds = (v) => {
   if (v === undefined || v === null || v === '') return [];
   const arr = Array.isArray(v) ? v : [v];
   return [...new Set(arr.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+};
+
+/** Périmètre node : '' / null / 'all' = tous les nœuds. */
+const normNodeId = (v) => {
+  if (v === undefined) return undefined;
+  const s = String(v ?? '').trim();
+  return s === '' || s === 'all' || s === 'null' ? null : s;
 };
 
 const normEmail = (e) => String(e ?? '').trim().toLowerCase();
@@ -164,6 +180,14 @@ class UserService {
     if (others === 0) throw bad('Impossible : ce compte est le dernier super-admin actif.', 403);
   }
 
+  /** Le périmètre doit désigner un nœud existant ; null = tous les nœuds. */
+  async _assertNode(node_id) {
+    if (!node_id) return null;
+    const node = await prisma.node.findFirst({ where: { id: node_id, is_deleted: false }, select: { id: true } });
+    if (!node) throw bad('Nœud introuvable pour le périmètre du compte', 400);
+    return node.id;
+  }
+
   async create(body = {}, req = null) {
     const full_name = String(body.full_name ?? '').trim();
     const email = normEmail(body.email);
@@ -178,6 +202,7 @@ class UserService {
     await this._assertEmailUnique(email);
     await this._assertPhoneUnique(phone);
     const roles = await this._assertAssignableRoles(roleIds);
+    const node_id = await this._assertNode(normNodeId(body.node_id));
 
     const password_hash = await hash(body.password);
     const created = await prisma.$transaction(async (tx) => {
@@ -185,12 +210,18 @@ class UserService {
         data: { full_name, email, phone, password_hash, status, is_active: status === 'active' },
       });
       await tx.userRole.createMany({ data: roleIds.map((role_id) => ({ user_id: user.id, role_id })) });
-      await tx.backofficeAdmin.create({ data: { user_id: user.id, created_by: req?.user?.id ?? null } });
+      await tx.backofficeAdmin.create({
+        data: { user_id: user.id, node_id, created_by: req?.user?.id ?? null },
+      });
       await audit(req, {
         action: 'CREATE',
         resource: RESOURCE,
         resource_id: user.id,
-        new_values: { full_name, email, phone, status, roles: roles.map((r) => r.code) },
+        new_values: {
+          full_name, email, phone, status,
+          roles: roles.map((r) => r.code),
+          node_id: node_id ?? 'tous les nœuds',
+        },
       }, tx);
       return user;
     });
@@ -230,6 +261,11 @@ class UserService {
       data.password_hash = await hash(body.password);
     }
 
+    let nextNodeId;
+    if (body.node_id !== undefined) {
+      nextNodeId = await this._assertNode(normNodeId(body.node_id));
+    }
+
     let nextRoleIds = null;
     let nextRoles = null;
     if (body.role_ids !== undefined || body.role_id !== undefined) {
@@ -253,12 +289,25 @@ class UserService {
       old_values.roles = target.user_roles.map((ur) => ur.role.code);
       new_values.roles = nextRoles.map((r) => r.code);
     }
+    const currentNodeId = target.backoffice_admin?.node_id ?? null;
+    const nodeChanged = nextNodeId !== undefined && nextNodeId !== currentNodeId;
+    if (nodeChanged) {
+      old_values.node_id = currentNodeId ?? 'tous les nœuds';
+      new_values.node_id = nextNodeId ?? 'tous les nœuds';
+    }
 
     await prisma.$transaction(async (tx) => {
       if (Object.keys(data).length) await tx.user.update({ where: { id: target.id }, data });
       if (rolesChanged) {
         await tx.userRole.deleteMany({ where: { user_id: target.id } });
         await tx.userRole.createMany({ data: nextRoleIds.map((role_id) => ({ user_id: target.id, role_id })) });
+      }
+      if (nodeChanged) {
+        await tx.backofficeAdmin.upsert({
+          where: { user_id: target.id },
+          update: { node_id: nextNodeId },
+          create: { user_id: target.id, node_id: nextNodeId, created_by: req?.user?.id ?? null },
+        });
       }
       if (Object.keys(new_values).length) {
         let action = 'UPDATE';

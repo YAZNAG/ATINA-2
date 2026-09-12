@@ -116,6 +116,30 @@ async function statusId(code) {
   return id;
 }
 
+// ── Référentiel notification_types (order, promo, points, gamification, system) ──
+// Le classeur impose un type référencé : l'event_code reste le détail technique.
+const TYPE_BY_EVENT = {
+  order_confirmed: 'order', order_ready: 'order', order_in_delivery: 'order',
+  order_delivered: 'order', order_cancelled: 'order', order_picked_up: 'order',
+  coupon_created: 'promo', flash_sale_created: 'promo', pack_created: 'promo',
+  wallet_credited: 'points', wallet_debited: 'points',
+  points_expiring: 'points', referral_reward: 'points',
+  game_unlocked: 'gamification',
+};
+
+const typeCache = new Map();
+async function typeId(event_code) {
+  const code = TYPE_BY_EVENT[event_code]
+    ?? (String(event_code).startsWith('order') ? 'order'
+      : String(event_code).startsWith('game') ? 'gamification'
+        : String(event_code).startsWith('points') ? 'points' : 'system');
+  if (typeCache.has(code)) return typeCache.get(code);
+  const row = await prisma.notificationType.findUnique({ where: { code }, select: { id: true } });
+  const id = row?.id ?? null;
+  if (id) typeCache.set(code, id);
+  return id;
+}
+
 /**
  * Envoi effectif (push / SMS). Le canal « app » est une notification in-app :
  * l'écriture en base vaut envoi. Brancher ici le push / SMS réel ; toute
@@ -157,11 +181,13 @@ async function notify({ customer_id, order_id, event_code, data = {}, channel_co
         order_id:   order_id  || null,
         channel_id: channel?.id || null,
         event_code,
+        type_id:    await typeId(event_code),
         title_fr,
         body_fr,
         title_ar,
         body_ar,
         status_id,
+        error_message: failure ? String(failure).slice(0, 1000) : null,
         metadata:   failure ? { ...data, delivery_error: failure } : data,
       },
     });
@@ -204,13 +230,15 @@ async function notifyAllCustomers(event_code, data = {}) {
     if (!customers.length) return;
 
     const { title_fr, body_fr, title_ar, body_ar } = render(event_code, data);
-    const sentId = await statusId('sent');
+    const [sentId, type_id] = await Promise.all([statusId('sent'), typeId(event_code)]);
 
+    // US-126 : envoi en masse — un statut collectif, aucun suivi individuel.
     await prisma.notification.createMany({
       data: customers.map(c => ({
         customer_id: c.id,
         channel_id:  channel?.id || null,
         event_code,
+        type_id,
         title_fr,
         body_fr,
         title_ar,

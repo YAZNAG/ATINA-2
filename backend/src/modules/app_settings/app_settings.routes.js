@@ -10,13 +10,17 @@ const perm = require('../../middlewares/permission.middleware');
 const router = Router();
 router.use(auth);
 
-// Paramètres applicatifs (clés GLOBALES : node_id IS NULL)
+// Paramètres applicatifs — liste de clés FERMÉE : édition de la valeur seulement (WF #41)
 router.get('/configs', perm('app_configs.view'), ctrl.configs.bind(ctrl));
 router.get('/configs/value-types', perm('app_configs.view'), ctrl.valueTypes.bind(ctrl));
-router.post('/configs', perm('app_configs.manage'), ctrl.createConfig.bind(ctrl));
 router.put('/configs/:id', perm('app_configs.manage'), ctrl.updateConfig.bind(ctrl));
 
-// Méthodes de paiement
+// Méthodes de paiement par node (WF #42) + synthèse méthodes × nodes (lecture seule)
+router.get('/nodes/:node_id/payment-methods', perm('app_configs.view'), ctrl.nodePaymentMethods.bind(ctrl));
+router.patch('/nodes/:node_id/payment-methods/:method_id', perm('app_configs.manage'), ctrl.setNodePaymentMethod.bind(ctrl));
+router.get('/payment-methods/matrix', perm('app_configs.view'), ctrl.paymentMatrix.bind(ctrl));
+
+// Catalogue des méthodes de paiement (référentiel)
 router.get('/payment-methods', perm('app_configs.view'), ctrl.paymentMethods.bind(ctrl));
 router.post('/payment-methods', perm('app_configs.manage'), ctrl.createPaymentMethod.bind(ctrl));
 router.put('/payment-methods/:id', perm('app_configs.manage'), ctrl.updatePaymentMethod.bind(ctrl));

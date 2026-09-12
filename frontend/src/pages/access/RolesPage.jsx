@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getRoles, createRole, updateRole, deleteRole, activateRole, deactivateRole } from '../../api/roles.api';
+import { getRoles, createRole, updateRole, deleteRole, activateRole, deactivateRole, duplicateRole } from '../../api/roles.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/helpers';
 
 const SVG = {
+  copy: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z',
   plus:   'M12 4v16m8-8H4',
   edit:   'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
   trash:  'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
@@ -166,6 +167,7 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [drawer, setDrawer]   = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [duplicatingId, setDuplicatingId] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
@@ -191,6 +193,21 @@ export default function RolesPage() {
       load();
     } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setTogglingId(null); }
+  };
+
+  /** US-121 : duplique le rôle avec sa carte de permissions ; la copie est inactive. */
+  const handleDuplicate = async (r) => {
+    const code = window.prompt(
+      `Code du nouveau rôle (copie de « ${r.name_fr || r.name} ») :`,
+      `${r.code}_copie`,
+    );
+    if (!code) return;
+    setDuplicatingId(r.id);
+    try {
+      await duplicateRole(r.id, { code: code.trim().toLowerCase() });
+      toast.success('Rôle dupliqué (inactif) — activez-le après relecture des droits');
+      load();
+    } catch (err) { toast.error(getErrorMessage(err)); } finally { setDuplicatingId(null); }
   };
 
   const visibleRoles = roles.filter((r) => {
@@ -300,6 +317,16 @@ export default function RolesPage() {
                         {hasPermission('roles.update') && (
                           <button onClick={() => setDrawer(r)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg" title="Modifier">
                             <Icon d={SVG.edit} className="w-4 h-4" />
+                          </button>
+                        )}
+                        {hasPermission('roles.create') && (
+                          <button
+                            onClick={() => handleDuplicate(r)}
+                            disabled={duplicatingId === r.id}
+                            title="Dupliquer ce rôle et sa carte de permissions"
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50"
+                          >
+                            <Icon d={SVG.copy} className="w-4 h-4" />
                           </button>
                         )}
                         {hasPermission('roles.update') && (

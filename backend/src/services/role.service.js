@@ -73,6 +73,7 @@ class RoleService {
       description: trimOrNull(body.description) ?? null,
       status: active ? 'active' : 'inactive',
       is_active: active,
+      created_by: req?.user?.id ?? null,
     };
     const permission_ids = Array.isArray(body.permission_ids) ? body.permission_ids.map(Number) : [];
     let role = await roleRepository.create(data);
@@ -204,6 +205,46 @@ class RoleService {
       });
     }
     return present(updated);
+  }
+
+  /**
+   * US-121 : dupliquer un rôle existant — même carte de permissions, nouveau
+   * code. Le rôle créé est toujours inactif tant qu'il n'est pas relu.
+   */
+  async duplicate(id, body = {}, req = null) {
+    const source = await roleRepository.findById(Number(id));
+    if (!source) throw bad('Rôle introuvable', 404);
+
+    const code = String(body.code ?? `${source.code}_copie`).trim().toLowerCase();
+    if (!/^[a-z0-9_]+$/.test(code)) throw bad('Code invalide : minuscules, chiffres et tirets bas uniquement');
+    if (await roleRepository.findByCode(code)) throw bad('Ce code de rôle est déjà utilisé', 409);
+
+    const name_fr = trimOrNull(body.name_fr) ?? `${source.name_fr || source.name} (copie)`;
+    const created = await roleRepository.create({
+      code,
+      name: name_fr,
+      name_fr,
+      name_ar: trimOrNull(body.name_ar) ?? source.name_ar,
+      description: trimOrNull(body.description) ?? source.description,
+      // Un rôle système reste système : la copie, elle, est un rôle ordinaire.
+      status: 'inactive',
+      is_active: false,
+      created_by: req?.user?.id ?? null,
+    });
+    const permission_ids = source.role_permissions.map((rp) => rp.permission_id);
+    const role = permission_ids.length
+      ? await roleRepository.setPermissions(created.id, permission_ids)
+      : created;
+    await audit(req, {
+      action: 'CREATE',
+      resource: RESOURCE,
+      resource_id: role.id,
+      new_values: {
+        code, name_fr, duplicated_from: source.code,
+        permissions: source.role_permissions.map((rp) => rp.permission.code),
+      },
+    });
+    return present(role);
   }
 
   async getRolePermissions(roleId) {

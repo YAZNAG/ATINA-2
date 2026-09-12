@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const repo = require('./category.repository');
 const { persistCategoryFiles, removeCategoryMediaFolder } = require('../../../services/familyMedia.service');
 
@@ -33,16 +34,16 @@ class CategoryService {
 
   async create(body, files) {
     const payload = pickCategoryPayload(body);
+    // US-120 : l'image est obligatoire, la ligne n'existe pas sans elle.
+    if (!files?.image?.[0]?.buffer) {
+      throw { statusCode: 422, message: 'Image requise : une catégorie doit avoir un visuel' };
+    }
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    let row = await repo.create(payload);
-    // persistCategoryFiles renvoyait { image_path, icon_path } avant ;
-    // le modèle n'a plus qu'image_url — adapte selon ta fonction de service réelle.
-    const paths = persistCategoryFiles(row.id, files, null);
-    if (paths.image_path) {
-      row = await repo.update(row.id, { image_url: paths.image_path });
-    }
-    return row;
+    // L'identifiant est généré avant l'écriture : il nomme le dossier de l'image.
+    const id = crypto.randomUUID();
+    const paths = persistCategoryFiles(id, files, null);
+    return repo.create({ ...payload, id, image_url: paths.image_path });
   }
 
   async update(id, body, files) {
@@ -56,6 +57,10 @@ class CategoryService {
     const paths = persistCategoryFiles(id, files, item);
     const updateData = { ...payload };
     if (paths.image_path) updateData.image_url = paths.image_path;
+    // US-120 : on remplace une image, on ne la retire jamais.
+    if (!paths.image_path && !item.image_url) {
+      throw { statusCode: 422, message: 'Image requise : une catégorie doit avoir un visuel' };
+    }
     return repo.update(id, updateData);
   }
 

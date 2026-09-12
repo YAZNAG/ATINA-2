@@ -15,6 +15,7 @@
  *                          (app_configs, défaut 30 min) ou dont le créneau de livraison a commencé.
  */
 const prisma = require('../../config/database');
+const platformConfig = require('../../utils/platform-config');
 const {
   Prisma, TZ, num, n0, resolveRange, scopeFilters, statusCodeOrNull, andSql, periodOut,
 } = require('./reporting.helpers');
@@ -120,16 +121,19 @@ async function ordersTrend(f) {
   const gran = f.range.granularity;
   const step = `1 ${gran}`;
   const fmt = BUCKET_FORMAT[gran];
+  // US-118 : la semaine commence au jour configuré (date_trunc('week') = lundi).
+  const dow = gran === 'week' ? await platformConfig.weekStartDow() : 1;
+  const shift = gran === 'week' ? (dow + 6) % 7 : 0;   // décalage en jours depuis le lundi ISO
   const rows = await prisma.$queryRaw`
     WITH buckets AS (
       SELECT generate_series(
-        date_trunc(${gran}, ${f.range.start.toISOString()}::timestamptz AT TIME ZONE ${TZ}),
-        date_trunc(${gran}, (${f.range.end.toISOString()}::timestamptz - interval '1 second') AT TIME ZONE ${TZ}),
+        date_trunc(${gran}, ${f.range.start.toISOString()}::timestamptz AT TIME ZONE ${TZ} - (${shift}::int * interval '1 day')) + (${shift}::int * interval '1 day'),
+        date_trunc(${gran}, (${f.range.end.toISOString()}::timestamptz - interval '1 second') AT TIME ZONE ${TZ} - (${shift}::int * interval '1 day')) + (${shift}::int * interval '1 day'),
         ${step}::interval
       ) AS b
     ),
     agg AS (
-      SELECT date_trunc(${gran}, o.created_at AT TIME ZONE ${TZ}) AS b,
+      SELECT date_trunc(${gran}, (o.created_at AT TIME ZONE ${TZ}) - (${shift}::int * interval '1 day')) + (${shift}::int * interval '1 day') AS b,
              COUNT(*)::int AS orders,
              COUNT(*) FILTER (WHERE lower(os.code) = 'cancelled')::int AS cancelled,
              COALESCE(SUM(o.total_ttc) FILTER (WHERE ${notExcluded}), 0)::float8 AS revenue
@@ -188,7 +192,7 @@ async function ordersByNode(f) {
 async function lateMinutes() {
   try {
     const cfg = await prisma.appConfig.findFirst({
-      where: { config_key: 'picking_late_minutes', node_id: null },
+      where: { config_key: 'picking_late_minutes' },
       select: { config_value: true },
     });
     const v = Number(cfg?.config_value);

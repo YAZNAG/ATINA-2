@@ -19,15 +19,21 @@ export const exportNotificationLogs = (params) => api.get(`${a}/notifications/ex
 
 const s = '/admin/settings';
 
+// Liste de clés FERMÉE (WF #41) : seule la valeur d'un paramètre existant se modifie.
 export const getAppConfigs = (params) => api.get(`${s}/configs`, { params });
 export const getConfigValueTypes = () => api.get(`${s}/configs/value-types`);
-export const createAppConfig = (data) => api.post(`${s}/configs`, data);
 export const updateAppConfig = (id, data) => api.put(`${s}/configs/${id}`, data);
 
 export const getAdminPaymentMethods = () => api.get(`${s}/payment-methods`);
 export const createAdminPaymentMethod = (data) => api.post(`${s}/payment-methods`, data);
 export const updateAdminPaymentMethod = (id, data) => api.put(`${s}/payment-methods/${id}`, data);
 export const toggleAdminPaymentMethod = (id) => api.patch(`${s}/payment-methods/${id}/toggle-active`);
+
+// Méthodes de paiement par node (WF #42) + synthèse méthodes × nodes
+export const getNodePaymentMethods = (nodeId) => api.get(`${s}/nodes/${nodeId}/payment-methods`);
+export const setNodePaymentMethod = (nodeId, methodId, is_active) =>
+  api.patch(`${s}/nodes/${nodeId}/payment-methods/${methodId}`, { is_active });
+export const getPaymentMethodMatrix = () => api.get(`${s}/payment-methods/matrix`);
 
 export const getLookups = () => api.get(`${s}/lookups`);
 

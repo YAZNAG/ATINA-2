@@ -8,6 +8,7 @@ export const createRole = (data) => api.post('/roles', data);
 export const updateRole = (id, data) => api.put(`/roles/${id}`, data);
 export const activateRole = (id) => api.patch(`/roles/${id}/activate`);
 export const deactivateRole = (id) => api.patch(`/roles/${id}/deactivate`);
+export const duplicateRole = (id, data) => api.post(`/roles/${id}/duplicate`, data || {});
 export const deleteRole = (id) => api.delete(`/roles/${id}`);
 export const assignPermissions = (id, data) => api.post(`/roles/${id}/permissions`, data);
 export const getRolePermissions = (id) => api.get(`/roles/${id}/permissions`);

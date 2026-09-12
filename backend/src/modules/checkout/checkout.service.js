@@ -150,13 +150,14 @@ async function safeNodeSettings(node_id) {
 
 // ── META (filtré par node config) ────────────────────────────────────────────
 async function getMeta(node_id = null) {
-  const [allDeliveryTypes, allPaymentMethods, orderStatuses, paymentStatuses, appConfigs, nodeData] = await Promise.all([
+  const [allDeliveryTypes, allPaymentMethods, orderStatuses, paymentStatuses, appConfigs, nodeData, nodeMethodIds] = await Promise.all([
     repo.getAllDeliveryTypes(),
     repo.getAllPaymentMethods(),
     repo.getAllOrderStatuses(),
     repo.getAllPaymentStatuses(),
     repo.getAppConfigs(node_id),
     node_id ? repo.getNodeById(node_id) : Promise.resolve(null),
+    repo.getNodePaymentMethodIds(node_id),
   ]);
 
   const homeEnabled   = appConfigs['home_delivery_enabled']   !== 'false';
@@ -172,6 +173,8 @@ async function getMeta(node_id = null) {
 
   const payment_methods = allPaymentMethods.filter(pm => {
     if (!pm.is_active) return false;
+    // WF #42 : l'activation réelle se fait node par node.
+    if (nodeMethodIds && !nodeMethodIds.has(pm.id)) return false;
     if (pm.code === 'cod')    return appConfigs['cod_enabled']    !== 'false';
     if (pm.code === 'wallet') return appConfigs['wallet_enabled'] !== 'false';
     if (pm.code === 'card')   return appConfigs['card_enabled']   !== 'false';
@@ -836,6 +839,12 @@ async function createOrder(payload, ctx = {}) {
         : null;
   if (!paymentMethod) {
     throw { statusCode: 400, message: strict ? 'Mode de paiement « Paiement à la livraison » (cod) introuvable ou inactif' : 'Mode de paiement invalide ou manquant' };
+  }
+
+  // WF #42 : le moyen de paiement doit être activé sur le nœud de la commande.
+  const nodeMethods = await repo.getNodePaymentMethodIds(finalNodeId);
+  if (nodeMethods && !nodeMethods.has(paymentMethod.id)) {
+    throw { statusCode: 422, message: `Le mode de paiement « ${paymentMethod.name_fr} » n'est pas activé sur ce nœud` };
   }
 
   // ── Créneau (WF #3 / #20) ──────────────────────────────────────────────────

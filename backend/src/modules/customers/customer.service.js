@@ -294,14 +294,23 @@ class CustomerService {
   /** Historique des blocages / déblocages (audit_logs, lecture). */
   async blockHistory(id) {
     const rows = await prisma.auditLog.findMany({
-      where: { resource: 'customers', resource_id: id, action: { in: ['BLOCK_USER', 'UNBLOCK_USER'] } },
+      where: {
+        resource: { code: 'customers' },
+        target_id: id,
+        action: { code: { in: ['BLOCK_USER', 'UNBLOCK_USER'] } },
+      },
       orderBy: { created_at: 'desc' },
       take: 50,
-      select: { id: true, action: true, new_values: true, created_at: true, user: { select: { id: true, full_name: true } } },
+      select: {
+        id: true, new_values: true, created_at: true,
+        action: { select: { code: true, name_fr: true, name_ar: true } },
+        user: { select: { id: true, full_name: true } },
+      },
     });
     return rows.map((r) => ({
       id: r.id,
-      action: r.action,
+      action: r.action?.code,
+      action_label: r.action?.name_fr,
       reason: r.new_values?.reason ?? null,
       created_at: r.created_at,
       admin: r.user?.full_name ?? null,

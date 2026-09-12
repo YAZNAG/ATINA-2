@@ -30,27 +30,24 @@ const PAYMENT_KEYS = [
   { key: 'payment_method_mixed',  type: 'boolean', label_fr: 'Paiement mixte',                default: 'false' },
 ];
 
-// Query params arrive as strings — "null", "", undefined all mean node_id IS NULL
-const toNodeId = (v) => (!v || v === 'null' || v === 'undefined') ? null : v;
-
-const findAll = async ({ node_id, keys } = {}) => {
+// app_configs ne porte plus que des clés GLOBALES (WF #41) : le paramètre
+// node_id des anciens appels est ignoré, les réglages par node sont sur nodes.
+const findAll = async ({ keys } = {}) => {
   const where = {};
-  if (node_id !== undefined) where.node_id = toNodeId(node_id);
   if (keys) where.config_key = { in: keys.split(',') };
-  return prisma.appConfig.findMany({ where, include: { value_type: true, node: { select: { id: true, name_fr: true, code: true } } }, orderBy: { config_key: 'asc' } });
+  return prisma.appConfig.findMany({ where, include: { value_type: true }, orderBy: { config_key: 'asc' } });
 };
 
-const findByKeyAndNode = (config_key, node_id) =>
-  prisma.appConfig.findFirst({ where: { config_key, node_id: toNodeId(node_id) } });
+const findByKeyAndNode = (config_key) =>
+  prisma.appConfig.findFirst({ where: { config_key } });
 
-const save = async ({ node_id, config_key, config_value, value_type_code, description, updated_by }) => {
+const save = async ({ config_key, config_value, value_type_code, description, updated_by }) => {
   const value_type_id = await getValueTypeId(value_type_code);
   if (!value_type_id) throw { statusCode: 500, message: 'Type de valeur introuvable' };
-  const nid = toNodeId(node_id);
-  const existing = await findByKeyAndNode(config_key, nid);
+  const existing = await findByKeyAndNode(config_key);
   const data = { config_value: String(config_value), value_type_id, description: description || null, updated_by: parseInt(updated_by || 1) };
   if (existing) return prisma.appConfig.update({ where: { id: existing.id }, data });
-  return prisma.appConfig.create({ data: { ...data, node_id: nid, config_key } });
+  return prisma.appConfig.create({ data: { ...data, config_key } });
 };
 
 const remove = (id) => prisma.appConfig.delete({ where: { id } });
@@ -59,7 +56,7 @@ const seedGlobalDefaults = async (updated_by = 1) => {
   await seedValueTypes();
   const allKeys = [...ORDER_RULE_KEYS, ...PAYMENT_KEYS];
   for (const { key, type, default: def } of allKeys) {
-    await save({ node_id: null, config_key: key, config_value: def, value_type_code: type, updated_by });
+    await save({ config_key: key, config_value: def, value_type_code: type, updated_by });
   }
   return { seeded: allKeys.length };
 };

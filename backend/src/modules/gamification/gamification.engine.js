@@ -35,14 +35,27 @@ const crypto = require('crypto');
 const prisma = require('../../config/database');
 const R = require('./gamification.rules');
 const { recordPointsTxn } = require('../loyalty/points-ledger.util');
+const platformConfig = require('../../utils/platform-config');
 
 const { bad } = R;
 const CLAIM_DAYS = Math.max(1, parseInt(process.env.GAMIFICATION_CLAIM_DAYS, 10) || 7);
 
-/** Début de la période en cours (Africa/Casablanca) ; null pour lifetime. */
+/**
+ * Début de la période en cours (Africa/Casablanca) ; null pour lifetime.
+ * La semaine démarre au jour défini par app_configs.week_start_day (US-118) :
+ * date_trunc('week') de PostgreSQL est figé au lundi, on décale donc à la main.
+ */
 async function periodStart(tx, periodCode, now) {
   const unit = { daily: 'day', weekly: 'week', monthly: 'month' }[periodCode];
   if (!unit) return null;
+  if (unit === 'week') {
+    const dow = await platformConfig.weekStartDow();
+    const [row] = await tx.$queryRaw`
+      SELECT ((date_trunc('day', (${now}::timestamptz) AT TIME ZONE ${R.TZ})
+               - (((EXTRACT(DOW FROM (${now}::timestamptz) AT TIME ZONE ${R.TZ})::int - ${dow}::int + 7) % 7)
+                  * interval '1 day')) AT TIME ZONE ${R.TZ}) AS start`;
+    return row.start;
+  }
   const [row] = await tx.$queryRaw`
     SELECT (date_trunc(${unit}, (${now}::timestamptz) AT TIME ZONE ${R.TZ}) AT TIME ZONE ${R.TZ}) AS start`;
   return row.start;

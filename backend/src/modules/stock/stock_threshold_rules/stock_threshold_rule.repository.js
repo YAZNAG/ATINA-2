@@ -1,21 +1,20 @@
 const prisma = require('../../../config/database');
 
-// findByNode — returns ALL active articles (with or without stock level) for the given node
+// findByNode — renvoie tous les SKU actifs (avec ou sans niveau de stock) pour le node.
+// La table `articles` a ete fusionnee dans `skus` : tout est lu sur le SKU.
 const findByNode = async (node_id) => {
-  // All active articles that have a linked SKU
-  const articles = await prisma.article.findMany({
-    where: { is_active: true, is_deleted: false, sku_uuid: { not: null } },
+  const skus = await prisma.sku.findMany({
+    where: { is_active: true, is_deleted: false },
     include: {
-      catalog_sku: { include: { images: { where: { is_primary: true }, take: 1 } } },
-      images:       { where: { is_main: true }, take: 1 },
-      family:       { select: { id: true, name_fr: true, code: true } },
+      images:       { where: { deleted_at: null }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], take: 1 },
+      sku_family:   { select: { id: true, name_fr: true, code: true } },
       category:     { select: { id: true, name_fr: true, code: true } },
-      sub_category: { select: { id: true, name_fr: true, code: true } },
+      sku_subfamily:{ select: { id: true, name_fr: true, code: true } },
     },
     orderBy: { name_fr: 'asc' },
   });
 
-  const skuIds = articles.map((a) => a.sku_uuid).filter(Boolean);
+  const skuIds = skus.map((s) => s.id);
 
   const [levels, rules] = await Promise.all([
     prisma.stockLevel.findMany({ where: { node_id, sku_id: { in: skuIds } } }),
@@ -25,37 +24,33 @@ const findByNode = async (node_id) => {
   const levelsMap = Object.fromEntries(levels.map((l) => [l.sku_id, l]));
   const rulesMap  = Object.fromEntries(rules.map((r)  => [r.sku_id, r]));
 
-  return articles
-    .filter((a) => a.catalog_sku)
-    .map((a) => {
-      const level = levelsMap[a.sku_uuid] ?? null;
-      return {
-        id:            level?.id ?? null,
-        node_id,
-        sku_id:        a.sku_uuid,
-        qty_physical:  Number(level?.qty_physical  ?? 0),
-        qty_reserved:  Number(level?.qty_reserved  ?? 0),
-        qty_available: Number(level?.qty_available ?? 0),
-        qty_incoming:  Number(level?.qty_incoming  ?? 0),
-        has_stock:     level !== null,
-        sku: {
-          id:      a.catalog_sku.id,
-          images:  a.catalog_sku.images,
-          article: {
-            id:           a.id,
-            sku_code:     a.sku_code,
-            ean13:        a.ean13,
-            name_fr:      a.name_fr,
-            name_ar:      a.name_ar,
-            family:       a.family,
-            category:     a.category,
-            sub_category: a.sub_category,
-            images:       a.images,
-          },
-        },
-        threshold_rule: rulesMap[a.sku_uuid] ?? null,
-      };
-    });
+  return skus.map((s) => {
+    const level = levelsMap[s.id] ?? null;
+    // `article` reste expose pour les ecrans existants du back-office.
+    const identity = {
+      id:           s.id,
+      sku_code:     s.sku_code,
+      ean13:        s.ean13,
+      name_fr:      s.name_fr,
+      name_ar:      s.name_ar,
+      family:       s.sku_family,
+      category:     s.category,
+      sub_category: s.sku_subfamily,
+      images:       s.images,
+    };
+    return {
+      id:            level?.id ?? null,
+      node_id,
+      sku_id:        s.id,
+      qty_physical:  Number(level?.qty_physical  ?? 0),
+      qty_reserved:  Number(level?.qty_reserved  ?? 0),
+      qty_available: Number(level?.qty_available ?? 0),
+      qty_incoming:  Number(level?.qty_incoming  ?? 0),
+      has_stock:     level !== null,
+      sku: { ...identity, article: identity },
+      threshold_rule: rulesMap[s.id] ?? null,
+    };
+  });
 };
 
 const findById      = (id)              => prisma.stockThresholdRule.findUnique({ where: { id } });

@@ -5,7 +5,7 @@ import HierarchyCascadePage from './HierarchyCascadePage';
 
 const TABS = [
   { key: 'categories', label: 'Catégories', icon: Tags },
-  { key: 'hierarchy', label: 'Hiérarchie', icon: GitBranch },
+  { key: 'hierarchy', label: 'Familles & Sous-familles', icon: GitBranch },
 ];
 
 export default function CatalogHierarchy() {

@@ -23,7 +23,7 @@ import { getErrorMessage } from '../../utils/helpers';
 const TABS = [
   { key: 'configs', label: 'Paramètres applicatifs', icon: Settings2 },
   { key: 'payments', label: 'Méthodes de paiement par node', icon: CreditCard },
-  { key: 'matrix', label: 'Synthèse méthodes × nodes', icon: LayoutGrid },
+  { key: 'matrix', label: 'Synthèse méthodes × nodes (lecture seule)', icon: LayoutGrid },
 ];
 
 const asList = (res) => {

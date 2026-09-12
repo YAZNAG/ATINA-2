@@ -1,13 +1,16 @@
 const prisma = require('../../config/database');
 const { audit } = require('../../utils/audit');
+const platformConfig = require('../../utils/platform-config');
 const { P0_TABLE_GROUPS } = require('../p0/p0.registry');
 
 /**
  * Admin / Configuration > App Configs & Méthodes de paiement — monté sur /admin/settings.
- *  - Paramètres applicatifs : clés GLOBALES de app_configs (node_id IS NULL) — US-007.
- *    Les paramètres PAR NODE (min_order_amount, delivery_fee) se gèrent dans Master Data > Nodes.
- *  - Méthodes de paiement : payment_methods (COD principal) — US-008 / US-009.
- *  - Lookups : référentiels enum, édités via l'éditeur générique /p0/tables/<table> — US-010.
+ *  - Paramètres applicatifs : clés GLOBALES de app_configs, liste FERMÉE (WF #41,
+ *    US-007 / US-118 / US-119). Édition de la valeur uniquement : ni création,
+ *    ni suppression de clé. Les paramètres PAR NODE (min_order_amount,
+ *    delivery_fee) se gèrent dans Master Data > Nodes.
+ *  - Méthodes de paiement PAR NODE : node_payment_methods (WF #42) — l'activation
+ *    réelle se fait node par node ; payment_methods reste le catalogue.
  */
 
 /* ───────────────────────── Catégories de configuration ───────────────────────── */
@@ -29,6 +32,40 @@ const categoryOf = (key) => {
 
 // Clés historiquement globales mais désormais portées par la table nodes (US-007).
 const NODE_LEVEL_KEYS = ['min_order_amount', 'delivery_fee'];
+
+/* ── Liste fermée des clés globales du classeur (WF #41) ──────────────────── */
+
+const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+const isPhone = (v) => /^\+?[0-9][0-9\s.-]{7,19}$/.test(String(v).trim());
+const isHttpUrl = (v) => /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(String(v).trim());
+
+/**
+ * Clés spécifiées par le classeur. `check` refuse une valeur invalide ;
+ * `impact` déclenche un avertissement avant confirmation côté écran.
+ */
+const SPEC_KEYS = {
+  week_start_day: {
+    label: 'Premier jour de la semaine',
+    check: (v) => (WEEK_DAYS.includes(String(v).trim().toLowerCase())
+      ? null : `Valeur attendue parmi : ${WEEK_DAYS.join(', ')}`),
+    options: WEEK_DAYS,
+    impact: 'Tous les quotas et agrégats hebdomadaires (jeux, codes promo, rapports) basculeront sur ce jour.',
+  },
+  default_timezone: {
+    label: 'Fuseau horaire',
+    check: (v) => (/^[A-Za-z]+\/[A-Za-z_+-]+$/.test(String(v).trim()) ? null : 'Fuseau IANA attendu, ex. Africa/Casablanca'),
+  },
+  default_currency: {
+    label: 'Devise',
+    check: (v) => (/^[A-Z]{3}$/.test(String(v).trim()) ? null : 'Code ISO à 3 lettres attendu, ex. MAD'),
+  },
+  support_phone: { label: 'Téléphone du support', check: (v) => (isPhone(v) ? null : 'Numéro de téléphone invalide') },
+  support_whatsapp: { label: 'WhatsApp du support', check: (v) => (isPhone(v) ? null : 'Numéro WhatsApp invalide') },
+  cgu_url: { label: "Conditions générales d'utilisation", check: (v) => (isHttpUrl(v) ? null : 'Lien http(s) invalide') },
+  privacy_url: { label: 'Politique de confidentialité', check: (v) => (isHttpUrl(v) ? null : 'Lien http(s) invalide') },
+};
+const SPEC_ORDER = Object.keys(SPEC_KEYS);
 
 /* ───────────────────────────── Valeurs typées ───────────────────────────── */
 
@@ -76,11 +113,29 @@ const CONFIG_INCLUDE = {
   editor: { select: { id: true, full_name: true, email: true } },
 };
 
-const decorate = (row) => ({
-  ...row,
-  category: categoryOf(row.config_key),
-  node_level: NODE_LEVEL_KEYS.includes(row.config_key),
-});
+const decorate = (row) => {
+  const spec = SPEC_KEYS[row.config_key] || null;
+  return {
+    ...row,
+    category: categoryOf(row.config_key),
+    node_level: NODE_LEVEL_KEYS.includes(row.config_key),
+    // Clé de la liste fermée du classeur : libellé lisible, options, avertissement.
+    spec: Boolean(spec),
+    spec_label: spec?.label ?? null,
+    options: spec?.options ?? null,
+    impact: spec?.impact ?? null,
+  };
+};
+
+/** Refuse une valeur vide ou hors format pour les clés spécifiées (US-118 / US-119). */
+const checkSpecValue = (key, value) => {
+  const spec = SPEC_KEYS[key];
+  if (!spec) return;
+  const v = value === null || value === undefined ? '' : String(value).trim();
+  if (!v) throw { statusCode: 400, message: `${spec.label} : une valeur est requise` };
+  const err = spec.check ? spec.check(v) : null;
+  if (err) throw { statusCode: 400, message: `${spec.label} — ${err}` };
+};
 
 /* ───────────────────────────── Lookups ───────────────────────────── */
 
@@ -107,7 +162,6 @@ class AppSettingsService {
     const q = search ? String(search).trim() : '';
     const rows = await prisma.appConfig.findMany({
       where: {
-        node_id: null,
         ...(q && {
           OR: [
             { config_key: { contains: q, mode: 'insensitive' } },
@@ -119,9 +173,19 @@ class AppSettingsService {
       include: CONFIG_INCLUDE,
       orderBy: { config_key: 'asc' },
     });
-    const data = rows.map(decorate).filter((r) => !category || r.category.key === category);
+    const data = rows
+      .map(decorate)
+      .filter((r) => !category || r.category.key === category)
+      // Les clés du classeur d'abord, dans l'ordre de la spécification.
+      .sort((a, b) => {
+        const ia = SPEC_ORDER.indexOf(a.config_key);
+        const ib = SPEC_ORDER.indexOf(b.config_key);
+        if (ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        return a.config_key.localeCompare(b.config_key);
+      });
     return {
       data,
+      spec_keys: SPEC_ORDER,
       categories: [...CATEGORIES, DEFAULT_CATEGORY].map(({ key, label }) => ({ key, label })),
     };
   }
@@ -130,55 +194,23 @@ class AppSettingsService {
     return prisma.configValueType.findMany({ orderBy: { code: 'asc' } });
   }
 
-  async createConfig(body = {}, req) {
-    const key = String(body.config_key || '').trim().toLowerCase();
-    if (!key) throw { statusCode: 400, message: 'Clé de configuration requise' };
-    if (!/^[a-z0-9_.-]{2,100}$/.test(key)) {
-      throw { statusCode: 400, message: 'Clé invalide : lettres minuscules, chiffres, « _ », « . » ou « - » (2 à 100 caractères)' };
-    }
-    if (NODE_LEVEL_KEYS.includes(key)) {
-      throw { statusCode: 400, message: 'Ce paramètre est défini par node (Master Data > Nodes), pas dans les paramètres globaux' };
-    }
-    const valueType = body.value_type_id
-      ? await prisma.configValueType.findUnique({ where: { id: String(body.value_type_id) } })
-      : await prisma.configValueType.findFirst({ where: { code: String(body.value_type_code || 'string') } });
-    if (!valueType) throw { statusCode: 400, message: 'Type de valeur invalide' };
-
-    // Unicité (node_id NULL non couvert par l'index unique PG) : contrôle applicatif.
-    const exists = await prisma.appConfig.findFirst({ where: { node_id: null, config_key: key } });
-    if (exists) throw { statusCode: 409, message: 'Cette clé de configuration existe déjà' };
-
-    const value = normalizeValue(body.config_value, valueType.code);
-    const description = body.description ? String(body.description).trim() || null : null;
-    const created = await prisma.appConfig.create({
-      data: {
-        node_id: null,
-        config_key: key,
-        config_value: value,
-        value_type_id: valueType.id,
-        description,
-        updated_by: req.user.id,
-      },
-      include: CONFIG_INCLUDE,
-    });
-    await audit(req, {
-      action: 'CREATE',
-      resource: 'app_configs',
-      resource_id: created.id,
-      new_values: { config_key: key, config_value: value, value_type: valueType.code, description },
-    });
-    return decorate(created);
+  /** Liste fermée : la création d'une clé passe par une migration, jamais par l'écran. */
+  async createConfig() {
+    throw {
+      statusCode: 403,
+      message: "Liste de clés fermée : seule la valeur d'un paramètre existant peut être modifiée.",
+    };
   }
 
   async updateConfig(id, body = {}, req) {
     const item = await prisma.appConfig.findUnique({ where: { id }, include: CONFIG_INCLUDE });
     if (!item) throw { statusCode: 404, message: 'Paramètre introuvable' };
-    if (item.node_id) {
-      throw { statusCode: 400, message: 'Paramètre spécifique à un node : il se gère dans Master Data > Nodes' };
-    }
 
     const data = {};
-    if (body.config_value !== undefined) data.config_value = normalizeValue(body.config_value, item.value_type?.code);
+    if (body.config_value !== undefined) {
+      checkSpecValue(item.config_key, body.config_value);
+      data.config_value = normalizeValue(body.config_value, item.value_type?.code);
+    }
     if (body.description !== undefined) {
       const d = body.description === null ? '' : String(body.description).trim();
       data.description = d === '' ? null : d;
@@ -200,6 +232,8 @@ class AppSettingsService {
       data: { ...data, updated_by: req.user.id },
       include: CONFIG_INCLUDE,
     });
+    // Effet immédiat des clés globales (week_start_day, fuseau, devise…).
+    platformConfig.invalidate();
     await audit(req, {
       action: 'CONFIG_CHANGE',
       resource: 'app_configs',
@@ -279,6 +313,111 @@ class AppSettingsService {
       new_values: { code: item.code, is_active: !item.is_active },
     });
     return updated;
+  }
+
+  /* ── Méthodes de paiement par node (WF #42) ── */
+
+  async _node(node_id) {
+    const node = await prisma.node.findFirst({
+      where: { id: String(node_id), is_deleted: false },
+      select: { id: true, code: true, name_fr: true, name_ar: true },
+    });
+    if (!node) throw { statusCode: 404, message: 'Nœud introuvable' };
+    return node;
+  }
+
+  /** Liste des méthodes avec leur état d'activation sur ce node. */
+  async listNodePaymentMethods(node_id) {
+    const node = await this._node(node_id);
+    const [methods, links] = await Promise.all([
+      prisma.paymentMethod.findMany({ orderBy: { code: 'asc' } }),
+      prisma.nodePaymentMethod.findMany({
+        where: { node_id: node.id },
+        include: { editor: { select: { id: true, full_name: true } } },
+      }),
+    ]);
+    const byMethod = Object.fromEntries(links.map((l) => [l.payment_method_id, l]));
+    return {
+      node,
+      data: methods.map((m) => {
+        const link = byMethod[m.id] || null;
+        return {
+          payment_method_id: m.id,
+          code: m.code,
+          name_fr: m.name_fr,
+          name_ar: m.name_ar,
+          description: m.description,
+          catalog_active: m.is_active,
+          is_active: Boolean(link?.is_active),
+          updated_at: link?.updated_at ?? null,
+          updated_by: link?.editor?.full_name ?? null,
+        };
+      }),
+    };
+  }
+
+  /** Active ou désactive une méthode sur un node ; au moins une doit rester active. */
+  async setNodePaymentMethod(node_id, payment_method_id, is_active, req) {
+    const node = await this._node(node_id);
+    const method = await prisma.paymentMethod.findUnique({ where: { id: String(payment_method_id) } });
+    if (!method) throw { statusCode: 404, message: 'Méthode de paiement introuvable' };
+    const active = is_active === true || is_active === 'true';
+    if (active && !method.is_active) {
+      throw { statusCode: 409, message: `La méthode « ${method.name_fr} » est désactivée dans le catalogue` };
+    }
+    if (!active) {
+      const others = await prisma.nodePaymentMethod.count({
+        where: { node_id: node.id, is_active: true, payment_method_id: { not: method.id } },
+      });
+      if (others === 0) {
+        throw { statusCode: 409, message: 'Impossible de désactiver la dernière méthode de paiement de ce nœud' };
+      }
+    }
+    const existing = await prisma.nodePaymentMethod.findUnique({
+      where: { node_id_payment_method_id: { node_id: node.id, payment_method_id: method.id } },
+    });
+    const row = await prisma.nodePaymentMethod.upsert({
+      where: { node_id_payment_method_id: { node_id: node.id, payment_method_id: method.id } },
+      update: { is_active: active, updated_by: req?.user?.id ?? null },
+      create: {
+        node_id: node.id,
+        payment_method_id: method.id,
+        is_active: active,
+        created_by: req?.user?.id ?? null,
+        updated_by: req?.user?.id ?? null,
+      },
+    });
+    await audit(req, {
+      action: active ? 'ACTIVATE' : 'DEACTIVATE',
+      resource: 'node_payment_methods',
+      resource_id: row.id,
+      old_values: { node: node.code, method: method.code, is_active: Boolean(existing?.is_active) },
+      new_values: { node: node.code, method: method.code, is_active: active },
+    });
+    return row;
+  }
+
+  /** Synthèse méthodes × nodes (lecture seule). */
+  async paymentMethodMatrix() {
+    const [nodes, methods, links] = await Promise.all([
+      prisma.node.findMany({
+        where: { is_deleted: false },
+        select: { id: true, code: true, name_fr: true, name_ar: true },
+        orderBy: { code: 'asc' },
+      }),
+      prisma.paymentMethod.findMany({ orderBy: { code: 'asc' } }),
+      prisma.nodePaymentMethod.findMany({ select: { node_id: true, payment_method_id: true, is_active: true } }),
+    ]);
+    const key = (n, m) => `${n}|${m}`;
+    const active = new Set(links.filter((l) => l.is_active).map((l) => key(l.node_id, l.payment_method_id)));
+    return {
+      methods: methods.map((m) => ({ id: m.id, code: m.code, name_fr: m.name_fr, name_ar: m.name_ar, catalog_active: m.is_active })),
+      nodes: nodes.map((n) => ({
+        ...n,
+        methods: Object.fromEntries(methods.map((m) => [m.id, active.has(key(n.id, m.id))])),
+        active_count: methods.filter((m) => active.has(key(n.id, m.id))).length,
+      })),
+    };
   }
 
   /* ── Lookups ── */

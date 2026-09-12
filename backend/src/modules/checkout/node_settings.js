@@ -8,16 +8,13 @@
  */
 const prisma = require('../../config/database');
 
-async function getAppConfigMap(node_id = null) {
-  const rows = await prisma.appConfig.findMany({
-    where: node_id ? { OR: [{ node_id: null }, { node_id }] } : { node_id: null },
-  });
-  // La config propre au node prime sur la config globale.
-  const globalRows = rows.filter((r) => r.node_id === null);
-  const nodeRows = rows.filter((r) => r.node_id !== null);
+// eslint-disable-next-line no-unused-vars
+async function getAppConfigMap(_node_id = null) {
+  // app_configs ne porte plus que des clés globales : les réglages propres au
+  // node sont des colonnes de la table nodes.
+  const rows = await prisma.appConfig.findMany();
   const map = {};
-  for (const r of globalRows) map[r.config_key] = r.config_value;
-  for (const r of nodeRows) map[r.config_key] = r.config_value;
+  for (const r of rows) map[r.config_key] = r.config_value;
   return map;
 }
 

@@ -107,21 +107,24 @@ const getPaymentMethodByCode = (code) =>
     where: { code: { equals: code, mode: 'insensitive' }, is_active: true },
   });
 const getAllPaymentMethods      = ()     => prisma.paymentMethod.findMany({ where: { is_active: true }, orderBy: { code: 'asc' } });
+/** Codes des méthodes activées sur ce node (WF #42) ; null si le node n'est pas paramétré. */
+const getNodePaymentMethodIds = async (node_id) => {
+  if (!node_id) return null;
+  const rows = await prisma.nodePaymentMethod.findMany({
+    where: { node_id, is_active: true },
+    select: { payment_method_id: true },
+  });
+  return rows.length ? new Set(rows.map((r) => r.payment_method_id)) : null;
+};
 const getAllOrderStatuses       = ()     => prisma.orderStatus.findMany({ orderBy: { sort_order: 'asc' } });
 const getAllPaymentStatuses     = ()     => prisma.paymentStatus.findMany({ orderBy: { code: 'asc' } });
 
-// ── AppConfigs ────────────────────────────────────────────────────────────────
-const getAppConfigs = async (node_id = null) => {
-  const where = node_id
-    ? { OR: [{ node_id: null }, { node_id }] }
-    : { node_id: null };
-
-  const rows = await prisma.appConfig.findMany({ where });
-
-  // Global d'abord, puis la config propre au node (qui prime).
+// ── AppConfigs (clés GLOBALES uniquement — les réglages par node vivent sur nodes) ──
+// eslint-disable-next-line no-unused-vars
+const getAppConfigs = async (_node_id = null) => {
+  const rows = await prisma.appConfig.findMany();
   const map = {};
-  for (const row of rows.filter((r) => r.node_id === null)) map[row.config_key] = row.config_value;
-  for (const row of rows.filter((r) => r.node_id !== null)) map[row.config_key] = row.config_value;
+  for (const row of rows) map[row.config_key] = row.config_value;
   return map;
 };
 
@@ -196,7 +199,7 @@ module.exports = {
   getStockLevels, getSellingRules,
   getOrderStatusByCode, getOrderItemStatusByCode,
   getPaymentStatusByCode, getPaymentMethod, getPaymentMethodByCode,
-  getAllPaymentMethods, getAllOrderStatuses, getAllPaymentStatuses,
+  getAllPaymentMethods, getNodePaymentMethodIds, getAllOrderStatuses, getAllPaymentStatuses,
   getAppConfigs, getSkusWithPrices,
   getCustomer, searchCustomers, searchArticles,
 };

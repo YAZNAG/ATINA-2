@@ -79,15 +79,24 @@ const fmtDate = (d) => (d ? new Date(d).toISOString().replace('T', ' ').slice(0,
 /* ─────────────────────────── Journal d'audit ─────────────────────────── */
 
 const USER_SELECT = { select: { id: true, full_name: true, email: true } };
+const REF_SELECT = { select: { id: true, code: true, name_fr: true, name_ar: true } };
+const AUDIT_INCLUDE = { user: USER_SELECT, action: REF_SELECT, resource: REF_SELECT };
 
-const buildAuditWhere = ({ user_id, resource, action, resource_id, search, date_from, date_to } = {}) => {
+/** Un filtre peut arriver en code (« orders ») ou en identifiant de référentiel. */
+const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v));
+const refFilter = (field, value) => (isUuid(value)
+  ? { [`${field}_id`]: String(value) }
+  : { [field]: { code: String(value) } });
+
+const buildAuditWhere = ({ user_id, resource, action, target_id, resource_id, search, date_from, date_to } = {}) => {
+  const target = target_id ?? resource_id;   // resource_id : ancien nom, conservé pour les appels existants
   const where = {
     ...(user_id !== undefined && user_id !== '' && (
       user_id === 'system' ? { user_id: null } : { user_id: Number(user_id) }
     )),
-    ...(resource && { resource: String(resource) }),
-    ...(action && { action: String(action) }),
-    ...(resource_id && { resource_id: { contains: String(resource_id).trim(), mode: 'insensitive' } }),
+    ...(resource && refFilter('resource', resource)),
+    ...(action && refFilter('action', action)),
+    ...(target && { target_id: { contains: String(target).trim(), mode: 'insensitive' } }),
     ...periodFilter('created_at', date_from, date_to),
   };
   if (where.user_id !== undefined && where.user_id !== null && !Number.isInteger(where.user_id)) {
@@ -96,9 +105,11 @@ const buildAuditWhere = ({ user_id, resource, action, resource_id, search, date_
   if (search) {
     const q = String(search).trim();
     where.OR = [
-      { resource_id: { contains: q, mode: 'insensitive' } },
-      { resource: { contains: q, mode: 'insensitive' } },
-      { action: { contains: q, mode: 'insensitive' } },
+      { target_id: { contains: q, mode: 'insensitive' } },
+      { resource: { name_fr: { contains: q, mode: 'insensitive' } } },
+      { resource: { code: { contains: q, mode: 'insensitive' } } },
+      { action: { name_fr: { contains: q, mode: 'insensitive' } } },
+      { action: { code: { contains: q, mode: 'insensitive' } } },
       { user: { full_name: { contains: q, mode: 'insensitive' } } },
       { user: { email: { contains: q, mode: 'insensitive' } } },
     ];
@@ -114,7 +125,7 @@ class AdminAuditService {
     const [rows, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
-        include: { user: USER_SELECT },
+        include: AUDIT_INCLUDE,
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         take: limit + 1,
       }),
@@ -135,25 +146,34 @@ class AdminAuditService {
   }
 
   async getLog(id) {
-    const row = await prisma.auditLog.findUnique({ where: { id }, include: { user: USER_SELECT } });
+    const row = await prisma.auditLog.findUnique({ where: { id }, include: AUDIT_INCLUDE });
     if (!row) throw { statusCode: 404, message: "Événement d'audit introuvable" };
     return row;
   }
 
   async logFacets() {
-    const [resources, actions, users] = await Promise.all([
-      prisma.auditLog.groupBy({ by: ['resource'], _count: { _all: true }, orderBy: { resource: 'asc' } }),
-      prisma.auditLog.groupBy({ by: ['action'], _count: { _all: true }, orderBy: { action: 'asc' } }),
+    const [resources, actions, users, resourceRefs, actionRefs] = await Promise.all([
+      prisma.auditLog.groupBy({ by: ['resource_id'], _count: { _all: true } }),
+      prisma.auditLog.groupBy({ by: ['action_id'], _count: { _all: true } }),
       prisma.auditLog.groupBy({ by: ['user_id'], _count: { _all: true } }),
+      prisma.auditResource.findMany(REF_SELECT).then((r) => Object.fromEntries(r.map((x) => [x.id, x]))),
+      prisma.auditAction.findMany(REF_SELECT).then((r) => Object.fromEntries(r.map((x) => [x.id, x]))),
     ]);
     const userIds = users.map((u) => u.user_id).filter((v) => v !== null);
     const userRows = userIds.length
       ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, full_name: true, email: true } })
       : [];
     const byId = Object.fromEntries(userRows.map((u) => [u.id, u]));
+    const facet = (rows, key, refs) => rows
+      .map((row) => {
+        const ref = refs[row[key]];
+        return ref ? { value: ref.code, name_fr: ref.name_fr, name_ar: ref.name_ar, count: row._count._all } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.name_fr.localeCompare(b.name_fr, 'fr'));
     return {
-      resources: resources.map((r) => ({ value: r.resource, count: r._count._all })),
-      actions: actions.map((a) => ({ value: a.action, count: a._count._all })),
+      resources: facet(resources, 'resource_id', resourceRefs),
+      actions: facet(actions, 'action_id', actionRefs),
       users: users
         .map((u) => (u.user_id === null
           ? { id: 'system', full_name: 'Système', email: null, count: u._count._all }
@@ -165,7 +185,7 @@ class AdminAuditService {
   async exportLogs(params = {}) {
     const rows = await prisma.auditLog.findMany({
       where: buildAuditWhere(params),
-      include: { user: USER_SELECT },
+      include: AUDIT_INCLUDE,
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: EXPORT_MAX,
     });
@@ -174,9 +194,9 @@ class AdminAuditService {
       fmtDate(r.created_at),
       r.user?.full_name || (r.user_id ? `#${r.user_id}` : 'Système'),
       r.user?.email || '',
-      r.action,
-      r.resource,
-      r.resource_id,
+      r.action?.name_fr || r.action?.code || '',
+      r.resource?.name_fr || r.resource?.code || '',
+      r.target_id,
       r.old_values,
       r.new_values,
       r.ip,
@@ -186,9 +206,11 @@ class AdminAuditService {
 
   /* ───────────────────────── Notifications (log) ───────────────────────── */
 
-  _notifWhere({ event_code, channel_id, is_read, customer_id, search, date_from, date_to, status_id, status } = {}) {
+  _notifWhere({ event_code, type_id, channel_id, is_read, customer_id, search, date_from, date_to, status_id, status } = {}) {
     const where = {
       ...(event_code && { event_code: String(event_code) }),
+      // Type de notification (référentiel notification_types) : uuid ou code.
+      ...(type_id && (isUuid(type_id) ? { type_id: String(type_id) } : { type: { code: String(type_id) } })),
       // Statut de la notification (référentiel notification_statuses) : uuid ou code ; « none » = sans statut.
       ...(status_id && (status_id === 'none' ? { status_id: null } : { status_id: String(status_id) })),
       ...(!status_id && status && { status: { code: String(status) } }),
@@ -206,6 +228,7 @@ class AdminAuditService {
         { title_ar: { contains: q, mode: 'insensitive' } },
         { body_fr: { contains: q, mode: 'insensitive' } },
         { event_code: { contains: q, mode: 'insensitive' } },
+        { error_message: { contains: q, mode: 'insensitive' } },
       ];
     }
     return where;
@@ -216,6 +239,7 @@ class AdminAuditService {
       customer: { select: { id: true, name: true, phone_country: true, phone_number: true } },
       channel: { select: { id: true, code: true, name_fr: true, name_ar: true } },
       status: { select: { id: true, code: true, name_fr: true, name_ar: true } },
+      type: { select: { id: true, code: true, name_fr: true, name_ar: true } },
     };
   }
 
@@ -247,15 +271,21 @@ class AdminAuditService {
   }
 
   async notificationFacets() {
-    const [events, channels, statuses, statusCounts] = await Promise.all([
+    const [events, channels, statuses, statusCounts, types, typeCounts] = await Promise.all([
       prisma.notification.groupBy({ by: ['event_code'], _count: { _all: true }, orderBy: { event_code: 'asc' } }),
       prisma.notificationChannel.findMany({ select: { id: true, code: true, name_fr: true }, orderBy: { name_fr: 'asc' } }),
       prisma.notificationDeliveryStatus.findMany({ select: { id: true, code: true, name_fr: true, name_ar: true } }),
       prisma.notification.groupBy({ by: ['status_id'], _count: { _all: true } }),
+      prisma.notificationType.findMany(REF_SELECT),
+      prisma.notification.groupBy({ by: ['type_id'], _count: { _all: true } }),
     ]);
     const ORDER = ['pending', 'sent', 'delivered', 'read', 'failed'];
+    const TYPE_ORDER = ['order', 'promo', 'points', 'gamification', 'system'];
     return {
       event_codes: events.map((e) => ({ value: e.event_code, count: e._count._all })),
+      types: types
+        .sort((a, b) => TYPE_ORDER.indexOf(a.code) - TYPE_ORDER.indexOf(b.code))
+        .map((t) => ({ ...t, count: typeCounts.find((c) => c.type_id === t.id)?._count._all ?? 0 })),
       channels,
       statuses: statuses
         .sort((a, b) => ORDER.indexOf(a.code) - ORDER.indexOf(b.code))
@@ -271,20 +301,23 @@ class AdminAuditService {
       take: EXPORT_MAX,
     });
     const headers = [
-      'Date d\'envoi', 'Client', 'Téléphone', 'Canal', 'Type (événement)',
-      'Titre (FR)', 'Contenu (FR)', 'Titre (AR)', 'Contenu (AR)', 'Statut', 'Lu', 'Date de lecture', 'Commande',
+      'Date d\'envoi', 'Client', 'Téléphone', 'Canal', 'Type', 'Événement',
+      'Titre (FR)', 'Contenu (FR)', 'Titre (AR)', 'Contenu (AR)', 'Statut', 'Motif d\'échec',
+      'Lu', 'Date de lecture', 'Commande',
     ];
     return toCsv(headers, rows.map((n) => [
       fmtDate(n.sent_at),
       n.customer?.name || '',
       n.customer ? `${n.customer.phone_country || ''}${n.customer.phone_number || ''}` : '',
       n.channel?.name_fr || n.channel?.code || '',
+      n.type?.name_fr || n.type?.code || '',
       n.event_code,
       n.title_fr,
       n.body_fr,
       n.title_ar || '',
       n.body_ar || '',
       n.status?.name_fr || n.status?.code || '',
+      n.error_message || '',
       n.is_read ? 'Lu' : 'Non lu',
       n.read_at ? fmtDate(n.read_at) : '',
       n.order_id || '',

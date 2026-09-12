@@ -15,6 +15,8 @@ router.put('/:id', permissionMiddleware('roles.update'), updateRoleValidator, ro
 // US-003 : activer / désactiver un rôle (un rôle inactif n'est plus assignable)
 router.patch('/:id/activate', permissionMiddleware('roles.update'), roleController.activate.bind(roleController));
 router.patch('/:id/deactivate', permissionMiddleware('roles.update'), roleController.deactivate.bind(roleController));
+// US-121 : dupliquer un rôle avec sa carte de permissions
+router.post('/:id/duplicate', permissionMiddleware('roles.create'), roleController.duplicate.bind(roleController));
 router.delete('/:id', permissionMiddleware('roles.delete'), roleController.delete.bind(roleController));
 router.post('/:id/permissions', permissionMiddleware('permissions.assign'), roleController.assignPermissions.bind(roleController));
 router.get('/:id/permissions', permissionMiddleware('permissions.view'), roleController.getPermissions.bind(roleController));

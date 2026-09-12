@@ -9,12 +9,19 @@ const roleInclude = {
 const findAll = (where = {}) =>
   prisma.role.findMany({
     where,
-    include: { ...roleInclude, _count: { select: { user_roles: true } } },
+    include: {
+      ...roleInclude,
+      creator: { select: { id: true, full_name: true } },
+      _count: { select: { user_roles: true } },
+    },
     orderBy: [{ is_system: 'desc' }, { created_at: 'asc' }],
   });
 
 const findById = (id) =>
-  prisma.role.findUnique({ where: { id }, include: roleInclude });
+  prisma.role.findUnique({
+    where: { id },
+    include: { ...roleInclude, creator: { select: { id: true, full_name: true } }, _count: { select: { user_roles: true } } },
+  });
 
 const findByCode = (code) =>
   prisma.role.findUnique({ where: { code } });

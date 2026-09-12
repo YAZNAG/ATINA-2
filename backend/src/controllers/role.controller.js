@@ -51,6 +51,15 @@ class RoleController {
     }
   }
 
+  async duplicate(req, res, next) {
+    try {
+      const role = await roleService.duplicate(req.params.id, req.body, req);
+      return response.success(res, role, 'Rôle dupliqué', 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async delete(req, res, next) {
     try {
       await roleService.delete(req.params.id, req);

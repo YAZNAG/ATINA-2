@@ -189,7 +189,7 @@ export default function HierarchyCascadePage({ embedded = false }) {
 
   const openCreate = (level) => {
     setFormErrors({});
-    setDrawer({ level, mode: 'create', id: null, form: { ...LEVELS[level].emptyForm } });
+    setDrawer({ level, mode: 'create', id: null, form: { ...LEVELS[level].emptyForm }, image: null, imagePreview: null });
     setDrawerOpen(true);
   };
 
@@ -198,13 +198,20 @@ export default function HierarchyCascadePage({ embedded = false }) {
     const cfg = LEVELS[level];
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] ?? ''; });
-    setDrawer({ level, mode: 'edit', id: item.id, form });
+    setDrawer({ level, mode: 'edit', id: item.id, form, image: null, imagePreview: item.image_url || null });
     setDrawerOpen(true);
   };
 
   const closeDrawer = () => {
     if (saving) return;
     setDrawerOpen(false);
+  };
+
+  /** US-120 : un visuel est obligatoire ; à l'édition, l'existant fait foi. */
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setDrawer((d) => ({ ...d, image: file, imagePreview: file ? URL.createObjectURL(file) : d.imagePreview }));
+    setFormErrors((errs) => ({ ...errs, image: undefined }));
   };
 
   const handleFieldChange = (name) => (e) => {
@@ -220,6 +227,7 @@ export default function HierarchyCascadePage({ embedded = false }) {
         errs[f.name] = `${f.label} requis`;
       }
     });
+    if (!drawer.image && !drawer.imagePreview) errs.image = 'Image requise';
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -237,13 +245,21 @@ export default function HierarchyCascadePage({ embedded = false }) {
     const form = { ...drawer.form };
     if (cfg.parentKey === 'family_id') form.family_id = selectedFamily.id;
 
+    // Une image choisie impose le multipart (comme pour les catégories).
+    let payload = form;
+    if (drawer.image) {
+      payload = new FormData();
+      Object.entries(form).forEach(([k, v]) => payload.append(k, v ?? ''));
+      payload.append('image', drawer.image);
+    }
+
     setSaving(true);
     try {
       if (drawer.mode === 'edit') {
-        await cfg.api.update(drawer.id, form);
+        await cfg.api.update(drawer.id, payload);
         showToast('success', `${cfg.label} mise à jour`);
       } else {
-        await cfg.api.create(form);
+        await cfg.api.create(payload);
         showToast('success', `${cfg.label} créée`);
       }
       setDrawerOpen(false);
@@ -485,6 +501,25 @@ export default function HierarchyCascadePage({ embedded = false }) {
                       </Field>
                     );
                   })}
+                </div>
+
+                <div className="mt-4">
+                  <Field label="Image *" error={formErrors.image}>
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
+                        {drawer.imagePreview
+                          ? <img src={drawer.imagePreview} alt="" className="h-full w-full object-cover" />
+                          : <span className="flex h-full w-full items-center justify-center text-[10px] text-neutral-400">aucune</span>}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleImageChange}
+                        className="text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-neutral-200"
+                      />
+                    </div>
+                  </Field>
+                  <p className="mt-1 text-xs text-neutral-400">JPG, PNG ou WebP — 2 Mo maximum. Un visuel est obligatoire.</p>
                 </div>
               </div>
 

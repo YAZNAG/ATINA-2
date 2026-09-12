@@ -4,8 +4,8 @@ const response = require('../../utils/response');
 class AppSettingsController {
   async configs(req, res, next) {
     try {
-      const { data, categories } = await service.listConfigs(req.query);
-      return res.json({ success: true, message: 'Success', data, categories });
+      const { data, categories, spec_keys } = await service.listConfigs(req.query);
+      return res.json({ success: true, message: 'Success', data, categories, spec_keys });
     } catch (err) { next(err); }
   }
 
@@ -38,6 +38,30 @@ class AppSettingsController {
       const row = await service.togglePaymentMethod(req.params.id, req);
       return response.success(res, row, row.is_active ? 'Méthode de paiement activée' : 'Méthode de paiement désactivée');
     } catch (err) { next(err); }
+  }
+
+  /* ── Méthodes de paiement par node (WF #42) ── */
+
+  async nodePaymentMethods(req, res, next) {
+    try {
+      const { node, data } = await service.listNodePaymentMethods(req.params.node_id);
+      return res.json({ success: true, message: 'Success', data, node });
+    } catch (err) { next(err); }
+  }
+
+  async setNodePaymentMethod(req, res, next) {
+    try {
+      const row = await service.setNodePaymentMethod(
+        req.params.node_id, req.params.method_id, req.body?.is_active, req,
+      );
+      return response.success(res, row, row.is_active
+        ? 'Méthode activée sur ce nœud'
+        : 'Méthode désactivée sur ce nœud');
+    } catch (err) { next(err); }
+  }
+
+  async paymentMatrix(req, res, next) {
+    try { return response.success(res, await service.paymentMethodMatrix()); } catch (err) { next(err); }
   }
 
   async lookups(req, res, next) {

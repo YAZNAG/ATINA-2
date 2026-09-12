@@ -178,11 +178,11 @@ const SECTIONS = [
     title: 'Admin / Configuration',
     items: [
       {
+        // Classeur 12-09 : deux onglets — « Liste des rôles » et « Permissions par rôle ».
         label: 'Rôles & Permissions', key: 'access', icon: ICONS.access,
         children: [
-          { label: 'Rôles',                    path: '/access/roles',            permission: 'roles.view' },
-          { label: 'Permissions',              path: '/access/permissions',      permission: 'permissions.view' },
-          { label: 'Permissions par rôle',     path: '/access/role-permissions', permission: 'permissions.assign' },
+          { label: 'Liste des rôles',      path: '/access/roles',            permission: 'roles.view' },
+          { label: 'Permissions par rôle', path: '/access/role-permissions', permission: 'permissions.view' },
         ],
       },
       { label: 'Comptes Back-Office',     path: '/users',                       permission: 'users.view', icon: ICONS.users },

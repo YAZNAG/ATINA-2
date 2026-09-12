@@ -124,9 +124,13 @@ class OrderMgmtService {
       prisma.auditLog.findMany({
         where: {
           OR: [
-            { resource: 'orders', resource_id: id },
-            { resource: 'payments', new_values: { path: ['order_id'], equals: id } },
+            { resource: { code: 'orders' }, target_id: id },
+            { resource: { code: 'payments' }, new_values: { path: ['order_id'], equals: id } },
           ],
+        },
+        include: {
+          action: { select: { code: true, name_fr: true } },
+          resource: { select: { code: true } },
         },
         orderBy: { created_at: 'asc' },
       }),
@@ -163,14 +167,15 @@ class OrderMgmtService {
         note: h.note,
       })),
       ...logs
-        .filter((l) => l.action !== 'UPDATE_STATUS' && !(l.action === 'CANCEL_ORDER' && l.resource === 'orders'))
-        .filter((l) => l.resource === 'orders' || l.resource === 'payments')
+        .map((l) => ({ ...l, action_code: l.action?.code, resource_code: l.resource?.code }))
+        .filter((l) => l.action_code !== 'UPDATE_STATUS' && !(l.action_code === 'CANCEL_ORDER' && l.resource_code === 'orders'))
+        .filter((l) => l.resource_code === 'orders' || l.resource_code === 'payments')
         .map((l) => ({
           id: l.id,
           type: 'audit',
           at: l.created_at,
-          action: l.action,
-          label: ACTIONS[l.action] || l.action,
+          action: l.action_code,
+          label: ACTIONS[l.action_code] || l.action?.name_fr || l.action_code,
           by: who(l.user_id),
           by_id: l.user_id,
           note: null,

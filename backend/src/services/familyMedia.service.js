@@ -71,6 +71,20 @@ function removeFamilyMediaFolder(familyId) {
   removeFolder('famille', familyId);
 }
 
+/** Famille : image seule (US-120) — la colonne image_url est obligatoire. */
+function persistFamilyImage(familyId, files, existing) {
+  return persistImageOnly('famille', familyId, files, existing);
+}
+
+/** Sous-famille : image seule (US-120). */
+function persistSubFamilyImage(subFamilyId, files, existing) {
+  return persistImageOnly('sous-famille', subFamilyId, files, existing);
+}
+
+function removeSubFamilyMediaFolder(subFamilyId) {
+  removeFolder('sous-famille', subFamilyId);
+}
+
 /** Catégorie : image seule (pas d'icon_path dans le modèle) */
 function persistCategoryFiles(categoryId, files, existing) {
   return persistImageOnly('categorie', categoryId, files, existing);
@@ -107,6 +121,9 @@ function removeBrandMediaFolder(brandId) {
 }
 
 module.exports = {
+  persistFamilyImage,
+  persistSubFamilyImage,
+  removeSubFamilyMediaFolder,
   persistFamilyFiles,
   removeFamilyMediaFolder,
   persistCategoryFiles,

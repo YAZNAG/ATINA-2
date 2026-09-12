@@ -1,4 +1,6 @@
+const crypto = require('crypto');
 const repo = require('./family.repository');
+const { persistFamilyImage } = require('../../../services/familyMedia.service');
 
 const pickFamilyPayload = (body) => ({
   name_fr: body.name_fr,
@@ -24,14 +26,20 @@ class FamilyService {
     return item;
   }
 
-  async create(body) {
+  async create(body, files) {
     const payload = pickFamilyPayload(body);
+    // US-120 : image obligatoire sur la famille.
+    if (!files?.image?.[0]?.buffer) {
+      throw { statusCode: 422, message: 'Image requise : une famille doit avoir un visuel' };
+    }
     const exists = await repo.findByCode(payload.code);
     if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
-    return repo.create(payload);
+    const id = crypto.randomUUID();
+    const paths = persistFamilyImage(id, files, null);
+    return repo.create({ ...payload, id, image_url: paths.image_path });
   }
 
-  async update(id, body) {
+  async update(id, body, files) {
     const item = await repo.findById(id);
     if (!item) throw { statusCode: 404, message: 'Famille introuvable' };
     if (body.code) {
@@ -39,6 +47,11 @@ class FamilyService {
       if (exists) throw { statusCode: 409, message: 'Ce code est déjà utilisé' };
     }
     const payload = pickFamilyPayload(body);
+    const paths = persistFamilyImage(id, files, { image_path: item.image_url });
+    if (paths.image_path) payload.image_url = paths.image_path;
+    else if (!item.image_url) {
+      throw { statusCode: 422, message: 'Image requise : une famille doit avoir un visuel' };
+    }
     return repo.update(id, payload);
   }
 

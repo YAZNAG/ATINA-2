@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import FormPageShell from '../../components/FormPageShell';
 import { getUser, createUser, updateUser } from '../../api/users.api';
 import { getRoles } from '../../api/roles.api';
+import { getNodes } from '../../api/locationNode.api';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage, formatDate } from '../../utils/helpers';
 
@@ -14,6 +15,7 @@ const initialForm = {
   phone: '',
   status: 'active',
   role_ids: [],
+  node_id: '',   // '' = tous les nœuds (US-124)
 };
 
 const isRoleActive = (r) => Boolean(r?.is_active && r?.status === 'active');
@@ -31,6 +33,7 @@ export default function UserForm() {
   const [form, setForm] = useState(initialForm);
   const [account, setAccount] = useState(null);
   const [roles, setRoles] = useState([]);
+  const [nodes, setNodes] = useState([]);
   const [heldRoleIds, setHeldRoleIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingData, setFetchingData] = useState(true);
@@ -38,8 +41,10 @@ export default function UserForm() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const rolesRes = await getRoles();
+        const [rolesRes, nodesRes] = await Promise.all([getRoles(), getNodes({ limit: 500 })]);
         setRoles(rolesRes.data.data || []);
+        const nodeData = nodesRes?.data?.data ?? [];
+        setNodes(Array.isArray(nodeData) ? nodeData : (nodeData.data ?? []));
 
         if (isEdit) {
           const userRes = await getUser(id);
@@ -54,6 +59,7 @@ export default function UserForm() {
             phone: u.phone || '',
             status: u.is_active && u.status === 'active' ? 'active' : 'inactive',
             role_ids: held,
+            node_id: u.node_id || '',
           });
         }
       } catch (err) {
@@ -85,6 +91,8 @@ export default function UserForm() {
     try {
       const payload = { ...form, role_ids: form.role_ids.map(Number) };
       if (!payload.password) delete payload.password;
+      // '' = aucun périmètre : le compte voit tous les nœuds.
+      payload.node_id = form.node_id || null;
 
       if (isEdit) {
         await updateUser(id, payload);
@@ -168,6 +176,16 @@ export default function UserForm() {
             <div>
               <label className="form-label">Téléphone</label>
               <input name="phone" className="form-input" value={form.phone} onChange={handleChange} placeholder="+212 6xx xxx xxx" />
+            </div>
+            <div>
+              <label className="form-label">Périmètre</label>
+              <select name="node_id" className="form-select" value={form.node_id} onChange={handleChange} disabled={!canEdit}>
+                <option value="">Tous les nœuds</option>
+                {nodes.map((n) => <option key={n.id} value={n.id}>{n.name_fr} ({n.code})</option>)}
+              </select>
+              <p className="mt-1 text-xs text-zinc-400">
+                Un compte rattaché à un nœud ne voit que les données de ce nœud.
+              </p>
             </div>
             <div>
               <label className="form-label">Statut</label>

@@ -48,6 +48,10 @@ const ACTION_LABELS = {
 };
 const actionLabel = (a) => ACTION_LABELS[a] || a;
 
+/** Les libellés FR/AR viennent des référentiels audit_actions / audit_resources. */
+const refLabel = (ref, fallback) => ref?.name_fr || ACTION_LABELS[ref?.code] || ref?.code || fallback || '—';
+const refCode = (ref) => ref?.code || '';
+
 const actionTone = (a = '') => {
   if (/DELETE|UNMAP|REFUSED|DEACTIVATE|BLOCK|CANCEL/.test(a)) return 'bg-red-50 text-red-700 ring-red-100';
   if (/CREATE|ACTIVATE|RESTORE|MAP_SKU/.test(a)) return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
@@ -168,7 +172,7 @@ function AuditDetailModal({ log, onClose }) {
       onClose={onClose}
       size="lg"
       title="Détail de l'événement d'audit"
-      subtitle={log ? `${actionLabel(log.action)} — ${log.resource}${log.resource_id ? ` #${log.resource_id}` : ''}` : ''}
+      subtitle={log ? `${refLabel(log.action)} — ${refLabel(log.resource)}${log.target_id ? ` #${log.target_id}` : ''}` : ''}
       footer={<button type="button" className="btn-secondary" onClick={onClose}>Fermer</button>}
     >
       {log && (
@@ -183,11 +187,21 @@ function AuditDetailModal({ log, onClose }) {
             </div>
             <div>
               <dt className="form-label">Action</dt>
-              <dd className="text-zinc-800">{actionLabel(log.action)} <span className="font-mono text-xs text-zinc-400">({log.action})</span></dd>
+              <dd className="text-zinc-800">
+                {refLabel(log.action)} <span className="font-mono text-xs text-zinc-400">({refCode(log.action)})</span>
+                {log.action?.name_ar && <p dir="rtl" className="text-xs text-zinc-400">{log.action.name_ar}</p>}
+              </dd>
             </div>
             <div>
               <dt className="form-label">Entité</dt>
-              <dd className="font-mono text-zinc-800">{log.resource}{log.resource_id ? ` / ${log.resource_id}` : ''}</dd>
+              <dd className="text-zinc-800">
+                {refLabel(log.resource)} <span className="font-mono text-xs text-zinc-400">({refCode(log.resource)})</span>
+                {log.resource?.name_ar && <p dir="rtl" className="text-xs text-zinc-400">{log.resource.name_ar}</p>}
+              </dd>
+            </div>
+            <div>
+              <dt className="form-label">Enregistrement concerné</dt>
+              <dd className="font-mono text-xs text-zinc-800">{log.target_id || '—'}</dd>
             </div>
             <div><dt className="form-label">Adresse IP</dt><dd className="font-mono text-zinc-800">{log.ip || '—'}</dd></div>
             <div>
@@ -237,7 +251,7 @@ function AuditDetailModal({ log, onClose }) {
 
 /* ───────────────────────── Onglet Journal d'audit ───────────────────────── */
 
-const EMPTY_AUDIT_FILTERS = { user_id: '', resource: '', action: '', resource_id: '', search: '', date_from: '', date_to: '' };
+const EMPTY_AUDIT_FILTERS = { user_id: '', resource: '', action: '', target_id: '', search: '', date_from: '', date_to: '' };
 
 function AuditTab() {
   const [facets, setFacets] = useState({ users: [], resources: [], actions: [] });
@@ -294,19 +308,19 @@ function AuditTab() {
           <label className="form-label">Entité / Table</label>
           <select className="form-select" value={draft.resource} onChange={set('resource')}>
             <option value="">Toutes</option>
-            {facets.resources.map((r) => <option key={r.value} value={r.value}>{r.value} ({r.count})</option>)}
+            {facets.resources.map((r) => <option key={r.value} value={r.value}>{r.name_fr || r.value} ({r.count})</option>)}
           </select>
         </div>
         <div>
           <label className="form-label">Action</label>
           <select className="form-select" value={draft.action} onChange={set('action')}>
             <option value="">Toutes</option>
-            {facets.actions.map((a) => <option key={a.value} value={a.value}>{actionLabel(a.value)} ({a.count})</option>)}
+            {facets.actions.map((a) => <option key={a.value} value={a.value}>{a.name_fr || actionLabel(a.value)} ({a.count})</option>)}
           </select>
         </div>
         <div>
-          <label className="form-label">ID entité</label>
-          <input className="form-input" value={draft.resource_id} onChange={set('resource_id')} placeholder="Identifiant de l'enregistrement" />
+          <label className="form-label">Enregistrement</label>
+          <input className="form-input" value={draft.target_id} onChange={set('target_id')} placeholder="Identifiant de l'enregistrement" />
         </div>
         <div>
           <label className="form-label">Du</label>
@@ -336,7 +350,7 @@ function AuditTab() {
               <th className="table-th">Auteur</th>
               <th className="table-th">Action</th>
               <th className="table-th">Entité</th>
-              <th className="table-th">ID entité</th>
+              <th className="table-th">Enregistrement</th>
               <th className="table-th">IP</th>
               <th className="table-th text-right">Avant / Après</th>
             </tr>
@@ -358,10 +372,15 @@ function AuditTab() {
                   ) : <span className="text-zinc-400">{r.user_id ? `#${r.user_id}` : 'Système'}</span>}
                 </td>
                 <td className="table-td">
-                  <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ${actionTone(r.action)}`}>{actionLabel(r.action)}</span>
+                  <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ${actionTone(refCode(r.action))}`}>
+                    {refLabel(r.action)}
+                  </span>
                 </td>
-                <td className="table-td font-mono text-xs text-zinc-700">{r.resource}</td>
-                <td className="table-td max-w-[180px] truncate font-mono text-xs text-zinc-500" title={r.resource_id || ''}>{r.resource_id || '—'}</td>
+                <td className="table-td text-zinc-700">
+                  {refLabel(r.resource)}
+                  <p className="font-mono text-[11px] text-zinc-400">{refCode(r.resource)}</p>
+                </td>
+                <td className="table-td max-w-[180px] truncate font-mono text-xs text-zinc-500" title={r.target_id || ''}>{r.target_id || '—'}</td>
                 <td className="table-td font-mono text-xs text-zinc-500">{r.ip || '—'}</td>
                 <td className="table-td text-right">
                   <button type="button" onClick={() => setDetail(r)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
@@ -382,7 +401,7 @@ function AuditTab() {
 
 /* ───────────────────────── Onglet Notifications (log) ───────────────────────── */
 
-const EMPTY_NOTIF_FILTERS = { event_code: '', channel_id: '', status_id: '', is_read: '', search: '', date_from: '', date_to: '' };
+const EMPTY_NOTIF_FILTERS = { type_id: '', event_code: '', channel_id: '', status_id: '', is_read: '', search: '', date_from: '', date_to: '' };
 
 /** Couleurs des statuts du référentiel notification_statuses. */
 const NOTIF_STATUS_STYLE = {
@@ -403,7 +422,7 @@ function NotifStatusBadge({ status }) {
 }
 
 function NotificationsTab() {
-  const [facets, setFacets] = useState({ event_codes: [], channels: [], statuses: [] });
+  const [facets, setFacets] = useState({ event_codes: [], types: [], channels: [], statuses: [] });
   const [draft, setDraft] = useState(EMPTY_NOTIF_FILTERS);
   const [filters, setFilters] = useState(EMPTY_NOTIF_FILTERS);
   const [exporting, setExporting] = useState(false);
@@ -412,7 +431,7 @@ function NotificationsTab() {
 
   useEffect(() => {
     getNotificationFacets()
-      .then(({ data }) => setFacets({ event_codes: [], channels: [], statuses: [], ...(data.data || {}) }))
+      .then(({ data }) => setFacets({ event_codes: [], types: [], channels: [], statuses: [], ...(data.data || {}) }))
       .catch(() => {});
   }, []);
 
@@ -446,7 +465,14 @@ function NotificationsTab() {
     <div className="space-y-4">
       <form onSubmit={apply} className="card grid grid-cols-1 gap-3 p-4 md:grid-cols-4">
         <div>
-          <label className="form-label">Type (événement)</label>
+          <label className="form-label">Type</label>
+          <select className="form-select" value={draft.type_id} onChange={set('type_id')}>
+            <option value="">Tous</option>
+            {facets.types.map((t) => <option key={t.id} value={t.id}>{t.name_fr} ({t.count})</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Événement</label>
           <select className="form-select" value={draft.event_code} onChange={set('event_code')}>
             <option value="">Tous</option>
             {facets.event_codes.map((e) => <option key={e.value} value={e.value}>{e.value} ({e.count})</option>)}
@@ -504,6 +530,7 @@ function NotificationsTab() {
               <th className="table-th">Destinataire</th>
               <th className="table-th">Canal</th>
               <th className="table-th">Type</th>
+              <th className="table-th">Événement</th>
               <th className="table-th">Titre / contenu (FR)</th>
               <th className="table-th">Titre / contenu (AR)</th>
               <th className="table-th">Statut</th>
@@ -513,9 +540,9 @@ function NotificationsTab() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="table-td py-10 text-center text-zinc-400"><Loader2 className="mx-auto animate-spin" size={20} /></td></tr>
+              <tr><td colSpan={10} className="table-td py-10 text-center text-zinc-400"><Loader2 className="mx-auto animate-spin" size={20} /></td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={9} className="table-td py-10 text-center text-zinc-400">Aucune notification pour ces critères.</td></tr>
+              <tr><td colSpan={10} className="table-td py-10 text-center text-zinc-400">Aucune notification pour ces critères.</td></tr>
             ) : rows.map((n) => (
               <tr key={n.id} className="hover:bg-zinc-50">
                 <td className="table-td whitespace-nowrap text-zinc-600">{fmtDateTime(n.sent_at)}</td>
@@ -524,7 +551,8 @@ function NotificationsTab() {
                   {n.customer && <p className="font-mono text-xs text-zinc-400">{phone(n.customer)}</p>}
                 </td>
                 <td className="table-td text-zinc-600">{n.channel?.name_fr || n.channel?.code || '—'}</td>
-                <td className="table-td font-mono text-xs text-zinc-700">{n.event_code}</td>
+                <td className="table-td text-zinc-700">{n.type?.name_fr || '—'}</td>
+                <td className="table-td font-mono text-xs text-zinc-500">{n.event_code}</td>
                 <td className="table-td max-w-[240px] text-zinc-700">
                   <p className="truncate font-medium" title={n.title_fr || ''}>{n.title_fr || '—'}</p>
                   <p className="truncate text-xs text-zinc-400" title={n.body_fr || ''}>{n.body_fr || ''}</p>
@@ -535,6 +563,11 @@ function NotificationsTab() {
                 </td>
                 <td className="table-td">
                   <NotifStatusBadge status={n.status} />
+                  {n.error_message && (
+                    <p className="mt-1 max-w-[200px] truncate text-[11px] text-red-600" title={n.error_message}>
+                      {n.error_message}
+                    </p>
+                  )}
                 </td>
                 <td className="table-td whitespace-nowrap text-xs text-zinc-600">
                   {n.read_at ? fmtDateTime(n.read_at) : n.is_read ? 'Lue' : 'Non lue'}
@@ -556,7 +589,7 @@ function NotificationsTab() {
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
         title="Détail de la notification"
-        subtitle={detail ? `${detail.event_code} — ${fmtDateTime(detail.sent_at)}` : ''}
+        subtitle={detail ? `${detail.type?.name_fr || detail.event_code} — ${fmtDateTime(detail.sent_at)}` : ''}
         footer={<button type="button" className="btn-secondary" onClick={() => setDetail(null)}>Fermer</button>}
       >
         {detail && (
@@ -566,7 +599,18 @@ function NotificationsTab() {
               <dd>{detail.customer?.name || '—'} <span className="font-mono text-xs text-zinc-400">{phone(detail.customer)}</span></dd>
             </div>
             <div><dt className="form-label">Canal</dt><dd>{detail.channel?.name_fr || '—'}</dd></div>
+            <div>
+              <dt className="form-label">Type</dt>
+              <dd>
+                {detail.type?.name_fr || '—'}
+                <span className="ml-2 font-mono text-xs text-zinc-400">{detail.event_code}</span>
+              </dd>
+            </div>
             <div><dt className="form-label">Statut</dt><dd><NotifStatusBadge status={detail.status} /></dd></div>
+            <div>
+              <dt className="form-label">Motif d'échec</dt>
+              <dd className={detail.error_message ? 'text-red-600' : 'text-zinc-400'}>{detail.error_message || '—'}</dd>
+            </div>
             <div><dt className="form-label">Commande</dt><dd className="font-mono text-xs">{detail.order_id || '—'}</dd></div>
             <div><dt className="form-label">Date d'envoi</dt><dd>{fmtDateTime(detail.sent_at)}</dd></div>
             <div><dt className="form-label">Date de lecture</dt><dd>{detail.read_at ? fmtDateTime(detail.read_at) : detail.is_read ? 'Lue (date inconnue)' : 'Non lue'}</dd></div>

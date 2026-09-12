@@ -44,8 +44,8 @@ export const reorderFamilies = (items) => api.patch(`${c}/families/reorder`, { i
 
 export const getSubFamilies = (params) => api.get(`${c}/subfamilies`, { params });
 export const getSubFamily = (id) => api.get(`${c}/subfamilies/${id}`);
-export const createSubFamily = (data) => api.post(`${c}/subfamilies`, data);
-export const updateSubFamily = (id, data) => api.put(`${c}/subfamilies/${id}`, data);
+export const createSubFamily = (data) => api.post(`${c}/subfamilies`, data, multipartOrJsonConfig(data));
+export const updateSubFamily = (id, data) => api.put(`${c}/subfamilies/${id}`, data, multipartOrJsonConfig(data));
 export const deleteSubFamily = (id) => api.delete(`${c}/subfamilies/${id}`);
 export const restoreSubFamily = (id) => api.patch(`${c}/subfamilies/${id}/restore`);
 export const toggleSubFamilyStatus = (id) => api.patch(`${c}/subfamilies/${id}/toggle-status`);

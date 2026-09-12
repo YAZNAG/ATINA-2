@@ -159,7 +159,15 @@ async function getAll(query = {}) {
   return { data, pagination, meta: pagination };
 }
 
+/** Un identifiant qui n'est pas un UUID est un 404, pas une erreur Prisma. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const assertPackId = (id) => {
+  if (!UUID_RE.test(String(id ?? ''))) throw err(404, 'Pack introuvable');
+  return String(id);
+};
+
 async function getById(id) {
+  assertPackId(id);
   const pack = await getPackWithItems(id);
   if (!pack) throw err(404, 'Pack introuvable');
   const lock = await getCompositionLock(id);
@@ -167,6 +175,7 @@ async function getById(id) {
 }
 
 async function getLock(id) {
+  assertPackId(id);
   const pack = await prisma.pack.findFirst({ where: { id, is_deleted: false }, select: { id: true } });
   if (!pack) throw err(404, 'Pack introuvable');
   return getCompositionLock(id);

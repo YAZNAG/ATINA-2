@@ -373,8 +373,9 @@ function NodePaymentMethodsTab({ canManage }) {
                   <td className="table-td text-right">
                     <button
                       type="button"
-                      className={r.is_active ? 'btn-secondary' : 'btn-primary'}
+                      className={`${r.is_active ? 'btn-secondary' : 'btn-primary'} disabled:cursor-not-allowed disabled:opacity-40`}
                       disabled={busyId === r.payment_method_id || (!r.catalog_active && !r.is_active)}
+                      title={!r.catalog_active && !r.is_active ? 'Méthode désactivée dans le catalogue' : undefined}
                       onClick={() => toggle(r)}
                     >
                       {busyId === r.payment_method_id

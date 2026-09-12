@@ -8,7 +8,8 @@ function formatReview(r, currentCustomerId = null) {
   const voterIds = r.helpful_voter_ids ?? [];
   return {
     id:            r.id,
-    article_id:    r.article_id,
+    sku_id:        r.sku_id,
+    article_id:    r.sku_id, // alias conserve pour l'app Expo
     customer_id:   r.customer_id,
     customer:      r.customer ?? null,
     rating:        r.rating,
@@ -21,12 +22,12 @@ function formatReview(r, currentCustomerId = null) {
 }
 
 //lister les avis d'un article (lecture publique)
-async function listByArticle(article_id, query = {}, currentCustomerId = null) {
+async function listByArticle(sku_id, query = {}, currentCustomerId = null) {
   const page  = Math.max(1, parseInt(query.page  ?? '1', 10));
   const limit = Math.max(1, parseInt(query.limit ?? '10', 10));
   const skip  = (page - 1) * limit;
 
-  const where = { article_id: Number(article_id), is_deleted: false };
+  const where = { sku_id: String(sku_id), is_deleted: false };
 
   const [items, total, agg, distribution] = await Promise.all([
     prisma.articleReview.findMany({
@@ -62,22 +63,22 @@ async function listByArticle(article_id, query = {}, currentCustomerId = null) {
 }
 
 // creer un avis
-async function createReview(customerId, article_id, body) {
+async function createReview(customerId, sku_id, body) {
   const { rating, comment } = body;
 
-  if (!article_id)               throw { statusCode: 400, message: 'article_id requis' };
+  if (!sku_id)                   throw { statusCode: 400, message: 'sku_id requis' };
   if (!rating || rating < 1 || rating > 5)
     throw { statusCode: 400, message: 'Note invalide (1-5)' };
 
-  // Vérifie que l'article existe
-  const article = await prisma.article.findFirst({
-    where: { id: Number(article_id), is_deleted: false },
+  // Verifie que le produit existe (les avis portent sur le SKU depuis la fusion article -> sku)
+  const sku = await prisma.sku.findFirst({
+    where: { id: String(sku_id), is_deleted: false },
   });
-  if (!article) throw { statusCode: 404, message: 'Article introuvable' };
+  if (!sku) throw { statusCode: 404, message: 'Produit introuvable' };
 
   // verifie qu'il n'a pas deja laiss un avis
   const existing = await prisma.articleReview.findUnique({
-    where: { article_id_customer_id: { article_id: Number(article_id), customer_id: customerId } },
+    where: { sku_id_customer_id: { sku_id: String(sku_id), customer_id: customerId } },
   });
   if (existing && !existing.is_deleted)
     throw { statusCode: 409, message: 'Vous avez déjà laissé un avis sur cet article' };
@@ -93,7 +94,7 @@ async function createReview(customerId, article_id, body) {
 
   const created = await prisma.articleReview.create({
     data: {
-      article_id:  Number(article_id),
+      sku_id:      String(sku_id),
       customer_id: customerId,
       rating:      Number(rating),
       comment:     comment ?? null,
@@ -138,11 +139,11 @@ async function deleteReview(customerId, reviewId) {
   return { id: reviewId };
 }
 
-async function getMyReview(customerId, article_id) {
+async function getMyReview(customerId, sku_id) {
   const review = await prisma.articleReview.findUnique({
     where: {
-      article_id_customer_id: {
-        article_id: Number(article_id),
+      sku_id_customer_id: {
+        sku_id: String(sku_id),
         customer_id: customerId,
       },
     },

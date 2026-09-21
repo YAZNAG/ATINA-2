@@ -17,6 +17,7 @@ import {
 } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import { SubstitutionService, type Substitution } from '../../services/substitution.service';
+import { t } from '../../i18n';
 
 const RED   = '#E10600';
 const GREEN = '#16A34A';
@@ -51,7 +52,7 @@ export default function OrderSubstitutionScreen() {
       setSubstitutions(data);
       setError(null);
     } catch (err: any) {
-      setError(err?.message ?? 'Impossible de charger les substitutions');
+      setError(err?.message ?? t('Impossible de charger les substitutions'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ export default function OrderSubstitutionScreen() {
         prev.map(s => (s.id === substitutionId ? updated : s)),
       );
     } catch (err: any) {
-      Alert.alert('Erreur', err?.message ?? 'Une erreur est survenue');
+      Alert.alert(t('Erreur'), err?.message ?? t('Une erreur est survenue'));
     } finally {
       setResponding(null);
     }
@@ -85,10 +86,10 @@ export default function OrderSubstitutionScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.container}>
-        <PageHeader title="Substitution produit" />
+        <PageHeader title={t('Substitution produit')} />
 
         <Text style={styles.subtitle}>
-          Certains produits de votre commande sont indisponibles. Acceptez ou refusez les alternatives proposées.
+          {t('Certains produits de votre commande sont indisponibles. Acceptez ou refusez les alternatives proposées.')}
         </Text>
 
         {loading ? (
@@ -103,7 +104,7 @@ export default function OrderSubstitutionScreen() {
         ) : substitutions.length === 0 ? (
           <View style={styles.center}>
             <Feather name="check-circle" size={32} color="#9CA3AF" />
-            <Text style={styles.emptyText}>Aucune substitution pour cette commande.</Text>
+            <Text style={styles.emptyText}>{t('Aucune substitution pour cette commande.')}</Text>
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -126,7 +127,7 @@ export default function OrderSubstitutionScreen() {
 
             {processed.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Déjà traitées</Text>
+                <Text style={styles.sectionTitle}>{t('Déjà traitées')}</Text>
                 {processed.map(sub => (
                   <SubstitutionCard
                     key={sub.id}
@@ -163,9 +164,9 @@ function SubstitutionCard({
 
       {/* Header */}
       <View style={styles.cardHeader}>
-        <Text style={styles.cardHeaderText}>Produit indisponible</Text>
+        <Text style={styles.cardHeaderText}>{t('Produit indisponible')}</Text>
         <View style={[styles.badge, badgeStyle]}>
-          <Text style={styles.badgeText}>{STATUS_LABEL[sub.status]}</Text>
+          <Text style={styles.badgeText}>{t(STATUS_LABEL[sub.status] ?? sub.status)}</Text>
         </View>
       </View>
 
@@ -179,7 +180,7 @@ function SubstitutionCard({
           </View>
         )}
         <View style={styles.productInfo}>
-          <Text style={styles.productLabel}>Indisponible</Text>
+          <Text style={styles.productLabel}>{t('Indisponible')}</Text>
           <Text style={styles.productName} numberOfLines={1}>
             {sub.original_sku?.name_fr}
           </Text>
@@ -188,7 +189,7 @@ function SubstitutionCard({
 
       <View style={styles.arrowRow}>
         <Feather name="arrow-down" size={16} color="#9CA3AF" />
-        <Text style={styles.arrowText}>remplacé par</Text>
+        <Text style={styles.arrowText}>{t('remplacé par')}</Text>
       </View>
 
       {/* Produit proposé */}
@@ -202,7 +203,7 @@ function SubstitutionCard({
             </View>
           )}
           <View style={styles.productInfo}>
-            <Text style={[styles.productLabel, { color: GREEN }]}>Alternative proposée</Text>
+            <Text style={[styles.productLabel, { color: GREEN }]}>{t('Alternative proposée')}</Text>
             <Text style={styles.productName} numberOfLines={1}>
               {sub.substitute_sku.name_fr}
             </Text>
@@ -214,7 +215,7 @@ function SubstitutionCard({
           </View>
         </View>
       ) : (
-        <Text style={styles.noAlternative}>Aucune alternative trouvée pour ce produit.</Text>
+        <Text style={styles.noAlternative}>{t('Aucune alternative trouvée pour ce produit.')}</Text>
       )}
 
       {sub.reason && (
@@ -233,7 +234,7 @@ function SubstitutionCard({
             {responding ? (
               <ActivityIndicator size="small" color={RED} />
             ) : (
-              <Text style={styles.btnRefuseText}>Refuser</Text>
+              <Text style={styles.btnRefuseText}>{t('Refuser')}</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -245,7 +246,7 @@ function SubstitutionCard({
             {responding ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.btnAcceptText}>Accepter</Text>
+              <Text style={styles.btnAcceptText}>{t('Accepter')}</Text>
             )}
           </TouchableOpacity>
         </View>

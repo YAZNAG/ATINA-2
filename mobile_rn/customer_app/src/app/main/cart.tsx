@@ -18,6 +18,7 @@ import { useCartActions } from '../../context/CartContext';
 import { ProfileService } from '../../services/profile.service';
 import { GamesService, CustomerGame } from '../../services/games.service';
 import { RewardsCart, useRewardsCart, RewardsCartState } from '../../store/rewardsCartStore';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -111,14 +112,14 @@ const ConfirmDeleteModal = ({
           {target?.kind === 'pack'
             ? `Êtes-vous sûr de vouloir supprimer le pack "${target.name_fr}" de votre panier ?`
             : target?.kind === 'clearAll'
-              ? 'Êtes-vous sûr de vouloir supprimer tous les articles de votre panier ?'
-              : 'Êtes-vous sûr de vouloir supprimer cet article de votre panier ?'}
+              ? t('Êtes-vous sûr de vouloir supprimer tous les articles de votre panier ?')
+              : t('Êtes-vous sûr de vouloir supprimer cet article de votre panier ?')}
         </Text>
         <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
-          <Text style={styles.btnConfirmDeleteText}>Supprimer</Text>
+          <Text style={styles.btnConfirmDeleteText}>{t('Supprimer')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
-          <Text style={styles.btnCancelText}>Annuler</Text>
+          <Text style={styles.btnCancelText}>{t('Annuler')}</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -223,7 +224,7 @@ const PackCartRow = React.memo(({
     <View style={styles.itemInfo}>
       <View style={styles.packBadge}>
         <Feather name="package" size={10} color={RED} />
-        <Text style={styles.packBadgeText}>Pack</Text>
+        <Text style={styles.packBadgeText}>{t('Pack')}</Text>
       </View>
       <Text style={styles.itemName} numberOfLines={2}>{group.name_fr}</Text>
       <Text style={styles.itemSub} numberOfLines={1}>
@@ -275,7 +276,7 @@ const RewardsSection = ({
         <View style={styles.rewardBlock}>
           <View style={styles.rewardHeader}>
             <Feather name="repeat" size={14} color="#B45309" />
-            <Text style={styles.rewardTitle}>Produits échangés</Text>
+            <Text style={styles.rewardTitle}>{t('Produits échangés')}</Text>
             <Text style={styles.rewardPts}>{pts.toLocaleString('fr-FR')} pts</Text>
           </View>
           {rewards.exchange.map((l) => (
@@ -311,14 +312,14 @@ const RewardsSection = ({
         <View style={styles.rewardBlock}>
           <View style={styles.rewardHeader}>
             <Feather name="gift" size={14} color="#15803D" />
-            <Text style={styles.rewardTitle}>Lots gagnés à réclamer</Text>
+            <Text style={styles.rewardTitle}>{t('Lots gagnés à réclamer')}</Text>
           </View>
           {rewards.claims.map((c) => (
             <View key={c.play_id} style={styles.rewardRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rewardName} numberOfLines={1}>{c.name_fr}</Text>
                 <Text style={styles.rewardSub}>
-                  {c.type === 'free_pack' ? 'Pack offert' : 'Produit offert'} • 0,00 MAD
+                  {c.type === 'free_pack' ? t('Pack offert') : t('Produit offert')} • 0,00 MAD
                   {c.expires_at ? ` • avant le ${new Date(c.expires_at).toLocaleDateString('fr-FR')}` : ''}
                 </Text>
               </View>
@@ -331,8 +332,8 @@ const RewardsSection = ({
       )}
       <TouchableOpacity style={styles.rewardLink} onPress={onOpenExchange} activeOpacity={0.8}>
         <Feather name="star" size={14} color={RED} />
-        <Text style={styles.rewardLinkText}>Échanger mes points contre des produits</Text>
-        <Feather name="chevron-right" size={14} color={RED} />
+        <Text style={styles.rewardLinkText}>{t('Échanger mes points contre des produits')}</Text>
+        <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={14} color={RED} />
       </TouchableOpacity>
     </View>
   );
@@ -382,7 +383,7 @@ export default function CartScreen() {
   const handleIncrease = useCallback(async (item: CartItem) => {
     setUpdatingId(item.id);
     try { setCartAndSync(stableCart(await CartService.updateItem(item.id, item.quantity + 1))); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
+    catch (err: any) { Alert.alert(t('Erreur'), err.message); }
     finally { setUpdatingId(null); }
   }, [setCartAndSync]);
 
@@ -390,7 +391,7 @@ export default function CartScreen() {
     if (item.quantity <= 1) { setDeleteTarget({ kind: 'item', item }); return; }
     setUpdatingId(item.id);
     try { setCartAndSync(stableCart(await CartService.updateItem(item.id, item.quantity - 1))); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
+    catch (err: any) { Alert.alert(t('Erreur'), err.message); }
     finally { setUpdatingId(null); }
   }, [setCartAndSync]);
 
@@ -398,7 +399,7 @@ export default function CartScreen() {
     const id = `pack-${group.packId}`;
     setUpdatingId(id);
     try { setCartAndSync(stableCart(await CartService.updatePackQuantity(group.packId, group.bundleQty + 1))); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
+    catch (err: any) { Alert.alert(t('Erreur'), err.message); }
     finally { setUpdatingId(null); }
   }, [setCartAndSync]);
 
@@ -407,7 +408,7 @@ export default function CartScreen() {
     const id = `pack-${group.packId}`;
     setUpdatingId(id);
     try { setCartAndSync(stableCart(await CartService.updatePackQuantity(group.packId, group.bundleQty - 1))); }
-    catch (err: any) { Alert.alert('Erreur', err.message); }
+    catch (err: any) { Alert.alert(t('Erreur'), err.message); }
     finally { setUpdatingId(null); }
   }, [setCartAndSync]);
 
@@ -429,7 +430,7 @@ export default function CartScreen() {
       try {
         setCartAndSync(stableCart(await CartService.clearCart()));
       } catch (err: any) {
-        Alert.alert('Erreur', err.message);
+        Alert.alert(t('Erreur'), err.message);
       } finally {
         setLoading(false);
       }
@@ -444,7 +445,7 @@ export default function CartScreen() {
         : await CartService.removeItem(target.item.id);
       setCartAndSync(stableCart(updated));
     } catch (err: any) {
-      Alert.alert('Erreur', err.message);
+      Alert.alert(t('Erreur'), err.message);
     } finally {
       setUpdatingId(null);
     }
@@ -486,7 +487,7 @@ export default function CartScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <PageHeader title="Mon panier" rightIcon="trash-2" onRightPress={handleClearAll} />
+      <PageHeader title={t('Mon panier')} rightIcon="trash-2" onRightPress={handleClearAll} />
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -497,16 +498,16 @@ export default function CartScreen() {
         <View style={styles.emptyContainer}>
           <View style={styles.emptyBadge}>
             <Feather name="star" size={14} color={RED} />
-            <Text style={styles.emptyBadgeText}>Prêt pour votre prochaine commande</Text>
+            <Text style={styles.emptyBadgeText}>{t('Prêt pour votre prochaine commande')}</Text>
           </View>
-          <Image source={require('../../../assets/images/app/emptyCart.png')} style={styles.emptyImage} contentFit="contain" />
-          <Text style={styles.emptyTitle}>Votre panier est vide</Text>
+          <Image source={require('../../../assets/images/atina/empty_cart.png')} style={styles.emptyImage} contentFit="contain" />
+          <Text style={styles.emptyTitle}>{t('Votre panier est vide')}</Text>
           <Text style={styles.emptySubtitle}>
-            Ajoutez des produits pour commencer votre commande et retrouvez ici tous vos articles favoris.
+            {t('Ajoutez des produits pour commencer votre commande et retrouvez ici tous vos articles favoris.')}
           </Text>
           <TouchableOpacity style={styles.btnExplore} onPress={() => router.push('/main/main_nav/home' as any)} activeOpacity={0.85}>
             <Feather name="shopping-bag" size={18} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.btnExploreText}>Découvrir les produits</Text>
+            <Text style={styles.btnExploreText}>{t('Découvrir les produits')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -561,22 +562,22 @@ export default function CartScreen() {
               </View>
             )}
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>SOUS-TOTAL</Text>
+              <Text style={styles.summaryLabel}>{t('SOUS-TOTAL')}</Text>
               <Text style={styles.summaryValue}>{cart.total.toFixed(2)} DH</Text>
             </View>
             {exchangePoints > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>POINTS ÉCHANGÉS</Text>
+                <Text style={styles.summaryLabel}>{t('POINTS ÉCHANGÉS')}</Text>
                 <Text style={[styles.summaryValue, { color: '#F59E0B', fontSize: 14 }]}>{exchangePoints.toLocaleString('fr-FR')} pts</Text>
               </View>
             )}
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>LIVRAISON</Text>
-              <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 14 }]}>Calculée au checkout</Text>
+              <Text style={styles.summaryLabel}>{t('LIVRAISON')}</Text>
+              <Text style={[styles.summaryValue, { color: '#9CA3AF', fontSize: 14 }]}>{t('Calculée au checkout')}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
-              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalLabel}>{t('Total')}</Text>
               <Text style={styles.totalValue}>{cart.total.toFixed(2)} DH</Text>
             </View>
             <TouchableOpacity
@@ -597,9 +598,9 @@ export default function CartScreen() {
                 });
               }}
             >
-              <Text style={styles.btnCheckoutText}>Passer la commande</Text>
+              <Text style={styles.btnCheckoutText}>{t('Passer la commande')}</Text>
               <View style={styles.btnCheckoutArrow}>
-                <Feather name="chevron-right" size={18} color='#ffff' />
+                <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color='#ffff' />
               </View>
             </TouchableOpacity>
           </View>

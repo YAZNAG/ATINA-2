@@ -15,6 +15,7 @@ import {
   Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -63,20 +64,18 @@ export default function LoyaltyScreen() {
     const res = await LoyaltyService.redeem();
 
     if (res.reward.type === 'coupon') {
-      Alert.alert(
-        'Coupon débloqué 🎉',
+      Alert.alert(t('Coupon débloqué 🎉'),
         `Code : ${res.reward.code}\nValeur : ${res.reward.value_mad} MAD\nValable jusqu'au ${new Date(res.reward.valid_to).toLocaleDateString('fr-FR')}`
       );
     } else {
-      Alert.alert(
-        'Crédit ajouté 🎉',
+      Alert.alert(t('Crédit ajouté 🎉'),
         `${res.reward.amount_mad} MAD ont été ajoutés à votre portefeuille.`
       );
     }
 
     load();
   } catch (e: any) {
-    Alert.alert('Erreur', e?.response?.data?.message ?? "Échec de l'échange.");
+    Alert.alert(t('Erreur'), e?.response?.data?.message ?? "Échec de l'échange.");
   } finally {
     setRedeeming(false);
   }
@@ -117,10 +116,10 @@ if (error) {
   return (
     <SafeAreaView style={styles.center}>
       <Feather name="wifi-off" size={40} color="#9CA3AF" />
-      <Text style={styles.errorTitle}>Impossible de charger vos points</Text>
-      <Text style={styles.errorDesc}>Vérifiez votre connexion et réessayez.</Text>
+      <Text style={styles.errorTitle}>{t('Impossible de charger vos points')}</Text>
+      <Text style={styles.errorDesc}>{t('Vérifiez votre connexion et réessayez.')}</Text>
       <TouchableOpacity style={styles.retryBtn} onPress={load} activeOpacity={0.85}>
-        <Text style={styles.retryBtnText}>Réessayer</Text>
+        <Text style={styles.retryBtnText}>{t('Réessayer')}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -141,18 +140,18 @@ if (error) {
                 name="star"
                 size={12}
                 color={'#ffffff'}/>
-            <Text style={styles.badgeText}>PROGRAMME FIDÉLITÉ</Text>
+            <Text style={styles.badgeText}>{t('PROGRAMME FIDÉLITÉ')}</Text>
           </View>
 
-          <Text style={styles.balanceLabel}>Points disponibles</Text>
+          <Text style={styles.balanceLabel}>{t('Points disponibles')}</Text>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceValue}>{summary?.points_balance.toLocaleString('fr-FR')}</Text>
-            <Text style={styles.balanceUnit}>pts</Text>
+            <Text style={styles.balanceUnit}>{t('pts')}</Text>
           </View>
 
           <View style={styles.progressBox}>
             <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Progression</Text>
+              <Text style={styles.progressLabel}>{t('Progression')}</Text>
               <Text style={styles.progressValue}>
                 {summary?.points_balance} / {summary?.next_milestone} pts
               </Text>
@@ -160,11 +159,11 @@ if (error) {
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${summary?.progress_pct ?? 0}%` }]} />
             </View>
-            <Text style={styles.stepTitle}>Profitez</Text>
+            <Text style={styles.stepTitle}>{t('Profitez')}</Text>
 <Text style={styles.stepDesc}>
   {summary?.reward_type === 'WALLET' || summary?.reward_type === 'DISCOUNT'
-    ? 'Échangez vos points contre un crédit ajouté directement à votre portefeuille.'
-    : 'Échangez vos points contre des coupons de réduction.'}
+    ? t('Échangez vos points contre un crédit ajouté directement à votre portefeuille.')
+    : t('Échangez vos points contre des coupons de réduction.')}
 </Text>
           </View>
 
@@ -183,7 +182,7 @@ if (error) {
   size={18}
   color={RED}
 />
-                <Text style={styles.redeemBtnText}>Échanger mes points</Text>
+                <Text style={styles.redeemBtnText}>{t('Échanger mes points')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -195,21 +194,21 @@ if (error) {
             <Feather name="repeat" size={18} color="#B45309" />
           </View>
           <View style={styles.stepText}>
-            <Text style={styles.stepTitle}>Échanger mes points contre des produits</Text>
-            <Text style={styles.stepDesc}>Choisissez des produits du catalogue d'échange : ils sont offerts dans votre prochaine commande.</Text>
+            <Text style={styles.stepTitle}>{t('Échanger mes points contre des produits')}</Text>
+            <Text style={styles.stepDesc}>{t('Choisissez des produits du catalogue d\'échange : ils sont offerts dans votre prochaine commande.')}</Text>
           </View>
-          <Feather name="chevron-right" size={18} color="#C5C5C5" />
+          <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color="#C5C5C5" />
         </TouchableOpacity>
 
         {/* ── Comment ça marche ── */}
-        <Text style={styles.sectionTitle}>Comment ça marche ?</Text>
+        <Text style={styles.sectionTitle}>{t('Comment ça marche ?')}</Text>
 
         <View style={styles.stepCard}>
           <View style={[styles.stepIcon, { backgroundColor: '#DBEAFE' }]}>
             <Feather name="shopping-cart" size={18} color="#2563EB" />
           </View>
           <View style={styles.stepText}>
-            <Text style={styles.stepTitle}>Achetez</Text>
+            <Text style={styles.stepTitle}>{t('Achetez')}</Text>
             <Text style={styles.stepDesc}>1 MAD dépensé = 1 point gagné sur votre cagnotte.</Text>
           </View>
         </View>
@@ -219,8 +218,8 @@ if (error) {
             <Feather name="truck" size={18} color="#059669" />
           </View>
           <View style={styles.stepText}>
-            <Text style={styles.stepTitle}>Recevez</Text>
-            <Text style={styles.stepDesc}>Les points sont validés une fois la commande livrée.</Text>
+            <Text style={styles.stepTitle}>{t('Recevez')}</Text>
+            <Text style={styles.stepDesc}>{t('Les points sont validés une fois la commande livrée.')}</Text>
           </View>
         </View>
 
@@ -229,8 +228,8 @@ if (error) {
             <Feather name="gift" size={18} color="#9333EA" />
           </View>
           <View style={styles.stepText}>
-            <Text style={styles.stepTitle}>Profitez</Text>
-            <Text style={styles.stepDesc}>Échangez vos points contre des coupons de réduction.</Text>
+            <Text style={styles.stepTitle}>{t('Profitez')}</Text>
+            <Text style={styles.stepDesc}>{t('Échangez vos points contre des coupons de réduction.')}</Text>
           </View>
         </View>
 
@@ -238,16 +237,16 @@ if (error) {
         <View style={styles.infoBox}>
           <Feather name="info" size={20} color="#2563EB" style={{ marginTop: 2 }} />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.infoTitle}>Validité des points</Text>
-            <Text style={styles.infoDesc}>Vos points restent valables pendant 12 mois à compter de leur date d'acquisition.</Text>
+            <Text style={styles.infoTitle}>{t('Validité des points')}</Text>
+            <Text style={styles.infoDesc}>{t('Vos points restent valables pendant 12 mois à compter de leur date d\'acquisition.')}</Text>
           </View>
         </View>
 
         {/* ── Historique ── */}
         <View style={styles.historyHeader}>
-          <Text style={styles.sectionTitle}>Historique</Text>
+          <Text style={styles.sectionTitle}>{t('Historique')}</Text>
           <TouchableOpacity onPress={() => {}} activeOpacity={0.7}>
-            <Text style={styles.seeAll}>Voir tout →</Text>
+            <Text style={styles.seeAll}>{t('Voir tout →')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -263,7 +262,7 @@ if (error) {
                 {idx < history.length - 1 && <View style={styles.timelineLine} />}
               </View>
               <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>{item.label}</Text>
+                <Text style={styles.timelineLabel}>{t(item.label)}</Text>
                 <Text style={styles.timelineDate}>{formatDate(item.created_at)}</Text>
               </View>
               <Text style={[styles.timelinePoints, item.points < 0 && styles.timelinePointsNeg]}>
@@ -273,7 +272,7 @@ if (error) {
           ))}
 
           {history.length === 0 && (
-            <Text style={styles.emptyText}>Aucune activité pour le moment.</Text>
+            <Text style={styles.emptyText}>{t('Aucune activité pour le moment.')}</Text>
           )}
         </View>
       </ScrollView>

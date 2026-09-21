@@ -36,6 +36,7 @@ import {
 } from '../../../services/promotions.service';
 import { useNotification } from '../../../context/NotificationContext';
 import { usePackAvailability } from '../../../hooks/usePackAvailability';
+import { t } from '../../../i18n';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
@@ -315,7 +316,7 @@ export default function HomeScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Feather name="inbox" size={48} color="#E0E0E0" />
-            <Text style={styles.emptyText}>Aucun produit trouvé</Text>
+            <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
           </View>
         }
         renderItem={renderProductCard}

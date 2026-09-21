@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -34,7 +35,7 @@ export default function PageHeader({
           }
         }}
         activeOpacity={0.7}>
-        <Feather name="chevron-left" size={20} color={RED} />
+        <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color={RED} />
       </TouchableOpacity>
 
       {/* ── Title ── */}

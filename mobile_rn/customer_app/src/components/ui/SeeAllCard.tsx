@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -10,9 +11,9 @@ export default function SeeAllCard({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.iconCircle}>
-        <Feather name="arrow-right" size={22} color={RED} />
+        <Feather name={isRTL() ? 'arrow-left' : 'arrow-right'} size={22} color={RED} />
       </View>
-      <Text style={styles.text}>Voir tout</Text>
+      <Text style={styles.text}>{t('Voir tout')}</Text>
     </TouchableOpacity>
   );
 }

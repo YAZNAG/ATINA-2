@@ -10,6 +10,7 @@ import {
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { Feather } from '@expo/vector-icons';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -39,7 +40,7 @@ export default function CategoryList({ categories, selectedId, onSelect }: Categ
           <Feather name="grid" size={24} color={selectedId === null ? RED : '#6B7280'} />
           </View>
         <Text style={[styles.label, selectedId === null && styles.labelSelected]}>
-          Tout
+          {t('Tout')}
         </Text>
       </TouchableOpacity>
 

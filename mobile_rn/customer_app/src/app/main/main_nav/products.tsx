@@ -10,6 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import { CatalogService, Family } from '../../../services/catalog.service';
 import { getSavedLang, Lang } from '../../../components/onboarding/onboardingKit';
 import { ScreenTitle, SearchField } from '../../../components/ui/CatalogKit';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -32,7 +33,7 @@ export default function ProductsScreen() {
       setError('');
       setFamilies(await CatalogService.getFamilies());
     } catch (e: any) {
-      setError(e?.message ?? 'Impossible de charger les produits.');
+      setError(e?.message ?? t('Impossible de charger les produits.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -54,7 +55,7 @@ export default function ProductsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ScreenTitle title="Produits" onBack={() => router.navigate('/main/main_nav/home')} />
+      <ScreenTitle title={t('Produits')} onBack={() => router.navigate('/main/main_nav/home')} />
       <View style={styles.searchWrap}>
         <SearchField value={query} onChangeText={setQuery} onSubmit={openSearch} />
       </View>
@@ -74,11 +75,11 @@ export default function ProductsScreen() {
             <View style={styles.empty}>
               <Feather name={error ? 'wifi-off' : 'search'} size={30} color="#C4C4C4" />
               <Text style={styles.emptyText}>
-                {error || (query ? 'Aucune famille ne correspond. Validez pour chercher un produit.' : 'Aucun produit disponible.')}
+                {error || (query ? t('Aucune famille ne correspond. Validez pour chercher un produit.') : t('Aucun produit disponible.'))}
               </Text>
               {!!error && (
                 <TouchableOpacity onPress={() => { setLoading(true); load(); }}>
-                  <Text style={styles.retry}>Réessayer</Text>
+                  <Text style={styles.retry}>{t('Réessayer')}</Text>
                 </TouchableOpacity>
               )}
             </View>

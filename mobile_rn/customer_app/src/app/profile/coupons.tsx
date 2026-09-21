@@ -14,6 +14,7 @@ import {
   CouponsService, Coupon, MyCoupons,
   couponTitle, couponDescription,
 } from '../../services/coupons.service';
+import { t } from '../../i18n';
 
 const RED   = '#E10600';
 const GREEN = '#16A34A';
@@ -73,7 +74,7 @@ function CouponCard({ coupon, status }: { coupon: Coupon; status: CouponStatus }
           </Text>
           <View style={[styles.badge, { backgroundColor: badge.bg }]}>
             <View style={[styles.dot, { backgroundColor: badge.color }]} />
-            <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+            <Text style={[styles.badgeText, { color: badge.color }]}>{t(badge.label)}</Text>
           </View>
         </View>
 
@@ -90,7 +91,7 @@ function CouponCard({ coupon, status }: { coupon: Coupon; status: CouponStatus }
             <Feather name="copy" size={13} color={GRAY} style={{ marginLeft: 8 }} />
           )}
           {copied && (
-            <Text style={styles.copiedLabel}>Copié !</Text>
+            <Text style={styles.copiedLabel}>{t('Copié !')}</Text>
           )}
         </TouchableOpacity>
 
@@ -109,12 +110,12 @@ function CouponCard({ coupon, status }: { coupon: Coupon; status: CouponStatus }
       {/* ── Bouton ── */}
       {isAvailable ? (
         <TouchableOpacity style={styles.btnUse} onPress={handleUse} activeOpacity={0.85}>
-          <Text style={styles.btnUseText}>Utiliser</Text>
+          <Text style={styles.btnUseText}>{t('Utiliser')}</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.btnUsed}>
           <Text style={styles.btnUsedText}>
-            {status === 'used' ? 'Déjà utilisé' : 'Expiré'}
+            {status === 'used' ? t('Déjà utilisé') : t('Expiré')}
           </Text>
         </View>
       )}
@@ -163,17 +164,17 @@ export default function CouponsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Mes Coupons" />
+      <PageHeader title={t('Mes Coupons')} />
 
       {/* ── Tabs ── */}
       <SortBar
         value={activeTab}
         onChange={v => setActiveTab(v as Tab)}
         options={[
-          { value: 'all',       label: 'Tous',        badge: totalCount.all },
-          { value: 'available', label: 'Disponibles', badge: totalCount.available },
-          { value: 'used',      label: 'Utilisés',    badge: totalCount.used },
-          { value: 'expired',   label: 'Expirés',     badge: totalCount.expired },
+          { value: 'all',       label: t('Tous'),        badge: totalCount.all },
+          { value: 'available', label: t('Disponibles'), badge: totalCount.available },
+          { value: 'used',      label: t('Utilisés'),    badge: totalCount.used },
+          { value: 'expired',   label: t('Expirés'),     badge: totalCount.expired },
         ]}
       />
 
@@ -190,9 +191,9 @@ export default function CouponsScreen() {
         >
           {items.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Aucun coupon</Text>
+              <Text style={styles.emptyTitle}>{t('Aucun coupon')}</Text>
               <Text style={styles.emptyDesc}>
-                Vos coupons de réduction apparaîtront ici.
+                {t('Vos coupons de réduction apparaîtront ici.')}
               </Text>
             </View>
           ) : (

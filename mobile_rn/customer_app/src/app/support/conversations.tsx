@@ -26,6 +26,7 @@ import supportService, {
   SupportConversation,
   ConversationStatus,
 } from '../../services/support.service';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -95,12 +96,12 @@ function ConversationCard({
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: `${statusInfo.color}16` }]}>
             <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
-            <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+            <Text style={[styles.statusText, { color: statusInfo.color }]}>{t(statusInfo.label)}</Text>
           </View>
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.category}>{CATEGORY_LABELS[item.category] ?? item.category}</Text>
+          <Text style={styles.category}>{t(CATEGORY_LABELS[item.category] ?? item.category)}</Text>
           <Text style={styles.date}>{formatDate(item.last_message_at)}</Text>
         </View>
 
@@ -113,7 +114,7 @@ function ConversationCard({
         <TouchableOpacity onPress={onDelete} style={styles.deleteBtn}>
           <Feather name="trash-2" size={16} color="#EF4444" />
         </TouchableOpacity>
-        <Feather name="chevron-right" size={18} color="#D1D5DB" />
+        <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color="#D1D5DB" />
       </View>
     </TouchableOpacity>
   );
@@ -135,15 +136,15 @@ function DeleteConversationModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
         <View style={styles.confirmModalCard}>
-          <Text style={styles.confirmModalTitle}>Supprimer la conversation ?</Text>
+          <Text style={styles.confirmModalTitle}>{t('Supprimer la conversation ?')}</Text>
           <Text style={styles.confirmModalSubtitle}>
-            Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.
+            {t('Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.')}
           </Text>
           <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
-            <Text style={styles.btnConfirmDeleteText}>Supprimer</Text>
+            <Text style={styles.btnConfirmDeleteText}>{t('Supprimer')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
-            <Text style={styles.btnCancelText}>Annuler</Text>
+            <Text style={styles.btnCancelText}>{t('Annuler')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -210,7 +211,7 @@ export default function ConversationsScreen() {
         },
       });
     } catch {
-      Alert.alert('Erreur', 'Impossible de créer la conversation. Réessayez plus tard.');
+      Alert.alert(t('Erreur'), t('Impossible de créer la conversation. Réessayez plus tard.'));
     } finally {
       setCreatingCategory(null);
     }
@@ -230,7 +231,7 @@ export default function ConversationsScreen() {
       await supportService.deleteConversation(deleteTarget.id);
       setConversations((prev) => prev.filter((item) => item.id !== deleteTarget.id));
     } catch {
-      Alert.alert('Erreur', 'Impossible de supprimer la conversation');
+      Alert.alert(t('Erreur'), t('Impossible de supprimer la conversation'));
     } finally {
       setDeleteTarget(null);
     }
@@ -243,7 +244,7 @@ export default function ConversationsScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
         <PageHeader
-          title="Mes conversations"
+          title={t('Mes conversations')}
           rightIcon="plus"
           onRightPress={openCategoryPicker}
         />
@@ -256,7 +257,7 @@ export default function ConversationsScreen() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Sélectionnez une catégorie</Text>
+              <Text style={styles.modalTitle}>{t('Sélectionnez une catégorie')}</Text>
               {CATEGORY_OPTIONS.map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -268,9 +269,9 @@ export default function ConversationsScreen() {
                     <View style={styles.categoryIconWrap}>
                       <Feather name={option.icon} size={18} color={RED} />
                     </View>
-                    <Text style={styles.categoryOptionLabel}>{option.label}</Text>
+                    <Text style={styles.categoryOptionLabel}>{t(option.label)}</Text>
                   </View>
-                  <Feather name="chevron-right" size={18} color="#9CA3AF" />
+                  <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color="#9CA3AF" />
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
@@ -278,7 +279,7 @@ export default function ConversationsScreen() {
                 onPress={() => setCategoryModalVisible(false)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.modalCancelText}>Annuler</Text>
+                <Text style={styles.modalCancelText}>{t('Annuler')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -289,13 +290,13 @@ export default function ConversationsScreen() {
         ) : conversations.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="message-circle" size={52} color="#E5E7EB" />
-            <Text style={styles.emptyTitle}>Aucune conversation</Text>
-            <Text style={styles.emptySubtitle}>Besoin d'aide ? Lancez une nouvelle discussion.</Text>
+            <Text style={styles.emptyTitle}>{t('Aucune conversation')}</Text>
+            <Text style={styles.emptySubtitle}>{t('Besoin d\'aide ? Lancez une nouvelle discussion.')}</Text>
             <TouchableOpacity
               style={styles.emptyBtn}
               onPress={openCategoryPicker}
             >
-              <Text style={styles.emptyBtnText}>Créer une conversation</Text>
+              <Text style={styles.emptyBtnText}>{t('Créer une conversation')}</Text>
             </TouchableOpacity>
           </View>
         ) : (

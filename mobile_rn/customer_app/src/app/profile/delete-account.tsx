@@ -8,6 +8,7 @@ import { ProfileService } from '../../services/profile.service';
 import { logout } from '../../services/customer_auth.service';
 import { setNodeId } from '../../store/nodePref';
 import { RED, RED_SOFT, INK, GREY, PrimaryButton } from '../../components/onboarding/onboardingKit';
+import { t } from '../../i18n';
 
 /**
  * Suppression du compte (loi 09-08) : le client reçoit un code SMS puis confirme.
@@ -42,7 +43,7 @@ export default function DeleteAccountScreen() {
       await setNodeId(null);
       router.replace('/auth/login' as any);
     } catch (e: any) {
-      setError(e?.message ?? 'Suppression impossible.');
+      setError(e?.message ?? t('Suppression impossible.'));
     } finally {
       setLoading(false);
     }
@@ -51,26 +52,25 @@ export default function DeleteAccountScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Supprimer mon compte" />
+      <PageHeader title={t('Supprimer mon compte')} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.iconWrap}>
           <Feather name="trash-2" size={34} color={RED} />
         </View>
-        <Text style={styles.title}>Cette action est définitive</Text>
+        <Text style={styles.title}>{t('Cette action est définitive')}</Text>
         <Text style={styles.body}>
-          Vos informations personnelles, adresses, favoris et panier seront effacés. Vos points de fidélité et coupons
-          seront perdus. L'historique de vos commandes est conservé de manière anonyme pour nos obligations légales.
+          {t('Vos informations personnelles, adresses, favoris et panier seront effacés. Vos points de fidélité et coupons seront perdus. L\'historique de vos commandes est conservé de manière anonyme pour nos obligations légales.')}
         </Text>
         <View style={styles.note}>
           <Feather name="info" size={16} color="#6B6B6B" />
           <Text style={styles.noteText}>
-            La suppression est impossible tant qu'une commande est en cours ou que votre wallet contient un solde.
+            {t('La suppression est impossible tant qu\'une commande est en cours ou que votre wallet contient un solde.')}
           </Text>
         </View>
 
         {step === 'code' && (
           <>
-            <Text style={styles.label}>Code reçu par SMS</Text>
+            <Text style={styles.label}>{t('Code reçu par SMS')}</Text>
             <TextInput
               style={styles.input}
               value={code}
@@ -89,8 +89,8 @@ export default function DeleteAccountScreen() {
       </ScrollView>
       <View style={styles.footer}>
         {step === 'intro'
-          ? <PrimaryButton label="Recevoir un code de confirmation" onPress={sendCode} loading={loading} />
-          : <PrimaryButton label="Supprimer définitivement" onPress={confirm} disabled={code.length < 4} loading={loading} />}
+          ? <PrimaryButton label={t('Recevoir un code de confirmation')} onPress={sendCode} loading={loading} />
+          : <PrimaryButton label={t('Supprimer définitivement')} onPress={confirm} disabled={code.length < 4} loading={loading} />}
       </View>
     </SafeAreaView>
   );

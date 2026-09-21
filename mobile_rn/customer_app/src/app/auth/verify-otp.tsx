@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { verifyOtp, requestOtp } from '../../services/customer_auth.service';
 import { RED, RED_SOFT, INK, PrimaryButton } from '../../components/onboarding/onboardingKit';
+import { t, isRTL } from '../../i18n';
 
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 105; // 01:45 comme sur la maquette
@@ -41,7 +42,7 @@ export default function VerifyOtpScreen() {
   const complete = code.length === OTP_LENGTH;
 
   const verify = async (value = code) => {
-    if (value.length < OTP_LENGTH) { setError('Entrez le code complet.'); return; }
+    if (value.length < OTP_LENGTH) { setError(t('Entrez le code complet.')); return; }
     setLoading(true);
     setError('');
     try {
@@ -50,7 +51,7 @@ export default function VerifyOtpScreen() {
       const needsProfile = res.user?.is_new || !res.customer?.name || res.customer.name === 'Client';
       router.replace((needsProfile ? '/auth/complete-profile' : '/main/main_nav/home') as any);
     } catch (e: any) {
-      setError(e?.message ?? 'Code incorrect. Réessayez.');
+      setError(e?.message ?? t('Code incorrect. Réessayez.'));
       setOtp(Array(OTP_LENGTH).fill(''));
       inputs.current[0]?.focus();
     } finally {
@@ -86,10 +87,10 @@ export default function VerifyOtpScreen() {
       await requestOtp(phone, country);
       setTimer(RESEND_SECONDS);
       setOtp(Array(OTP_LENGTH).fill(''));
-      setInfo('Un nouveau code vous a été envoyé.');
+      setInfo(t('Un nouveau code vous a été envoyé.'));
       inputs.current[0]?.focus();
     } catch (e: any) {
-      setError(e?.message ?? 'Erreur lors du renvoi.');
+      setError(e?.message ?? t('Erreur lors du renvoi.'));
     } finally {
       setResending(false);
     }
@@ -102,17 +103,18 @@ export default function VerifyOtpScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.card} contentContainerStyle={styles.cardContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityLabel="Retour">
-              <Feather name="chevron-left" size={20} color={INK} />
+            <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityLabel={t('Retour')}>
+              <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color={INK} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Vérification du numéro</Text>
+            <Text style={styles.headerTitle}>{t('Vérification du numéro')}</Text>
             <View style={{ width: 36 }} />
           </View>
 
           <Image source={require('../../../assets/images/app/otp.png')} style={styles.icon} resizeMode="contain" />
 
           <Text style={styles.help}>
-            Saisissez le code à {OTP_LENGTH} chiffres reçu par SMS au <Text style={styles.phone}>{country} {phone}</Text>.
+            {t('Saisissez le code à {n} chiffres reçu par SMS au', { n: OTP_LENGTH })}{' '}
+            <Text style={styles.phone}>{country} {phone}</Text>
           </Text>
 
           <View style={styles.boxes}>
@@ -130,7 +132,7 @@ export default function VerifyOtpScreen() {
                 autoComplete="sms-otp"
                 autoFocus={i === 0}
                 selectTextOnFocus
-                accessibilityLabel={`Chiffre ${i + 1}`}
+                accessibilityLabel={t('Chiffre {n}', { n: i + 1 })}
               />
             ))}
           </View>
@@ -143,12 +145,12 @@ export default function VerifyOtpScreen() {
           </View>
           <TouchableOpacity onPress={resend} disabled={timer > 0 || resending} hitSlop={10}>
             <Text style={[styles.resend, timer <= 0 && styles.resendActive]}>
-              {resending ? 'Envoi…' : 'Renvoyer le code'}
+              {resending ? t('Envoi…') : t('Renvoyer le code')}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.cta}>
-            <PrimaryButton label="Confirmer" onPress={() => verify()} disabled={!complete} loading={loading} />
+            <PrimaryButton label={t('Confirmer')} onPress={() => verify()} disabled={!complete} loading={loading} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

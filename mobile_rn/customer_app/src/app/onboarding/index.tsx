@@ -5,8 +5,9 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ProfileService } from '../../services/profile.service';
 import { getToken } from '../../services/customer_auth.service';
+import { getLang, setLanguage } from '../../i18n';
 import {
-  RED, RED_SOFT, INK, GREY, LANG_KEY, Lang, PrimaryButton, prefSet,
+  RED, RED_SOFT, INK, GREY, LANG_KEY, ONBOARDING_STEP_KEY, Lang, PrimaryButton, prefSet,
 } from '../../components/onboarding/onboardingKit';
 
 export { LANG_KEY };
@@ -36,6 +37,7 @@ export default function LanguageScreen() {
     setSaving(true);
     try {
       await prefSet(LANG_KEY, selected);
+      await prefSet(ONBOARDING_STEP_KEY, 'slides');
       let token = null;
       try { token = await getToken(); } catch { /* pas de session */ }
       if (token) {
@@ -44,7 +46,8 @@ export default function LanguageScreen() {
     } finally {
       setSaving(false);
     }
-    // La langue est un confort : la suite du parcours n'est jamais bloquée.
+    // Passage à l'arabe : l'app redémarre en RTL et reprend aux slides (ONBOARDING_STEP_KEY).
+    if (selected !== getLang()) { await setLanguage(selected); return; }
     router.push('/onboarding/slide1' as any);
   };
 

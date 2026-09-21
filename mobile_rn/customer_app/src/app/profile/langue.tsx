@@ -12,13 +12,14 @@ import {
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService } from '../../services/profile.service';
+import { t, getLang, setLanguage } from '../../i18n';
+import type { Lang } from '../../components/onboarding/onboardingKit';
 
 const RED = '#E62A27';
 
 const LANGUAGES = [
   { code: 'fr', label: 'Français', native: 'FR' },
   { code: 'ar', label: 'العربية', native: 'AR' },
-  { code: 'en', label: 'English', native: 'EN' },
 ];
 
 export default function LangueScreen() {
@@ -32,30 +33,21 @@ export default function LangueScreen() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
   });
 
+  // Langue de l'app (FR/AR) : mémorisée localement, envoyée au profil, puis rechargement (sens RTL).
   useFocusEffect(useCallback(() => {
-    let active = true;
-    (async () => {
-      try {
-        const profile = await ProfileService.getProfile();
-        if (active) setCurrent(profile.preferred_lang ?? 'fr');
-      } catch {
-        // silencieux, on garde la valeur par défaut
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => { active = false; };
+    setCurrent(getLang());
+    setLoading(false);
   }, []));
 
   const handleSelect = async (code: string) => {
     if (saving || code === current) return;
     setSaving(code);
     try {
-      await ProfileService.updateProfile({ preferred_lang: code });
+      try { await ProfileService.updateProfile({ preferred_lang: code }); } catch { /* le choix local suffit */ }
+      await setLanguage(code as Lang);
       setCurrent(code);
-      router.back();
     } catch (e: any) {
-      Alert.alert('Erreur', e.message || 'Erreur lors de la mise à jour de la langue');
+      Alert.alert(t('Erreur'), e?.message || t('Erreur lors de la mise à jour de la langue'));
     } finally {
       setSaving(null);
     }
@@ -66,10 +58,10 @@ export default function LangueScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Langue" />
+      <PageHeader title={t('Langue')} />
 
       <View style={styles.container}>
-        <Text style={styles.sectionLabel}>Choisissez votre langue</Text>
+        <Text style={styles.sectionLabel}>{t('Choisissez votre langue')}</Text>
 
         {loading ? (
           <ActivityIndicator color={RED} style={{ marginTop: 32 }} />
@@ -91,7 +83,7 @@ export default function LangueScreen() {
                           {lang.native}
                         </Text>
                       </View>
-                      <Text style={styles.rowLabel}>{lang.label}</Text>
+                      <Text style={styles.rowLabel}>{t(lang.label)}</Text>
                     </View>
 
                     {saving === lang.code ? (

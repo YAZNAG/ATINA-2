@@ -27,7 +27,7 @@ export default function OnboardingSlide({ index, count, illustration, titleKey, 
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <View style={[styles.topBar, rtl && styles.topBarRtl]}>
+      <View style={styles.topBar}>
         <TouchableOpacity onPress={onSkip} hitSlop={12} accessibilityRole="button">
           <Text style={styles.skip}>{t.skip}</Text>
         </TouchableOpacity>
@@ -51,7 +51,6 @@ export default function OnboardingSlide({ index, count, illustration, titleKey, 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 24, paddingTop: 12 },
-  topBarRtl: { justifyContent: 'flex-start' },
   skip: { color: RED, fontSize: 14.5, fontFamily: 'Poppins_600SemiBold' },
   illustration: { height: height * 0.4, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   textBlock: { paddingHorizontal: 32, marginTop: 18, alignItems: 'center' },

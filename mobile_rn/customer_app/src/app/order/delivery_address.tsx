@@ -23,6 +23,7 @@ import { CatalogService } from '../../services/catalog.service';
 import { getMe } from '../../services/customer_auth.service';
 import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '../../components/ui/CheckoutStepper';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 const { height } = Dimensions.get('window');
@@ -99,7 +100,7 @@ export default function CheckoutDeliveryAddressScreen() {
       setLocating(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission refusée', 'Autorisez la localisation pour utiliser votre position.');
+        Alert.alert(t('Permission refusée'), t('Autorisez la localisation pour utiliser votre position.'));
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -120,25 +121,25 @@ export default function CheckoutDeliveryAddressScreen() {
         }
       } catch { /* optionnel */ }
 
-      Alert.alert('Position capturée', 'Votre localisation a été enregistrée.');
+      Alert.alert(t('Position capturée'), t('Votre localisation a été enregistrée.'));
     } catch (e) {
-      Alert.alert('Erreur', "Impossible d'obtenir votre position.");
+      Alert.alert(t('Erreur'), "Impossible d'obtenir votre position.");
     } finally {
       setLocating(false);
     }
   };
 
   const handleConfirm = async () => {
-    if (!streetName.trim()) { Alert.alert('Erreur', 'Veuillez entrer une adresse complète'); return; }
-    if (!city.trim())       { Alert.alert('Erreur', 'Veuillez choisir une ville'); return; }
-    if (!phone.trim())      { Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone'); return; }
+    if (!streetName.trim()) { Alert.alert(t('Erreur'), t('Veuillez entrer une adresse complète')); return; }
+    if (!city.trim())       { Alert.alert(t('Erreur'), t('Veuillez choisir une ville')); return; }
+    if (!phone.trim())      { Alert.alert(t('Erreur'), t('Veuillez entrer un numéro de téléphone')); return; }
 
     setSaving(true);
     try {
       let addressId = defaultAddress?.id;
 
       const payload: Partial<Address> = {
-        label:          defaultAddress?.label || 'Livraison',
+        label:          defaultAddress?.label || t('Livraison'),
         street_number:  null,
         street_name:    streetName.trim(),
         city:           city.trim(),
@@ -165,7 +166,7 @@ export default function CheckoutDeliveryAddressScreen() {
         },
       });
     } catch (e: any) {
-      Alert.alert('Erreur', e.message || 'Erreur lors de l\'enregistrement');
+      Alert.alert(t('Erreur'), e.message || t('Erreur lors de l\'enregistrement'));
     } finally {
       setSaving(false);
     }
@@ -185,7 +186,7 @@ export default function CheckoutDeliveryAddressScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <View style={styles.container}>
 
-          <PageHeader title="Adresse de livraison" />
+          <PageHeader title={t('Adresse de livraison')} />
           <CheckoutStepper currentStep={1} />
 
           {loading ? (
@@ -201,7 +202,7 @@ export default function CheckoutDeliveryAddressScreen() {
                   <Feather name="map-pin" size={26} color="#fff" />
                 </View>
                 <Text style={styles.locationBannerText}>
-                  {lat != null ? 'Position enregistrée' : 'Aucune position GPS'}
+                  {lat != null ? t('Position enregistrée') : t('Aucune position GPS')}
                 </Text>
                 {lat != null && (
                   <Text style={styles.locationBannerCoords}>{lat.toFixed(4)}, {lng?.toFixed(4)}</Text>
@@ -214,18 +215,18 @@ export default function CheckoutDeliveryAddressScreen() {
                   ? <ActivityIndicator color={RED} size="small" />
                   : <>
                       <Feather name="navigation" size={16} color={RED} />
-                      <Text style={styles.locBtnText}>Utiliser ma position actuelle</Text>
+                      <Text style={styles.locBtnText}>{t('Utiliser ma position actuelle')}</Text>
                     </>
                 }
               </TouchableOpacity>
 
               {/* ── Adresse complète ── */}
-              <Text style={styles.fieldLabel}>Adresse complète</Text>
+              <Text style={styles.fieldLabel}>{t('Adresse complète')}</Text>
               <View style={styles.inputWrap}>
                 <Feather name="map-pin" size={18} color={RED} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Rue Mohammed V, Guéliz"
+                  placeholder={t('Rue Mohammed V, Guéliz')}
                   placeholderTextColor="#C4C4C4"
                   value={streetName}
                   onChangeText={setStreetName}
@@ -238,7 +239,7 @@ export default function CheckoutDeliveryAddressScreen() {
                 <Feather name="home" size={18} color="#9CA3AF" />
                 <TextInput
                   style={styles.input}
-                  placeholder="Numéro appartement"
+                  placeholder={t('Numéro appartement')}
                   placeholderTextColor="#C4C4C4"
                   value={apartment}
                   onChangeText={setApartment}
@@ -246,17 +247,17 @@ export default function CheckoutDeliveryAddressScreen() {
               </View>
 
               {/* ── Ville ── */}
-              <Text style={styles.fieldLabel}>Ville</Text>
+              <Text style={styles.fieldLabel}>{t('Ville')}</Text>
               <TouchableOpacity style={styles.inputWrap} onPress={() => setCityPickerVisible(true)} activeOpacity={0.7}>
                 <Feather name="map" size={18} color={RED} />
                 <Text style={[styles.input, !city && styles.placeholder]}>
-                  {city || 'Choisir une ville'}
+                  {city || t('Choisir une ville')}
                 </Text>
                 <Feather name="chevron-down" size={18} color="#9CA3AF" />
               </TouchableOpacity>
 
               {/* ── Téléphone (pré-rempli) ── */}
-              <Text style={styles.fieldLabel}>Numéro de téléphone</Text>
+              <Text style={styles.fieldLabel}>{t('Numéro de téléphone')}</Text>
               <View style={styles.inputWrap}>
                 <Feather name="phone" size={18} color={RED} />
                 <TextInput
@@ -273,7 +274,7 @@ export default function CheckoutDeliveryAddressScreen() {
               {lat != null && (
                 <View style={styles.verifiedRow}>
                   <Feather name="check-circle" size={14} color={RED} />
-                  <Text style={styles.verifiedText}>Adresse vérifiée pour la livraison</Text>
+                  <Text style={styles.verifiedText}>{t('Adresse vérifiée pour la livraison')}</Text>
                 </View>
               )}
 
@@ -290,7 +291,7 @@ export default function CheckoutDeliveryAddressScreen() {
             >
               {saving
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.btnText}>Confirmer l'adresse</Text>
+                : <Text style={styles.btnText}>{t('Confirmer l\'adresse')}</Text>
               }
             </TouchableOpacity>
           </View>
@@ -303,7 +304,7 @@ export default function CheckoutDeliveryAddressScreen() {
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Choisir la ville</Text>
+              <Text style={styles.pickerTitle}>{t('Choisir la ville')}</Text>
               <TouchableOpacity onPress={() => setCityPickerVisible(false)}>
                 <Feather name="x" size={22} color="#1a1a1a" />
               </TouchableOpacity>

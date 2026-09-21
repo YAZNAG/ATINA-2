@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, FlatList, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -41,8 +42,8 @@ export default function SelectSheet({
                 accessibilityState={{ checked: active }}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
-                  {!!item.hint && <Text style={styles.hint}>{item.hint}</Text>}
+                  <Text style={[styles.label, active && styles.labelActive]}>{t(item.label)}</Text>
+                  {!!item.hint && <Text style={styles.hint}>{t(item.hint)}</Text>}
                 </View>
                 {active && <Feather name="check-circle" size={18} color={RED} />}
               </TouchableOpacity>

@@ -20,6 +20,7 @@ import { favoritesStore } from '../../../store/favoritesStore';
 
 import { CatalogService, Article, ArticlesResponse, SubCategory, Category, EntityId } from '../../../services/catalog.service';
 import { ProfileService } from '../../../services/profile.service';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 
@@ -69,7 +70,7 @@ export default function CategoryProductsScreen() {
   const [selectedSubs, setSelectedSubs]   = useState<EntityId[]>([]);
 
   const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
-  const catName = Array.isArray(category_name) ? category_name[0] : (category_name || 'Catégorie');
+  const catName = Array.isArray(category_name) ? category_name[0] : (category_name || t('Catégorie'));
 
   const [fontsLoaded] = useFonts({
       Inter_400Regular, Inter_500Medium,
@@ -169,7 +170,7 @@ export default function CategoryProductsScreen() {
   <>
     {subCategories.length > 0 && selectedSubs.length === 0 ? (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
-        <SubCatPill label="Tout" selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
+        <SubCatPill label={t('Tout')} selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
         {subCategories.map((sub) => (
           <SubCatPill
             key={sub.id}
@@ -187,7 +188,7 @@ export default function CategoryProductsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Feather name="inbox" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucun produit trouvé</Text>
+              <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
             </View>
           }
           columnWrapperStyle={styles.row}

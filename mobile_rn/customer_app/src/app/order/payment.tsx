@@ -27,6 +27,7 @@ import { CartService } from '../../services/cart.service';
 import { CouponsService } from '../../services/coupons.service';
 import { useCartActions } from '../../context/CartContext';
 import { RewardsCart, useRewardsCart } from '../../store/rewardsCartStore';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -108,7 +109,7 @@ export default function PaymentScreen() {
       setCalculation(c);
       setCalcError(null);
     })
-      .catch(e => setCalcError(e?.message ?? 'Erreur de calcul'));
+      .catch(e => setCalcError(e?.message ?? t('Erreur de calcul')));
   };
 
   const applyCoupon = async (code: string, subtotal?: number, deliveryFee?: number) => {
@@ -126,7 +127,7 @@ export default function PaymentScreen() {
       setCouponMsg({ type: 'success', text: res.warning ?? res.message });
       runCalculate(res.code, walletUsed);
     } catch (e: any) {
-      setCouponMsg({ type: 'error', text: e.message ?? 'Code promo invalide' });
+      setCouponMsg({ type: 'error', text: e.message ?? t('Code promo invalide') });
     } finally {
       setCouponLoading(false);
     }
@@ -158,7 +159,7 @@ export default function PaymentScreen() {
             applyCoupon(pending, c.subtotal_ttc, c.delivery_fee);
           }
         })
-        .catch(e => setCalcError(e?.message ?? 'Erreur de calcul'));
+        .catch(e => setCalcError(e?.message ?? t('Erreur de calcul')));
     }
 
     ProfileService.getWallet()
@@ -228,7 +229,7 @@ export default function PaymentScreen() {
       router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
       if ((e?.message ?? '').includes('Stock insuffisant')) return;
-      Alert.alert('Erreur', e.message ?? 'Erreur lors de la confirmation');
+      Alert.alert(t('Erreur'), e.message ?? t('Erreur lors de la confirmation'));
     } finally {
       setConfirming(false);
     }
@@ -239,7 +240,7 @@ export default function PaymentScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.container}>
-        <PageHeader title="Paiement" />
+        <PageHeader title={t('Paiement')} />
         <CheckoutStepper currentStep={3} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 160 }}>
@@ -253,13 +254,13 @@ export default function PaymentScreen() {
           )}
 
           {/* ── Titre section ── */}
-          <Text style={styles.pageTitle}>Paiement</Text>
+          <Text style={styles.pageTitle}>{t('Paiement')}</Text>
           <Text style={styles.pageSubtitle}>
-            Choisissez votre méthode de paiement préférée pour finaliser la commande.
+            {t('Choisissez votre méthode de paiement préférée pour finaliser la commande.')}
           </Text>
 
           {/* ── Méthodes de paiement ── */}
-          <Text style={styles.sectionTitle}>Méthodes de paiement</Text>
+          <Text style={styles.sectionTitle}>{t('Méthodes de paiement')}</Text>
           {loading ? (
             <ActivityIndicator color={RED} style={{ marginVertical: 24 }} />
           ) : (
@@ -267,7 +268,7 @@ export default function PaymentScreen() {
               {methods.map((method, index) => {
                 const code   = method.code?.toLowerCase();
                 const icon   = METHOD_ICON[code] ?? 'credit-card';
-                const desc   = METHOD_DESC[code] ?? '';
+                const desc   = t(METHOD_DESC[code] ?? '');
                 const active = selected?.id === method.id;
                 const isLast = index === methods.length - 1;
                 return (
@@ -309,7 +310,7 @@ export default function PaymentScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.walletToggleTitle, useWallet && styles.walletToggleTitleActive]}>
-                  Utiliser mon wallet
+                  {t('Utiliser mon wallet')}
                 </Text>
                 <Text style={styles.walletToggleSub}>
                   Solde disponible : {walletBalance.toFixed(2)} DH
@@ -327,7 +328,7 @@ export default function PaymentScreen() {
           )}
 
           {/* ── Code promo ── */}
-          <Text style={styles.sectionTitle}>Code promo</Text>
+          <Text style={styles.sectionTitle}>{t('Code promo')}</Text>
           <View style={styles.couponCard}>
             {appliedCode ? (
               <View style={styles.couponAppliedRow}>
@@ -336,7 +337,7 @@ export default function PaymentScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.couponAppliedCode}>{appliedCode}</Text>
-                  <Text style={styles.couponAppliedSub}>Code promo appliqué</Text>
+                  <Text style={styles.couponAppliedSub}>{t('Code promo appliqué')}</Text>
                 </View>
                 <TouchableOpacity onPress={handleRemoveCoupon} hitSlop={8}>
                   <Feather name="x" size={18} color="#9CA3AF" />
@@ -346,7 +347,7 @@ export default function PaymentScreen() {
               <View style={styles.couponInputRow}>
                 <TextInput
                   style={styles.couponInput}
-                  placeholder="Entrez votre code"
+                  placeholder={t('Entrez votre code')}
                   placeholderTextColor="#9CA3AF"
                   autoCapitalize="characters"
                   autoCorrect={false}
@@ -362,14 +363,14 @@ export default function PaymentScreen() {
                 >
                   {couponLoading
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={styles.couponApplyText}>Appliquer</Text>
+                    : <Text style={styles.couponApplyText}>{t('Appliquer')}</Text>
                   }
                 </TouchableOpacity>
               </View>
             )}
             {couponMsg && (
               <Text style={[styles.couponMsg, couponMsg.type === 'error' && styles.couponMsgError]}>
-                {couponMsg.text}
+                {t(couponMsg.text)}
               </Text>
             )}
           </View>
@@ -377,15 +378,15 @@ export default function PaymentScreen() {
           {/* ── Récapitulatif ── */}
           {calculation && (
             <>
-              <Text style={styles.sectionTitle}>Récapitulatif</Text>
+              <Text style={styles.sectionTitle}>{t('Récapitulatif')}</Text>
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Sous-total</Text>
+                  <Text style={styles.summaryLabel}>{t('Sous-total')}</Text>
                   <Text style={styles.summaryValue}>{calculation.subtotal_ttc.toFixed(2)} DH</Text>
                 </View>
                 {params.delivery_type_code !== 'pickup' && (
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Frais de livraison</Text>
+                    <Text style={styles.summaryLabel}>{t('Frais de livraison')}</Text>
                     <Text style={styles.summaryValue}>
                       {calculation.delivery_fee > 0 ? `${calculation.delivery_fee.toFixed(2)} DH` : 'Gratuit'}
                     </Text>
@@ -401,7 +402,7 @@ export default function PaymentScreen() {
                 )}
                 {calculation.wallet_used > 0 && (
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Wallet utilisé</Text>
+                    <Text style={styles.summaryLabel}>{t('Wallet utilisé')}</Text>
                     <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
                       -{calculation.wallet_used.toFixed(2)} DH
                     </Text>
@@ -420,7 +421,7 @@ export default function PaymentScreen() {
                 )}
                 {rewards.exchange.length > 0 && calculation.exchange?.projected_balance != null && !calculation.exchange?.error && (
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Solde de points après commande</Text>
+                    <Text style={styles.summaryLabel}>{t('Solde de points après commande')}</Text>
                     <Text style={styles.summaryValue}>{calculation.exchange.projected_balance.toLocaleString('fr-FR')} pts</Text>
                   </View>
                 )}
@@ -428,7 +429,7 @@ export default function PaymentScreen() {
                 {rewards.claims.map((c) => (
                   <View key={c.play_id} style={styles.summaryRow}>
                     <Text style={styles.summaryLabel} numberOfLines={1}>Lot offert : {c.name_fr}</Text>
-                    <Text style={[styles.summaryValue, { color: '#16A34A' }]}>Offert</Text>
+                    <Text style={[styles.summaryValue, { color: '#16A34A' }]}>{t('Offert')}</Text>
                   </View>
                 ))}
                 {!!calculation.exchange?.error && (
@@ -447,7 +448,7 @@ export default function PaymentScreen() {
         <View style={styles.footer}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              {isCard && useWallet && walletUsed > 0 ? 'À payer par carte' : 'Total à payer'}
+              {isCard && useWallet && walletUsed > 0 ? t('À payer par carte') : t('Total à payer')}
             </Text>
             <Text style={styles.totalAmount}>
               {calculation ? `${(isCard && useWallet ? cardAmount : total).toFixed(2)} DH` : '...'}
@@ -462,7 +463,7 @@ export default function PaymentScreen() {
             {confirming
               ? <ActivityIndicator color="#fff" />
               : <Text style={[styles.btnText, (!selected || !!calcError) && styles.btnTextDisabled]}>
-                  Confirmer le paiement
+                  {t('Confirmer le paiement')}
                 </Text>
             }
           </TouchableOpacity>

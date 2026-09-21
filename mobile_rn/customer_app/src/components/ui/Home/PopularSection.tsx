@@ -5,6 +5,7 @@ import SectionHeader from '../SectionHeader';
 import SeeAllCard from '../SeeAllCard';
 import { withSeeAllSentinel } from './listHelpers';
 import { Article } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 interface PopularSectionProps {
   popular: Article[];
@@ -26,7 +27,7 @@ function PopularSection({ popular, onPressProduct, onSeeAll }: PopularSectionPro
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Produits populaires" onSeeAll={onSeeAll} />
+      <SectionHeader title={t('Produits populaires')} onSeeAll={onSeeAll} />
       <FlatList
         data={trimmed}
         keyExtractor={(item) => `pop-${item.id}`}

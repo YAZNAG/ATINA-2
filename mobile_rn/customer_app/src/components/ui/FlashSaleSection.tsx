@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { PromotionProduct, promotionProductToArticle } from '../../services/promotions.service';
 import ProductCard from './ProductCard';
+import { t } from '../../i18n';
 
 const RED       = '#E10600';
 const RED_LIGHT = '#FF3D2E';
@@ -52,10 +53,10 @@ function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Feather name="zap" size={18} color={RED} />
-          <Text style={styles.title}>Vente Flash</Text>
+          <Text style={styles.title}>{t('Vente Flash')}</Text>
         </View>
       </View>
-      <Text style={styles.subtitle}>Profitez des meilleures promotions avant la fin de l'offre.</Text>
+      <Text style={styles.subtitle}>{t('Profitez des meilleures promotions avant la fin de l\'offre.')}</Text>
 
       {remaining && (
         <View style={styles.countdownShadowWrap}>
@@ -67,7 +68,7 @@ function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
           >
             <View style={styles.countdownHeader}>
               <Feather name="clock" size={15} color="#fff" />
-              <Text style={styles.countdownLabel}>Fin dans</Text>
+              <Text style={styles.countdownLabel}>{t('Fin dans')}</Text>
               <Feather name="zap" size={15} color="#fff" />
             </View>
 
@@ -82,7 +83,7 @@ function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
               </View>
               <View style={styles.countdownBlock}>
                 <Text style={styles.countdownValue}>{pad(remaining.m)}</Text>
-                <Text style={styles.countdownUnit}>MIN</Text>
+                <Text style={styles.countdownUnit}>{t('MIN')}</Text>
               </View>
               <View style={styles.countdownDots}>
                 <View style={styles.dot} />
@@ -90,7 +91,7 @@ function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
               </View>
               <View style={styles.countdownBlock}>
                 <Text style={styles.countdownValue}>{pad(remaining.s)}</Text>
-                <Text style={styles.countdownUnit}>SEC</Text>
+                <Text style={styles.countdownUnit}>{t('SEC')}</Text>
               </View>
             </View>
           </LinearGradient>

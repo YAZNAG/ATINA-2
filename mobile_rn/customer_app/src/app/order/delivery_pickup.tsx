@@ -19,6 +19,7 @@ import { findPickupNodes } from '../../services/order.service';
 import type { Node } from '../../services/order.service';
 import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '@/components/ui/CheckoutStepper';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -48,7 +49,7 @@ useEffect(() => {
       if (list.length > 0) setSelected(list[0]);
     } catch (e: any) {
       console.log('[DEBUG] pickup error:', e?.statusCode, e?.message);
-      setError(e.message || 'Erreur chargement magasins');
+      setError(e.message || t('Erreur chargement magasins'));
       setNodes([]);
     } finally {
       setLoading(false);
@@ -84,7 +85,7 @@ useEffect(() => {
       <View style={styles.container}>
 
         {/* ── Header ── */}
-        <PageHeader title="Retrait en magasin" />
+        <PageHeader title={t('Retrait en magasin')} />
 
         {/* ── Stepper ── */}
         <CheckoutStepper currentStep={1} />
@@ -98,7 +99,7 @@ useEffect(() => {
                 <Feather name="shopping-bag" size={22} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.selectedLabel}>Magasin sélectionné</Text>
+                <Text style={styles.selectedLabel}>{t('Magasin sélectionné')}</Text>
                 <Text style={styles.selectedName}>{selected.name}</Text>
                 <Text style={styles.selectedAddress} numberOfLines={1}>{selected.address}</Text>
               </View>
@@ -119,7 +120,7 @@ useEffect(() => {
           {selected && (
             <TouchableOpacity style={styles.openMapsBtn} onPress={() => handleOpenMaps(selected)} activeOpacity={0.8}>
               <Feather name="navigation" size={15} color={RED} />
-              <Text style={styles.openMapsText}>Ouvrir dans Maps</Text>
+              <Text style={styles.openMapsText}>{t('Ouvrir dans Maps')}</Text>
               <Feather name="arrow-up-right" size={15} color={RED} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
           )}
@@ -134,13 +135,13 @@ useEffect(() => {
           {!loading && !error && nodes.length === 0 && (
             <View style={styles.centered}>
               <Feather name="map-pin" size={40} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucun magasin disponible</Text>
+              <Text style={styles.emptyText}>{t('Aucun magasin disponible')}</Text>
             </View>
           )}
 
           {/* ── Titre liste ── */}
           {nodes.length > 0 && (
-            <Text style={styles.listTitle}>Magasins à proximité</Text>
+            <Text style={styles.listTitle}>{t('Magasins à proximité')}</Text>
           )}
 
           {/* ── Store cards ── */}
@@ -169,7 +170,7 @@ useEffect(() => {
                 <View style={styles.storeDetailRow}>
                   <Feather name="map-pin" size={13} color={RED} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.storeDetailLabel}>Adresse</Text>
+                    <Text style={styles.storeDetailLabel}>{t('Adresse')}</Text>
                     <Text style={styles.storeDetailValue}>{node.address}</Text>
                   </View>
                 </View>
@@ -177,7 +178,7 @@ useEffect(() => {
                 <View style={styles.storeDetailRow}>
                   <Feather name="clock" size={13} color={RED} />
                   <View>
-                    <Text style={styles.storeDetailLabel}>Ouvert</Text>
+                    <Text style={styles.storeDetailLabel}>{t('Ouvert')}</Text>
                     <Text style={styles.storeDetailValue}>09:00 – 22:00</Text>
                   </View>
                 </View>
@@ -186,7 +187,7 @@ useEffect(() => {
                   <View style={styles.storeDetailRow}>
                     <Feather name="navigation" size={13} color={RED} />
                     <View>
-                      <Text style={styles.storeDetailLabel}>Distance</Text>
+                      <Text style={styles.storeDetailLabel}>{t('Distance')}</Text>
                       <Text style={styles.storeDetailValue}>
                         {node.distance >= 1
                           ? `${node.distance.toFixed(1)} km`
@@ -205,7 +206,7 @@ useEffect(() => {
                   activeOpacity={0.7}
                 >
                   <Feather name="navigation" size={13} color={RED} />
-                  <Text style={styles.cardMapsText}>Itinéraire</Text>
+                  <Text style={styles.cardMapsText}>{t('Itinéraire')}</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -221,7 +222,7 @@ useEffect(() => {
             disabled={!selected}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnText}>Confirmer le magasin</Text>
+            <Text style={styles.btnText}>{t('Confirmer le magasin')}</Text>
           </TouchableOpacity>
         </View>
 

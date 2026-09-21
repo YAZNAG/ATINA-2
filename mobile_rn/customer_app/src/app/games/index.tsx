@@ -9,6 +9,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import PageHeader from '../../components/ui/PageHeader';
 import { GamesService, GamesList, CustomerGame, PlayResult, gameTypeLabel } from '../../services/games.service';
 import { RewardsCart } from '../../store/rewardsCartStore';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -36,7 +37,7 @@ export default function GamesScreen() {
       setError(null);
       setData(await GamesService.list());
     } catch (e: any) {
-      setError(e?.message ?? 'Impossible de charger les jeux');
+      setError(e?.message ?? t('Impossible de charger les jeux'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -65,7 +66,7 @@ export default function GamesScreen() {
       const wait = Math.max(0, 1400 - (Date.now() - started));
       setTimeout(() => setResult(r), wait);
     } catch (e: any) {
-      setPlayError(e?.message ?? 'Partie impossible');
+      setPlayError(e?.message ?? t('Partie impossible'));
     }
   };
 
@@ -97,14 +98,14 @@ export default function GamesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <PageHeader title="Jeux" rightIcon="gift" onRightPress={() => router.push('/games/prizes' as any)} rightBadge={data?.prizes_to_claim || undefined} />
+      <PageHeader title={t('Jeux')} rightIcon="gift" onRightPress={() => router.push('/games/prizes' as any)} rightBadge={data?.prizes_to_claim || undefined} />
 
       {error ? (
         <View style={styles.center}>
           <Feather name="wifi-off" size={40} color="#9CA3AF" />
           <Text style={styles.errorTitle}>{error}</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => { setLoading(true); load(); }} activeOpacity={0.85}>
-            <Text style={styles.primaryBtnText}>Réessayer</Text>
+            <Text style={styles.primaryBtnText}>{t('Réessayer')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -117,18 +118,18 @@ export default function GamesScreen() {
             <TouchableOpacity style={styles.prizesLink} onPress={() => router.push('/games/prizes' as any)} activeOpacity={0.8}>
               <View style={styles.prizesIcon}><Feather name="award" size={18} color="#9333EA" /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.prizesTitle}>Mes gains</Text>
+                <Text style={styles.prizesTitle}>{t('Mes gains')}</Text>
                 <Text style={styles.prizesSub}>
                   {data?.prizes_to_claim ? `${data.prizes_to_claim} lot(s) à réclamer avant expiration` : 'Points, coupons et lots gagnés'}
                 </Text>
               </View>
-              <Feather name="chevron-right" size={18} color="#C5C5C5" />
+              <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color="#C5C5C5" />
             </TouchableOpacity>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
               <MaterialCommunityIcons name="dice-multiple-outline" size={40} color="#D1D5DB" />
-              <Text style={styles.emptyText}>Aucun jeu n'est disponible sur votre magasin pour le moment.</Text>
+              <Text style={styles.emptyText}>{t('Aucun jeu n\'est disponible sur votre magasin pour le moment.')}</Text>
             </View>
           }
           renderItem={({ item: g }) => (
@@ -166,7 +167,7 @@ export default function GamesScreen() {
                   activeOpacity={0.85}
                 >
                   <Feather name="play" size={14} color="#fff" />
-                  <Text style={styles.playBtnText}>{g.type === 'scratch_card' ? 'Gratter' : 'Jouer'}</Text>
+                  <Text style={styles.playBtnText}>{g.type === 'scratch_card' ? t('Gratter') : t('Jouer')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -180,10 +181,10 @@ export default function GamesScreen() {
             {playError ? (
               <>
                 <Feather name="alert-circle" size={44} color={RED} />
-                <Text style={styles.modalTitle}>Partie impossible</Text>
+                <Text style={styles.modalTitle}>{t('Partie impossible')}</Text>
                 <Text style={styles.modalText}>{playError}</Text>
                 <TouchableOpacity style={styles.primaryBtn} onPress={closeModal} activeOpacity={0.85}>
-                  <Text style={styles.primaryBtnText}>Fermer</Text>
+                  <Text style={styles.primaryBtnText}>{t('Fermer')}</Text>
                 </TouchableOpacity>
               </>
             ) : !result ? (
@@ -191,7 +192,7 @@ export default function GamesScreen() {
                 <Animated.View style={{ transform: [{ rotate }] }}>
                   <MaterialCommunityIcons name={playing?.type === 'scratch_card' ? 'card-bulleted-outline' : 'ship-wheel'} size={96} color={RED} />
                 </Animated.View>
-                <Text style={styles.modalTitle}>{playing?.type === 'scratch_card' ? 'Grattage en cours…' : 'La roue tourne…'}</Text>
+                <Text style={styles.modalTitle}>{playing?.type === 'scratch_card' ? t('Grattage en cours…') : t('La roue tourne…')}</Text>
               </>
             ) : (
               <>
@@ -200,7 +201,7 @@ export default function GamesScreen() {
                   size={64}
                   color={result.result === 'win' ? '#F59E0B' : '#9CA3AF'}
                 />
-                <Text style={styles.modalTitle}>{result.result === 'win' ? (result.prize?.name_fr ?? 'Gagné !') : 'Pas de chance cette fois !'}</Text>
+                <Text style={styles.modalTitle}>{result.result === 'win' ? (result.prize?.name_fr ?? t('Gagné !')) : 'Pas de chance cette fois !'}</Text>
                 <Text style={styles.modalText}>{result.message}</Text>
                 {result.reward?.type === 'points' && (
                   <Text style={styles.modalHighlight}>+{result.reward.points} pts • solde {result.reward.balance_after} pts</Text>
@@ -218,24 +219,24 @@ export default function GamesScreen() {
                 {(result.reward?.type === 'free_sku' || result.reward?.type === 'free_pack') ? (
                   <>
                     <TouchableOpacity style={styles.primaryBtn} onPress={claimNow} activeOpacity={0.85}>
-                      <Text style={styles.primaryBtnText}>Réclamer dans mon panier</Text>
+                      <Text style={styles.primaryBtnText}>{t('Réclamer dans mon panier')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.secondaryBtn} onPress={closeModal} activeOpacity={0.7}>
-                      <Text style={styles.secondaryBtnText}>Plus tard</Text>
+                      <Text style={styles.secondaryBtnText}>{t('Plus tard')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : result.reward?.type === 'coupon' ? (
                   <>
                     <TouchableOpacity style={styles.primaryBtn} onPress={() => { closeModal(); router.push('/profile/coupons' as any); }} activeOpacity={0.85}>
-                      <Text style={styles.primaryBtnText}>Voir mes coupons</Text>
+                      <Text style={styles.primaryBtnText}>{t('Voir mes coupons')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.secondaryBtn} onPress={closeModal} activeOpacity={0.7}>
-                      <Text style={styles.secondaryBtnText}>Fermer</Text>
+                      <Text style={styles.secondaryBtnText}>{t('Fermer')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <TouchableOpacity style={styles.primaryBtn} onPress={closeModal} activeOpacity={0.85}>
-                    <Text style={styles.primaryBtnText}>Fermer</Text>
+                    <Text style={styles.primaryBtnText}>{t('Fermer')}</Text>
                   </TouchableOpacity>
                 )}
               </>

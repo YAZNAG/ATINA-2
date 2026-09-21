@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, usePathname} from 'expo-router';
 import { useCartCount } from '../../context/CartContext';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -72,7 +73,7 @@ export default function BottomNavBar(_props: any) {
                   />
                 </View>
                 <Text style={[styles.label, active && styles.labelActive]}>
-                  {tab.name}
+                  {t(tab.name)}
                 </Text>
               </>
             )}

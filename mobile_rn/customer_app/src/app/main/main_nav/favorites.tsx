@@ -16,6 +16,7 @@ import { ProfileService, FavoriteArticle } from '../../../services/profile.servi
 import { CartService } from '../../../services/cart.service';
 import { useCartActions } from '../../../context/CartContext';
 import { favoritesStore } from '../../../store/favoritesStore';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 
@@ -33,7 +34,7 @@ function FavCard({
 
   const handleAddToCart = async () => {
     if (!item.sku_id) {
-      Alert.alert('Indisponible', 'Ce produit n\'est pas disponible à la commande.');
+      Alert.alert(t('Indisponible'), t('Ce produit n\'est pas disponible à la commande.'));
       return;
     }
     try {
@@ -41,7 +42,7 @@ function FavCard({
       const cart = await CartService.addItem(item.sku_id, 1);
       applyCart(cart);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message || 'Erreur lors de l\'ajout au panier');
+      Alert.alert(t('Erreur'), e.message || t('Erreur lors de l\'ajout au panier'));
     } finally {
       setAdding(false);
     }
@@ -105,15 +106,15 @@ function RemoveFavoriteModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Retirer des favoris ?</Text>
+          <Text style={styles.modalTitle}>{t('Retirer des favoris ?')}</Text>
           <Text style={styles.modalSubtitle}>
             Êtes-vous sûr de vouloir retirer "{itemName}" de vos favoris ?
           </Text>
           <TouchableOpacity style={styles.btnConfirmDelete} onPress={onConfirm} activeOpacity={0.85}>
-            <Text style={styles.btnConfirmDeleteText}>Retirer</Text>
+            <Text style={styles.btnConfirmDeleteText}>{t('Retirer')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
-            <Text style={styles.btnCancelText}>Annuler</Text>
+            <Text style={styles.btnCancelText}>{t('Annuler')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -161,7 +162,7 @@ export default function FavoritesScreen() {
       favoritesStore.toggle(removeTarget.id, false);
       setItems(prev => prev.filter(i => i.id !== removeTarget.id));
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setRemoveTarget(null);
     }
@@ -173,7 +174,7 @@ export default function FavoritesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-        <PageHeader title="Mes favoris" 
+        <PageHeader title={t('Mes favoris')} 
         onBack={from === 'profile' ? () => router.replace('../../profile/profile' as any) : undefined}/>
 
         {loading ? (
@@ -181,10 +182,10 @@ export default function FavoritesScreen() {
         ) : items.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="heart" size={52} color="#E5E7EB" />
-            <Text style={styles.emptyTitle}>Aucun favori</Text>
-            <Text style={styles.emptySubtitle}>Ajoutez des produits à vos favoris en appuyant sur ♡</Text>
+            <Text style={styles.emptyTitle}>{t('Aucun favori')}</Text>
+            <Text style={styles.emptySubtitle}>{t('Ajoutez des produits à vos favoris en appuyant sur ♡')}</Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/main_nav/home' as any)}>
-              <Text style={styles.emptyBtnText}>Découvrir des produits</Text>
+              <Text style={styles.emptyBtnText}>{t('Découvrir des produits')}</Text>
             </TouchableOpacity>
           </View>
         ) : (

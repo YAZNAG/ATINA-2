@@ -14,6 +14,7 @@ import {
   Inter_400Regular, Inter_500Medium,
  Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import { t } from '../../i18n';
 import PageHeader from '../../components/ui/PageHeader'
 import CheckoutStepper from '../../components/ui/CheckoutStepper'
 
@@ -60,14 +61,14 @@ export default function CheckoutDeliveryModeScreen() {
       <View style={styles.container}>
 
         {/* ── Header ── */}
-        <PageHeader title="Mode de réception" />
+        <PageHeader title={t('Mode de réception')} />
 
         {/* ── Stepper ── */}
         <CheckoutStepper currentStep={1} />
 
         {/* ── Subtitle ── */}
         <Text style={styles.subtitle}>
-          Choisissez comment vous souhaitez recevoir votre commande.
+          {t('Choisissez comment vous souhaitez recevoir votre commande.')}
         </Text>
 
         {/* ── Options ── */}
@@ -83,9 +84,9 @@ export default function CheckoutDeliveryModeScreen() {
             </View>
             <View style={styles.optionText}>
               <Text style={[styles.optionTitle, selected === 'home' && styles.optionTitleSelected]}>
-                Livraison à domicile
+                {t('Livraison à domicile')}
               </Text>
-              <Text style={styles.optionDesc}>Recevez votre commande rapidement chez vous.</Text>
+              <Text style={styles.optionDesc}>{t('Recevez votre commande rapidement chez vous.')}</Text>
             </View>
             {selected === 'home' && (
               <Feather name="check-circle" size={20} color={RED} style={styles.optionCheck} />
@@ -102,9 +103,9 @@ export default function CheckoutDeliveryModeScreen() {
             </View>
             <View style={styles.optionText}>
               <Text style={[styles.optionTitle, selected === 'pickup' && styles.optionTitleSelected]}>
-                Retrait en magasin
+                {t('Retrait en magasin')}
               </Text>
-              <Text style={styles.optionDesc}>Récupérez votre commande directement au magasin.</Text>
+              <Text style={styles.optionDesc}>{t('Récupérez votre commande directement au magasin.')}</Text>
             </View>
             {selected === 'pickup' && (
               <Feather name="check-circle" size={20} color={RED} style={styles.optionCheck} />
@@ -121,7 +122,7 @@ export default function CheckoutDeliveryModeScreen() {
             disabled={!selected}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnText}>Continuer</Text>
+            <Text style={styles.btnText}>{t('Continuer')}</Text>
           </TouchableOpacity>
         </View>
 

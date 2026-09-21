@@ -22,6 +22,7 @@ import { createOrder, CartItem } from '../../services/order.service';
 import { RewardsCart } from '../../store/rewardsCartStore';
 import { CartService } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -114,7 +115,7 @@ export default function CardPaymentScreen() {
     }
     router.replace({ pathname: '/order/confirmed' as any, params: { reference: order.reference } });
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? 'Erreur lors du paiement');
+      Alert.alert(t('Erreur'), e.message ?? t('Erreur lors du paiement'));
     } finally {
       setConfirming(false);
     }
@@ -132,7 +133,7 @@ export default function CardPaymentScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.container}>
-          <PageHeader title="Paiement" />
+          <PageHeader title={t('Paiement')} />
           <CheckoutStepper currentStep={3} />
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -153,7 +154,7 @@ export default function CardPaymentScreen() {
               />
 
               {/* VISA logo en haut à droite */}
-              <Text style={styles.visaLogo}>VISA</Text>
+              <Text style={styles.visaLogo}>{t('VISA')}</Text>
 
               {/* Numéro masqué live, centré verticalement */}
               <Text style={styles.cardNumberOverlay}>{displayedNumber}</Text>
@@ -161,11 +162,11 @@ export default function CardPaymentScreen() {
               {/* Bas de carte : Titulaire à gauche, Expire à droite */}
               <View style={styles.cardBottomRow}>
                 <View>
-                  <Text style={styles.cardSmallLabel}>TITULAIRE</Text>
+                  <Text style={styles.cardSmallLabel}>{t('TITULAIRE')}</Text>
                   <Text style={styles.cardHolderValue}>{displayedHolder}</Text>
                 </View>
                 <View>
-                  <Text style={styles.cardSmallLabel}>EXPIRE</Text>
+                  <Text style={styles.cardSmallLabel}>{t('EXPIRE')}</Text>
                   <Text style={styles.cardHolderValue}>{displayedExpiry}</Text>
                 </View>
               </View>
@@ -184,11 +185,11 @@ export default function CardPaymentScreen() {
 
             {/* Nom sur la carte */}
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>NOM SUR LA CARTE</Text>
+              <Text style={styles.fieldLabel}>{t('NOM SUR LA CARTE')}</Text>
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.input}
-                  placeholder="EX: MOHAMED ALAMI"
+                  placeholder={t('EX: MOHAMED ALAMI')}
                   placeholderTextColor="#D1D5DB"
                   autoCapitalize="characters"
                   value={holder}
@@ -199,7 +200,7 @@ export default function CardPaymentScreen() {
 
             {/* Numéro de carte */}
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>NUMÉRO DE CARTE</Text>
+              <Text style={styles.fieldLabel}>{t('NUMÉRO DE CARTE')}</Text>
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.input}
@@ -217,11 +218,11 @@ export default function CardPaymentScreen() {
             {/* Expiry + CVV */}
             <View style={styles.rowFields}>
               <View style={[styles.fieldWrap, { flex: 1 }]}>
-                <Text style={styles.fieldLabel}>EXPIRE</Text>
+                <Text style={styles.fieldLabel}>{t('EXPIRE')}</Text>
                 <View style={styles.inputRow}>
                   <TextInput
                     style={styles.input}
-                    placeholder="MM/AA"
+                    placeholder={t('MM/AA')}
                     placeholderTextColor="#D1D5DB"
                     keyboardType="numeric"
                     value={expiry}
@@ -232,7 +233,7 @@ export default function CardPaymentScreen() {
               </View>
 
               <View style={[styles.fieldWrap, { flex: 1 }]}>
-                <Text style={styles.fieldLabel}>CVV</Text>
+                <Text style={styles.fieldLabel}>{t('CVV')}</Text>
                 <View style={styles.inputRow}>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
@@ -253,14 +254,14 @@ export default function CardPaymentScreen() {
 
             {/* Total à payer */}
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total à payer</Text>
+              <Text style={styles.totalLabel}>{t('Total à payer')}</Text>
               <Text style={styles.totalValue}>{cardAmount.toFixed(2)} DH</Text>
             </View>
 
             {/* Sécurité */}
             <View style={styles.secureRow}>
               <Feather name="shield" size={14} color="#9CA3AF" />
-              <Text style={styles.secureText}>Paiement sécurisé — vos données sont chiffrées</Text>
+              <Text style={styles.secureText}>{t('Paiement sécurisé — vos données sont chiffrées')}</Text>
             </View>
 
           </ScrollView>
@@ -277,7 +278,7 @@ export default function CardPaymentScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={[styles.btnText, !isFormValid && styles.btnTextDisabled]}>
-                  Payer maintenant
+                  {t('Payer maintenant')}
                 </Text>
               )}
             </TouchableOpacity>

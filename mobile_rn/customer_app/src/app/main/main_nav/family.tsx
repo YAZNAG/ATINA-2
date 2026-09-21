@@ -11,6 +11,7 @@ import ProductCard from '../../../components/ui/ProductCard';
 import { ScreenTitle, SearchField } from '../../../components/ui/CatalogKit';
 import { CatalogService, Article, Family } from '../../../services/catalog.service';
 import { getSavedLang, Lang } from '../../../components/onboarding/onboardingKit';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -79,7 +80,7 @@ export default function FamilyScreen() {
       setPage(p);
       setHasMore(p < (res.pagination?.pages ?? 1));
     } catch (e: any) {
-      if (id === reqId.current) setError(e?.message ?? 'Impossible de charger les produits.');
+      if (id === reqId.current) setError(e?.message ?? t('Impossible de charger les produits.'));
     } finally {
       if (id === reqId.current) { setLoading(false); setLoadingMore(false); }
     }
@@ -91,7 +92,7 @@ export default function FamilyScreen() {
     return () => clearTimeout(t);
   }, [fetchPage, query]);
 
-  const title = family ? name(family) : String(params.family_name ?? 'Produits');
+  const title = family ? name(family) : String(params.family_name ?? t('Produits'));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -113,7 +114,7 @@ export default function FamilyScreen() {
         ListHeaderComponent={
           subs.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Chip label="Tout" uri={family?.image_url} selected={selected === ALL} onPress={() => setSelected(ALL)} />
+              <Chip label={t('Tout')} uri={family?.image_url} selected={selected === ALL} onPress={() => setSelected(ALL)} />
               {subs.map((s) => (
                 <Chip key={s.id} label={name(s)} uri={s.image_url} selected={selected === s.id} onPress={() => setSelected(s.id)} />
               ))}
@@ -124,10 +125,10 @@ export default function FamilyScreen() {
           loading ? <ActivityIndicator color={RED} style={{ marginTop: 40 }} /> : (
             <View style={styles.empty}>
               <Feather name={error ? 'wifi-off' : 'package'} size={30} color="#C4C4C4" />
-              <Text style={styles.emptyText}>{error || 'Aucun produit disponible pour le moment.'}</Text>
+              <Text style={styles.emptyText}>{error || t('Aucun produit disponible pour le moment.')}</Text>
               {!!error && (
                 <TouchableOpacity onPress={() => fetchPage(1, true)}>
-                  <Text style={styles.retry}>Réessayer</Text>
+                  <Text style={styles.retry}>{t('Réessayer')}</Text>
                 </TouchableOpacity>
               )}
             </View>

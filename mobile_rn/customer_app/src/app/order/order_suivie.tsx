@@ -17,6 +17,7 @@ import {
 import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService, Order, OrderTimeline } from '../../services/profile.service';
 import type { OrderDriver } from '../../services/profile.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -52,7 +53,7 @@ function DriverCard({ driver, slotStart, slotEnd }: {
 
   return (
     <View style={styles.driverCard}>
-      <Text style={styles.sectionTitle}>Livreur assigné</Text>
+      <Text style={styles.sectionTitle}>{t('Livreur assigné')}</Text>
       <View style={styles.driverRow}>
         <View style={styles.driverAvatar}>
           <Text style={styles.driverAvatarText}>{initial}</Text>
@@ -80,7 +81,7 @@ function DriverCard({ driver, slotStart, slotEnd }: {
       {etaLabel && (
         <View style={styles.etaRow}>
           <Feather name="clock" size={13} color={RED} />
-          <Text style={styles.etaLabel}>Créneau de livraison</Text>
+          <Text style={styles.etaLabel}>{t('Créneau de livraison')}</Text>
           <Text style={styles.etaValue}>{etaLabel}</Text>
         </View>
       )}
@@ -163,7 +164,7 @@ export default function OrderDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <PageHeader title="Suivi de commande" />
+        <PageHeader title={t('Suivi de commande')} />
         <View style={styles.container}>
           <ActivityIndicator color={RED} style={{ marginTop: 60 }} />
         </View>
@@ -174,11 +175,11 @@ export default function OrderDetailScreen() {
   if (!order) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <PageHeader title="Suivi de commande" />          
+        <PageHeader title={t('Suivi de commande')} />          
         <View style={styles.container}>
           <View style={styles.errorWrap}>
             <Feather name="alert-circle" size={40} color="#E5E7EB" />
-            <Text style={styles.errorText}>Commande introuvable</Text>
+            <Text style={styles.errorText}>{t('Commande introuvable')}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -205,7 +206,7 @@ export default function OrderDetailScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.headerRow}>
-        <PageHeader title="Suivi de commande" />
+        <PageHeader title={t('Suivi de commande')} />
         <TouchableOpacity
           style={styles.phoneBtn}
           onPress={() => Linking.openURL('tel:+212500000000')}
@@ -218,7 +219,7 @@ export default function OrderDetailScreen() {
 
           {/* ── Order ID ── */}
           <View style={styles.section}>
-            <Text style={styles.orderIdLabel}>Order ID</Text>
+            <Text style={styles.orderIdLabel}>{t('N° de commande')}</Text>
             <Text style={styles.orderIdValue}>{order.reference}</Text>
             <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
           </View>
@@ -226,7 +227,7 @@ export default function OrderDetailScreen() {
           {/* ── Order Progress ── */}
           <View style={styles.section}>
             <View style={styles.progressHeader}>
-              <Text style={styles.sectionTitle}>Order Progress</Text>
+              <Text style={styles.sectionTitle}>{t('Suivi de commande')}</Text>
               <Text style={styles.progressPct}>{pct}%</Text>
             </View>
             <View style={styles.progressTrack}>
@@ -268,9 +269,9 @@ export default function OrderDetailScreen() {
                       styles.stepLabel,
                       state === 'pending' && styles.stepLabelPending,
                     ]}>
-                      {step.label}
+                      {t(step.label)}
                     </Text>
-                    <Text style={styles.stepSub}>{step.sub}</Text>
+                    <Text style={styles.stepSub}>{t(step.sub)}</Text>
                     {time && (
                       <View style={styles.stepTimeRow}>
                         <View style={styles.stepTimeLine} />
@@ -297,7 +298,7 @@ export default function OrderDetailScreen() {
             <View style={styles.section}>
               <View style={styles.addressHeader}>
                 <Feather name="map-pin" size={16} color={RED} />
-                <Text style={styles.sectionTitle}>Adresse de livraison</Text>
+                <Text style={styles.sectionTitle}>{t('Adresse de livraison')}</Text>
               </View>
               <Text style={styles.addressText}>{order.address_full}</Text>
               {order.address_label && (
@@ -309,7 +310,7 @@ export default function OrderDetailScreen() {
           {/* ── Need Help? ── */}
           <View style={styles.helpSection}>
             <Feather name="help-circle" size={16} color="#6B7280" />
-            <Text style={styles.helpTitle}>Need Help?</Text>
+            <Text style={styles.helpTitle}>{t('Need Help?')}</Text>
             <Text style={styles.helpSub}>Contact our support team if you have any questions about your order.</Text>
             <View style={styles.helpBtns}>
               <TouchableOpacity
@@ -318,11 +319,11 @@ export default function OrderDetailScreen() {
                 activeOpacity={0.8}
               >
                 <Feather name="phone" size={15} color="#1a1a1a" />
-                <Text style={styles.helpBtnText}>Call Support</Text>
+                <Text style={styles.helpBtnText}>{t('Call Support')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.helpBtn} activeOpacity={0.8} onPress={() => router.push('/support/conversations' as any)}>
                 <Feather name="message-circle" size={15} color="#1a1a1a" />
-                <Text style={styles.helpBtnText}>Chat</Text>
+                <Text style={styles.helpBtnText}>{t('Chat')}</Text>
               </TouchableOpacity>
             </View>
           </View>

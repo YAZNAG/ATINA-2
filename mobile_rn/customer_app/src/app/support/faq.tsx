@@ -11,6 +11,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import PageHeader from '../../components/ui/PageHeader';
 import { FaqService, FaqCategory, FaqItem } from '../../services/faq.service';
+import { t, isRTL } from '../../i18n';
 
 const RED  = '#E10600';
 const GRAY = '#9CA3AF';
@@ -95,7 +96,7 @@ export default function FaqScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Centre d'aide" />
+      <PageHeader title={t('Centre d\'aide')} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -106,8 +107,8 @@ export default function FaqScreen() {
           <View style={styles.emptyIcon}>
             <Feather name="help-circle" size={32} color={GRAY} />
           </View>
-          <Text style={styles.emptyTitle}>Aucune question disponible</Text>
-          <Text style={styles.emptyDesc}>Revenez plus tard.</Text>
+          <Text style={styles.emptyTitle}>{t('Aucune question disponible')}</Text>
+          <Text style={styles.emptyDesc}>{t('Revenez plus tard.')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -146,7 +147,7 @@ export default function FaqScreen() {
           </View>
 
           {/* ── Accordéon ── */}
-          <Text style={styles.sectionTitle}>Questions fréquentes</Text>
+          <Text style={styles.sectionTitle}>{t('Questions fréquentes')}</Text>
 
           {activeCategory?.items.map(item => (
             <AccordionItem key={item.id} item={item} />
@@ -162,10 +163,10 @@ export default function FaqScreen() {
               <Feather name="message-circle" size={22} color={RED} />
             </View>
             <View style={styles.contactText}>
-              <Text style={styles.contactTitle}>Pas trouvé votre réponse ?</Text>
-              <Text style={styles.contactDesc}>Notre équipe est disponible pour vous aider.</Text>
+              <Text style={styles.contactTitle}>{t('Pas trouvé votre réponse ?')}</Text>
+              <Text style={styles.contactDesc}>{t('Notre équipe est disponible pour vous aider.')}</Text>
             </View>
-            <Feather name="chevron-right" size={18} color={GRAY} />
+            <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={18} color={GRAY} />
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />

@@ -12,6 +12,7 @@ import { PromotionsService, FlashSaleSummary, BestDeal } from '../../../services
 import { LoyaltyService, LoyaltySummary } from '../../../services/loyalty.service';
 import { CouponsService } from '../../../services/coupons.service';
 import { Article } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -75,7 +76,7 @@ export default function OffersScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Offres</Text>
+        <Text style={styles.headerTitle}>{t('Offres')}</Text>
       </View>
 
       <ScrollView
@@ -85,7 +86,7 @@ export default function OffersScreen() {
         {/* Bandeau points de fidélité */}
         <TouchableOpacity style={styles.hero} activeOpacity={0.9} onPress={() => router.push('/profile/loyalty' as any)}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroLabel}>Mes points Atina</Text>
+            <Text style={styles.heroLabel}>{t('Mes points Atina')}</Text>
             <Text style={styles.heroPoints}>{loyalty ? loyalty.points_balance.toLocaleString('fr-FR') : '—'} pts</Text>
             {loyalty && loyalty.remaining_points > 0 && (
               <Text style={styles.heroHint}>Encore {loyalty.remaining_points} pts pour votre prochaine récompense</Text>
@@ -98,21 +99,21 @@ export default function OffersScreen() {
         </TouchableOpacity>
 
         <View style={styles.tiles}>
-          <Tile title="Jeux" subtitle="Tournez la roue et gagnez" img={IMG.wheel} tint="#FFF1F0" onPress={() => router.push('/games' as any)} />
+          <Tile title={t('Jeux')} subtitle={t('Tournez la roue et gagnez')} img={IMG.wheel} tint="#FFF1F0" onPress={() => router.push('/games' as any)} />
           <Tile
-            title="Coupons"
+            title={t('Coupons')}
             subtitle={couponCount != null ? `${couponCount} disponible${couponCount > 1 ? 's' : ''}` : 'Vos codes promo'}
             img={IMG.coupon}
             tint="#FFF7E6"
             onPress={() => router.push('/profile/coupons' as any)}
           />
-          <Tile title="Cadeaux" subtitle="Échangez vos points" img={IMG.gift} tint="#F1F8F1" onPress={() => router.push('/rewards/exchange' as any)} />
-          <Tile title="Mes gains" subtitle="Lots gagnés aux jeux" img={IMG.trophy} tint="#EEF4FF" onPress={() => router.push('/games/prizes' as any)} />
+          <Tile title={t('Cadeaux')} subtitle={t('Échangez vos points')} img={IMG.gift} tint="#F1F8F1" onPress={() => router.push('/rewards/exchange' as any)} />
+          <Tile title={t('Mes gains')} subtitle={t('Lots gagnés aux jeux')} img={IMG.trophy} tint="#EEF4FF" onPress={() => router.push('/games/prizes' as any)} />
         </View>
 
         {flash.length > 0 && (
           <>
-            <Text style={styles.section}>Ventes flash</Text>
+            <Text style={styles.section}>{t('Ventes flash')}</Text>
             <FlatList
               horizontal
               data={flash}
@@ -129,7 +130,7 @@ export default function OffersScreen() {
                     ? <Image source={{ uri: item.image_url }} style={styles.flashImg} contentFit="cover" />
                     : <View style={[styles.flashImg, styles.flashPh]}><Feather name="zap" size={28} color="#fff" /></View>}
                   <View style={styles.flashBody}>
-                    <Text style={styles.flashName} numberOfLines={1}>{item.name_fr ?? item.scope_name ?? 'Vente flash'}</Text>
+                    <Text style={styles.flashName} numberOfLines={1}>{item.name_fr ?? item.scope_name ?? t('Vente flash')}</Text>
                     <Text style={styles.flashMeta}>
                       {item.discount_pct ? `-${item.discount_pct}% · ` : ''}{item.product_count} produit{item.product_count > 1 ? 's' : ''}
                     </Text>
@@ -142,7 +143,7 @@ export default function OffersScreen() {
 
         {deals.length > 0 && (
           <>
-            <Text style={styles.section}>Meilleures remises</Text>
+            <Text style={styles.section}>{t('Meilleures remises')}</Text>
             <FlatList
               horizontal
               data={deals}

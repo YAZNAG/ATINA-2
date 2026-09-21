@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -14,7 +15,7 @@ export default function SectionHeader({ title, onSeeAll }: SectionHeaderProps) {
       <Text style={styles.title}>{title}</Text>
       {onSeeAll && (
         <TouchableOpacity onPress={onSeeAll}>
-          <Text style={styles.seeAll}>Voir tout</Text>
+          <Text style={styles.seeAll}>{t('Voir tout')}</Text>
         </TouchableOpacity>
       )}
     </View>

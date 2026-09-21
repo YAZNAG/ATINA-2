@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import PageHeader from '../../components/ui/PageHeader';
 import { PointsExchangeService, ExchangeCatalog, ExchangeCatalogItem } from '../../services/points_exchange.service';
 import { RewardsCart, useRewardsCart } from '../../store/rewardsCartStore';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -31,7 +32,7 @@ export default function PointsExchangeScreen() {
       setError(null);
       setCatalog(await PointsExchangeService.getCatalog());
     } catch (e: any) {
-      setError(e?.message ?? 'Impossible de charger le catalogue');
+      setError(e?.message ?? t('Impossible de charger le catalogue'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -47,11 +48,11 @@ export default function PointsExchangeScreen() {
 
   const handleAdd = (item: ExchangeCatalogItem) => {
     if (projected < item.points_cost) {
-      Alert.alert('Points insuffisants', `Il vous manque ${item.points_cost - projected} point(s) pour ce produit.`);
+      Alert.alert(t('Points insuffisants'), `Il vous manque ${item.points_cost - projected} point(s) pour ce produit.`);
       return;
     }
     if (inCart(item.sku_id) + 1 > item.max_orderable) {
-      Alert.alert('Quantité maximale', item.max_qty_per_order != null && item.max_qty_per_order <= item.qty_available
+      Alert.alert(t('Quantité maximale'), item.max_qty_per_order != null && item.max_qty_per_order <= item.qty_available
         ? `Maximum ${item.max_qty_per_order} par commande pour ce produit.`
         : 'Stock disponible atteint pour ce produit.');
       return;
@@ -63,7 +64,7 @@ export default function PointsExchangeScreen() {
       max_qty_per_order: item.max_qty_per_order,
       node_id: catalog?.node?.id ?? null,
     });
-    if (msg) Alert.alert('Quantité maximale', msg);
+    if (msg) Alert.alert(t('Quantité maximale'), msg);
   };
 
   const handleRemoveOne = (item: ExchangeCatalogItem) => {
@@ -82,10 +83,10 @@ export default function PointsExchangeScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <Feather name="wifi-off" size={40} color="#9CA3AF" />
-        <Text style={styles.errorTitle}>Catalogue indisponible</Text>
+        <Text style={styles.errorTitle}>{t('Catalogue indisponible')}</Text>
         <Text style={styles.errorDesc}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }} activeOpacity={0.85}>
-          <Text style={styles.retryBtnText}>Réessayer</Text>
+          <Text style={styles.retryBtnText}>{t('Réessayer')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -96,20 +97,20 @@ export default function PointsExchangeScreen() {
       <View style={styles.balanceCard}>
         <View style={styles.badge}>
           <MaterialCommunityIcons name="swap-horizontal" size={12} color="#fff" />
-          <Text style={styles.badgeText}>ÉCHANGE DE POINTS</Text>
+          <Text style={styles.badgeText}>{t('ÉCHANGE DE POINTS')}</Text>
         </View>
-        <Text style={styles.balanceLabel}>Points disponibles</Text>
+        <Text style={styles.balanceLabel}>{t('Points disponibles')}</Text>
         <View style={styles.balanceRow}>
           <Text style={styles.balanceValue}>{balance.toLocaleString('fr-FR')}</Text>
-          <Text style={styles.balanceUnit}>pts</Text>
+          <Text style={styles.balanceUnit}>{t('pts')}</Text>
         </View>
         <View style={styles.projBox}>
           <View style={styles.projRow}>
-            <Text style={styles.projLabel}>Produits échangés dans le panier</Text>
+            <Text style={styles.projLabel}>{t('Produits échangés dans le panier')}</Text>
             <Text style={styles.projValue}>−{reserved.toLocaleString('fr-FR')} pts</Text>
           </View>
           <View style={styles.projRow}>
-            <Text style={styles.projLabelBold}>Solde projeté</Text>
+            <Text style={styles.projLabelBold}>{t('Solde projeté')}</Text>
             <Text style={styles.projValueBold}>{projected.toLocaleString('fr-FR')} pts</Text>
           </View>
         </View>
@@ -119,16 +120,16 @@ export default function PointsExchangeScreen() {
       <View style={styles.infoBox}>
         <Feather name="info" size={18} color="#2563EB" style={{ marginTop: 2 }} />
         <Text style={styles.infoDesc}>
-          Vos points ne sont débités qu'à la confirmation de la commande. Les produits échangés ne comptent pas dans le montant minimum de commande.
+          {t('Vos points ne sont débités qu\'à la confirmation de la commande. Les produits échangés ne comptent pas dans le montant minimum de commande.')}
         </Text>
       </View>
-      <Text style={styles.sectionTitle}>Produits échangeables</Text>
+      <Text style={styles.sectionTitle}>{t('Produits échangeables')}</Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <PageHeader title="Échanger mes points" rightIcon="shopping-cart" onRightPress={() => router.push('/main/cart' as any)} />
+      <PageHeader title={t('Échanger mes points')} rightIcon="shopping-cart" onRightPress={() => router.push('/main/cart' as any)} />
       <FlatList
         data={catalog?.items ?? []}
         keyExtractor={(i) => i.rule_id}
@@ -138,7 +139,7 @@ export default function PointsExchangeScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="gift" size={36} color="#D1D5DB" />
-            <Text style={styles.emptyText}>Aucun produit n'est échangeable contre des points sur votre magasin pour le moment.</Text>
+            <Text style={styles.emptyText}>{t('Aucun produit n\'est échangeable contre des points sur votre magasin pour le moment.')}</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -172,7 +173,7 @@ export default function PointsExchangeScreen() {
               ) : (
                 <TouchableOpacity style={[styles.addBtn, !canAdd && styles.disabled]} onPress={() => handleAdd(item)} activeOpacity={0.85}>
                   <Feather name="plus" size={14} color="#fff" />
-                  <Text style={styles.addBtnText}>Ajouter</Text>
+                  <Text style={styles.addBtnText}>{t('Ajouter')}</Text>
                 </TouchableOpacity>
               )}
             </View>

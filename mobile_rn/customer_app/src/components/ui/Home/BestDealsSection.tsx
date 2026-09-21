@@ -5,6 +5,7 @@ import SectionHeader from '../SectionHeader';
 import SeeAllCard from '../SeeAllCard';
 import { withSeeAllSentinel } from './listHelpers';
 import { BestDeal, bestDealToArticle } from '../../../services/promotions.service';
+import { t } from '../../../i18n';
 
 interface BestDealsSectionProps {
   bestDeals: BestDeal[];
@@ -28,7 +29,7 @@ function BestDealsSection({ bestDeals, onPressProduct, onSeeAll }: BestDealsSect
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Meilleures offres" onSeeAll={onSeeAll} />
+      <SectionHeader title={t('Meilleures offres')} onSeeAll={onSeeAll} />
       <FlatList
         data={trimmed}
         keyExtractor={(item) => `deal-${item.id}`}

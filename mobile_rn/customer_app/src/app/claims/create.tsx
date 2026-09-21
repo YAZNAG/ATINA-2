@@ -15,6 +15,7 @@ import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-goog
 import PageHeader from '../../components/ui/PageHeader';
 import ClaimsService, { ClaimTypeOption, ClaimType } from '../../services/claims.service';
 import { ProfileService, OrderSummary } from '../../services/profile.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -57,7 +58,7 @@ function InfoModal({
               <Feather name="check-circle" size={40} color="#22C55E" />
             </View>
           )}
-          <Text style={styles.modalTitleAlert}>{state.title}</Text>
+          <Text style={styles.modalTitleAlert}>{t(state.title)}</Text>
           <Text style={styles.modalSubtitleAlert}>{state.message}</Text>
 
           <TouchableOpacity
@@ -143,7 +144,7 @@ export default function CreateClaimScreen() {
   const handlePickCamera = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      showInfo('Permission requise', "L'accès à la caméra est nécessaire pour prendre une photo.");
+      showInfo(t('Permission requise'), "L'accès à la caméra est nécessaire pour prendre une photo.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -153,7 +154,7 @@ export default function CreateClaimScreen() {
   const handlePickGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showInfo('Permission requise', "L'accès à vos photos est nécessaire.");
+      showInfo(t('Permission requise'), "L'accès à vos photos est nécessaire.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ImagePicker.MediaTypeOptions.Images });
@@ -161,9 +162,9 @@ export default function CreateClaimScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedOrderId) return showInfo('Commande requise', 'Sélectionnez la commande concernée.');
-    if (!selectedType) return showInfo('Type requis', 'Sélectionnez le type de réclamation.');
-    if (!description.trim()) return showInfo('Description requise', 'Décrivez le problème rencontré.');
+    if (!selectedOrderId) return showInfo(t('Commande requise'), 'Sélectionnez la commande concernée.');
+    if (!selectedType) return showInfo(t('Type requis'), 'Sélectionnez le type de réclamation.');
+    if (!description.trim()) return showInfo(t('Description requise'), 'Décrivez le problème rencontré.');
 
     setSubmitting(true);
     try {
@@ -183,13 +184,13 @@ export default function CreateClaimScreen() {
         }
       }
 
-      showInfo('Réclamation envoyée', 'Nous la traiterons dans les plus brefs délais.', {
+      showInfo(t('Réclamation envoyée'), 'Nous la traiterons dans les plus brefs délais.', {
         variant: 'success',
         confirmLabel: 'OK',
         onConfirm: () => router.back(),
       });
     } catch (e: any) {
-      showInfo('Erreur', e.message ?? "Impossible d'envoyer la réclamation");
+      showInfo(t('Erreur'), e.message ?? "Impossible d'envoyer la réclamation");
     } finally {
       setSubmitting(false);
     }
@@ -201,14 +202,14 @@ export default function CreateClaimScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-        <PageHeader title="Réclamation" />
+        <PageHeader title={t('Réclamation')} />
 
         {loadingData ? (
           <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
             {/* ── Commande concernée (dropdown) ── */}
-            <Text style={styles.label}>Commande concernée</Text>
+            <Text style={styles.label}>{t('Commande concernée')}</Text>
             <TouchableOpacity
               style={styles.orderSelector}
               onPress={() => setOrderPickerOpen(true)}
@@ -223,7 +224,7 @@ export default function CreateClaimScreen() {
                   <Text style={styles.orderSelectorValue}>Commande #{selectedOrder.reference}</Text>
                 ) : (
                   <Text style={styles.orderSelectorPlaceholder}>
-                    {orders.length === 0 ? 'Aucune commande disponible' : 'Sélectionnez une commande'}
+                    {orders.length === 0 ? t('Aucune commande disponible') : t('Sélectionnez une commande')}
                   </Text>
                 )}
               </View>
@@ -231,21 +232,21 @@ export default function CreateClaimScreen() {
             </TouchableOpacity>
 
             {/* ── Type de réclamation (grille 2 colonnes) ── */}
-            <Text style={styles.label}>Type de réclamation</Text>
+            <Text style={styles.label}>{t('Type de réclamation')}</Text>
             <View style={styles.typeGrid}>
-              {types.map((t) => {
-                const active = selectedType === t.code;
-                const icon = TYPE_ICONS[t.code] ?? 'help-circle';
+              {types.map((ty) => {
+                const active = selectedType === ty.code;
+                const icon = TYPE_ICONS[ty.code] ?? 'help-circle';
                 return (
                   <TouchableOpacity
-                    key={t.code}
+                    key={ty.code}
                     style={[styles.typeCard, active && styles.typeCardActive]}
-                    onPress={() => setSelectedType(t.code)}
+                    onPress={() => setSelectedType(ty.code)}
                     activeOpacity={0.85}
                   >
                     <Feather name={icon} size={22} color={active ? '#fff' : RED} />
                     <Text style={[styles.typeCardText, active && styles.typeCardTextActive]}>
-                      {t.label}
+                      {t(ty.label)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -254,12 +255,12 @@ export default function CreateClaimScreen() {
 
             {/* ── Description ── */}
             <View style={styles.descHeader}>
-              <Text style={styles.label}>Décrivez votre problème</Text>
+              <Text style={styles.label}>{t('Décrivez votre problème')}</Text>
               <Text style={styles.charCount}>{description.length}/500</Text>
             </View>
             <TextInput
               style={styles.textArea}
-              placeholder="Expliquez ce qui s'est passé..."
+              placeholder={t('Expliquez ce qui s\'est passé...')}
               placeholderTextColor="#9CA3AF"
               value={description}
               onChangeText={setDescription}
@@ -269,7 +270,7 @@ export default function CreateClaimScreen() {
             />
 
             {/* ── Photo */}
-            <Text style={styles.label}>Ajouter une photo</Text>
+            <Text style={styles.label}>{t('Ajouter une photo')}</Text>
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
@@ -281,21 +282,21 @@ export default function CreateClaimScreen() {
               <View style={styles.photoRow}>
                 <TouchableOpacity style={styles.photoBox} onPress={handlePickCamera} activeOpacity={0.8}>
                   <Feather name="camera" size={22} color="#9CA3AF" />
-                  <Text style={styles.photoBoxText}>Prendre une photo</Text>
+                  <Text style={styles.photoBoxText}>{t('Prendre une photo')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.photoBox} onPress={handlePickGallery} activeOpacity={0.8}>
                   <Feather name="image" size={22} color="#9CA3AF" />
-                  <Text style={styles.photoBoxText}>Choisir une image</Text>
-                  <Text style={styles.photoBoxSubtext}>JPG • PNG</Text>
+                  <Text style={styles.photoBoxText}>{t('Choisir une image')}</Text>
+                  <Text style={styles.photoBoxSubtext}>{t('JPG • PNG')}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* ── Téléphone  */}
-            <Text style={styles.label}>Téléphone</Text>
+            <Text style={styles.label}>{t('Téléphone')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="+212 6 XX XX XX XX"
+              placeholder={t('+212 6 XX XX XX XX')}
               placeholderTextColor="#9CA3AF"
               value={phone}
               onChangeText={setPhone}
@@ -303,7 +304,7 @@ export default function CreateClaimScreen() {
             />
 
             {/* ── Priorité  */}
-            <Text style={styles.label}>Niveau de priorité</Text>
+            <Text style={styles.label}>{t('Niveau de priorité')}</Text>
             <View style={styles.priorityRow}>
               <TouchableOpacity
                 style={[styles.priorityBtn, priority === 'normal' && styles.priorityBtnActive]}
@@ -311,7 +312,7 @@ export default function CreateClaimScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.priorityText, priority === 'normal' && styles.priorityTextActive]}>
-                  Normal
+                  {t('Normal')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -320,7 +321,7 @@ export default function CreateClaimScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.priorityText, priority === 'urgent' && styles.priorityTextActive]}>
-                  Urgent
+                  {t('Urgent')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -335,7 +336,7 @@ export default function CreateClaimScreen() {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitBtnText}>Envoyer la réclamation</Text>
+                <Text style={styles.submitBtnText}>{t('Envoyer la réclamation')}</Text>
               )}
             </TouchableOpacity>
 
@@ -343,7 +344,7 @@ export default function CreateClaimScreen() {
             <View style={styles.infoBox}>
               <Feather name="info" size={16} color="#3B82F6" />
               <Text style={styles.infoBoxText}>
-                Notre équipe répond généralement sous <Text style={styles.infoBoxBold}>24 heures</Text>.
+                {t('Notre équipe répond généralement sous')} <Text style={styles.infoBoxBold}>{t('24 heures')}</Text>.
               </Text>
             </View>
             
@@ -357,7 +358,7 @@ export default function CreateClaimScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sélectionnez une commande</Text>
+              <Text style={styles.modalTitle}>{t('Sélectionnez une commande')}</Text>
               <TouchableOpacity onPress={() => setOrderPickerOpen(false)}>
                 <Feather name="x" size={22} color="#9CA3AF" />
               </TouchableOpacity>

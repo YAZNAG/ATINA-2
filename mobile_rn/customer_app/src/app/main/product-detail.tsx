@@ -25,6 +25,7 @@ import { useCartActions } from '../../context/CartContext';
 import ProductCard from '../../components/ui/ProductCard';
 import { favoritesStore } from '../../store/favoritesStore';
 import { useIsFavorite, useToggleFavorite } from '../../store/useIsFavorite';
+import { t, isRTL } from '../../i18n';
 
 const { width, height } = Dimensions.get('window');
 const RED    = '#E10600';
@@ -59,7 +60,7 @@ function InfoModal({
               <Feather name="check-circle" size={40} color="#22C55E" />
             </View>
           )}
-          <Text style={styles.modalTitleAlert}>{state.title}</Text>
+          <Text style={styles.modalTitleAlert}>{t(state.title)}</Text>
           <Text style={styles.modalSubtitleAlert}>{state.message}</Text>
 
           <TouchableOpacity
@@ -153,7 +154,7 @@ function ReviewCard({
   onError: (title: string, message: string) => void;
 }) {
   const [voting, setVoting] = useState(false);
-  const name = review.customer?.name ?? 'Client';
+  const name = review.customer?.name ?? t('Client');
   const date = new Date(review.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const handleToggle = async () => {
@@ -163,7 +164,7 @@ function ReviewCard({
       const updated = await ReviewsService.toggleHelpful(review.id);
       onVoted(updated);
     } catch (e: any) {
-      onError('Erreur', e.message ?? 'Impossible de voter');
+      onError('Erreur', e.message ?? t('Impossible de voter'));
     } finally {
       setVoting(false);
     }
@@ -177,7 +178,7 @@ function ReviewCard({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.reviewName}>{name}</Text>
             <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>Vérifié</Text>
+              <Text style={styles.verifiedText}>{t('Vérifié')}</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
@@ -245,14 +246,14 @@ function ReviewsSection({
 
       {/* Header + "Voir tout" */}
       <View style={styles.reviewsHeader}>
-        <Text style={styles.sectionLabel}>Tous les avis</Text>
+        <Text style={styles.sectionLabel}>{t('Tous les avis')}</Text>
         {stats.review_count > 3 && (
           <TouchableOpacity
             style={styles.seeAllBtn}
             onPress={() => router.push({ pathname: '/main/reviews' as any, params: { article_id: articleId } })}
           >
-            <Text style={styles.seeAllText}>Voir tout</Text>
-            <Feather name="chevron-right" size={14} color={RED} />
+            <Text style={styles.seeAllText}>{t('Voir tout')}</Text>
+            <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={14} color={RED} />
           </TouchableOpacity>
         )}
       </View>
@@ -261,8 +262,8 @@ function ReviewsSection({
       {stats.review_count === 0 ? (
         <View style={styles.noReviewsBox}>
           <Feather name="message-circle" size={28} color="#D1D5DB" />
-          <Text style={styles.noReviewsTitle}>Aucun avis pour le moment</Text>
-          <Text style={styles.noReviewsSubtitle}>Soyez le premier à donner votre avis sur ce produit</Text>
+          <Text style={styles.noReviewsTitle}>{t('Aucun avis pour le moment')}</Text>
+          <Text style={styles.noReviewsSubtitle}>{t('Soyez le premier à donner votre avis sur ce produit')}</Text>
         </View>
       ) : (
         reviews.slice(0, 3).map(r => <ReviewCard key={r.id} review={r} onVoted={onReviewVoted} onError={onError} />)
@@ -306,14 +307,14 @@ function WriteReviewModal({
           <View style={styles.modalHandle} />
 
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Laisser un avis</Text>
+            <Text style={styles.modalTitle}>{t('Laisser un avis')}</Text>
             <TouchableOpacity onPress={onClose}>
               <Feather name="x" size={22} color="#9CA3AF" />
             </TouchableOpacity>
           </View>
 
           {/* Étoiles */}
-          <Text style={styles.modalLabel}>Votre note</Text>
+          <Text style={styles.modalLabel}>{t('Votre note')}</Text>
           <View style={styles.starsRow}>
   {[1,2,3,4,5].map(i => (
     <TouchableOpacity key={i} onPress={() => setRating(i)} activeOpacity={0.7}>
@@ -326,7 +327,7 @@ function WriteReviewModal({
           <Text style={styles.modalLabel}>Commentaire (optionnel)</Text>
           <TextInput
             style={styles.modalInput}
-            placeholder="Partagez votre expérience..."
+            placeholder={t('Partagez votre expérience...')}
             placeholderTextColor="#9CA3AF"
             value={comment}
             onChangeText={setComment}
@@ -342,7 +343,7 @@ function WriteReviewModal({
           >
             {submitting
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>Publier mon avis</Text>
+              : <Text style={styles.submitBtnText}>{t('Publier mon avis')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -426,7 +427,7 @@ export default function ProductDetailScreen() {
     return (
       <View style={styles.centered}>
         <Feather name="alert-circle" size={48} color="#E0E0E0" />
-        <Text style={{ color: '#9CA3AF', marginTop: 12, fontFamily: 'Inter_500Medium' }}>Produit introuvable</Text>
+        <Text style={{ color: '#9CA3AF', marginTop: 12, fontFamily: 'Inter_500Medium' }}>{t('Produit introuvable')}</Text>
       </View>
     );
   }
@@ -435,13 +436,13 @@ export default function ProductDetailScreen() {
   const total  = (article.price_ttc * quantity).toFixed(2);
 
   const handleAddToCart = async () => {
-    if (!article.sku_id) return showInfo('Indisponible', "Ce produit n'est pas disponible.");
+    if (!article.sku_id) return showInfo(t('Indisponible'), "Ce produit n'est pas disponible.");
     try {
       setAdding(true);
       const cart = await CartService.addItem(article.sku_id, quantity);
       applyCart(cart);
     } catch (e: any) {
-      showInfo('Erreur', e.message || "Erreur lors de l'ajout au panier");
+      showInfo(t('Erreur'), e.message || "Erreur lors de l'ajout au panier");
     } finally { setAdding(false); }
   };
 
@@ -461,7 +462,7 @@ export default function ProductDetailScreen() {
           <ImageCarousel images={images} />
           <View style={[styles.heroButtons, { top: insets.top + 10 }]}>
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-              <Feather name="chevron-left" size={22} color={RED} />
+              <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={22} color={RED} />
             </TouchableOpacity>
             <View style={styles.heroRight}>
               <TouchableOpacity style={styles.iconBtn} onPress={handleToggleWish} disabled={toggling}>
@@ -506,7 +507,7 @@ export default function ProductDetailScreen() {
 
           {!!article.description_fr && (
             <>
-              <Text style={styles.sectionLabel}>Description</Text>
+              <Text style={styles.sectionLabel}>{t('Description')}</Text>
               <Text style={styles.description}>{article.description_fr}</Text>
             </>
           )}
@@ -517,8 +518,8 @@ export default function ProductDetailScreen() {
                 <Feather name="check-circle" size={14} color="#059669" />
               </View>
               <View>
-                <Text style={styles.badgeTitle}>Qualité</Text>
-                <Text style={styles.badgeSub}>Certifiée</Text>
+                <Text style={styles.badgeTitle}>{t('Qualité')}</Text>
+                <Text style={styles.badgeSub}>{t('Certifiée')}</Text>
               </View>
             </View>
             <View style={[styles.infoBadge, { borderColor: '#E5EAE6', backgroundColor: '#F7F7F7'  }]}>
@@ -526,8 +527,8 @@ export default function ProductDetailScreen() {
                 <Feather name="info" size={14} color={RED} />
               </View>
               <View>
-                <Text style={styles.badgeTitle}>Stock</Text>
-                <Text style={styles.badgeSub}>Disponible</Text>
+                <Text style={styles.badgeTitle}>{t('Stock')}</Text>
+                <Text style={styles.badgeSub}>{t('Disponible')}</Text>
               </View>
             </View>
           </View>
@@ -543,7 +544,7 @@ export default function ProductDetailScreen() {
 
           {similar.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Produits similaires</Text>
+              <Text style={styles.sectionLabel}>{t('Produits similaires')}</Text>
               <ScrollView
                 horizontal showsHorizontalScrollIndicator={false}
                 style={styles.similarScroll}
@@ -564,12 +565,12 @@ export default function ProductDetailScreen() {
       <View style={styles.footer}>
         <View style={styles.footerLeft}>
           <View style={styles.totalBlock}>
-            <Text style={styles.totalLabel}>TOTAL</Text>
+            <Text style={styles.totalLabel}>{t('TOTAL')}</Text>
             <Text style={styles.totalValue}>{total} DH</Text>
           </View>
           <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
   <MaterialCommunityIcons name="star" size={14} color={RED} />
-  <Text style={styles.reviewFooterBtnText}>un avis</Text>
+  <Text style={styles.reviewFooterBtnText}>{t('un avis')}</Text>
 </TouchableOpacity>
         </View>
 
@@ -579,7 +580,7 @@ export default function ProductDetailScreen() {
         >
           {adding
             ? <ActivityIndicator color="#fff" />
-            : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>Ajouter au panier</Text></>
+            : <><Feather name="shopping-cart" size={18} color="#fff" /><Text style={styles.cartBtnText}>{t('Ajouter au panier')}</Text></>
           }
         </TouchableOpacity>
       </View>

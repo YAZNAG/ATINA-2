@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, StatusBar, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { RED, ONBOARDING_DONE_KEY, prefGet } from '../components/onboarding/onboardingKit';
+import { RED, ONBOARDING_DONE_KEY, ONBOARDING_STEP_KEY, prefGet } from '../components/onboarding/onboardingKit';
 import { isTokenValid } from '../services/customer_auth.service';
+import { t } from '../i18n';
 
 const { width } = Dimensions.get('window');
 
@@ -20,7 +21,11 @@ export default function SplashScreen() {
 
     const timer = setTimeout(async () => {
       const done = await prefGet(ONBOARDING_DONE_KEY);
-      if (!done) { router.replace('/onboarding'); return; }
+      if (!done) {
+        const step = await prefGet(ONBOARDING_STEP_KEY);
+        router.replace((step === 'slides' ? '/onboarding/slide1' : '/onboarding') as any);
+        return;
+      }
       // Session encore valide : directement à l'accueil.
       let logged = false;
       try { logged = await isTokenValid(); } catch { /* pas de session */ }
@@ -41,7 +46,7 @@ export default function SplashScreen() {
       <View style={[styles.ring, styles.ringBottomSmall]} />
 
       <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
-        <Text style={styles.wordmark} accessibilityRole="header">Atina.</Text>
+        <Text style={styles.wordmark} accessibilityRole="header">{t('Atina.')}</Text>
       </Animated.View>
     </View>
   );

@@ -16,6 +16,7 @@ import FilterModal   from '../../../components/ui/FilterModal';
 import PageHeader    from '../../../components/ui/PageHeader';
 import SearchBar     from '../../../components/ui/SearchBar';
 import { CatalogService, Category, EntityId } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 const { width } = Dimensions.get('window');
 const RED       = '#E10600';
@@ -99,7 +100,7 @@ export default function CategoriesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <PageHeader title="Catégories" />
+      <PageHeader title={t('Catégories')} />
 
       <SearchBar
         value={search}
@@ -123,7 +124,7 @@ export default function CategoriesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Feather name="inbox" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucune catégorie trouvée</Text>
+              <Text style={styles.emptyText}>{t('Aucune catégorie trouvée')}</Text>
             </View>
           }
           renderItem={({ item }) => (

@@ -4,6 +4,7 @@ import ProductCard from '../ProductCard';
 import SectionHeader from '../SectionHeader';
 import { withSeeAllSentinel } from './listHelpers';
 import { Article } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 interface SuggestionsSectionProps {
   suggestions: Article[];
@@ -23,7 +24,7 @@ function SuggestionsSection({ suggestions, onPressProduct, onSeeAll }: Suggestio
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Suggestions pour vous" onSeeAll={onSeeAll} />
+      <SectionHeader title={t('Suggestions pour vous')} onSeeAll={onSeeAll} />
       {rows.map((row, ri) => (
         <View key={ri} style={styles.suggestionRow}>
           {row.map((item) => (

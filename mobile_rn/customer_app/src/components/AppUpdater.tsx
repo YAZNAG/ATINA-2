@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Feather } from '@expo/vector-icons';
+import { t } from '../i18n';
 
 const RED = '#E10600';
 
@@ -58,7 +59,7 @@ export default function AppUpdater() {
           <View style={styles.iconWrap}>
             <Feather name="download-cloud" size={30} color={RED} />
           </View>
-          <Text style={styles.title}>Mise à jour disponible</Text>
+          <Text style={styles.title}>{t('Mise à jour disponible')}</Text>
           <Text style={styles.body}>
             {state === 'error'
               ? 'Le téléchargement a échoué. Vérifiez votre connexion puis réessayez.'
@@ -72,11 +73,11 @@ export default function AppUpdater() {
           >
             {state === 'downloading'
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.primaryText}>{state === 'error' ? 'Réessayer' : 'Mettre à jour'}</Text>}
+              : <Text style={styles.primaryText}>{state === 'error' ? t('Réessayer') : t('Mettre à jour')}</Text>}
           </TouchableOpacity>
           {state !== 'downloading' && (
             <TouchableOpacity onPress={later} hitSlop={10}>
-              <Text style={styles.later}>Plus tard</Text>
+              <Text style={styles.later}>{t('Plus tard')}</Text>
             </TouchableOpacity>
           )}
         </View>

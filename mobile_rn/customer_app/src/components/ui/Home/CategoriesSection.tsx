@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import CategoryList from '../CategoryList';
 import SectionHeader from '../SectionHeader';
 import { Category, EntityId } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 interface CategoriesSectionProps {
   categories: Category[];
@@ -14,7 +15,7 @@ interface CategoriesSectionProps {
 function CategoriesSection({ categories, selectedId, onSelect, onSeeAll }: CategoriesSectionProps) {
   return (
     <View style={styles.section}>
-      <SectionHeader title="Catégories" onSeeAll={onSeeAll} />
+      <SectionHeader title={t('Catégories')} onSeeAll={onSeeAll} />
       <CategoryList
         categories={categories}
         selectedId={selectedId}

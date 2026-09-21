@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SlideItem } from '../../../services/promotions.service';
+import { t } from '../../../i18n';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
@@ -43,10 +44,10 @@ function PromoSlidesSection({ slides, activeSlide, onScrollEnd }: PromoSlidesSec
                 ✦  {isPack ? 'PACK ÉCONOMIQUE' : 'OFFRE SPÉCIALE'}  ✦
               </Text>
               <Text style={styles.promoSlideName} numberOfLines={2}>
-                {item.title}
+                {t(item.title)}
               </Text>
               <Text style={styles.promoSlideScope} numberOfLines={1}>
-                {item.subtitle}
+                {t(item.subtitle)}
               </Text>
             </View>
           )}
@@ -57,7 +58,7 @@ function PromoSlidesSection({ slides, activeSlide, onScrollEnd }: PromoSlidesSec
             <View style={[styles.starShape, { transform: [{ rotate: '22.5deg' }] }]} />
             <View style={styles.starBadgeContent}>
               <Text style={[styles.starBadgePct, { color: RED }]}>{item.discount_pct}%</Text>
-              <Text style={[styles.starBadgeOff, { color: RED }]}>OFF</Text>
+              <Text style={[styles.starBadgeOff, { color: RED }]}>{t('OFF')}</Text>
             </View>
           </View>
         )}

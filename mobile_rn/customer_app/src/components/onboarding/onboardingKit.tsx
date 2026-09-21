@@ -13,6 +13,8 @@ export const LINE = '#EDEDED';
 
 export const LANG_KEY = 'preferred_lang';
 export const ONBOARDING_DONE_KEY = 'onboarding_done';
+/** Étape atteinte (« slides ») : reprise après le redémarrage lié au choix de l'arabe. */
+export const ONBOARDING_STEP_KEY = 'onboarding_step';
 
 export type Lang = 'fr' | 'ar';
 

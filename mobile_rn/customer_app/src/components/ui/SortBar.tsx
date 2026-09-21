@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Article } from '../../services/catalog.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -48,7 +49,7 @@ export default function SortBar({ value, onChange, options, paddingLeft, wrapper
               onPress={() => onChange(opt.value)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.label, active && styles.labelActive]}>{opt.label}</Text>
+              <Text style={[styles.label, active && styles.labelActive]}>{t(opt.label)}</Text>
               {opt.badge != null && opt.badge > 0 && (
                 <View style={[styles.badge, active && styles.badgeActive]}>
                   <Text style={[styles.badgeText, active && styles.badgeTextActive]}>

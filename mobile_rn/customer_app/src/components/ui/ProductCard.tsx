@@ -8,6 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -67,7 +68,7 @@ function ProductCard({
       return;
     }
     if (!article.sku_id) {
-      Alert.alert('Indisponible', 'Ce produit n\'est pas disponible à la commande.');
+      Alert.alert(t('Indisponible'), t('Ce produit n\'est pas disponible à la commande.'));
       return;
     }
     try {
@@ -75,7 +76,7 @@ function ProductCard({
       const cart = await CartService.addItem(article.sku_id, 1);
       applyCart(cart);
     } catch (err: any) {
-      Alert.alert('Erreur', err.message || 'Erreur lors de l\'ajout au panier');
+      Alert.alert(t('Erreur'), err.message || t('Erreur lors de l\'ajout au panier'));
     } finally {
       setAddingToCart(false);
     }
@@ -124,7 +125,7 @@ function ProductCard({
             onPress={handleAddToCart}
             disabled={addingToCart}
             activeOpacity={0.85}
-            accessibilityLabel="Ajouter au panier"
+            accessibilityLabel={t('Ajouter au panier')}
           >
             <Feather name="plus" size={20} color="#fff" />
           </TouchableOpacity>

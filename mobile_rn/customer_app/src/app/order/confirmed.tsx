@@ -10,6 +10,7 @@ import {
   Poppins_600SemiBold, Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -36,7 +37,7 @@ export default function OrderConfirmedScreen() {
         </View>
 
         {/* ── Texte ── */}
-        <Text style={styles.title}>Commande confirmée !</Text>
+        <Text style={styles.title}>{t('Commande confirmée !')}</Text>
         <Text style={styles.subtitle}>
           {reference
             ? `Votre commande a été\ntraitée avec succès. Vous recevrez\nun SMS de confirmation.`
@@ -52,8 +53,8 @@ export default function OrderConfirmedScreen() {
               router.replace('/order/orders' as any);}}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnTrackText}>Suivre ma commande</Text>
-            <Feather name="arrow-right" size={18} color="#fff" />
+            <Text style={styles.btnTrackText}>{t('Suivre ma commande')}</Text>
+            <Feather name={isRTL() ? 'arrow-left' : 'arrow-right'} size={18} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -61,7 +62,7 @@ export default function OrderConfirmedScreen() {
             onPress={() => router.replace('/main/main_nav/home' as any)}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnHomeText}>Retour à l'accueil</Text>
+            <Text style={styles.btnHomeText}>{t('Retour à l\'accueil')}</Text>
           </TouchableOpacity>
         </View>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -67,7 +68,7 @@ export default function CheckoutStepper({
                   (status === 'active' || status === 'done') && styles.stepLabelActive,
                 ]}
               >
-                {step.label}
+                {t(step.label)}
               </Text>
             </View>
 

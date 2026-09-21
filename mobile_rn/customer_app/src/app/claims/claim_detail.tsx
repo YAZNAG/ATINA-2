@@ -13,6 +13,7 @@ import {
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import ClaimsService, { Claim, ClaimStatus } from '../../services/claims.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -42,9 +43,9 @@ function CancelClaimModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <TouchableOpacity style={styles.modalOverlay} onPress={onCancel} activeOpacity={1}>
         <TouchableOpacity style={styles.modalCard} activeOpacity={1} onPress={() => {}}>
-          <Text style={styles.modalTitle}>Annuler la réclamation ?</Text>
+          <Text style={styles.modalTitle}>{t('Annuler la réclamation ?')}</Text>
           <Text style={styles.modalSubtitle}>
-            Voulez-vous vraiment annuler cette réclamation ?
+            {t('Voulez-vous vraiment annuler cette réclamation ?')}
           </Text>
 
           <TouchableOpacity
@@ -56,12 +57,12 @@ function CancelClaimModal({
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnConfirmDeleteText}>Oui</Text>
+              <Text style={styles.btnConfirmDeleteText}>{t('Oui')}</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7} disabled={loading}>
-            <Text style={styles.btnCancelText}>Non</Text>
+            <Text style={styles.btnCancelText}>{t('Non')}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -133,10 +134,10 @@ export default function ClaimDetailScreen() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         <View style={styles.container}>
-          <PageHeader title="Réclamation" />
+          <PageHeader title={t('Réclamation')} />
           <View style={styles.centered}>
             <Feather name="alert-circle" size={40} color="#E5E7EB" />
-            <Text style={styles.notFoundText}>Réclamation introuvable</Text>
+            <Text style={styles.notFoundText}>{t('Réclamation introuvable')}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -149,7 +150,7 @@ export default function ClaimDetailScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-        <PageHeader title="Détail réclamation" />
+        <PageHeader title={t('Détail réclamation')} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
           {/* Statut */}
@@ -173,12 +174,12 @@ export default function ClaimDetailScreen() {
             </View>
           )}
 
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>{t('Description')}</Text>
           <Text style={styles.description}>{claim.description}</Text>
 
           {claim.admin_note && (
             <>
-              <Text style={styles.label}>Réponse du support</Text>
+              <Text style={styles.label}>{t('Réponse du support')}</Text>
               <View style={styles.adminNoteBox}>
                 <Feather name="message-square" size={14} color="#3B82F6" style={{ marginBottom: 6 }} />
                 <Text style={styles.adminNoteText}>{claim.admin_note}</Text>
@@ -200,7 +201,7 @@ export default function ClaimDetailScreen() {
               {cancelling ? (
                 <ActivityIndicator color={RED} />
               ) : (
-                <Text style={styles.cancelBtnText}>Annuler la réclamation</Text>
+                <Text style={styles.cancelBtnText}>{t('Annuler la réclamation')}</Text>
               )}
             </TouchableOpacity>
           )}

@@ -10,6 +10,7 @@ import {
   Inter_400Regular, Inter_500Medium,
   Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 const { height } = Dimensions.get('window');
@@ -96,7 +97,7 @@ export default function FilterModal({
 
           {/* ── Header ── */}
           <View style={styles.header}>
-            <Text style={styles.title}>Filtres</Text>
+            <Text style={styles.title}>{t('Filtres')}</Text>
             {totalSelected > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{totalSelected}</Text>
@@ -111,7 +112,7 @@ export default function FilterModal({
             keyExtractor={(item, index) => `${item.id}-${index}`}
             sections={[
   ...(categories.length > 0 ? [{
-    title:    'Catégories',
+    title:    t('Catégories'),
     data:     categories,
     type:     'category' as const,
     allLabel: 'Toutes les catégories',
@@ -119,7 +120,7 @@ export default function FilterModal({
     onToggleAll: toggleAll,
   }] : []),
   ...(subCategories.length > 0 ? [{
-    title:    'Sous-catégories',
+    title:    t('Sous-catégories'),
     data:     subCategories,
     type:     'sub' as const,
     allLabel: 'Toutes les sous-catégories',
@@ -129,7 +130,7 @@ export default function FilterModal({
 ]}
             renderSectionHeader={({ section }) => (
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={styles.sectionTitle}>{t(section.title)}</Text>
                 {renderRow(
                   section.allLabel,
                   section.allFlag,
@@ -161,7 +162,7 @@ export default function FilterModal({
 
           {/* ── Reset ── */}
           <TouchableOpacity style={styles.btnReset} onPress={handleReset} activeOpacity={0.7}>
-            <Text style={styles.btnResetText}>Réinitialiser</Text>
+            <Text style={styles.btnResetText}>{t('Réinitialiser')}</Text>
           </TouchableOpacity>
 
         </View>

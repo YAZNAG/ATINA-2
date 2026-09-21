@@ -18,6 +18,7 @@ import {
 import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '../../components/ui/CheckoutStepper';
 import { getDeliverySlots, getMeta, DeliverySlot } from '../../services/order.service';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -101,7 +102,7 @@ export default function CheckoutDateTimeScreen() {
       }
     } catch (e: any) {
       setSlots([]);
-      setSlotsError(e.message || 'Erreur chargement des créneaux');
+      setSlotsError(e.message || t('Erreur chargement des créneaux'));
     } finally {
       setLoadingSlots(false);
     }
@@ -167,7 +168,7 @@ export default function CheckoutDateTimeScreen() {
 
       <View style={styles.container}>
 
-        <PageHeader title="Mode de réception" />
+        <PageHeader title={t('Mode de réception')} />
         <CheckoutStepper currentStep={2} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -176,16 +177,16 @@ export default function CheckoutDateTimeScreen() {
           <View style={styles.calendarCard}>
             <View style={styles.calHeader}>
               <TouchableOpacity onPress={prevMonth} style={styles.calNavBtn}>
-                <Feather name="chevron-left" size={20} color="#1a1a1a" />
+                <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color="#1a1a1a" />
               </TouchableOpacity>
-              <Text style={styles.calTitle}>{MONTHS[viewMonth]} {viewYear}</Text>
+              <Text style={styles.calTitle}>{t(MONTHS[viewMonth])} {viewYear}</Text>
               <TouchableOpacity onPress={nextMonth} style={styles.calNavBtn}>
-                <Feather name="chevron-right" size={20} color="#1a1a1a" />
+                <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={20} color="#1a1a1a" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.weekRow}>
-              {WEEKDAYS.map((w) => <Text key={w} style={styles.weekday}>{w}</Text>)}
+              {WEEKDAYS.map((w) => <Text key={w} style={styles.weekday}>{t(w)}</Text>)}
             </View>
 
             <View style={styles.daysGrid}>
@@ -237,12 +238,12 @@ export default function CheckoutDateTimeScreen() {
           </Text>
           {selectedDate && !slotSelectionEnabled && (
             <Text style={styles.hintText}>
-              Le créneau vous sera confirmé par l'équipe Atina selon les disponibilités de ce jour.
+              {t('Le créneau vous sera confirmé par l\'équipe Atina selon les disponibilités de ce jour.')}
             </Text>
           )}
 
           {!selectedDate ? (
-            <Text style={styles.hintText}>Sélectionnez d'abord une date</Text>
+            <Text style={styles.hintText}>{t('Sélectionnez d\'abord une date')}</Text>
           ) : loadingSlots ? (
             <ActivityIndicator color={RED} style={{ marginVertical: 20 }} />
           ) : slotsError ? (
@@ -252,13 +253,13 @@ export default function CheckoutDateTimeScreen() {
               <Feather name="clock" size={36} color="#E0E0E0" />
               <Text style={styles.emptyText}>
                 {params.delivery_type_code === 'home' && resolvedNodeId === null
-                  ? 'Livraison indisponible dans cette zone'
-                  : 'Aucun créneau disponible ce jour'}
+                  ? t('Livraison indisponible dans cette zone')
+                  : t('Aucun créneau disponible ce jour')}
               </Text>
               <Text style={styles.emptySubtext}>
                 {params.delivery_type_code === 'home' && resolvedNodeId === null
-                  ? 'Votre adresse est hors zone de livraison'
-                  : 'Choisissez une autre date'}
+                  ? t('Votre adresse est hors zone de livraison')
+                  : t('Choisissez une autre date')}
               </Text>
             </View>
           ) : (
@@ -304,7 +305,7 @@ export default function CheckoutDateTimeScreen() {
             activeOpacity={0.85}
           >
             <Text style={[styles.btnText, !canConfirm && styles.btnTextDisabled]}>
-              Confirmer la planification
+              {t('Confirmer la planification')}
             </Text>
           </TouchableOpacity>
         </View>

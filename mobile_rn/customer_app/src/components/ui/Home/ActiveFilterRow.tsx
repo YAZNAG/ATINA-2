@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import SectionHeader from '../SectionHeader';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 
@@ -20,15 +21,15 @@ function ActiveFilterRow({ hasCategoryFilter, activeCategoryName, onClear, onSee
           <View style={styles.activeFilterChip}>
             <Feather name="filter" size={13} color={RED} />
             <Text style={styles.activeFilterText}>
-              {activeCategoryName || 'Filtré'}
+              {activeCategoryName || t('Filtré')}
             </Text>
           </View>
           <TouchableOpacity onPress={onClear} activeOpacity={0.7}>
-            <Text style={styles.clearFilterText}>Réinitialiser</Text>
+            <Text style={styles.clearFilterText}>{t('Réinitialiser')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <SectionHeader title="Tous les produits" onSeeAll={onSeeAllProducts} />
+        <SectionHeader title={t('Tous les produits')} onSeeAll={onSeeAllProducts} />
       )}
     </View>
   );

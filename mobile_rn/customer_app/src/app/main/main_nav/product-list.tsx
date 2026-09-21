@@ -15,6 +15,7 @@ import { CartService } from '../../../services/cart.service';
 import {
   PromotionsService, BestDeal, bestDealToArticle,
 } from '../../../services/promotions.service';
+import { t } from '../../../i18n';
 
 const PAGE_SIZE = 20;
 
@@ -42,7 +43,7 @@ export default function ProductListScreen() {
   const [hasMore, setHasMore]         = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const pageTitle = Array.isArray(title) ? title[0] : (title || 'Produits');
+  const pageTitle = t(Array.isArray(title) ? title[0] : (title || 'Produits'));
 
   const [cartSkuIds, setCartSkuIds] = useState<string[]>([]);
 
@@ -188,7 +189,7 @@ export default function ProductListScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Feather name="inbox" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>Aucun produit trouvé</Text>
+              <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
             </View>
           }
           removeClippedSubviews

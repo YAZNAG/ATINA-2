@@ -14,6 +14,7 @@ import { openLegal } from '../../services/appInfo.service';
 import { setNodeId } from '../../store/nodePref';
 import { CONFIG } from '../../constants/config';
 import PageHeader from '../../components/ui/PageHeader';
+import { t, getLang, isRTL } from '../../i18n';
 
 const RED = '#E62A27';
 
@@ -54,7 +55,7 @@ const MenuRow = ({ icon, label, onPress, rightContent, showChevron = true }: Row
     </View>
     <View style={styles.menuRowRight}>
       {rightContent}
-      {showChevron && <Feather name="chevron-right" size={17} color="#C5C5C5" />}
+      {showChevron && <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={17} color="#C5C5C5" />}
     </View>
   </TouchableOpacity>
 );
@@ -76,12 +77,7 @@ export default function ProfileScreen() {
   const [totalSpent,   setTotalSpent]   = useState(0);
   const [orderCount,   setOrderCount]   = useState(0);
   const [gamesBadge,   setGamesBadge]   = useState(0);
-  const LANG_LABELS: Record<string, string> = {
-  fr: 'Français (FR)',
-  ar: 'العربية (AR)',
-  en: 'English (EN)',
-};
-const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.preferred_lang ?? 'Français (FR)';
+const langLabel = getLang() === 'ar' ? 'العربية (AR)' : 'Français (FR)';
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -140,7 +136,7 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
-      <PageHeader title="Profil" />
+      <PageHeader title={t('Profil')} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -176,38 +172,38 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
           <StatCard
             icon="star"
             value={(profile?.points_balance ?? 0).toLocaleString()}
-            label="POINTS"
+            label={t('POINTS')}
           />
           <StatCard
             icon="box"
             value={String(orderCount)}
-            label="COMMANDES"
+            label={t('COMMANDES')}
           />
           <StatCard
             icon="calendar"
             value={totalSpent.toFixed(0)}
-            label="MAD"
+            label={t('MAD')}
           />
         </View>
 
         {/* ── Mon Compte ────────────────────────────────────────────────── */}
-        <SectionHeader title="Mon Compte" />
+        <SectionHeader title={t('Mon Compte')} />
         <View style={styles.card}>
           <MenuRow
             icon="map-pin"
-            label="Mes adresses"
+            label={t('Mes adresses')}
             onPress={() => router.push('/profile/addresses' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="shopping-bag"
-            label="Historique des commandes"
+            label={t('Historique des commandes')}
             onPress={() => router.push('/order/orders' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="heart"
-            label="Mes favoris"
+            label={t('Mes favoris')}
             onPress={() => router.push({
               pathname: '/main/main_nav/favorites' as any,
               params: { from: 'profile' },
@@ -216,18 +212,18 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
         </View>
 
         {/* ── Promotions & Récompenses ──────────────────────────────────── */}
-        <SectionHeader title="Promotions & Récompenses" />
+        <SectionHeader title={t('Promotions & Récompenses')} />
         <View style={styles.card}>
           <MenuRow
             icon="tag"
-            label="Mes coupons"
+            label={t('Mes coupons')}
             onPress={() => router.push('/profile/coupons' as any)}
             /*rightContent={<RedBadge text="2 Nouveaux" />}*/
           />
           <View style={styles.divider} />
           <MenuRow
             icon="award"
-            label="Mes points fidélité"
+            label={t('Mes points fidélité')}
             onPress={() => router.push('/profile/loyalty' as any)}
             rightContent={
               <RedBadge text={`${(profile?.points_balance ?? 0).toLocaleString()} pts`} />
@@ -236,88 +232,88 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
           <View style={styles.divider} />
           <MenuRow
             icon="repeat"
-            label="Échanger mes points"
+            label={t('Échanger mes points')}
             onPress={() => router.push('/rewards/exchange' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="play-circle"
-            label="Jeux"
+            label={t('Jeux')}
             onPress={() => router.push('/games' as any)}
             rightContent={gamesBadge > 0 ? <RedBadge text={`${gamesBadge} dispo`} /> : undefined}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="award"
-            label="Mes gains"
+            label={t('Mes gains')}
             onPress={() => router.push('/games/prizes' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="credit-card"
-            label="Wallet"
+            label={t('Wallet')}
             onPress={() => router.push('/profile/WalletScreen' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="share-2"
-            label="Parrainer un ami"
+            label={t('Parrainer un ami')}
             onPress={shareReferral}
             rightContent={profile?.referral_code ? <Text style={styles.infoText}>{profile.referral_code}</Text> : undefined}
           />
         </View>
 
         {/* ── Paramètres ────────────────────────────────────────────────── */}
-        <SectionHeader title="Paramètres" />
+        <SectionHeader title={t('Paramètres')} />
         <View style={styles.card}>
 
           {/* Langue */}
           <MenuRow
           icon="globe"
-          label="Langue"
+          label={t('Langue')}
           onPress={() => router.push('/profile/langue' as any)}
           rightContent={<Text style={styles.infoText}>{langLabel}</Text>}/>
           <View style={styles.divider} />
 
           <MenuRow
             icon="message-circle"
-            label="Chat avec le support"
+            label={t('Chat avec le support')}
             onPress={() => router.push('/support/conversations' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="help-circle"
-            label="Centre d'aide"
+            label={t('Centre d\'aide')}
             onPress={() => router.push('/support/faq' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="phone"
-            label="Contact"
+            label={t('Contact')}
             onPress={() => router.push('/support/contact' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="flag"
-            label="Réclamation"
+            label={t('Réclamation')}
             onPress={() => router.push('/claims/claims' as any)}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="file-text"
-            label="Conditions d'utilisation"
+            label={t('Conditions d\'utilisation')}
             onPress={() => openLegal('cgu')}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="lock"
-            label="Politique de confidentialité"
+            label={t('Politique de confidentialité')}
             onPress={() => openLegal('privacy')}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="trash-2"
-            label="Supprimer mon compte"
+            label={t('Supprimer mon compte')}
             onPress={() => router.push('/profile/delete-account' as any)}
           />
         </View>
@@ -329,13 +325,13 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
           activeOpacity={0.85}
         >
           <Feather name="edit" size={16} color="#fff" />
-          <Text style={styles.editBtnText}>Modifier profil</Text>
+          <Text style={styles.editBtnText}>{t('Modifier profil')}</Text>
         </TouchableOpacity>
 
         {/* ── Logout ────────────────────────────────────────────────────── */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
           <Feather name="log-out" size={15} color="#9CA3AF" />
-          <Text style={styles.logoutText}>Déconnexion</Text>
+          <Text style={styles.logoutText}>{t('Déconnexion')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 32 }} />

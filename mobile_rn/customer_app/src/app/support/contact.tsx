@@ -11,6 +11,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import PageHeader from '@/components/ui/PageHeader';
 import { getAppInfo, AppInfo } from '../../services/appInfo.service';
+import { t } from '../../i18n';
 
 const PRIMARY_RED = '#E10600';
 
@@ -36,14 +37,14 @@ export default function ContactUsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <PageHeader title="Contactez-nous" />
+      <PageHeader title={t('Contactez-nous')} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {!info && (
-          <Text style={styles.helpSubtitle}>Chargement des coordonnées…</Text>
+          <Text style={styles.helpSubtitle}>{t('Chargement des coordonnées…')}</Text>
         )}
 
         {/* Téléphone */}
@@ -51,9 +52,9 @@ export default function ContactUsScreen() {
           <ContactCard
             iconBg="#FDEAEA"
             icon={<Feather name="phone" size={22} color="#E10600" />}
-            label="Téléphone"
+            label={t('Téléphone')}
             value={phone}
-            buttonLabel="Appeler"
+            buttonLabel={t('Appeler')}
             buttonBg="#FBD9D9"
             buttonTextColor="#E10600"
             onPress={handleCall}
@@ -65,9 +66,9 @@ export default function ContactUsScreen() {
           <ContactCard
             iconBg="#E4F7EC"
             icon={<MaterialCommunityIcons name="whatsapp" size={24} color="#25D366" />}
-            label="WhatsApp"
+            label={t('WhatsApp')}
             value={whatsapp}
-            buttonLabel="Envoyer un message"
+            buttonLabel={t('Envoyer un message')}
             buttonBg="#D3F3E0"
             buttonTextColor="#1F9254"
             onPress={handleWhatsApp}
@@ -79,9 +80,9 @@ export default function ContactUsScreen() {
           <ContactCard
             iconBg="#E8EFFD"
             icon={<Feather name="mail" size={22} color="#3B6FE0" />}
-            label="Email"
+            label={t('Email')}
             value={email}
-            buttonLabel="Envoyer un email"
+            buttonLabel={t('Envoyer un email')}
             buttonBg="#E3ECFD"
             buttonTextColor="#3B6FE0"
             onPress={handleEmail}
@@ -90,17 +91,16 @@ export default function ContactUsScreen() {
 
         {/* Need Help banner */}
         <View style={styles.helpBanner}>
-          <Text style={styles.helpTitle}>Besoin d'aide ?</Text>
+          <Text style={styles.helpTitle}>{t('Besoin d\'aide ?')}</Text>
           <Text style={styles.helpSubtitle}>
-            Notre équipe est prête à vous accompagner dans chaque étape de
-            votre commande.
+            {t('Notre équipe est prête à vous accompagner dans chaque étape de votre commande.')}
           </Text>
           <TouchableOpacity
             style={styles.supportButton}
             onPress={handleSupport}
             activeOpacity={0.85}
           >
-            <Text style={styles.supportButtonText}>Contacter le support</Text>
+            <Text style={styles.supportButtonText}>{t('Contacter le support')}</Text>
           </TouchableOpacity>
         </View>
 

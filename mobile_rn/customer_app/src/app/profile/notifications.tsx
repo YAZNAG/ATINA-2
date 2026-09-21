@@ -12,6 +12,7 @@ import { ProfileService, Notification } from '../../services/profile.service';
 import { useNotification } from '../../context/NotificationContext';
 import PageHeader from '../../components/ui/PageHeader';
 import SortBar from '../../components/ui/SortBar';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -70,8 +71,8 @@ function groupByDate(notifs: Notification[]): Group[] {
     const dStr = d.toDateString();
     const key  = dStr === todayStr   ? "Aujourd'hui"
                : dStr === ydayStr    ? 'Hier'
-               : d >= weekAgo        ? 'Cette semaine'
-               :                       'Plus ancien';
+               : d >= weekAgo        ? t('Cette semaine')
+               :                       t('Plus ancien');
     (map[key] ??= []).push(n);
   }
   const ORDER = ["Aujourd'hui", 'Hier', 'Cette semaine', 'Plus ancien'];
@@ -143,10 +144,10 @@ export default function NotificationsScreen() {
 };
 
   const handleDeleteAll = () => {
-    Alert.alert('Tout supprimer', 'Supprimer toutes les notifications ?', [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('Tout supprimer'), t('Supprimer toutes les notifications ?'), [
+      { text: t('Annuler'), style: 'cancel' },
       {
-        text: 'Supprimer', style: 'destructive',
+        text: t('Supprimer'), style: 'destructive',
         onPress: async () => {
           setNotifications([]);
           try {
@@ -168,7 +169,7 @@ export default function NotificationsScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <PageHeader
-        title="Notifications"
+        title={t('Notifications')}
         rightIcon={unread > 0 ? 'check-square' : notifications.length > 0 ? 'trash-2' : undefined}
         onRightPress={unread > 0 ? handleMarkAllRead : handleDeleteAll}
       />
@@ -196,7 +197,7 @@ export default function NotificationsScreen() {
               <View style={styles.emptyCardText}>
                 <Text style={styles.emptyTitle}>Aucune notification{'\n'}pour le moment</Text>
                 <Text style={styles.emptyBody}>
-                  Vous recevrez ici les mises à jour de vos commandes et offres.
+                  {t('Vous recevrez ici les mises à jour de vos commandes et offres.')}
                 </Text>
               </View>
             </View>
@@ -205,7 +206,7 @@ export default function NotificationsScreen() {
               onPress={() => router.replace('/main/main_nav/home' as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyBtnText}>Explorer les offres</Text>
+              <Text style={styles.emptyBtnText}>{t('Explorer les offres')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -216,10 +217,10 @@ export default function NotificationsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
         >
           {groups.map(group => (
-            <View key={group.title}>
+            <View key={t(group.title)}>
               {/* Section header */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{group.title}</Text>
+                <Text style={styles.sectionTitle}>{t(group.title)}</Text>
                 <Text style={styles.sectionCount}>
                   {group.count} notification{group.count > 1 ? 's' : ''}
                 </Text>
@@ -256,7 +257,7 @@ export default function NotificationsScreen() {
                     <View style={styles.cardContent}>
                       <View style={styles.cardRow}>
                         <Text style={[styles.cardTitle, !item.is_read && styles.cardTitleUnread]} numberOfLines={1}>
-                          {item.title_fr || 'Notification'}
+                          {item.title_fr || t('Notification')}
                         </Text>
                         {!item.is_read && <View style={styles.unreadDot} />}
                         <Text style={styles.cardTime}>{timeLabel(item.sent_at)}</Text>

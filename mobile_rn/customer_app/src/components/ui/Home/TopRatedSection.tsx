@@ -5,6 +5,7 @@ import SectionHeader from '../SectionHeader';
 import SeeAllCard from '../SeeAllCard';
 import { withSeeAllSentinel } from './listHelpers';
 import { Article } from '../../../services/catalog.service';
+import { t } from '../../../i18n';
 
 interface TopRatedSectionProps {
   topRated: Article[];
@@ -26,7 +27,7 @@ function TopRatedSection({ topRated, onPressProduct, onSeeAll }: TopRatedSection
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Notés 5 étoiles" onSeeAll={onSeeAll} />
+      <SectionHeader title={t('Notés 5 étoiles')} onSeeAll={onSeeAll} />
       <FlatList
         data={trimmed}
         keyExtractor={(item) => `rated-${item.id}`}

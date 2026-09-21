@@ -12,6 +12,7 @@ import { CatalogService, City, DistributionNode } from '../../services/catalog.s
 import { setNodeId } from '../../store/nodePref';
 import SelectSheet from '../../components/ui/SelectSheet';
 import { RED, RED_SOFT, INK, getSavedLang, Lang } from '../../components/onboarding/onboardingKit';
+import { t } from '../../i18n';
 
 /** Maquette « page les informations de client » : nom, ville, point de distribution, parrainage (US-104). */
 export default function CompleteProfileScreen() {
@@ -62,7 +63,7 @@ export default function CompleteProfileScreen() {
 
   const submit = async () => {
     if (!canSubmit) {
-      setError(!name.trim() ? 'Saisissez votre nom complet.' : !cityId ? 'Choisissez votre ville.' : 'Choisissez un point de distribution.');
+      setError(!name.trim() ? 'Saisissez votre nom complet.' : !cityId ? t('Choisissez votre ville.') : t('Choisissez un point de distribution.'));
       return;
     }
     setSaving(true);
@@ -80,7 +81,7 @@ export default function CompleteProfileScreen() {
       }
       router.replace('/main/main_nav/home');
     } catch (e: any) {
-      setError(e?.message ?? 'Enregistrement impossible. Réessayez.');
+      setError(e?.message ?? t('Enregistrement impossible. Réessayez.'));
     } finally {
       setSaving(false);
     }
@@ -95,7 +96,7 @@ export default function CompleteProfileScreen() {
       <SafeAreaView edges={['top']} style={styles.redTop} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.card} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} accessibilityLabel="Ajouter une photo">
+          <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} accessibilityLabel={t('Ajouter une photo')}>
             <View style={styles.avatar}>
               {avatarUri
                 ? <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
@@ -104,23 +105,23 @@ export default function CompleteProfileScreen() {
             <View style={styles.plus}><Feather name="plus" size={14} color="#fff" /></View>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Complétez votre profil</Text>
+          <Text style={styles.title}>{t('Complétez votre profil')}</Text>
 
-          <Text style={styles.label}>Nom complet</Text>
+          <Text style={styles.label}>{t('Nom complet')}</Text>
           <View style={styles.field}>
             <Feather name="user" size={16} color="#6B6B6B" />
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={(t) => { setName(t); setError(''); }}
-              placeholder="Ex: Mohammed Alami"
+              placeholder={t('Ex: Mohammed Alami')}
               placeholderTextColor="#A0A0A0"
               autoCapitalize="words"
               maxLength={80}
             />
           </View>
 
-          <Text style={styles.label}>Choisir une ville</Text>
+          <Text style={styles.label}>{t('Choisir une ville')}</Text>
           <TouchableOpacity style={styles.field} onPress={() => setPicker('city')}>
             <Feather name="map-pin" size={16} color="#6B6B6B" />
             <Text style={[styles.select, !city && styles.placeholder]} numberOfLines={1}>
@@ -129,7 +130,7 @@ export default function CompleteProfileScreen() {
             <Feather name="chevron-down" size={18} color="#6B6B6B" />
           </TouchableOpacity>
 
-          <Text style={styles.label}>Point de distribution le plus proche</Text>
+          <Text style={styles.label}>{t('Point de distribution le plus proche')}</Text>
           <TouchableOpacity
             style={[styles.field, !cityId && styles.fieldDisabled]}
             onPress={() => cityId && setPicker('node')}
@@ -151,7 +152,7 @@ export default function CompleteProfileScreen() {
                   style={styles.input}
                   value={referral}
                   onChangeText={(t) => setReferral(t.replace(/\s/g, '').toUpperCase())}
-                  placeholder="Ex: ATN12345"
+                  placeholder={t('Ex: ATN12345')}
                   placeholderTextColor="#A0A0A0"
                   autoCapitalize="characters"
                   maxLength={20}
@@ -176,7 +177,7 @@ export default function CompleteProfileScreen() {
             {saving ? <ActivityIndicator color="#fff" /> : (
               <>
                 <Feather name="check-circle" size={18} color="#fff" />
-                <Text style={styles.buttonText}>Continuer</Text>
+                <Text style={styles.buttonText}>{t('Continuer')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -185,7 +186,7 @@ export default function CompleteProfileScreen() {
 
       <SelectSheet
         visible={picker === 'city'}
-        title="Choisir une ville"
+        title={t('Choisir une ville')}
         options={cities.map((c) => ({ value: c.id, label: label(c) }))}
         selected={cityId}
         onSelect={(v) => { setCityId(v); setError(''); }}
@@ -193,12 +194,12 @@ export default function CompleteProfileScreen() {
       />
       <SelectSheet
         visible={picker === 'node'}
-        title="Point de distribution le plus proche"
+        title={t('Point de distribution le plus proche')}
         options={nodes.map((n) => ({ value: n.id, label: label(n), hint: n.address_line1 }))}
         selected={nodeId}
         onSelect={(v) => { setNode(v); setError(''); }}
         onClose={() => setPicker(null)}
-        emptyText="Aucun point de distribution dans cette ville pour le moment."
+        emptyText={t('Aucun point de distribution dans cette ville pour le moment.')}
       />
     </View>
   );

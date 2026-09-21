@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { requestOtp } from '../../services/customer_auth.service';
 import { openLegal } from '../../services/appInfo.service';
 import { RED, INK, GREY, PrimaryButton } from '../../components/onboarding/onboardingKit';
+import { t } from '../../i18n';
 
 const { width } = Dimensions.get('window');
 
@@ -28,21 +29,21 @@ export default function PhoneScreen() {
   const valid = /^[5-7]\d{8}$/.test(digits);
 
   const handleContinue = async () => {
-    if (!valid) { setError('Saisissez un numéro marocain valide (ex. 6XX XXX XXX).'); return; }
+    if (!valid) { setError(t('Saisissez un numéro marocain valide (ex. 6XX XXX XXX).')); return; }
     setLoading(true);
     setError('');
     try {
       await requestOtp(digits, '+212');
       router.push({ pathname: '/auth/verify-otp', params: { phone_number: digits, phone_country: '+212' } } as any);
     } catch (e: any) {
-      setError(e?.message ?? 'Impossible d\'envoyer le code. Réessayez.');
+      setError(e?.message ?? t('Impossible d\'envoyer le code. Réessayez.'));
     } finally {
       setLoading(false);
     }
   };
 
   const legal = async (kind: 'cgu' | 'privacy') => {
-    if (!(await openLegal(kind))) setError('Document indisponible pour le moment.');
+    if (!(await openLegal(kind))) setError(t('Document indisponible pour le moment.'));
   };
 
   return (
@@ -55,8 +56,8 @@ export default function PhoneScreen() {
           </SafeAreaView>
 
           <View style={styles.sheet}>
-            <Text style={styles.title}>Bienvenue</Text>
-            <Text style={styles.subtitle}>Connectez-vous avec votre numéro de téléphone.</Text>
+            <Text style={styles.title}>{t('Bienvenue')}</Text>
+            <Text style={styles.subtitle}>{t('Connectez-vous avec votre numéro de téléphone.')}</Text>
 
             <View style={[styles.phoneBox, !!error && styles.phoneBoxError]}>
               <View style={styles.prefix}>
@@ -68,27 +69,27 @@ export default function PhoneScreen() {
                 style={styles.input}
                 value={phone}
                 onChangeText={(t) => { setPhone(t.replace(/[^\d ]/g, '')); setError(''); }}
-                placeholder="6XX XXX XXX"
+                placeholder={t('6XX XXX XXX')}
                 placeholderTextColor="#B0B0B0"
                 keyboardType="phone-pad"
                 maxLength={12}
                 returnKeyType="done"
                 onSubmitEditing={handleContinue}
-                accessibilityLabel="Numéro de téléphone"
+                accessibilityLabel={t('Numéro de téléphone')}
               />
               <Feather name="smartphone" size={18} color="#8A8A8A" />
             </View>
             {!!error && <Text style={styles.error}>{error}</Text>}
 
             <View style={styles.cta}>
-              <PrimaryButton label="Continuer" onPress={handleContinue} disabled={!valid} loading={loading} />
+              <PrimaryButton label={t('Continuer')} onPress={handleContinue} disabled={!valid} loading={loading} />
             </View>
 
             <Text style={styles.legal}>
-              En me connectant, j'accepte tous les{' '}
-              <Text style={styles.link} onPress={() => legal('cgu')}>Conditions générales</Text>
-              {' '}et{' '}
-              <Text style={styles.link} onPress={() => legal('privacy')}>Politique de confidentialité</Text>
+              {t("En me connectant, j'accepte tous les")}{' '}
+              <Text style={styles.link} onPress={() => legal('cgu')}>{t('Conditions générales')}</Text>
+              {' '}{t('et')}{' '}
+              <Text style={styles.link} onPress={() => legal('privacy')}>{t('Politique de confidentialité')}</Text>
             </Text>
           </View>
         </ScrollView>

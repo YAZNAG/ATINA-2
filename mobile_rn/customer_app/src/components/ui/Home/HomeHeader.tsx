@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Address } from '../../../services/profile.service';
 import { CONFIG } from '../../../constants/config';
 import { useNotification } from '../../../context/NotificationContext';
+import { t } from '../../../i18n';
 
 const RED = '#E10600';
 
@@ -37,7 +38,7 @@ export default function HomeHeader({ defaultAddress, user, avatarUrl }: Props) {
       <TouchableOpacity onPress={() => router.push('/profile/addresses' as any)}>
         <View style={styles.locationRow}>
           <Feather name="map-pin" size={14} color={RED} />
-          <Text style={styles.locationLabel}>Livrer à</Text>
+          <Text style={styles.locationLabel}>{t('Livrer à')}</Text>
           <Feather name="chevron-down" size={14} color="#1a1a1a" />
         </View>
         <Text style={styles.locationCity} numberOfLines={1}>

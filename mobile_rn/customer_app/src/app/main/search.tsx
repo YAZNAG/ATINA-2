@@ -21,6 +21,7 @@ import { CatalogService, Article, Category, EntityId } from '../../services/cata
 import { ProfileService } from '../../services/profile.service';
 import { favoritesStore } from '../../store/favoritesStore';
 import { sortArticles } from '../../components/ui/SortBar';
+import { t, isRTL } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -137,7 +138,7 @@ export default function SearchScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/main/main_nav/home'))}
           activeOpacity={0.7}
         >
-          <Feather name="chevron-left" size={20} color={RED} />
+          <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color={RED} />
         </TouchableOpacity>
 
         <View style={styles.searchBarFlex}>
@@ -157,12 +158,12 @@ export default function SearchScreen() {
             <Feather name="filter" size={13} color={RED} />
             <Text style={styles.activeFilterText}>
               {selectedCats.length === 1
-                ? categories.find(c => c.id === selectedCats[0])?.name_fr ?? '1 catégorie'
+                ? categories.find(c => c.id === selectedCats[0])?.name_fr ?? t('1 catégorie')
                 : `${selectedCats.length} catégories`}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setSelectedCats([])} activeOpacity={0.7}>
-            <Text style={styles.clearFilterText}>Réinitialiser</Text>
+            <Text style={styles.clearFilterText}>{t('Réinitialiser')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -170,7 +171,7 @@ export default function SearchScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
         <View style={styles.popularSection}>
-          <Text style={styles.popularTitle}>Recherches populaires</Text>
+          <Text style={styles.popularTitle}>{t('Recherches populaires')}</Text>
           <View style={styles.chipsWrap}>
             {popularKeywords.map(term => {
               const active = query.toLowerCase() === term.toLowerCase();
@@ -198,7 +199,7 @@ export default function SearchScreen() {
                 activeOpacity={0.7}
                 style={styles.tabItem}
               >
-                <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>{t(tab.label)}</Text>
                 {active && <View style={styles.tabUnderline} />}
               </TouchableOpacity>
             );
@@ -212,7 +213,7 @@ export default function SearchScreen() {
         ) : displayed.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Feather name="search" size={40} color="#E0E0E0" />
-            <Text style={styles.emptyText}>Aucun produit trouvé</Text>
+            <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
           </View>
         ) : (
           <View style={styles.grid}>

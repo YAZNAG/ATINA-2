@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 import { ProfileService, Address } from '../../services/profile.service';
 import { CatalogService } from '../../services/catalog.service';
 import PageHeader from '../../components/ui/PageHeader';
+import { t } from '../../i18n';
 
 const RED = '#E62A27';
 const { height } = Dimensions.get('window');
@@ -40,7 +41,7 @@ const CityPickerModal = ({
       <View style={styles.pickerOverlay}>
         <View style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Choisir la ville</Text>
+            <Text style={styles.pickerTitle}>{t('Choisir la ville')}</Text>
             <TouchableOpacity onPress={() => { setSearch(''); onClose(); }}>
               <Feather name="x" size={22} color="#1a1a1a" />
             </TouchableOpacity>
@@ -50,7 +51,7 @@ const CityPickerModal = ({
             <Feather name="search" size={16} color="#9CA3AF" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher une ville..."
+              placeholder={t('Rechercher une ville...')}
               placeholderTextColor="#9CA3AF"
               value={search}
               onChangeText={setSearch}
@@ -76,7 +77,7 @@ const CityPickerModal = ({
             )}
             ListEmptyComponent={
               <View style={styles.pickerEmpty}>
-                <Text style={styles.pickerEmptyText}>Aucune ville trouvée</Text>
+                <Text style={styles.pickerEmptyText}>{t('Aucune ville trouvée')}</Text>
               </View>
             }
           />
@@ -132,7 +133,7 @@ const AddressFormModal = ({
       setLocating(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission refusée', 'Autorisez la localisation pour utiliser votre position actuelle.');
+        Alert.alert(t('Permission refusée'), t('Autorisez la localisation pour utiliser votre position actuelle.'));
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -157,9 +158,9 @@ const AddressFormModal = ({
         }
       } catch { /* géocodage inverse optionnel */ }
 
-      Alert.alert('Position capturée', 'Votre localisation a été enregistrée pour cette adresse.');
+      Alert.alert(t('Position capturée'), t('Votre localisation a été enregistrée pour cette adresse.'));
     } catch (e) {
-      Alert.alert('Erreur', "Impossible d'obtenir votre position. Vérifiez que le GPS est activé.");
+      Alert.alert(t('Erreur'), "Impossible d'obtenir votre position. Vérifiez que le GPS est activé.");
     } finally {
       setLocating(false);
     }
@@ -172,8 +173,8 @@ const AddressFormModal = ({
   };
 
   const handleSubmit = () => {
-    if (!fullAddress.trim()) { Alert.alert('Erreur', "L'adresse complète est requise"); return; }
-    if (!city.trim())        { Alert.alert('Erreur', 'La ville est requise'); return; }
+    if (!fullAddress.trim()) { Alert.alert(t('Erreur'), "L'adresse complète est requise"); return; }
+    if (!city.trim())        { Alert.alert(t('Erreur'), t('La ville est requise')); return; }
 
     // Decoupe fullAddress en street_number/street_name l
     const trimmed = fullAddress.trim();
@@ -211,70 +212,70 @@ const AddressFormModal = ({
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-            <Text style={styles.fieldLabel}>Nom de l'adresse</Text>
+            <Text style={styles.fieldLabel}>{t('Nom de l\'adresse')}</Text>
             <TextInput
               style={styles.input}
               value={label}
               onChangeText={setLabel}
-              placeholder="Ex : Maison, Travail"
+              placeholder={t('Ex : Maison, Travail')}
               placeholderTextColor="#C4C4C4"
             />
 
-            <Text style={styles.fieldLabel}>Nom du destinataire</Text>
+            <Text style={styles.fieldLabel}>{t('Nom du destinataire')}</Text>
             <TextInput
               style={styles.input}
               value={recipientName}
               onChangeText={setRecipientName}
-              placeholder="Ahmed Benali"
+              placeholder={t('Ahmed Benali')}
               placeholderTextColor="#C4C4C4"
             />
 
-            <Text style={styles.fieldLabel}>Téléphone</Text>
+            <Text style={styles.fieldLabel}>{t('Téléphone')}</Text>
             <TextInput
               style={styles.input}
               value={phone}
               onChangeText={setPhone}
-              placeholder="+212 6 XX XX XX XX"
+              placeholder={t('+212 6 XX XX XX XX')}
               placeholderTextColor="#C4C4C4"
               keyboardType="phone-pad"
             />
 
             <View style={styles.row}>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.fieldLabel}>Ville *</Text>
+                <Text style={styles.fieldLabel}>{t('Ville *')}</Text>
                 <TouchableOpacity
                   style={styles.citySelector}
                   onPress={() => setCityPickerVisible(true)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.citySelectorText, !city && styles.citySelectorPlaceholder]} numberOfLines={1}>
-                    {city || 'Agadir'}
+                    {city || t('Agadir')}
                   </Text>
                 </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Quartier</Text>
+                <Text style={styles.fieldLabel}>{t('Quartier')}</Text>
                 <TextInput
                   style={styles.input}
                   value={quartier}
                   onChangeText={setQuartier}
-                  placeholder="Hay Salam"
+                  placeholder={t('Hay Salam')}
                   placeholderTextColor="#C4C4C4"
                 />
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>Adresse complète</Text>
+            <Text style={styles.fieldLabel}>{t('Adresse complète')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={fullAddress}
               onChangeText={setFullAddress}
-              placeholder="Rue 25, N°18..."
+              placeholder={t('Rue 25, N°18...')}
               placeholderTextColor="#C4C4C4"
               multiline
             />
 
-            <Text style={styles.fieldLabel}>Code postal</Text>
+            <Text style={styles.fieldLabel}>{t('Code postal')}</Text>
             <TextInput
               style={styles.input}
               value={postalCode}
@@ -286,14 +287,14 @@ const AddressFormModal = ({
             />
 
             <View style={styles.notesHeader}>
-              <Text style={styles.fieldLabel}>Instructions de livraison</Text>
+              <Text style={styles.fieldLabel}>{t('Instructions de livraison')}</Text>
               <Text style={styles.optionalTag}>(Optionnel)</Text>
             </View>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={deliveryNotes}
               onChangeText={setDeliveryNotes}
-              placeholder="Code interphone, bâtiment..."
+              placeholder={t('Code interphone, bâtiment...')}
               placeholderTextColor="#C4C4C4"
               multiline
             />
@@ -310,7 +311,7 @@ const AddressFormModal = ({
                 <>
                   <Feather name={lat != null ? 'check-circle' : 'map-pin'} size={18} color={RED} />
                   <Text style={styles.locationBtnText}>
-                    {lat != null ? 'Position enregistrée' : 'Utiliser ma position actuelle'}
+                    {lat != null ? t('Position enregistrée') : t('Utiliser ma position actuelle')}
                   </Text>
                 </>
               )}
@@ -320,7 +321,7 @@ const AddressFormModal = ({
               <View style={[styles.checkbox, isDefault && styles.checkboxChecked]}>
                 {isDefault && <Feather name="check" size={14} color="#fff" />}
               </View>
-              <Text style={styles.defaultLabel}>Définir comme adresse par défaut</Text>
+              <Text style={styles.defaultLabel}>{t('Définir comme adresse par défaut')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.btnSave, saving && { opacity: 0.7 }]} onPress={handleSubmit} disabled={saving} activeOpacity={0.85}>
@@ -389,7 +390,7 @@ export default function AddressesScreen() {
       setEditAddress(null);
       await loadAddresses();
     } catch (err: any) {
-      Alert.alert('Erreur', err.message);
+      Alert.alert(t('Erreur'), err.message);
     } finally {
       setSaving(false);
     }
@@ -397,10 +398,10 @@ export default function AddressesScreen() {
 
   const handleDelete = (addr: Address) => {
     Alert.alert("Supprimer l'adresse", 'Voulez-vous supprimer cette adresse ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
+      { text: t('Annuler'), style: 'cancel' },
+      { text: t('Supprimer'), style: 'destructive', onPress: async () => {
         try { await ProfileService.deleteAddress(addr.id); await loadAddresses(); }
-        catch (err: any) { Alert.alert('Erreur', err.message); }
+        catch (err: any) { Alert.alert(t('Erreur'), err.message); }
       }},
     ]);
   };
@@ -412,7 +413,7 @@ export default function AddressesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <PageHeader title="Mes adresses" />
+      <PageHeader title={t('Mes adresses')} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -430,14 +431,14 @@ export default function AddressesScreen() {
               <View style={styles.emptyIconBox}>
                 <Feather name="map-pin" size={40} color={RED} />
               </View>
-              <Text style={styles.emptyTitle}>Aucune adresse</Text>
-              <Text style={styles.emptySubtitle}>Ajoutez une adresse de livraison pour vos commandes</Text>
+              <Text style={styles.emptyTitle}>{t('Aucune adresse')}</Text>
+              <Text style={styles.emptySubtitle}>{t('Ajoutez une adresse de livraison pour vos commandes')}</Text>
             </View>
           }
           ListFooterComponent={
             <TouchableOpacity style={styles.addBtn} onPress={openAdd} activeOpacity={0.85}>
               <Feather name="plus" size={20} color="#fff" />
-              <Text style={styles.addBtnText}>Ajouter une adresse</Text>
+              <Text style={styles.addBtnText}>{t('Ajouter une adresse')}</Text>
             </TouchableOpacity>
           }
           renderItem={({ item }) => (
@@ -447,10 +448,10 @@ export default function AddressesScreen() {
                   <Feather name={item.label?.toLowerCase().includes('travail') || item.label?.toLowerCase().includes('bureau') ? 'briefcase' : 'home'} size={20} color={RED} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.addressLabel}>{item.label || 'Adresse'}</Text>
+                  <Text style={styles.addressLabel}>{item.label || t('Adresse')}</Text>
                   {item.is_default && (
                     <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>ADRESSE PAR DÉFAUT</Text>
+                      <Text style={styles.defaultBadgeText}>{t('ADRESSE PAR DÉFAUT')}</Text>
                     </View>
                   )}
                 </View>
@@ -458,12 +459,12 @@ export default function AddressesScreen() {
 
               {item.recipient_name && (
                 <>
-                  <Text style={styles.sectionLabel}>NOM</Text>
+                  <Text style={styles.sectionLabel}>{t('NOM')}</Text>
                   <Text style={styles.sectionValue}>{item.recipient_name}</Text>
                 </>
               )}
 
-              <Text style={styles.sectionLabel}>ADRESSE</Text>
+              <Text style={styles.sectionLabel}>{t('ADRESSE')}</Text>
               <Text style={styles.sectionValue}>
                 {[item.quartier, item.street_number, item.street_name, item.city, item.postal_code]
                   .filter(Boolean).join(', ')}
@@ -471,7 +472,7 @@ export default function AddressesScreen() {
 
               {item.phone && (
                 <>
-                  <Text style={styles.sectionLabel}>TÉLÉPHONE</Text>
+                  <Text style={styles.sectionLabel}>{t('TÉLÉPHONE')}</Text>
                   <Text style={styles.sectionValue}>{item.phone}</Text>
                 </>
               )}
@@ -481,11 +482,11 @@ export default function AddressesScreen() {
               <View style={styles.addressActions}>
                 <TouchableOpacity style={styles.actionBtnOutline} onPress={() => openEdit(item)} activeOpacity={0.8}>
                   <Feather name="edit-2" size={15} color="#6B7280" />
-                  <Text style={styles.actionBtnOutlineText}>Modifier</Text>
+                  <Text style={styles.actionBtnOutlineText}>{t('Modifier')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionBtnDanger} onPress={() => handleDelete(item)} activeOpacity={0.8}>
                   <Feather name="trash-2" size={15} color={RED} />
-                  <Text style={styles.actionBtnDangerText}>Supprimer</Text>
+                  <Text style={styles.actionBtnDangerText}>{t('Supprimer')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

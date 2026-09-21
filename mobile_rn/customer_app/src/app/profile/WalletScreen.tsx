@@ -12,6 +12,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { walletService, WalletTransaction } from '../../services/wallet.service';
 import PageHeader from '@/components/ui/PageHeader';
+import { t } from '../../i18n';
 
 const COLORS = {
   primary: '#E10600',
@@ -129,15 +130,15 @@ export default function WalletScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <PageHeader title="Wallet" />
+      <PageHeader title={t('Wallet')} />
       <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Solde disponible</Text>
+        <Text style={styles.balanceLabel}>{t('Solde disponible')}</Text>
         <Text style={styles.balanceValue}>
-          {Number(balance ?? 0).toFixed(2)} <Text style={styles.balanceCurrency}>MAD</Text>
+          {Number(balance ?? 0).toFixed(2)} <Text style={styles.balanceCurrency}>{t('MAD')}</Text>
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Historique</Text>
+      <Text style={styles.sectionTitle}>{t('Historique')}</Text>
 
       <FlatList
         data={transactions}
@@ -152,7 +153,7 @@ export default function WalletScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="credit-card" size={40} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>Aucune transaction pour le moment</Text>
+            <Text style={styles.emptyText}>{t('Aucune transaction pour le moment')}</Text>
           </View>
         }
         ListFooterComponent={

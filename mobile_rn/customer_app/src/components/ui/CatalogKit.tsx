@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { t, isRTL } from '../../i18n';
 
 /** Barre d'en-tête de la maquette : retour rond + titre centré. */
 export function ScreenTitle({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={onBack} style={styles.back} accessibilityLabel="Retour">
-        <Feather name="chevron-left" size={20} color="#0A0A0A" />
+      <TouchableOpacity onPress={onBack} style={styles.back} accessibilityLabel={t('Retour')}>
+        <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color="#0A0A0A" />
       </TouchableOpacity>
       <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
       <View style={{ width: 34 }} />

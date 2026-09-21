@@ -28,6 +28,7 @@ import supportService, {
 } from '../../services/support.service';
 import { useSupportSocket } from '../../hooks/useSupportSocket';
 import PageHeader from '@/components/ui/PageHeader';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -121,7 +122,7 @@ export default function ChatScreen() {
       const data = await supportService.getConversationById(id);
       setConversation(withWelcomeIfEmpty(data));
     } catch (e: any) {
-      setError(e.message ?? 'Impossible de charger la conversation');
+      setError(e.message ?? t('Impossible de charger la conversation'));
     } finally {
       setLoading(false);
     }
@@ -208,7 +209,7 @@ export default function ChatScreen() {
         prev ? { ...prev, messages: prev.messages?.filter((m) => m.id !== tempId) } : prev
       );
       setInputText(content);
-      Alert.alert('Erreur', e.message ?? "Le message n'a pas pu être envoyé");
+      Alert.alert(t('Erreur'), e.message ?? "Le message n'a pas pu être envoyé");
     } finally {
       setSending(false);
       setInitialTextConsumed(true);
@@ -242,9 +243,9 @@ export default function ChatScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         <View style={styles.centered}>
           <Feather name="alert-circle" size={40} color={RED} />
-          <Text style={styles.errorText}>{error ?? 'Conversation introuvable'}</Text>
+          <Text style={styles.errorText}>{error ?? t('Conversation introuvable')}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadConversation}>
-            <Text style={styles.retryButtonText}>Réessayer</Text>
+            <Text style={styles.retryButtonText}>{t('Réessayer')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -279,7 +280,7 @@ export default function ChatScreen() {
             <View style={styles.avatarSlot}>
               {isFirstInGroup && (
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>EH</Text>
+                  <Text style={styles.avatarText}>{t('EH')}</Text>
                 </View>
               )}
             </View>
@@ -336,8 +337,8 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <View style={styles.centered}>
-              <Text style={styles.emptyText}>Aucun message pour le moment</Text>
-              <Text style={styles.emptySubtext}>Besoin d'aide ? Lance une nouvelle discussion.</Text>
+              <Text style={styles.emptyText}>{t('Aucun message pour le moment')}</Text>
+              <Text style={styles.emptySubtext}>{t('Besoin d\'aide ? Lance une nouvelle discussion.')}</Text>
             </View>
           )}
         />
@@ -346,7 +347,7 @@ export default function ChatScreen() {
         {isClosed ? (
           <View style={styles.closedBanner}>
             <Feather name="lock" size={16} color="#94A3B8" />
-            <Text style={styles.closedBannerText}>Cette conversation est fermée</Text>
+            <Text style={styles.closedBannerText}>{t('Cette conversation est fermée')}</Text>
           </View>
         ) : (
           <View style={styles.inputBar}>
@@ -356,7 +357,7 @@ export default function ChatScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Écrivez votre message..."
+              placeholder={t('Écrivez votre message...')}
               placeholderTextColor="#94A3B8"
               value={inputText}
               onChangeText={setInputText}

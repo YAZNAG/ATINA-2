@@ -11,6 +11,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import PageHeader from '../../components/ui/PageHeader';
 import { GamesService, MyPrizes, ClaimablePrize, CouponPrize } from '../../services/games.service';
 import { RewardsCart, useRewardsCart } from '../../store/rewardsCartStore';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -52,7 +53,7 @@ export default function MyPrizesScreen() {
       setError(null);
       setData(await GamesService.myPrizes());
     } catch (e: any) {
-      setError(e?.message ?? 'Impossible de charger vos gains');
+      setError(e?.message ?? t('Impossible de charger vos gains'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -66,14 +67,14 @@ export default function MyPrizesScreen() {
   const toggleClaim = (p: ClaimablePrize) => {
     if (inCart(p.play_id)) { RewardsCart.removeClaim(p.play_id); return; }
     RewardsCart.addClaim({ play_id: p.play_id, name_fr: p.name_fr || p.prize_name_fr, type: p.type, expires_at: p.expires_at, node_id: p.node_id });
-    Alert.alert('Lot ajouté au panier', 'Il sera offert (0 MAD) dans votre prochaine commande, sur le magasin du jeu.', [
-      { text: 'Continuer', style: 'cancel' },
-      { text: 'Voir mon panier', onPress: () => router.push('/main/cart' as any) },
+    Alert.alert(t('Lot ajouté au panier'), t('Il sera offert (0 MAD) dans votre prochaine commande, sur le magasin du jeu.'), [
+      { text: t('Continuer'), style: 'cancel' },
+      { text: t('Voir mon panier'), onPress: () => router.push('/main/cart' as any) },
     ]);
   };
 
   const copy = async (code: string) => {
-    try { await Clipboard.setStringAsync(code); Alert.alert('Code copié', code); } catch { /* ignore */ }
+    try { await Clipboard.setStringAsync(code); Alert.alert(t('Code copié'), code); } catch { /* ignore */ }
   };
 
   if (loading) {
@@ -82,7 +83,7 @@ export default function MyPrizesScreen() {
 
   const renderClaims = () => {
     const list = data?.to_claim ?? [];
-    if (!list.length) return <Text style={styles.emptyText}>Aucun produit ou pack gagné pour le moment.</Text>;
+    if (!list.length) return <Text style={styles.emptyText}>{t('Aucun produit ou pack gagné pour le moment.')}</Text>;
     return list.map((p) => {
       const st = CLAIM_STATUS[p.status];
       const added = inCart(p.play_id);
@@ -96,7 +97,7 @@ export default function MyPrizesScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{p.name_fr || p.prize_name_fr}</Text>
-              <Text style={styles.sub}>{p.type === 'free_pack' ? 'Pack offert' : 'Produit offert'} • {p.game.name_fr}</Text>
+              <Text style={styles.sub}>{p.type === 'free_pack' ? t('Pack offert') : t('Produit offert')} • {p.game.name_fr}</Text>
               <Text style={styles.sub}>
                 {p.status === 'pending' ? `À réclamer avant le ${fmtDate(p.expires_at)}`
                   : p.status === 'claimed' ? `Réclamé le ${fmtDate(p.claimed_at)}${p.order_id ? ` • commande #${p.order_id.slice(0, 8).toUpperCase()}` : ''}`
@@ -108,7 +109,7 @@ export default function MyPrizesScreen() {
           {p.status === 'pending' && (
             <TouchableOpacity style={[styles.claimBtn, added && styles.claimBtnAdded]} onPress={() => toggleClaim(p)} activeOpacity={0.85}>
               <Feather name={added ? 'check' : 'shopping-cart'} size={15} color={added ? RED : '#fff'} />
-              <Text style={[styles.claimBtnText, added && { color: RED }]}>{added ? 'Dans mon panier (retirer)' : 'Réclamer dans mon panier'}</Text>
+              <Text style={[styles.claimBtnText, added && { color: RED }]}>{added ? t('Dans mon panier (retirer)') : t('Réclamer dans mon panier')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -118,7 +119,7 @@ export default function MyPrizesScreen() {
 
   const renderCoupons = () => {
     const list = data?.coupons ?? [];
-    if (!list.length) return <Text style={styles.emptyText}>Aucun coupon gagné pour le moment.</Text>;
+    if (!list.length) return <Text style={styles.emptyText}>{t('Aucun coupon gagné pour le moment.')}</Text>;
     return list.map((c) => {
       const st = COUPON_STATUS[c.status];
       const value = c.promo_type === 'PERCENTAGE' ? `-${c.value}%` : `-${c.value} MAD`;
@@ -146,7 +147,7 @@ export default function MyPrizesScreen() {
 
   const renderPoints = () => {
     const list = data?.points ?? [];
-    if (!list.length) return <Text style={styles.emptyText}>Aucun point gagné en jouant pour le moment.</Text>;
+    if (!list.length) return <Text style={styles.emptyText}>{t('Aucun point gagné en jouant pour le moment.')}</Text>;
     return list.map((p) => (
       <View key={p.play_id} style={styles.card}>
         <View style={styles.row}>
@@ -163,12 +164,12 @@ export default function MyPrizesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <PageHeader title="Mes gains" />
+      <PageHeader title={t('Mes gains')} />
       {error ? (
         <View style={styles.center}>
           <Text style={styles.emptyText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
-            <Text style={styles.retryBtnText}>Réessayer</Text>
+            <Text style={styles.retryBtnText}>{t('Réessayer')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -177,15 +178,15 @@ export default function MyPrizesScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={RED} />}
         >
           <View style={styles.summary}>
-            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.prizes_to_claim ?? 0}</Text><Text style={styles.sumLabel}>Lots à réclamer</Text></View>
-            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.coupons_available ?? 0}</Text><Text style={styles.sumLabel}>Coupons actifs</Text></View>
-            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.points_total ?? 0}</Text><Text style={styles.sumLabel}>Points gagnés</Text></View>
+            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.prizes_to_claim ?? 0}</Text><Text style={styles.sumLabel}>{t('Lots à réclamer')}</Text></View>
+            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.coupons_available ?? 0}</Text><Text style={styles.sumLabel}>{t('Coupons actifs')}</Text></View>
+            <View style={styles.sumItem}><Text style={styles.sumValue}>{data?.summary.points_total ?? 0}</Text><Text style={styles.sumLabel}>{t('Points gagnés')}</Text></View>
           </View>
 
           <View style={styles.tabs}>
-            {TABS.map((t) => (
-              <TouchableOpacity key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)} activeOpacity={0.8}>
-                <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            {TABS.map((tb) => (
+              <TouchableOpacity key={tb.key} style={[styles.tab, tab === tb.key && styles.tabActive]} onPress={() => setTab(tb.key)} activeOpacity={0.8}>
+                <Text style={[styles.tabText, tab === tb.key && styles.tabTextActive]}>{t(tb.label)}</Text>
               </TouchableOpacity>
             ))}
           </View>

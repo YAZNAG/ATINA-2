@@ -13,6 +13,7 @@ import {
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import ClaimsService, { Claim, ClaimStatus } from '../../services/claims.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -98,18 +99,18 @@ export default function ClaimsScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
         <PageHeader
-        title="Mes réclamations" rightIcon="plus" onRightPress={() => router.push('/claims/create' as any)}/>
+        title={t('Mes réclamations')} rightIcon="plus" onRightPress={() => router.push('/claims/create' as any)}/>
         {loading ? (
           <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
         ) : claims.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="file-text" size={52} color="#E5E7EB" />
-            <Text style={styles.emptyTitle}>Aucune réclamation</Text>
+            <Text style={styles.emptyTitle}>{t('Aucune réclamation')}</Text>
             <Text style={styles.emptySubtitle}>
-              Un souci avec une commande ? Signalez-le ici.
+              {t('Un souci avec une commande ? Signalez-le ici.')}
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/claims/create' as any)}>
-              <Text style={styles.emptyBtnText}>Créer une réclamation</Text>
+              <Text style={styles.emptyBtnText}>{t('Créer une réclamation')}</Text>
             </TouchableOpacity>
           </View>
         ) : (

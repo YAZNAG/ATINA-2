@@ -18,6 +18,7 @@ import { ProfileService, Order } from '../../services/profile.service';
 import PageHeader from '../../components/ui/PageHeader';
 import { Alert } from 'react-native'; 
 import { CartService } from '../../services/cart.service';
+import { t, isRTL } from '../../i18n';
 
 const RED  = '#E10600';
 const GRAY = '#9CA3AF';
@@ -120,23 +121,23 @@ function ReorderModal({
           <View style={styles.modalIconBox}>
             <Feather name="shopping-cart" size={22} color={RED} />
           </View>
-          <Text style={styles.modalTitle}>Panier non vide</Text>
+          <Text style={styles.modalTitle}>{t('Panier non vide')}</Text>
           <Text style={styles.modalSubtitle}>
-            Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?
+            {t('Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?')}
           </Text>
 
           <TouchableOpacity style={styles.btnMerge} onPress={onMerge} activeOpacity={0.85}>
             <Feather name="git-merge" size={16} color="#fff" />
-            <Text style={styles.btnMergeText}>Fusionner avec le panier</Text>
+            <Text style={styles.btnMergeText}>{t('Fusionner avec le panier')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnReplaceModal} onPress={onReplace} activeOpacity={0.85}>
             <Feather name="refresh-cw" size={16} color={RED} />
-            <Text style={styles.btnReplaceModalText}>Remplacer le panier</Text>
+            <Text style={styles.btnReplaceModalText}>{t('Remplacer le panier')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnCancelModal} onPress={onCancel} activeOpacity={0.7}>
-            <Text style={styles.btnCancelModalText}>Annuler</Text>
+            <Text style={styles.btnCancelModalText}>{t('Annuler')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -168,7 +169,7 @@ const performReorder = async (mode: 'merge' | 'replace') => {
     await CartService.reorder(order!.id, mode);
     router.push('/main/cart' as any);
   } catch (e: any) {
-    Alert.alert('Erreur', e.message ?? "Impossible d'ajouter les articles au panier");
+    Alert.alert(t('Erreur'), e.message ?? "Impossible d'ajouter les articles au panier");
   } finally {
     setReordering(false);
   }
@@ -183,7 +184,7 @@ const handleReorder = async () => {
       performReorder('merge');
     }
   } catch (e: any) {
-    Alert.alert('Erreur', e.message ?? 'Impossible de vérifier le panier');
+    Alert.alert(t('Erreur'), e.message ?? t('Impossible de vérifier le panier'));
   }
 };
 
@@ -223,7 +224,7 @@ const handleReorder = async () => {
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
           <Feather name="alert-circle" size={40} color="#E0E0E0" />
-          <Text style={styles.errorText}>{error ?? 'Commande introuvable'}</Text>
+          <Text style={styles.errorText}>{error ?? t('Commande introuvable')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -240,7 +241,7 @@ const handleReorder = async () => {
       {/* ── Header ── */}
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <PageHeader
-              title="Détails commande"
+              title={t('Détails commande')}
               rightIcon={'home'}
               onRightPress={() => router.replace('/main/main_nav/home' as any)}
         />
@@ -254,16 +255,16 @@ const handleReorder = async () => {
 
         {/* ── Informations de commande ── */}
         <SectionCard>
-          <SectionTitle icon="file-text" label="INFORMATIONS DE COMMANDE" />
+          <SectionTitle icon="file-text" label={t('INFORMATIONS DE COMMANDE')} />
           <View style={styles.infoList}>
-            <InfoRow icon="hash"     label="Numéro"          value={order.reference} />
-            <InfoRow icon="calendar" label="Date"             value={formatDate(order.created_at)} />
-            <InfoRow icon="truck"    label="Mode de livraison" value={deliveryLabel(order.delivery_type)} />
+            <InfoRow icon="hash"     label={t('Numéro')}          value={order.reference} />
+            <InfoRow icon="calendar" label={t('Date')}             value={formatDate(order.created_at)} />
+            <InfoRow icon="truck"    label={t('Mode de livraison')} value={deliveryLabel(order.delivery_type)} />
             {order.delivery_type === 'pickup' && order.node_name && (
-              <InfoRow icon="map-pin" label="Magasin" value={order.node_name} />
+              <InfoRow icon="map-pin" label={t('Magasin')} value={order.node_name} />
               )}
               {order.delivery_type !== 'pickup' && order.address_full && (
-                <InfoRow icon="map-pin" label="Adresse" value={order.address_full} />
+                <InfoRow icon="map-pin" label={t('Adresse')} value={order.address_full} />
                 )}
           </View>
         </SectionCard>
@@ -272,7 +273,7 @@ const handleReorder = async () => {
         <SectionCard>
           <View style={styles.productsTitleRow}>
             <Text style={styles.productsSectionTitle}>
-              Produits commandés <Text style={styles.productsCount}>({order.items.length})</Text>
+              {t('Produits commandés')} <Text style={styles.productsCount}>({order.items.length})</Text>
             </Text>
           </View>
           {order.items.map(item => (
@@ -287,42 +288,42 @@ const handleReorder = async () => {
     <View style={styles.btnSubIconWrap}>
       <Feather name="repeat" size={14} color={RED} />
     </View>
-    <Text style={styles.btnSubText}>Voir les substitutions</Text>
-    <Feather name="chevron-right" size={16} color={RED} />
+    <Text style={styles.btnSubText}>{t('Voir les substitutions')}</Text>
+    <Feather name={isRTL() ? 'chevron-left' : 'chevron-right'} size={16} color={RED} />
   </TouchableOpacity>
 )}
         </SectionCard>
 
         {/* ── Résumé de paiement ── */}
         <SectionCard>
-          <SectionTitle   icon="file-text" label="RÉSUMÉ DE PAIEMENT" />
+          <SectionTitle   icon="file-text" label={t('RÉSUMÉ DE PAIEMENT')} />
           <View style={styles.payList}>
-            <PayRow label="Sous-total"         value={`${subtotal.toFixed(2)} MAD`} />
-            <PayRow label="Frais de livraison" value={order.delivery_fee > 0 ? `${order.delivery_fee.toFixed(2)} MAD` : 'Gratuit'} />
+            <PayRow label={t('Sous-total')}         value={`${subtotal.toFixed(2)} MAD`} />
+            <PayRow label={t('Frais de livraison')} value={order.delivery_fee > 0 ? `${order.delivery_fee.toFixed(2)} MAD` : 'Gratuit'} />
             {order.wallet_used > 0 && (
-              <PayRow label="Wallet utilisé" value={`-${order.wallet_used.toFixed(2)} MAD`} />
+              <PayRow label={t('Wallet utilisé')} value={`-${order.wallet_used.toFixed(2)} MAD`} />
             )}
             {discount > 0 && (
   <View style={styles.couponRow}>
     <View style={styles.couponBadge}>
       <Feather name="tag" size={11} color="#059669" />
-      <Text style={styles.couponCode}>{couponCode ?? 'Code promo'}</Text>
+      <Text style={styles.couponCode}>{couponCode ?? t('Code promo')}</Text>
     </View>
     <Text style={styles.couponAmount}>-{discount.toFixed(2)} MAD</Text>
   </View>
 )}
             <View style={styles.payDivider} />
-            <PayRow label="TOTAL" value={`${order.total_ttc.toFixed(2)} MAD`} bold red />
+            <PayRow label={t('TOTAL')} value={`${order.total_ttc.toFixed(2)} MAD`} bold red />
           </View>
         </SectionCard>
 
         {/* ── Paiement info ── */}
 {order.payment_method_name && (
   <SectionCard>
-    <SectionTitle icon="credit-card" label="PAIEMENT" />
+    <SectionTitle icon="credit-card" label={t('PAIEMENT')} />
     <View style={styles.infoList}>
-      <InfoRow icon="credit-card" label="Méthode"  value={order.payment_method_name} />
-      <InfoRow icon="check-circle" label="Statut"   value={order.payment_status_label} />
+      <InfoRow icon="credit-card" label={t('Méthode')}  value={order.payment_method_name} />
+      <InfoRow icon="check-circle" label={t('Statut')}   value={order.payment_status_label} />
     </View>
   </SectionCard>
 )}
@@ -339,7 +340,7 @@ const handleReorder = async () => {
     ? <ActivityIndicator color="#fff" />
     : <>
         <Feather name="refresh-cw" size={16} color="#fff" />
-        <Text style={styles.btnRedText}>Commander à nouveau</Text>
+        <Text style={styles.btnRedText}>{t('Commander à nouveau')}</Text>
       </>
   }
 </TouchableOpacity>
@@ -350,12 +351,12 @@ const handleReorder = async () => {
             activeOpacity={0.85}
           >
             <Feather name="map-pin" size={16} color={RED} />
-            <Text style={styles.btnTrackText}>Suivre ma commande</Text>
+            <Text style={styles.btnTrackText}>{t('Suivre ma commande')}</Text>
           </TouchableOpacity>
           
           {order.has_pending_substitution && (
   <TouchableOpacity onPress={handleViewSubstitutions}>
-    <Text>Voir les substitutions</Text>
+    <Text>{t('Voir les substitutions')}</Text>
   </TouchableOpacity>
 )}
         </View>

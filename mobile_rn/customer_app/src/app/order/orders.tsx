@@ -17,6 +17,7 @@ import {
 import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService, OrderSummary } from '../../services/profile.service';
 import { CartService } from '../../services/cart.service';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -68,10 +69,10 @@ function StatsRow({ orders }: { orders: OrderSummary[] }) {
         <View style={[styles.statIconBox, { backgroundColor: '#FEE2E2' }]}>
           <Feather name="credit-card" size={16} color={RED} />
         </View>
-        <Text style={[styles.statLabel, { color: RED }]}>Total dépensé</Text>
+        <Text style={[styles.statLabel, { color: RED }]}>{t('Total dépensé')}</Text>
         <Text style={[styles.statValueBig, { color: RED }]}>
           {spent.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          <Text style={styles.statCurrency}> MAD</Text>
+          <Text style={styles.statCurrency}> {t('MAD')}</Text>
         </Text>
       </View>
     </View>
@@ -96,7 +97,7 @@ function ArticleThumbs({ items, count }: { items: { image_url?: string }[]; coun
       {extra > 0 && (
         <View style={styles.thumbExtra}>
           <Text style={styles.thumbExtraText}>+{extra}</Text>
-          <Text style={styles.thumbExtraLabel}>AUTRES</Text>
+          <Text style={styles.thumbExtraLabel}>{t('AUTRES')}</Text>
         </View>
       )}
     </View>
@@ -145,7 +146,7 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
           <Text style={styles.priceValue}>
             {Number(order.total_ttc).toFixed(2)}
           </Text>
-          <Text style={styles.priceCurrency}>MAD</Text>
+          <Text style={styles.priceCurrency}>{t('MAD')}</Text>
         </View>
       </View>
 
@@ -153,7 +154,7 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
       <View style={styles.cardActions}>
         <TouchableOpacity style={styles.btnOutline} onPress={onPress} activeOpacity={0.8}>
           <Feather name="eye" size={14} color={RED} />
-          <Text style={styles.btnOutlineText}>Voir détails</Text>
+          <Text style={styles.btnOutlineText}>{t('Voir détails')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btnRed, reordering && { opacity: 0.6 }]}
@@ -166,7 +167,7 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
           ) : (
             <>
               <Feather name="refresh-cw" size={14} color="#fff" />
-              <Text style={styles.btnRedText}>Re-cmder</Text>
+              <Text style={styles.btnRedText}>{t('Re-cmder')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -190,23 +191,23 @@ function ReorderModal({
           <View style={styles.modalIconBox}>
             <Feather name="shopping-cart" size={22} color={RED} />
           </View>
-          <Text style={styles.modalTitle}>Panier non vide</Text>
+          <Text style={styles.modalTitle}>{t('Panier non vide')}</Text>
           <Text style={styles.modalSubtitle}>
-            Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?
+            {t('Votre panier contient déjà des articles. Que voulez-vous faire avec cette commande ?')}
           </Text>
 
           <TouchableOpacity style={styles.btnMerge} onPress={onMerge} activeOpacity={0.85}>
             <Feather name="git-merge" size={16} color="#fff" />
-            <Text style={styles.btnMergeText}>Fusionner avec le panier</Text>
+            <Text style={styles.btnMergeText}>{t('Fusionner avec le panier')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnReplace} onPress={onReplace} activeOpacity={0.85}>
             <Feather name="refresh-cw" size={16} color={RED} />
-            <Text style={styles.btnReplaceText}>Remplacer le panier</Text>
+            <Text style={styles.btnReplaceText}>{t('Remplacer le panier')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnCancel} onPress={onCancel} activeOpacity={0.7}>
-            <Text style={styles.btnCancelText}>Annuler</Text>
+            <Text style={styles.btnCancelText}>{t('Annuler')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -250,7 +251,7 @@ export default function OrdersScreen() {
       await CartService.reorder(order.id, mode);
       router.push('/main/cart' as any);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? "Impossible d'ajouter les articles au panier");
+      Alert.alert(t('Erreur'), e.message ?? "Impossible d'ajouter les articles au panier");
     } finally {
       setReordering(null);
     }
@@ -265,7 +266,7 @@ export default function OrdersScreen() {
         performReorder(order, 'merge');
       }
     } catch (e: any) {
-      Alert.alert('Erreur', e.message ?? 'Impossible de vérifier le panier');
+      Alert.alert(t('Erreur'), e.message ?? t('Impossible de vérifier le panier'));
     }
   };
 
@@ -281,7 +282,7 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Historique des commandes" />
+      <PageHeader title={t('Historique des commandes')} />
 
       {/* ── Tabs ── */}
       <View style={styles.tabsWrap}>
@@ -298,7 +299,7 @@ export default function OrdersScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {tab.label}
+                  {t(tab.label)}
                 </Text>
                 {count > 0 && !active && (
                   <View style={styles.tabCount}>
@@ -316,10 +317,10 @@ export default function OrdersScreen() {
       ) : orders.length === 0 ? (
         <View style={styles.empty}>
           <Feather name="shopping-bag" size={52} color="#E5E7EB" />
-          <Text style={styles.emptyTitle}>Aucune commande</Text>
-          <Text style={styles.emptySub}>Vos commandes apparaîtront ici</Text>
+          <Text style={styles.emptyTitle}>{t('Aucune commande')}</Text>
+          <Text style={styles.emptySub}>{t('Vos commandes apparaîtront ici')}</Text>
           <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/main_nav/home' as any)}>
-            <Text style={styles.emptyBtnText}>Commencer mes achats</Text>
+            <Text style={styles.emptyBtnText}>{t('Commencer mes achats')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

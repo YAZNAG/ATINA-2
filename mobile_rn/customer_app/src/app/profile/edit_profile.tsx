@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ProfileService, Profile, Address } from '../../services/profile.service';
 import { CONFIG } from '../../constants/config';
 import PageHeader from '../../components/ui/PageHeader';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 const { height } = Dimensions.get('window');
@@ -62,7 +63,7 @@ export default function EditProfileScreen() {
       setFullAddress([def?.street_number, def?.street_name].filter(Boolean).join(', '));
       setPostalCode(def?.postal_code || '');
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setLoading(false);
     }
@@ -75,7 +76,7 @@ export default function EditProfileScreen() {
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission refusée', "Autorisez l'accès à la galerie dans les paramètres.");
+      Alert.alert(t('Permission refusée'), "Autorisez l'accès à la galerie dans les paramètres.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -90,7 +91,7 @@ export default function EditProfileScreen() {
       const updated = await ProfileService.uploadAvatar(result.assets[0].uri);
       setProfile(updated);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setAvatarLoading(false);
     }
@@ -101,8 +102,8 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { Alert.alert('Erreur', 'Le nom est requis'); return; }
-    if (!email.trim() || !email.includes('@')) { Alert.alert('Erreur', 'Email invalide'); return; }
+    if (!name.trim()) { Alert.alert(t('Erreur'), t('Le nom est requis')); return; }
+    if (!email.trim() || !email.includes('@')) { Alert.alert(t('Erreur'), t('Email invalide')); return; }
 
     if (phoneChanged()) {
       setOtpStep('confirm');
@@ -130,10 +131,10 @@ export default function EditProfileScreen() {
       const street_name   = m ? m[2] : trimmed;
 
       const addressPayload: Partial<Address> = {
-        city: city.trim() || 'Rabat',
+        city: city.trim() || t('Rabat'),
         quartier: quartier.trim() || null,
         street_number,
-        street_name: street_name || 'Non renseignée',
+        street_name: street_name || t('Non renseignée'),
         postal_code: postalCode.trim() || null,
         is_default: true,
       };
@@ -144,11 +145,11 @@ export default function EditProfileScreen() {
         await ProfileService.createAddress(addressPayload);
       }
 
-      Alert.alert('Succès', 'Profil mis à jour', [
+      Alert.alert(t('Succès'), t('Profil mis à jour'), [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setSaving(false);
     }
@@ -160,14 +161,14 @@ export default function EditProfileScreen() {
       await ProfileService.requestPhoneChange(phoneNumber.trim(), profile?.phone_country || '+212');
       setOtpStep('code');
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setOtpSaving(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length < 4) { Alert.alert('Erreur', 'Code à 4 chiffres'); return; }
+    if (otp.length < 4) { Alert.alert(t('Erreur'), t('Code à 4 chiffres')); return; }
     setOtpSaving(true);
     try {
       await ProfileService.confirmPhoneChange(phoneNumber.trim(), otp, profile?.phone_country || '+212');
@@ -175,7 +176,7 @@ export default function EditProfileScreen() {
       setOtp('');
       await persistChanges();
     } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('Erreur'), e.message);
     } finally {
       setOtpSaving(false);
     }
@@ -186,7 +187,7 @@ export default function EditProfileScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title="Modifier le profil" />
+      <PageHeader title={t('Modifier le profil')} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -216,16 +217,16 @@ export default function EditProfileScreen() {
               </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.7}>
-              <Text style={styles.editPhotoLink}>Modifier la photo</Text>
+              <Text style={styles.editPhotoLink}>{t('Modifier la photo')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* ── Informations personnelles ── */}
-          <Text style={styles.sectionTitle}>Informations personnelles</Text>
+          <Text style={styles.sectionTitle}>{t('Informations personnelles')}</Text>
           <View style={styles.card}>
-            <FieldRow icon="user" label="Nom complet" value={name} onChangeText={setName} placeholder="Votre nom" />
+            <FieldRow icon="user" label={t('Nom complet')} value={name} onChangeText={setName} placeholder={t('Votre nom')} />
             <Divider />
-            <FieldRow icon="mail" label="Adresse e-mail" value={email} onChangeText={setEmail} placeholder="exemple@email.com" keyboardType="email-address" autoCapitalize="none" />
+            <FieldRow icon="mail" label={t('Adresse e-mail')} value={email} onChangeText={setEmail} placeholder={t('exemple@email.com')} keyboardType="email-address" autoCapitalize="none" />
             <Divider />
 
             {/* ── Téléphone : préfixe séparé du numéro local ── */}
@@ -234,14 +235,14 @@ export default function EditProfileScreen() {
                 <Feather name="phone" size={18} color="#9CA3AF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>Numéro de téléphone</Text>
+                <Text style={styles.rowLabel}>{t('Numéro de téléphone')}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.phonePrefix}>{profile?.phone_country || '+212'}</Text>
                   <TextInput
                     style={[styles.rowInput, { flex: 1 }]}
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
-                    placeholder="6 XX XX XX XX"
+                    placeholder={t('6 XX XX XX XX')}
                     placeholderTextColor="#C4C4C4"
                     keyboardType="phone-pad"
                   />
@@ -251,24 +252,24 @@ export default function EditProfileScreen() {
           </View>
 
           {/* ── Adresse de livraison ── */}
-          <Text style={styles.sectionTitle}>Adresse de livraison</Text>
+          <Text style={styles.sectionTitle}>{t('Adresse de livraison')}</Text>
           <View style={styles.card}>
-            <FieldRow icon="briefcase" label="Ville" value={city} onChangeText={setCity} placeholder="Casablanca" />
+            <FieldRow icon="briefcase" label={t('Ville')} value={city} onChangeText={setCity} placeholder={t('Casablanca')} />
             <Divider />
-            <FieldRow icon="map-pin" label="Quartier" value={quartier} onChangeText={setQuartier} placeholder="Maârif" />
+            <FieldRow icon="map-pin" label={t('Quartier')} value={quartier} onChangeText={setQuartier} placeholder={t('Maârif')} />
             <Divider />
-            <FieldRow icon="home" label="Adresse complète" value={fullAddress} onChangeText={setFullAddress} placeholder="Rue, numéro..." />
+            <FieldRow icon="home" label={t('Adresse complète')} value={fullAddress} onChangeText={setFullAddress} placeholder={t('Rue, numéro...')} />
             <Divider />
-            <FieldRow icon="hash" label="Code postal" value={postalCode} onChangeText={setPostalCode} placeholder="20330" keyboardType="number-pad" maxLength={5} />
+            <FieldRow icon="hash" label={t('Code postal')} value={postalCode} onChangeText={setPostalCode} placeholder="20330" keyboardType="number-pad" maxLength={5} />
           </View>
 
 
           {/* ── Boutons ── */}
           <TouchableOpacity style={[styles.btnSave, saving && { opacity: 0.7 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>Enregistrer les modifications</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>{t('Enregistrer les modifications')}</Text>}
           </TouchableOpacity>
           <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()} activeOpacity={0.8}>
-            <Text style={styles.btnCancelText}>Annuler</Text>
+            <Text style={styles.btnCancelText}>{t('Annuler')}</Text>
           </TouchableOpacity>
 
         </ScrollView>
@@ -280,7 +281,7 @@ export default function EditProfileScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Confirmer le nouveau numéro</Text>
+              <Text style={styles.modalTitle}>{t('Confirmer le nouveau numéro')}</Text>
               <TouchableOpacity onPress={() => setOtpModalVisible(false)}>
                 <Feather name="x" size={22} color="#1a1a1a" />
               </TouchableOpacity>
@@ -292,12 +293,12 @@ export default function EditProfileScreen() {
                   Vous avez modifié votre numéro de téléphone. Un code de vérification va être envoyé au {profile?.phone_country || '+212'} {phoneNumber}.
                 </Text>
                 <TouchableOpacity style={[styles.btnSave, otpSaving && { opacity: 0.7 }]} onPress={handleSendOtp} disabled={otpSaving} activeOpacity={0.85}>
-                  {otpSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>Envoyer le code</Text>}
+                  {otpSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>{t('Envoyer le code')}</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.fieldLabelModal}>Code de vérification</Text>
+                <Text style={styles.fieldLabelModal}>{t('Code de vérification')}</Text>
                 <TextInput
                   style={styles.otpInput}
                   value={otp}
@@ -308,7 +309,7 @@ export default function EditProfileScreen() {
                   maxLength={6}
                 />
                 <TouchableOpacity style={[styles.btnSave, otpSaving && { opacity: 0.7 }]} onPress={handleVerifyOtp} disabled={otpSaving} activeOpacity={0.85}>
-                  {otpSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>Vérifier et enregistrer</Text>}
+                  {otpSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnSaveText}>{t('Vérifier et enregistrer')}</Text>}
                 </TouchableOpacity>
               </>
             )}

@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import {
   getHistory, addToHistory, removeFromHistory, clearHistory,
 } from '../../utils/searchHistory';
+import { t } from '../../i18n';
 
 const RED = '#E10600';
 
@@ -108,9 +109,9 @@ export default function SearchBar({
           {showHistory && (
             <>
               <View style={styles.dropdownHeader}>
-                <Text style={styles.dropdownTitle}>Recherches récentes</Text>
+                <Text style={styles.dropdownTitle}>{t('Recherches récentes')}</Text>
                 <TouchableOpacity onPress={handleClear}>
-                  <Text style={styles.clearAll}>Effacer tout</Text>
+                  <Text style={styles.clearAll}>{t('Effacer tout')}</Text>
                 </TouchableOpacity>
               </View>
               {history.map(term => (
@@ -130,7 +131,7 @@ export default function SearchBar({
           {showSuggestions && (
             <>
               <View style={styles.dropdownHeader}>
-                <Text style={styles.dropdownTitle}>Suggestions</Text>
+                <Text style={styles.dropdownTitle}>{t('Suggestions')}</Text>
               </View>
               {suggestions.map(term => (
                 <TouchableOpacity key={term} style={styles.dropdownRow} onPress={() => handleSelect(term)}>

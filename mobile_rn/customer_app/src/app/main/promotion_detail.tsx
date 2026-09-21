@@ -14,6 +14,7 @@ import {
 } from '../../services/promotions.service';
 import { CartService } from '../../services/cart.service';
 import { useCartCount, useCartActions } from '../../context/CartContext';
+import { t } from '../../i18n';
 
 const RED    = '#E10600';
 const GREEN  = '#16A34A';
@@ -41,7 +42,7 @@ function PromoProductCard({ item }: { item: PromotionProduct }) {
 
   const handleAdd = async () => {
     if (!item.sku_id) {
-      Alert.alert('Indisponible', 'Ce produit n\'est pas disponible à la commande.');
+      Alert.alert(t('Indisponible'), t('Ce produit n\'est pas disponible à la commande.'));
       return;
     }
     try {
@@ -49,7 +50,7 @@ function PromoProductCard({ item }: { item: PromotionProduct }) {
       const cart = await CartService.addItem(item.sku_id, 1);
       applyCart(cart);
     } catch (err: any) {
-      Alert.alert('Erreur', err.message || 'Erreur lors de l\'ajout au panier');
+      Alert.alert(t('Erreur'), err.message || t('Erreur lors de l\'ajout au panier'));
     } finally {
       setAdding(false);
     }
@@ -87,7 +88,7 @@ function PromoProductCard({ item }: { item: PromotionProduct }) {
       >
         {adding
           ? <ActivityIndicator size="small" color="#fff" />
-          : <Text style={styles.addBtnText}>Ajouter</Text>
+          : <Text style={styles.addBtnText}>{t('Ajouter')}</Text>
         }
       </TouchableOpacity>
     </View>
@@ -210,7 +211,7 @@ export default function PromotionDetailScreen() {
       applyCart(cart);
       setCartTotal(cart.total);
     } catch (err: any) {
-      Alert.alert('Erreur', err.message || "Erreur lors de l'ajout du pack");
+      Alert.alert(t('Erreur'), err.message || "Erreur lors de l'ajout du pack");
     } finally {
       setAddingPack(false);
     }
@@ -237,7 +238,7 @@ export default function PromotionDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
-      <PageHeader title={isPack ? 'Détails du Pack' : 'Produits en promotion'} />
+      <PageHeader title={isPack ? t('Détails du Pack') : t('Produits en promotion')} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -245,7 +246,7 @@ export default function PromotionDetailScreen() {
         </View>
       ) : notFound ? (
         <View style={styles.centered}>
-          <Text style={styles.errorText}>Introuvable</Text>
+          <Text style={styles.errorText}>{t('Introuvable')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -284,7 +285,7 @@ export default function PromotionDetailScreen() {
               )}
 
               {/* ── Le pack contient ── */}
-              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Le pack contient</Text>
+              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('Le pack contient')}</Text>
               {packItemRows.map((row, ri) => (
                 <View key={ri} style={styles.row}>
                   {row.map(item => <PackItemCard key={item.sku_id} item={item} />)}
@@ -293,13 +294,13 @@ export default function PromotionDetailScreen() {
               ))}
 
               {/* ── Détails ── */}
-              <Text style={styles.sectionTitle}>Détails</Text>
+              <Text style={styles.sectionTitle}>{t('Détails')}</Text>
               <View style={styles.detailsCard}>
                 <View style={styles.detailBlock}>
                   <View style={styles.detailIconBox}>
                     <Feather name="package" size={18} color={RED} />
                   </View>
-                  <Text style={styles.detailLabel}>Nombre</Text>
+                  <Text style={styles.detailLabel}>{t('Nombre')}</Text>
                   <Text style={styles.detailValue}>{pack!.item_count} Produits</Text>
                 </View>
                 <View style={styles.detailDividerV} />
@@ -307,9 +308,9 @@ export default function PromotionDetailScreen() {
                   <View style={styles.detailIconBox}>
                     <Feather name="calendar" size={18} color={RED} />
                   </View>
-                  <Text style={styles.detailLabel}>Valide jusqu'au</Text>
+                  <Text style={styles.detailLabel}>{t('Valide jusqu\'au')}</Text>
                   <Text style={styles.detailValue} numberOfLines={1}>
-                    {formatDate(pack!.valid_to) ?? 'Illimité'}
+                    {formatDate(pack!.valid_to) ?? t('Illimité')}
                   </Text>
                 </View>
                 <View style={styles.detailDividerV} />
@@ -317,9 +318,9 @@ export default function PromotionDetailScreen() {
                   <View style={styles.detailIconBox}>
                     <Feather name="check-circle" size={18} color={pack!.is_active ? GREEN : GRAY} />
                   </View>
-                  <Text style={styles.detailLabel}>Dispo</Text>
+                  <Text style={styles.detailLabel}>{t('Dispo')}</Text>
                   <Text style={[styles.detailValue, { color: pack!.is_active ? GREEN : GRAY }]}>
-                    {pack!.is_active ? 'En stock' : 'Indisponible'}
+                    {pack!.is_active ? t('En stock') : t('Indisponible')}
                   </Text>
                 </View>
               </View>
@@ -328,7 +329,7 @@ export default function PromotionDetailScreen() {
               {similarPacks.length > 0 && (
                 <>
                   <View style={styles.similarHeader}>
-                    <Text style={styles.sectionTitle}>Packs similaires</Text>
+                    <Text style={styles.sectionTitle}>{t('Packs similaires')}</Text>
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
                     {similarPacks.map(sp => (
@@ -353,12 +354,12 @@ export default function PromotionDetailScreen() {
                   <View style={styles.bannerInfo}>
                     <Text style={styles.bannerTitle} numberOfLines={2}>
                       {promo!.name_fr ?? (promo!.discount_pct != null
-                        ? `-${promo!.discount_pct}% sur ${promo!.scope_name ?? 'les produits'}`
-                        : promo!.scope_name ?? 'Flash Vente')}
+                        ? `-${promo!.discount_pct}% sur ${promo!.scope_name ?? t('les produits')}`
+                        : promo!.scope_name ?? t('Flash Vente'))}
                     </Text>
                     {promo!.scope_name && promo!.scope_type !== 'sku' && (
                       <Text style={styles.bannerScope}>
-                        {scopeLabel[promo!.scope_type] ?? ''} · {promo!.scope_name}
+                        {t(scopeLabel[promo!.scope_type] ?? '')} · {promo!.scope_name}
                       </Text>
                     )}
                     <View style={styles.bannerDateRow}>
@@ -372,7 +373,7 @@ export default function PromotionDetailScreen() {
                 <View style={[styles.statusBadge, data!.is_active ? styles.badgeActive : styles.badgeInactive]}>
                   <View style={[styles.statusDot, { backgroundColor: data!.is_active ? GREEN : GRAY }]} />
                   <Text style={[styles.statusText, { color: data!.is_active ? GREEN : GRAY }]}>
-                    {data!.is_active ? 'Activé' : 'Expiré'}
+                    {data!.is_active ? t('Activé') : t('Expiré')}
                   </Text>
                 </View>
               </View>
@@ -384,7 +385,7 @@ export default function PromotionDetailScreen() {
               {products.length === 0 ? (
                 <View style={styles.empty}>
                   <Feather name="tag" size={36} color={GRAY} />
-                  <Text style={styles.emptyText}>Aucun produit éligible</Text>
+                  <Text style={styles.emptyText}>{t('Aucun produit éligible')}</Text>
                 </View>
               ) : (
                 rows.map((row, ri) => (
@@ -418,7 +419,7 @@ export default function PromotionDetailScreen() {
             ) : (
               <>
                 <Feather name="shopping-cart" size={17} color="#fff" />
-                <Text style={styles.cartBtnText}>{packAvailable ? 'Ajouter le pack' : 'Pack indisponible'}</Text>
+                <Text style={styles.cartBtnText}>{packAvailable ? t('Ajouter le pack') : t('Pack indisponible')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -427,7 +428,7 @@ export default function PromotionDetailScreen() {
         <View style={styles.bottomBar}>
           {promo?.discount_pct != null && (
             <View style={styles.reductionChip}>
-              <Text style={styles.reductionLabel}>Réduction</Text>
+              <Text style={styles.reductionLabel}>{t('Réduction')}</Text>
               <Text style={styles.reductionValue}>-{promo.discount_pct}%</Text>
             </View>
           )}

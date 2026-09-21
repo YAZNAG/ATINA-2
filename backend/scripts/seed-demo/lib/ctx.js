@@ -61,7 +61,10 @@ function createCtx(prisma, { dry = false } = {}) {
     return Object.fromEntries(rows.map((r) => [r.code, r]));
   };
   ctx.nodes = async () => {
-    const { NODES } = require('../data/people.data');
+    const { NODES: ALL } = require('../data/people.data');
+    // SEED_NODES=CODE[,CODE] : limite les étapes à certains nodes (ajout d'un node après coup).
+    const only = (process.env.SEED_NODES || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const NODES = only.length ? ALL.filter((n) => only.includes(n.code)) : ALL;
     const rows = await prisma.node.findMany({ where: { code: { in: NODES.map((n) => n.code) }, is_deleted: false } });
     const map = Object.fromEntries(rows.map((r) => [r.code, r]));
     return NODES.filter((n) => map[n.code]).map((n) => ({ ...n, row: map[n.code], id: map[n.code].id }));

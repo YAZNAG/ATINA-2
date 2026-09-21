@@ -3,7 +3,7 @@
  * vente en rupture, fournisseurs.
  */
 
-const PRICE_FACTOR = { 'CASA-MAARIF': 1, 'CASA-AINSEBAA': 0.97, 'RABAT-AGDAL': 1.02, 'MRK-GUELIZ': 0.98 };
+const PRICE_FACTOR = { 'CASA-MAARIF': 1, 'CASA-AINSEBAA': 0.97, 'RABAT-AGDAL': 1.02, 'MRK-GUELIZ': 0.98, 'AGA-SALAM': 0.99 };
 
 /** SKU non vendables sur un node (is_sellable = false). */
 const NOT_SELLABLE = {

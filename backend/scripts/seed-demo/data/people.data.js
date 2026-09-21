@@ -55,6 +55,12 @@ const NODES = [
     delivery_radius_km: 4, max_daily_orders: 150, opening_hours_json: HOURS('09:00', '22:00', false), delivery_fee: 10, min_order_amount: 50, slot_selection_enabled: false,
     short: 'GLZ', color: '#9333ea',
   },
+  {
+    code: 'AGA-SALAM', name_fr: 'Agadir Hay Salam', name_ar: 'أكادير حي السلام', type: 'dark_store', city: 'AGADIR', region: '09',
+    address_line1: '18, avenue Al Moukawama', quartier: 'Hay Salam', postal_code: '80060', lat: 30.4102, lng: -9.5703, phone: '+212600000905',
+    delivery_radius_km: 5, max_daily_orders: 150, opening_hours_json: HOURS('09:00', '22:00'), delivery_fee: 10, min_order_amount: 50, slot_selection_enabled: true,
+    short: 'SLM', color: '#0891b2',
+  },
 ];
 
 /** Plages de créneaux par node (3 à 5 par jour). */
@@ -63,6 +69,7 @@ const SLOT_TEMPLATES = {
   'CASA-AINSEBAA': [['08:00', '11:00', 30], ['12:00', '15:00', 25], ['16:00', '19:00', 30], ['19:00', '21:00', 20]],
   'RABAT-AGDAL': [['09:00', '11:00', 20], ['12:00', '14:00', 15], ['17:00', '19:00', 25], ['19:00', '21:00', 25]],
   'MRK-GUELIZ': [['10:00', '13:00', 15], ['15:00', '18:00', 15], ['18:00', '21:00', 10]],
+  'AGA-SALAM': [['09:00', '12:00', 20], ['14:00', '17:00', 20], ['18:00', '21:00', 20]],
 };
 
 const FIRST_M = ['Youssef', 'Mohamed', 'Amine', 'Hamza', 'Omar', 'Karim', 'Mehdi', 'Anas', 'Reda', 'Ayoub', 'Soufiane', 'Ilyas', 'Othmane', 'Hicham', 'Adil', 'Yassir', 'Tarik', 'Badr', 'Nabil', 'Rachid', 'Said', 'Khalid'];
@@ -74,6 +81,7 @@ const STREETS = {
   'CASA-MAARIF': [['Maârif', 'rue Abou Bakr Ibnou Koutia'], ['Maârif', 'rue Rembrandt'], ['Racine', 'boulevard Ghandi'], ['Bourgogne', 'rue Ibnou Bajja'], ['Gauthier', 'rue Jean Jaurès'], ['Oasis', 'rue des Hirondelles']],
   'CASA-AINSEBAA': [['Aïn Sebaâ', 'rue de Fès'], ['Hay Mohammadi', 'boulevard Ali Yata'], ['Sidi Bernoussi', 'rue 12'], ['Roches Noires', 'rue de la Corniche'], ['Mohammedia centre', 'avenue Hassan II']],
   'RABAT-AGDAL': [['Agdal', 'rue Oued Fès'], ['Hassan', 'avenue Allal Ben Abdellah'], ['Hay Riad', 'avenue Annakhil'], ['Souissi', 'rue Jaafar Essadik'], ['Salé Tabriquet', 'boulevard Kennedy'], ['Témara Wifaq', 'avenue Hassan II']],
+  'AGA-SALAM': [['Hay Salam', 'avenue Al Moukawama'], ['Talborjt', 'rue du 29 Février'], ['Dakhla', 'avenue Hassan II'], ['Founty', 'boulevard du 20 Août']],
   'MRK-GUELIZ': [['Guéliz', 'rue Tarik Ibn Ziad'], ['Hivernage', 'avenue Echouhada'], ['Majorelle', 'rue Yves Saint Laurent'], ['Daoudiate', 'avenue Allal El Fassi'], ['Semlalia', 'boulevard Abdelkrim Khattabi']],
 };
 

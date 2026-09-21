@@ -16,6 +16,12 @@ const STAFF = {
     pickers: ['Meryem Filali', 'Othmane Tahiri', 'Zineb Rahmouni'],
     drivers: [['Yassir Benali', 'Moto', '12870-A-1'], ['Karim Zerouali', 'Scooter électrique', '30554-B-1'], ['Hicham Hajji', 'Voiture utilitaire', '47719-D-1']],
   },
+  // Ajouté après le jeu initial : numéros fixés à la suite (préparateurs 213…, livreurs 311…).
+  'AGA-SALAM': {
+    p0: 212, d0: 310,
+    pickers: ['Loubna Amazigh', 'Said Oubella', 'Najat Idrissi'],
+    drivers: [['Brahim Ait Lahcen', 'Moto', '61452-A-9'], ['Hassan Bouhali', 'Scooter électrique', '70318-B-9']],
+  },
   'MRK-GUELIZ': {
     pickers: ['Asmae Ouazzani', 'Mehdi Sqalli', 'Wiam El Fassi'],
     drivers: [['Adil Mansouri', 'Moto', '85236-A-42'], ['Omar Alaoui', 'Triporteur', '90417-B-42']],
@@ -33,6 +39,8 @@ async function run(ctx) {
   let p = 200; let d = 300;
   for (const node of nodes) {
     const cfg = STAFF[node.code];
+    if (!cfg) continue;
+    if (cfg.p0 != null) { p = cfg.p0; d = cfg.d0; }
     for (const name of cfg.pickers) {
       p += 1;
       const phone = `600000${p}`;

@@ -20,7 +20,7 @@ router.get('/me', async (req, res) => {
     });
     if (!picker) return require('../../utils/response').error(res, 'Picker introuvable', 404);
     return require('../../utils/response').success(res, picker);
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  } catch (e) { console.error('[picker me]', e); res.status(500).json({ success: false, message: 'Erreur interne du serveur' }); }
 });
 
 // Commandes

@@ -24,7 +24,7 @@ class StaffAuthController {
       const token = makeToken({ id: picker.id, profile_type: 'picker', role: 'picker', node_id: picker.node_id });
       const { password_hash: _, ...safe } = picker;
       return response.success(res, { token, picker: { ...safe, profile_type: 'picker', role: 'picker' } });
-    } catch (e) { return response.error(res, e.message, 500); }
+    } catch (e) { console.error('[staff auth]', e); return response.error(res, 'Erreur interne du serveur', 500); }
   }
 
   async driverLogin(req, res) {
@@ -43,7 +43,7 @@ class StaffAuthController {
       const token = makeToken({ id: driver.id, profile_type: 'driver', role: 'driver', node_id: driver.node_id });
       const { password_hash: _, ...safe } = driver;
       return response.success(res, { token, driver: { ...safe, profile_type: 'driver', role: 'driver' } });
-    } catch (e) { return response.error(res, e.message, 500); }
+    } catch (e) { console.error('[staff auth]', e); return response.error(res, 'Erreur interne du serveur', 500); }
   }
 }
 

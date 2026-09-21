@@ -9,7 +9,7 @@ const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization || req.headers.Authorization;
     if (!authHeader || !String(authHeader).toLowerCase().startsWith('bearer ')) {
       // If header exists but does not look like Bearer, still treat as missing.
-      return response.error(res, 'Access token required', 400);
+      return response.error(res, 'Access token required', 401);
     }
 
     const token = String(authHeader).split(' ')[1];

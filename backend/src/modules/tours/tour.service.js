@@ -19,7 +19,8 @@ const STOP_INCLUDE = {
       delivery_type: { select: { code: true, name_fr: true } },
       payments:      { include: { payment_method: { select: { code: true, name_fr: true } }, status: { select: { code: true } } } },
       items: {
-        include: { sku: { select: { id: true, article: { select: { name_fr: true, sku_code: true } } } } },
+        // La table articles a été fusionnée dans skus : nom et code sont sur le SKU.
+        include: { sku: { select: { id: true, name_fr: true, name_ar: true, sku_code: true } } },
       },
     },
   },

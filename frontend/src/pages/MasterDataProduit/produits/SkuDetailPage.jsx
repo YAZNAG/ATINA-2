@@ -23,7 +23,7 @@ const toWebPath = (rawPath) => {
 const TABS = [
   { key: 'info', label: 'Informations', icon: Tag },
   { key: 'images', label: 'Images', icon: ImageIcon },
-  { key: 'selling', label: 'Règles de vente', icon: ClipboardList },
+  { key: 'selling', label: 'Vendabilité par node', icon: ClipboardList },
   { key: 'supplier_prices', label: 'Prix fournisseurs', icon: Truck },
 ];
 

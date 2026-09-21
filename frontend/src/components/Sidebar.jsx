@@ -95,7 +95,7 @@ const SECTIONS = [
     items: [
       { label: 'Produits (SKUs)',         path: '/catalog/skus',                permission: 'skus.view', icon: ICONS.products },
       { label: 'Marques',                 path: '/catalog/brands',              permission: 'brands.view', icon: ICONS.tag },
-      { label: 'Hiérarchie Produit',      path: '/catalog/hierarchy',           anyPermissions: ['families.view', 'categories.view', 'sub_categories.view'], icon: ICONS.hierarchy },
+      { label: 'Hiérarchie Produit',      path: '/catalog/hierarchy',           anyPermissions: ['families.view', 'categories.view', 'subfamilies.view'], icon: ICONS.hierarchy },
       { label: 'Vendabilité & prix par node', path: '/stock/selling-rules',     anyPermissions: ['stock.manage', 'stock.view', ...ANY], icon: ICONS.price },
     ],
   },

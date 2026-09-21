@@ -5,13 +5,10 @@ import { createElement } from 'react';
 export const ENTITY_SLUGS = [
   'families',
   'categories',
-  'sub-categories',
   'brands',
   'units',
   'packaging-types',
   'conservation-types',
-  'article-types',
-  'article-statuses',
   'taxes',
 ];
 
@@ -171,47 +168,6 @@ export const ENTITY_REGISTRY = {
     ],
   },
 
-  'sub-categories': {
-    label: 'Sous-catégories',
-    description: 'Rattachées à une catégorie (filtrer par famille puis catégorie).',
-    special: 'subcategory',
-    permissions: {
-      view: 'sub_categories.view',
-      create: 'sub_categories.create',
-      update: 'sub_categories.update',
-      delete: 'sub_categories.delete',
-    },
-    api: {
-      list: catalog.getSubCategories,
-      get: catalog.getSubCategory,
-      create: catalog.createSubCategory,
-      update: catalog.updateSubCategory,
-      remove: catalog.deleteSubCategory,
-    },
-    columns: [
-      { key: 'name_fr', label: 'Nom (FR)' },
-      { key: 'code', label: 'Code' },
-      {
-        key: 'category',
-        label: 'Catégorie',
-        render: (r) => r.category?.name_fr ?? '—',
-      },
-      { key: 'sort_order', label: 'Ordre' },
-      familyThumbColumn,
-      { key: 'status', label: 'Statut', render: statusBadge },
-    ],
-    searchFields: ['name_fr', 'name_ar', 'code'],
-    fields: [
-      { name: 'category_id', label: 'Catégorie', type: 'select', required: true },
-      { name: 'name_fr', label: 'Nom (FR)', required: true },
-      { name: 'name_ar', label: 'Nom (AR)', required: true },
-      { name: 'code', label: 'Code', required: true },
-      { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
-      { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
-      statusSelect,
-      { name: 'sort_order', label: 'Ordre', type: 'number', default: 0 },
-    ],
-  },
 
   brands: {
     label: 'Marques',
@@ -364,67 +320,7 @@ export const ENTITY_REGISTRY = {
     ],
   },
 
-  'article-types': {
-    label: 'Types d’article',
-    description: 'Classification métier des articles.',
-    permissions: {
-      view: 'article_types.view',
-      create: 'article_types.create',
-      update: 'article_types.update',
-      delete: 'article_types.delete',
-    },
-    api: {
-      list: catalog.getArticleTypes,
-      get: catalog.getArticleType,
-      create: catalog.createArticleType,
-      update: catalog.updateArticleType,
-      remove: catalog.deleteArticleType,
-    },
-    columns: [
-      { key: 'name_fr', label: 'Nom (FR)' },
-      { key: 'code', label: 'Code' },
-      { key: 'status', label: 'Statut', render: statusBadge },
-    ],
-    searchFields: ['name_fr', 'name_ar', 'code'],
-    fields: [
-      { name: 'name_fr', label: 'Nom (FR)', required: true },
-      { name: 'name_ar', label: 'Nom (AR)', required: true },
-      { name: 'code', label: 'Code', required: true },
-      { name: 'description_fr', label: 'Description (FR)', type: 'textarea' },
-      { name: 'description_ar', label: 'Description (AR)', type: 'textarea' },
-      statusSelect,
-    ],
-  },
 
-  'article-statuses': {
-    label: 'Statuts article',
-    description: 'États du cycle de vie affichés en UI.',
-    permissions: {
-      view: 'article_statuses.view',
-      create: 'article_statuses.create',
-      update: 'article_statuses.update',
-      delete: 'article_statuses.delete',
-    },
-    api: {
-      list: catalog.getArticleStatuses,
-      get: catalog.getArticleStatus,
-      create: catalog.createArticleStatus,
-      update: catalog.updateArticleStatus,
-      remove: catalog.deleteArticleStatus,
-    },
-    columns: [
-      { key: 'name_fr', label: 'Nom (FR)' },
-      { key: 'code', label: 'Code' },
-      { key: 'color', label: 'Couleur' },
-    ],
-    searchFields: ['name_fr', 'name_ar', 'code'],
-    fields: [
-      { name: 'name_fr', label: 'Nom (FR)', required: true },
-      { name: 'name_ar', label: 'Nom (AR)', required: true },
-      { name: 'code', label: 'Code', required: true },
-      { name: 'color', label: 'Couleur (hex)', placeholder: '#22c55e' },
-    ],
-  },
 
   taxes: {
     label: 'TVA',

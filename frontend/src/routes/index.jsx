@@ -19,17 +19,10 @@ import UserForm from '../pages/users/UserForm';
 import RoleList from '../pages/roles/RoleList';
 import RoleForm from '../pages/roles/RoleForm';
 import PermissionList from '../pages/permissions/PermissionList';
-import CatalogDashboard from '../pages/catalog/CatalogDashboard';
 import ReferentialListPage from '../pages/catalog/ReferentialListPage';
 import ReferentialFormPage from '../pages/catalog/ReferentialFormPage';
-import ArticleList from '../pages/catalog/ArticleList';
-import ArticleForm from '../pages/catalog/ArticleForm';
-//import ArticleDetailPage from '../pages/catalog/ArticleDetailPage';
-import CatalogTaxonomyPage from '../pages/catalog/CatalogTaxonomyPage';
 import CatalogRefPage from '../pages/catalog/CatalogRefPage';
 //import SkusPage from '../pages/catalog/SkusPage';
-import SkuImagesPage from '../pages/catalog/SkuImagesPage';
-import SkuImageFormPage from '../pages/catalog/SkuImageFormPage';
 import GeoPage from '../pages/location/GeoPage';
 import RegionsPage from '../pages/MasterDataGeography/Geograhy/RegionsPage';
 import CitiesPage from '../pages/MasterDataGeography/Geograhy/CitiesPage';
@@ -193,18 +186,17 @@ export default function AppRoutes() {
           <Route path="/roles/new" element={<RoleForm />} />
           <Route path="/roles/:id/edit" element={<RoleForm />} />
           <Route path="/permissions" element={<PermissionList />} />
-          <Route path="/catalog" element={<CatalogDashboard />} />
+          {/* Ancien catalogue « articles » (tables fusionnées dans skus en août) :
+              les anciennes adresses renvoient vers les écrans actuels. */}
+          <Route path="/catalog" element={<Navigate to="/catalog/skus" replace />} />
+          <Route path="/catalog/taxonomy" element={<Navigate to="/catalog/hierarchy" replace />} />
+          <Route path="/catalog/articles/*" element={<Navigate to="/catalog/skus" replace />} />
+          <Route path="/catalog/sku-images/*" element={<Navigate to="/catalog/skus" replace />} />
+          <Route path="/catalog/sku-images" element={<Navigate to="/catalog/skus" replace />} />
           <Route path="/catalog/ref/:entitySlug/new" element={<ReferentialFormPage />} />
           <Route path="/catalog/ref/:entitySlug/:id/edit" element={<ReferentialFormPage />} />
           <Route path="/catalog/ref/:entitySlug" element={<ReferentialListPage />} />
-          <Route path="/catalog/taxonomy" element={<CatalogTaxonomyPage />} />
           <Route path="/catalog/refs" element={<CatalogRefPage />} />
-          <Route path="/catalog/articles/new" element={<ArticleForm />} />
-          <Route path="/catalog/articles/:id/edit" element={<ArticleForm />} />
-          {/*<Route path="/catalog/articles/:id" element={<ArticleDetailPage />} />*/}
-          <Route path="/catalog/sku-images/new" element={<SkuImageFormPage />} />
-          <Route path="/catalog/sku-images/:id/edit" element={<SkuImageFormPage />} />
-          <Route path="/catalog/sku-images" element={<SkuImagesPage />} />
           <Route path="/catalog/brands" element={<BrandsPage />} />
           <Route path="/brands/:id" element={<BrandDetailPage />} />
           {/* Geography */}

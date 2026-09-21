@@ -1,308 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, Image, KeyboardAvoidingView,
-  Platform, ScrollView, ActivityIndicator, Dimensions,
+  View, Text, TextInput, StyleSheet, StatusBar, KeyboardAvoidingView,
+  Platform, ScrollView, Image, Dimensions,
 } from 'react-native';
-import {
-  useFonts, Inter_400Regular, Inter_500Medium,
-  Inter_600SemiBold, Inter_700Bold,
-} from '@expo-google-fonts/inter';
-import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { login } from '../../services/customer_auth.service';
-import countries from '../../constants/countries.json';
+import { requestOtp } from '../../services/customer_auth.service';
+import { openLegal } from '../../services/appInfo.service';
+import { RED, INK, GREY, PrimaryButton } from '../../components/onboarding/onboardingKit';
 
-SplashScreen.preventAutoHideAsync();
 const { width } = Dimensions.get('window');
-const RED = '#E10600';
 
-type LoginMode = 'phone' | 'email';
-
-const Logo = () => (
-  <View style={styles.logoContainer}>
-    <Image source={require('../../../assets/images/app/ElHerri.png')} style={styles.logoTextLeft} resizeMode="stretch" />
-    <Image source={require('../../../assets/images/app/chariot.png')} style={styles.logoIcon} resizeMode="stretch" />
-    <Image source={require('../../../assets/images/app/arab.png')} style={styles.logoTextRight} resizeMode="stretch" />
-  </View>
-);
-
-// accepte "06xxxxxxxx", "+2126xxxxxxxx", "002126xxxxxxxx" ──
-function parsePhoneInput(raw: string): { countryCode: string; number: string } {
-  let s = raw.trim().replace(/[\s.-]/g, '');
-
-  if (s.startsWith('00')) s = '+' + s.slice(2);
-
-  if (s.startsWith('+')) {
-    const sorted = [...(countries as { code: string }[])].sort((a, b) => b.code.length - a.code.length);
-    const match = sorted.find((c) => s.startsWith(c.code));
-    if (match) return { countryCode: match.code, number: s.slice(match.code.length) };
-    // Code pays inconnu : on garde par défaut +212 et le reste tel quel
-    return { countryCode: '+212', number: s.replace('+', '') };
-  }
-
-  // Pas de "+" format local (ex: 0611111111) pays par défaut
-  return { countryCode: '+212', number: s };
+/** Numéro marocain : 9 chiffres commençant par 5, 6 ou 7 (le 0 initial est toléré). */
+function normalizePhone(raw: string) {
+  return raw.replace(/\D/g, '').replace(/^0/, '');
 }
 
-export default function LoginScreen() {
+/** Maquette « page numéro de téléphone » : connexion sans mot de passe, par code SMS. */
+export default function PhoneScreen() {
   const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const [fontsLoaded] = useFonts({
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
-  });
+  const digits = normalizePhone(phone);
+  const valid = /^[5-7]\d{8}$/.test(digits);
 
-  useEffect(() => { if (fontsLoaded) SplashScreen.hideAsync(); }, [fontsLoaded]);
-
-  const [mode, setMode]         = useState<LoginMode>('phone');
-  const [phone, setPhone]       = useState('');
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [showPwd, setShowPwd]   = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-
-  if (!fontsLoaded) return null;
-
-  const clearError = () => setError('');
-
-  const handleLogin = async () => {
-    if (mode === 'phone' && !phone.trim()) { setError('Entrez votre numéro de téléphone.'); return; }
-    if (mode === 'email' && !email.trim()) { setError('Entrez votre adresse email.'); return; }
-    if (!password) { setError('Entrez votre mot de passe.'); return; }
-
+  const handleContinue = async () => {
+    if (!valid) { setError('Saisissez un numéro marocain valide (ex. 6XX XXX XXX).'); return; }
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      clearError();
-      if (mode === 'phone') {
-        const { countryCode, number } = parsePhoneInput(phone);
-        await login(number, password, countryCode);
-      } else {
-        await login('', password, '+212', email.trim());
-      }
-      router.replace('/main/main_nav/home');
+      await requestOtp(digits, '+212');
+      router.push({ pathname: '/auth/verify-otp', params: { phone_number: digits, phone_country: '+212' } } as any);
     } catch (e: any) {
-      setError(e.message ?? 'Erreur de connexion');
+      setError(e?.message ?? 'Impossible d\'envoyer le code. Réessayez.');
     } finally {
       setLoading(false);
     }
   };
 
+  const legal = async (kind: 'cgu' | 'privacy') => {
+    if (!(await openLegal(kind))) setError('Document indisponible pour le moment.');
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={RED} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.redBg}>
-          <Logo />
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <View style={styles.card}>
+    <View style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
+          <SafeAreaView edges={['top']} style={styles.hero}>
+            <Image source={require('../../../assets/images/atina/basket.png')} style={styles.heroImg} resizeMode="contain" />
+          </SafeAreaView>
 
-              {/* ── Tabs Connexion / Inscription ── */}
-              <View style={styles.tabRow}>
-                <View style={[styles.tab, styles.tabActive]}>
-                  <Text style={[styles.tabText, styles.tabTextActive]}>Connexion</Text>
-                </View>
-                <TouchableOpacity style={styles.tab} onPress={() => router.push('/auth/register')} activeOpacity={0.8}>
-                  <Text style={styles.tabText}>Inscription</Text>
-                </TouchableOpacity>
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Bienvenue</Text>
+            <Text style={styles.subtitle}>Connectez-vous avec votre numéro de téléphone.</Text>
+
+            <View style={[styles.phoneBox, !!error && styles.phoneBoxError]}>
+              <View style={styles.prefix}>
+                <Image source={require('../../../assets/images/atina/flag_ma.png')} style={styles.flag} />
+                <Text style={styles.prefixText}>+212</Text>
               </View>
-
-              {/* ── Toggle Phone / Email ── */}
-              <View style={styles.modeRow}>
-                <TouchableOpacity
-                  style={[styles.modeBtn, mode === 'phone' && styles.modeBtnActive]}
-                  onPress={() => { setMode('phone'); clearError(); }}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="phone" size={14} color={mode === 'phone' ? RED : '#9CA3AF'} />
-                  <Text style={[styles.modeBtnText, mode === 'phone' && styles.modeBtnTextActive]}>Téléphone</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modeBtn, mode === 'email' && styles.modeBtnActive]}
-                  onPress={() => { setMode('email'); clearError(); }}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="mail" size={14} color={mode === 'email' ? RED : '#9CA3AF'} />
-                  <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* ── Identifiant ── */}
-              {mode === 'phone' ? (
-                <>
-                  <Text style={styles.label}>Numéro de téléphone</Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="phone" size={18} color="#9CA3AF" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="+2126XXXXXXXX"
-                      placeholderTextColor="#9CA3AF"
-                      value={phone}
-                      onChangeText={t => { setPhone(t); clearError(); }}
-                      keyboardType="phone-pad"
-                      autoCorrect={false}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.label}>Adresse e-mail</Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="mail" size={18} color="#9CA3AF" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="exemple@email.com"
-                      placeholderTextColor="#9CA3AF"
-                      value={email}
-                      onChangeText={t => { setEmail(t); clearError(); }}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                </>
-              )}
-
-              {/* ── Mot de passe ── */}
-              <Text style={styles.label}>Mot de passe</Text>
-              <View style={styles.pwdRow}>
-                <Feather name="lock" size={18} color="#9CA3AF" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.pwdInput}
-                  placeholder="••••••••"
-                  placeholderTextColor="#9CA3AF"
-                  value={password}
-                  onChangeText={t => { setPassword(t); clearError(); }}
-                  secureTextEntry={!showPwd}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPwd(v => !v)} activeOpacity={0.7}>
-                  <Feather name={showPwd ? 'eye-off' : 'eye'} size={18} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-
-              {/* ── Mot de passe oublié ── */}
-              <TouchableOpacity
-                style={styles.forgotRow}
-                onPress={() => router.push('/auth/forgot-password' as any)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
-              </TouchableOpacity>
-
-              {/* ── Erreur ── */}
-              {!!error && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              {/* ── Submit ── */}
-              <TouchableOpacity
-                style={[styles.btnPrimary, loading && styles.btnDisabled]}
-                onPress={handleLogin}
-                activeOpacity={0.85}
-                disabled={loading}
-              >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Se connecter</Text>}
-              </TouchableOpacity>
-
-              {/* ── Séparateur ── */}
-              <View style={styles.sepRow}>
-                <View style={styles.sepLine} />
-                <Text style={styles.sepLabel}>OU</Text>
-                <View style={styles.sepLine} />
-              </View>
-
-              {/* ── Créer un compte ── */}
-              <View style={styles.signupRow}>
-                <Text style={styles.signupLabel}>Nouveau ici ? </Text>
-                <TouchableOpacity onPress={() => router.push('/auth/register')} activeOpacity={0.8}>
-                  <Text style={styles.signupLink}>Créer un compte</Text>
-                </TouchableOpacity>
-              </View>
-
+              <View style={styles.sep} />
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={(t) => { setPhone(t.replace(/[^\d ]/g, '')); setError(''); }}
+                placeholder="6XX XXX XXX"
+                placeholderTextColor="#B0B0B0"
+                keyboardType="phone-pad"
+                maxLength={12}
+                returnKeyType="done"
+                onSubmitEditing={handleContinue}
+                accessibilityLabel="Numéro de téléphone"
+              />
+              <Feather name="smartphone" size={18} color="#8A8A8A" />
             </View>
-          </ScrollView>
-        </View>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+
+            <View style={styles.cta}>
+              <PrimaryButton label="Continuer" onPress={handleContinue} disabled={!valid} loading={loading} />
+            </View>
+
+            <Text style={styles.legal}>
+              En me connectant, j'accepte tous les{' '}
+              <Text style={styles.link} onPress={() => legal('cgu')}>Conditions générales</Text>
+              {' '}et{' '}
+              <Text style={styles.link} onPress={() => legal('privacy')}>Politique de confidentialité</Text>
+            </Text>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: RED },
-  flex:     { flex: 1 },
-  redBg:    { flex: 1, backgroundColor: RED, alignItems: 'center', paddingTop: 28 },
-  scroll:   { flexGrow: 1, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 40 },
-
-  logoContainer: { flexDirection: 'row', alignItems: 'center', gap: 15, marginBottom: 28, marginTop: 50 },
-  logoTextLeft:  { height: 40, width: width * 0.30, tintColor: '#FFFFFF' },
-  logoIcon:      { height: 32, width: width * 0.10, tintColor: '#FFFFFF' },
-  logoTextRight: { height: 30, width: width * 0.20, tintColor: '#FFFFFF' },
-
-  card: {
-    width: width - 48, backgroundColor: '#FFFFFF', borderRadius: 24,
-    paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18, shadowRadius: 16, elevation: 10,
+  root: { flex: 1, backgroundColor: '#fff' },
+  hero: { alignItems: 'center', justifyContent: 'flex-end', paddingTop: 12, backgroundColor: '#fff' },
+  heroImg: { width: width * 0.86, height: width * 0.5 },
+  sheet: {
+    flex: 1, backgroundColor: '#fff', marginTop: -6,
+    borderTopLeftRadius: 34, borderTopRightRadius: 34,
+    borderTopWidth: 3, borderColor: RED,
+    paddingHorizontal: 22, paddingTop: 30, paddingBottom: 24,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: -4 }, elevation: 4,
   },
+  title: { fontSize: 26, color: INK, fontFamily: 'Poppins_700Bold', marginBottom: 8 },
+  subtitle: { fontSize: 15, lineHeight: 22, color: '#6B6B6B', fontFamily: 'Poppins_400Regular', marginBottom: 30 },
 
-  tabRow:        { flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 50, padding: 4, marginBottom: 20 },
-  tab:           { flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center' },
-  tabActive:     { backgroundColor: RED, elevation: 3 },
-  tabText:       { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-  tabTextActive: { color: '#FFFFFF' },
-
-  modeRow: { flexDirection: 'row', backgroundColor: '#F5F5F5', borderRadius: 10, padding: 3, marginBottom: 20, gap: 3 },
-  modeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 8, gap: 6 },
-  modeBtnActive:     { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
-  modeBtnText:       { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-  modeBtnTextActive: { color: RED },
-
-  label:        { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#212121', marginBottom: 8 },
-  inputWrapper: { position: 'relative', marginBottom: 16, justifyContent: 'center' },
-  input: {
-    backgroundColor: '#F5F5F5', borderRadius: 12,
-    paddingLeft: 44, paddingRight: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-    fontSize: 15, color: '#212121',
-    borderWidth: 1, borderColor: '#EEEEEE',
+  phoneBox: {
+    flexDirection: 'row', alignItems: 'center', height: 58, paddingHorizontal: 16,
+    borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#F0F0F0',
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  inputIcon: { position: 'absolute', left: 14, zIndex: 1 },
+  phoneBoxError: { borderColor: RED },
+  prefix: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flag: { width: 18, height: 12, borderRadius: 2 },
+  prefixText: { fontSize: 15, color: INK, fontFamily: 'Poppins_600SemiBold' },
+  sep: { width: 1, height: 24, backgroundColor: '#E5E5E5', marginHorizontal: 12 },
+  input: { flex: 1, fontSize: 15, color: INK, fontFamily: 'Poppins_400Regular', paddingVertical: 0 },
+  error: { color: RED, fontSize: 12.5, fontFamily: 'Poppins_500Medium', marginTop: 8 },
 
-  pwdRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F5F5F5', borderRadius: 12,
-    borderWidth: 1, borderColor: '#EEEEEE', marginBottom: 20,
+  cta: { marginTop: 44 },
+  legal: {
+    marginTop: 40, fontSize: 12, lineHeight: 19, color: GREY,
+    fontFamily: 'Poppins_400Regular', paddingHorizontal: 8,
   },
-  pwdInput: {
-    flex: 1, paddingLeft: 44, paddingRight: 8,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-    fontSize: 15, color: '#212121',
-  },
-  eyeBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-
-  errorBox:  { backgroundColor: '#FEE2E2', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
-  errorText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#B91C1C', textAlign: 'center' },
-
-  btnPrimary: {
-    backgroundColor: RED, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-    shadowColor: RED, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.24, shadowRadius: 24, elevation: 5, marginBottom: 16,
-  },
-  btnDisabled:    { opacity: 0.65 },
-  btnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
-
-  sepRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  sepLine:  { flex: 1, height: 1, backgroundColor: '#E0E0E0' },
-  sepLabel: { marginHorizontal: 12, fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
-
-  signupRow:   { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
-  signupLabel: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  signupLink:  { fontSize: 14, fontFamily: 'Inter_700Bold', color: RED },
-
-  forgotRow: { alignSelf: 'flex-end', marginBottom: 16, marginTop: -8 },
-  forgotText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED },
+  link: { color: INK, textDecorationLine: 'underline', fontFamily: 'Poppins_500Medium' },
 });

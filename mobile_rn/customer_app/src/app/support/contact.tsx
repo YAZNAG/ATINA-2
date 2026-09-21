@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,47 +9,29 @@ import {
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import {
-  useFonts,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
 import PageHeader from '@/components/ui/PageHeader';
+import { getAppInfo, AppInfo } from '../../services/appInfo.service';
 
 const PRIMARY_RED = '#E10600';
 
 export default function ContactUsScreen() {
   const router = useRouter();
 
-  const [fontsLoaded] = useFonts({
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  // Coordonnées du support paramétrées dans le back-office (Paramètres › app_configs).
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  useEffect(() => { getAppInfo().then(setInfo).catch(() => setInfo(null)); }, []);
 
-  const handleCall = () => Linking.openURL('tel:+212528XXXXXX');
-  const handleWhatsApp = () => Linking.openURL('https://wa.me/2126XXXXXXXX');
-  const handleEmail = () => Linking.openURL('mailto:support@elherri.ma');
-  const handleMap = () =>
-    Linking.openURL(
-      'https://www.google.com/maps/search/?api=1&query=Hay+Salam+Agadir+Maroc'
-    );
+  const phone = info?.support_phone ?? null;
+  const whatsapp = info?.support_whatsapp ?? null;
+  const email = info?.support_email ?? null;
+  const digits = (v: string) => v.replace(/[^\d+]/g, '');
+
+  const handleCall = () => phone && Linking.openURL(`tel:${digits(phone)}`);
+  const handleWhatsApp = () => whatsapp && Linking.openURL(`https://wa.me/${digits(whatsapp).replace(/^\+/, '')}`);
+  const handleEmail = () => email && Linking.openURL(`mailto:${email}`);
   const handleSupport = () => {
     router.push('/support/conversations');
   };
-  const openFacebook = () => Linking.openURL('https://facebook.com');
-  const openInstagram = () => Linking.openURL('https://instagram.com');
-
-  if (!fontsLoaded) return null;
 
   return (
     <View style={styles.container}>
@@ -60,59 +42,55 @@ export default function ContactUsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {!info && (
+          <Text style={styles.helpSubtitle}>Chargement des coordonnées…</Text>
+        )}
+
         {/* Téléphone */}
-        <ContactCard
-          iconBg="#FDEAEA"
-          icon={<Feather name="phone" size={22} color="#E10600" />}
-          label="Téléphone"
-          value="+212 5 28 XX XX XX"
-          buttonLabel="Appeler"
-          buttonBg="#FBD9D9"
-          buttonTextColor="#E10600"
-          onPress={handleCall}
-        />
+        {!!phone && (
+          <ContactCard
+            iconBg="#FDEAEA"
+            icon={<Feather name="phone" size={22} color="#E10600" />}
+            label="Téléphone"
+            value={phone}
+            buttonLabel="Appeler"
+            buttonBg="#FBD9D9"
+            buttonTextColor="#E10600"
+            onPress={handleCall}
+          />
+        )}
 
         {/* WhatsApp */}
-        <ContactCard
-          iconBg="#E4F7EC"
-          icon={
-            <MaterialCommunityIcons name="whatsapp" size={24} color="#25D366" />
-          }
-          label="WhatsApp"
-          value="+212 6 XX XX XX XX"
-          buttonLabel="Envoyer un message"
-          buttonBg="#D3F3E0"
-          buttonTextColor="#1F9254"
-          onPress={handleWhatsApp}
-        />
+        {!!whatsapp && (
+          <ContactCard
+            iconBg="#E4F7EC"
+            icon={<MaterialCommunityIcons name="whatsapp" size={24} color="#25D366" />}
+            label="WhatsApp"
+            value={whatsapp}
+            buttonLabel="Envoyer un message"
+            buttonBg="#D3F3E0"
+            buttonTextColor="#1F9254"
+            onPress={handleWhatsApp}
+          />
+        )}
 
         {/* Email */}
-        <ContactCard
-          iconBg="#E8EFFD"
-          icon={<Feather name="mail" size={22} color="#3B6FE0" />}
-          label="Email"
-          value="support@elherri.ma"
-          buttonLabel="Envoyer un email"
-          buttonBg="#E3ECFD"
-          buttonTextColor="#3B6FE0"
-          onPress={handleEmail}
-        />
-
-        {/* Adresse */}
-        <ContactCard
-          iconBg="#FCF6DC"
-          icon={<Feather name="map-pin" size={22} color="#D9A404" />}
-          label="Adresse"
-          value="Hay Salam, Agadir, Maroc"
-          buttonLabel="Voir sur la carte"
-          buttonBg="#F7EEB8"
-          buttonTextColor="#6B5A00"
-          onPress={handleMap}
-        />
+        {!!email && (
+          <ContactCard
+            iconBg="#E8EFFD"
+            icon={<Feather name="mail" size={22} color="#3B6FE0" />}
+            label="Email"
+            value={email}
+            buttonLabel="Envoyer un email"
+            buttonBg="#E3ECFD"
+            buttonTextColor="#3B6FE0"
+            onPress={handleEmail}
+          />
+        )}
 
         {/* Need Help banner */}
         <View style={styles.helpBanner}>
-          <Text style={styles.helpTitle}>Need Help?</Text>
+          <Text style={styles.helpTitle}>Besoin d'aide ?</Text>
           <Text style={styles.helpSubtitle}>
             Notre équipe est prête à vous accompagner dans chaque étape de
             votre commande.
@@ -126,16 +104,6 @@ export default function ContactUsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Social */}
-        <Text style={styles.socialLabel}>REJOIGNEZ-NOUS SUR LES RÉSEAUX</Text>
-        <View style={styles.socialRow}>
-          <TouchableOpacity style={styles.socialButton} onPress={openFacebook}>
-            <MaterialCommunityIcons name="facebook" size={20} color="#222" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton} onPress={openInstagram}>
-            <MaterialCommunityIcons name="instagram" size={20} color="#222" />
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </View>
   );

@@ -110,6 +110,7 @@ function FlashSaleSection({ endsAt, products }: FlashSaleSectionProps) {
             discount={item.discount_pct}
             oldPrice={item.old_price}
             isFlashSale
+            endsAt={endsAt}
             onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })}
           />
         )}

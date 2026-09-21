@@ -16,25 +16,47 @@ export interface Category {
   name_fr: string;
   name_ar: string;
   code: string;
-  image_path: string;
-  icon_path: string;
+  image_path: string | null;
+  icon_path: string | null;
   sort_order: number;
   article_count: number;
 }
 
 export interface SubCategory {
-  id:            number;
+  id:            EntityId;
   name_fr:       string;
   name_ar:       string;
   code:          string;
   image_path:    string | null;
   icon_path:     string | null;
+  image_url?:    string | null;
   sort_order:    number;
   article_count: number;
 }
 
+/** Famille / sous-famille produit (onglet « Produits »). */
+export interface Family {
+  id:            string;
+  code:          string;
+  name_fr:       string;
+  name_ar:       string;
+  image_url:     string | null;
+  sort_order:    number;
+  article_count: number;
+}
+
+/** Point de distribution d'une ville. */
+export interface DistributionNode {
+  id:            string;
+  code:          string;
+  name_fr:       string;
+  name_ar:       string | null;
+  city_id:       string | null;
+  address_line1: string | null;
+}
+
 export interface Article {
-  id:             number;
+  id:             EntityId;
   sku_code:       string;
   sku_id: string | null;
   ean13:          string | null;
@@ -46,6 +68,7 @@ export interface Article {
   price_ttc:      number;
   old_price_ttc?: number | null;
   discount_pct?:  number | null;
+  flash_ends_at?: string | null;
   vat_rate:       number;
   unit_sale:      string;
   is_active:      boolean;
@@ -105,7 +128,7 @@ export const CatalogService = {
   async getArticles(params?: {
     limit?: number;
     page?: number;
-    category_id?: number;
+    category_id?: EntityId;
   }): Promise<Article[]>{
     try{
     const response = await api.get('/customer/catalog/articles', { params });
@@ -144,8 +167,11 @@ export const CatalogService = {
   page?:         number,
   limit?:        number,
   search?:       string,
-  category_id?:  number,
-  category_ids?: number[], 
+  category_id?:  EntityId,
+  category_ids?: EntityId[],
+  family_id?:    EntityId,
+  subfamily_id?: EntityId,
+  brand_id?:     EntityId,
 }): Promise<ArticlesResponse>{
   try {
     const { category_ids, ...rest } = params ?? {};
@@ -202,6 +228,23 @@ async getTopRatedArticles(params?: { limit?: number; page?: number }): Promise<P
     throw new Error(err.response?.data?.message || 'Erreur chargement produits notés 5 étoiles');
   }
 },
+
+  // Familles → sous-familles (onglet « Produits » de la maquette)
+  async getFamilies(): Promise<Family[]> {
+    const response = await api.get('/customer/catalog/families');
+    return response.data.data || [];
+  },
+
+  async getFamilySubfamilies(familyId: EntityId): Promise<{ family: Family | null; subfamilies: Family[] }> {
+    const response = await api.get(`/customer/catalog/families/${familyId}/subfamilies`);
+    return response.data.data || { family: null, subfamilies: [] };
+  },
+
+  // Points de distribution d'une ville (« Complétez votre profil »)
+  async getNodes(cityId: string): Promise<DistributionNode[]> {
+    const response = await api.get('/customer/catalog/nodes', { params: { city_id: cityId } });
+    return response.data.data || [];
+  },
 
   //cities
     async getCities(): Promise<City[]> {

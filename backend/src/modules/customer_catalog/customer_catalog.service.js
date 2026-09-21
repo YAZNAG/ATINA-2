@@ -103,7 +103,7 @@ async function getSubCategories(categoryId, ctx = {}) {
     where:   { id: { in: ids }, is_active: true, is_deleted: false, deleted_at: null },
     orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
     select:  {
-      id: true, code: true, name_fr: true, name_ar: true, sort_order: true, family_id: true,
+      id: true, code: true, name_fr: true, name_ar: true, sort_order: true, family_id: true, image_url: true,
       family: { select: { id: true, code: true, name_fr: true, name_ar: true } },
     },
   });
@@ -112,8 +112,9 @@ async function getSubCategories(categoryId, ctx = {}) {
     name_fr:       s.name_fr,
     name_ar:       s.name_ar,
     code:          s.code,
-    image_path:    null,
-    icon_path:     null,
+    image_url:     toPublicUrl(s.image_url),
+    image_path:    toPublicUrl(s.image_url),
+    icon_path:     toPublicUrl(s.image_url),
     sort_order:    s.sort_order,
     family_id:     s.family_id,
     family:        s.family,
@@ -327,8 +328,75 @@ async function getPopularArticles({ limit = 10, page = 1, days = 30 } = {}, ctx 
   return { data: orderByIds(offers, skuIds), hasMore };
 }
 
+// ── Points de distribution (nodes) d'une ville — écran « Complétez votre profil » ──
+async function getNodesByCity(cityId) {
+  if (cityId && !isUuid(String(cityId))) return [];
+  const nodes = await prisma.node.findMany({
+    where: {
+      is_deleted: false,
+      is_active: true,
+      ...(cityId ? { city_id: String(cityId) } : {}),
+    },
+    orderBy: { name_fr: 'asc' },
+    select: { id: true, code: true, name_fr: true, name_ar: true, city_id: true, address_line1: true },
+  });
+  return nodes;
+}
+
+// ── Familles et sous-familles (onglet « Produits » de l'app) ─────────────────
+// Hiérarchie produit du classeur : familles → sous-familles, chacune illustrée
+// (US-120). Seules celles qui contiennent au moins un produit vendable sur le
+// node sont renvoyées, pour ne jamais afficher une tuile vide.
+const HIER_WHERE = { is_active: true, is_deleted: false, deleted_at: null };
+
+async function getFamilies(ctx = {}) {
+  const nodeId = nodeIdOf(ctx);
+  const groups = await prisma.sku.groupBy({
+    by: ['sku_family_id'], where: sellableWhere(nodeId), _count: { _all: true },
+  });
+  const counts = new Map(groups.map((g) => [g.sku_family_id, g._count._all]));
+  if (!counts.size) return [];
+  const fams = await prisma.skuFamily.findMany({
+    where:   { ...HIER_WHERE, id: { in: [...counts.keys()] } },
+    orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
+    select:  { id: true, code: true, name_fr: true, name_ar: true, image_url: true, sort_order: true },
+  });
+  return fams.map((f) => ({
+    ...f,
+    image_url:     toPublicUrl(f.image_url),
+    article_count: counts.get(f.id) ?? 0,
+  }));
+}
+
+async function getFamilySubfamilies(familyId, ctx = {}) {
+  if (!isUuid(String(familyId))) return { family: null, subfamilies: [] };
+  const nodeId = nodeIdOf(ctx);
+  const family = await prisma.skuFamily.findFirst({
+    where:  { ...HIER_WHERE, id: String(familyId) },
+    select: { id: true, code: true, name_fr: true, name_ar: true, image_url: true },
+  });
+  if (!family) throw { statusCode: 404, message: 'Famille introuvable' };
+  const groups = await prisma.sku.groupBy({
+    by: ['sku_subfamily_id'],
+    where: and(sellableWhere(nodeId), { sku_family_id: family.id, sku_subfamily_id: { not: null } }),
+    _count: { _all: true },
+  });
+  const counts = new Map(groups.map((g) => [g.sku_subfamily_id, g._count._all]));
+  const subs = counts.size
+    ? await prisma.skuSubFamily.findMany({
+      where:   { ...HIER_WHERE, id: { in: [...counts.keys()] } },
+      orderBy: [{ sort_order: 'asc' }, { name_fr: 'asc' }],
+      select:  { id: true, code: true, name_fr: true, name_ar: true, image_url: true, sort_order: true },
+    })
+    : [];
+  return {
+    family:      { ...family, image_url: toPublicUrl(family.image_url) },
+    subfamilies: subs.map((s) => ({ ...s, image_url: toPublicUrl(s.image_url), article_count: counts.get(s.id) ?? 0 })),
+  };
+}
+
 module.exports = {
   getCategories, getArticlesByCategory, getArticleDetail, searchArticles,
   getCities, getSubCategories, getRecommendedArticles, getPopularArticles,
-  getCartComplements, getTopRatedArticles,
+  getCartComplements, getTopRatedArticles, getFamilies, getFamilySubfamilies, getNodesByCity,
 };

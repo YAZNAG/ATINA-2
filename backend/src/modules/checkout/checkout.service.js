@@ -75,7 +75,7 @@ async function checkStock(node_id, raw_items, { strict = false } = {}) {
       : [i]));
   }
   const sku_ids = cart_items.filter(i => i.sku_id).map(i => i.sku_id);
-  if (!sku_ids.length) return { ok: true, needs_backorder: false, issues: [] };
+  if (!sku_ids.length) return { ok: true, needs_backorder: false, restock_days: 0, issues: [] };
 
   const [stocks, rules] = await Promise.all([
     repo.getStockLevels(node_id, sku_ids),
@@ -86,6 +86,8 @@ async function checkStock(node_id, raw_items, { strict = false } = {}) {
   const ruleMap  = Object.fromEntries(rules.map(r => [r.sku_id, r]));
   const issues = [];
   let needs_backorder = false;
+  let restock_days = 0;   // délai du composant le plus lent (US-074)
+  const backorderedPacks = new Set();
 
   for (const item of cart_items) {
     if (!item.sku_id) continue;
@@ -105,6 +107,8 @@ async function checkStock(node_id, raw_items, { strict = false } = {}) {
     const limit = Number(rule?.backorder_limit ?? 0);
     if (rule?.is_backorderable && (limit === 0 || Number(rule.backordered_quantity ?? 0) + shortage <= limit)) {
       needs_backorder = true;
+      restock_days = Math.max(restock_days, Number(rule.estimated_restock_days ?? 1) || 1);
+      if (item.pack_id) backorderedPacks.add(item.pack_id);
       continue;
     }
 
@@ -114,7 +118,51 @@ async function checkStock(node_id, raw_items, { strict = false } = {}) {
     });
   }
 
-  return { ok: issues.length === 0, needs_backorder, issues };
+  // Un pack vendu en rupture porte aussi son propre délai (packs.estimated_restock_days).
+  if (backorderedPacks.size) {
+    const packs = await prisma.pack.findMany({
+      where: { id: { in: [...backorderedPacks] } },
+      select: { estimated_restock_days: true },
+    });
+    for (const p of packs) restock_days = Math.max(restock_days, Number(p.estimated_restock_days ?? 1) || 1);
+  }
+
+  return { ok: issues.length === 0, needs_backorder, restock_days, issues };
+}
+
+/**
+ * Première date de livraison possible pour ce panier sur ce nœud (US-074, FAQ Packs) :
+ * une unité vendue en rupture exclut les créneaux standard (jour même / lendemain),
+ * le calendrier démarre au plus tôt à aujourd'hui + estimated_restock_days.
+ */
+async function earliestDeliveryDate(node_id, cart_items) {
+  if (!node_id || !Array.isArray(cart_items) || !cart_items.length) {
+    return { needs_backorder: false, restock_days: 0, earliest_date: null };
+  }
+  const stock = await checkStock(node_id, cart_items, { strict: false });
+  if (!stock.needs_backorder) return { needs_backorder: false, restock_days: 0, earliest_date: null };
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + stock.restock_days);
+  return { needs_backorder: true, restock_days: stock.restock_days, earliest_date: d };
+}
+
+const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+
+/** Retire les créneaux d'une date trop proche quand le panier contient une rupture vendue. */
+function applyBackorderWindow(result, checkDate, backorder) {
+  if (!backorder.needs_backorder) return { ...result, needs_backorder: false, earliest_date: null };
+  const tooEarly = dayKey(checkDate) < dayKey(backorder.earliest_date);
+  return {
+    ...result,
+    ...(tooEarly && { slots: [], all_slots: (result.all_slots || []).map((sl) => ({ ...sl, is_backorder_blocked: true })) }),
+    needs_backorder: true,
+    restock_days: backorder.restock_days,
+    earliest_date: dayKey(backorder.earliest_date),
+    ...(tooEarly && {
+      message: `Un article de votre panier est en rupture : livraison possible à partir du ${dayKey(backorder.earliest_date)}`,
+    }),
+  };
 }
 
 // ── Node capacity ─────────────────────────────────────────────────────────────
@@ -665,13 +713,13 @@ async function getDeliverySlots(params) {
       const enriched  = await enrichSlots(daySlots, checkDate);
       const available = enriched.filter(s => !s.is_full && !s.is_past);
 
-      return {
+      return applyBackorderWindow({
         delivery_type: deliveryType,
-        node: { id: node.id, name_fr: node.name_fr, city: node.city },
+        node: { id: node.id, name_fr: node.name_fr, name_ar: node.name_ar, city: node.city },
         slots: available,
         all_slots: enriched,
         date: checkDate.toISOString().split('T')[0],
-      };
+      }, checkDate, await earliestDeliveryDate(node.id, cart_items));
     }
 
     const result = await findEligibleNodes(address_id, cart_items, checkDate);
@@ -689,13 +737,13 @@ async function getDeliverySlots(params) {
     const enriched = await enrichSlots(node.day_slots, checkDate);
     const available = enriched.filter(s => !s.is_full && !s.is_past);
 
-    return {
+    return applyBackorderWindow({
       delivery_type: deliveryType,
-      node: { id: node.id, name_fr: node.name_fr, distance_km: node.distance_km, city: node.city },
+      node: { id: node.id, name_fr: node.name_fr, name_ar: node.name_ar, distance_km: node.distance_km, city: node.city },
       slots: available, all_slots: enriched,
       eligible_count: result.eligible.length,
       date: checkDate.toISOString().split('T')[0],
-    };
+    }, checkDate, await earliestDeliveryDate(node.id, cart_items));
   }
 
   if (isPickup(deliveryType.code)) {
@@ -705,7 +753,10 @@ async function getDeliverySlots(params) {
       const daySlots  = await repo.getSlotsForNodeAndDate(node_id, checkDate);
       const enriched  = await enrichSlots(daySlots, checkDate);
       const available = enriched.filter(s => !s.is_full && !s.is_past);
-      return { delivery_type: deliveryType, node, slots: available, all_slots: enriched, date: checkDate.toISOString().split('T')[0] };
+      return applyBackorderWindow(
+        { delivery_type: deliveryType, node, slots: available, all_slots: enriched, date: checkDate.toISOString().split('T')[0] },
+        checkDate, await earliestDeliveryDate(node.id, cart_items),
+      );
     }
 
     const allNodes = await repo.getAllActiveNodes();
@@ -714,7 +765,10 @@ async function getDeliverySlots(params) {
         const daySlots  = await repo.getSlotsForNodeAndDate(n.id, checkDate);
         const enriched  = await enrichSlots(daySlots, checkDate);
         const available = enriched.filter(s => !s.is_full && !s.is_past);
-        return { id: n.id, name_fr: n.name_fr, name_ar: n.name_ar, city: n.city, slots: available, all_slots: enriched };
+        return applyBackorderWindow(
+          { id: n.id, name_fr: n.name_fr, name_ar: n.name_ar, city: n.city, slots: available, all_slots: enriched },
+          checkDate, await earliestDeliveryDate(n.id, cart_items),
+        );
       })
     );
     return { delivery_type: deliveryType, pickup_nodes: pickupNodes, date: checkDate.toISOString().split('T')[0] };
@@ -863,6 +917,15 @@ async function createOrder(payload, ctx = {}) {
         else throw { statusCode: 409, message: 'Ce créneau est complet, choisissez-en un autre' };
       }
     }
+  }
+  // US-074 : un article vendu en rupture interdit les créneaux avant son réapprovisionnement.
+  const backorderWindow = strict ? { needs_backorder: false } : await earliestDeliveryDate(finalNodeId, cart_items);
+  if (backorderWindow.needs_backorder && slot?.specific_date
+      && dayKey(slot.specific_date) < dayKey(backorderWindow.earliest_date)) {
+    throw {
+      statusCode: 422,
+      message: `Un article de votre panier est en rupture : choisissez un créneau à partir du ${dayKey(backorderWindow.earliest_date)}`,
+    };
   }
   const sourceRow = slot
     ? await prisma.slotAssignmentSource.findFirst({ where: { code: { equals: strict ? 'backoffice' : 'customer', mode: 'insensitive' } } })
@@ -1209,8 +1272,12 @@ async function createOrder(payload, ctx = {}) {
         const [preferred, confirmed, rejected] = await Promise.all(
           ['preferred', 'confirmed', 'rejected'].map((c) => tx.orderSlotStatus.findFirst({ where: { code: c } })),
         );
-        const validSlots = await tx.deliverySlot.findMany({ where: { id: { in: prefIds }, node_id: finalNodeId, is_active: true }, select: { id: true } });
-        const validSet = new Set(validSlots.map((s) => s.id));
+        const validSlots = await tx.deliverySlot.findMany({ where: { id: { in: prefIds }, node_id: finalNodeId, is_active: true }, select: { id: true, specific_date: true } });
+        // Préférences trop proches d'un réapprovisionnement ignorées (US-074).
+        const validSet = new Set(validSlots
+          .filter((sl) => !backorderWindow.needs_backorder || !sl.specific_date
+            || dayKey(sl.specific_date) >= dayKey(backorderWindow.earliest_date))
+          .map((sl) => sl.id));
         let rank = 1;
         for (const sid of prefIds) {
           if (!validSet.has(sid)) continue;

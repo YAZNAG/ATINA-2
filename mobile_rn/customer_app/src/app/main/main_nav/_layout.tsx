@@ -11,8 +11,11 @@ export default function WithNavbarLayout() {
       }}
     >
       <Tabs.Screen name="home" />
-      <Tabs.Screen name="categories" />
-      <Tabs.Screen name="favorites" />
+      <Tabs.Screen name="products" />
+      <Tabs.Screen name="offers" />
+      <Tabs.Screen name="family" options={{ href: null }} />
+      <Tabs.Screen name="categories" options={{ href: null }} />
+      <Tabs.Screen name="favorites" options={{ href: null }} />
       <Tabs.Screen name="category-products" options={{ href: null }} />
       <Tabs.Screen name="product-list" options={{ href: null }} />
     </Tabs>

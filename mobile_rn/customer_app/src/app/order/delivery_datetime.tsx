@@ -17,7 +17,7 @@ import {
 } from '@expo-google-fonts/inter';
 import PageHeader from '../../components/ui/PageHeader';
 import CheckoutStepper from '../../components/ui/CheckoutStepper';
-import { getDeliverySlots, DeliverySlot } from '../../services/order.service';
+import { getDeliverySlots, getMeta, DeliverySlot } from '../../services/order.service';
 
 const RED = '#E10600';
 
@@ -48,7 +48,11 @@ export default function CheckoutDateTimeScreen() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  // Créneaux choisis par ordre de préférence (WF #24) : 1er = créneau demandé, suivants = repli.
+  const [picked, setPicked] = useState<string[]>([]);
+  const selectedSlot = picked[0] ?? null;
+  const [slotSelectionEnabled, setSlotSelectionEnabled] = useState(true);
+  const [backorder, setBackorder] = useState<{ earliest: string | null; message: string | null } | null>(null);
 
   const [slots, setSlots]               = useState<DeliverySlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -73,8 +77,9 @@ export default function CheckoutDateTimeScreen() {
     try {
       setLoadingSlots(true);
       setSlotsError('');
-      setSelectedSlot(null);
+      setPicked([]);
       setResolvedNodeId(null);
+      setBackorder(null);
 
       const dateStr = formatDate(selectedDate);
       const result = await getDeliverySlots({
@@ -87,6 +92,13 @@ export default function CheckoutDateTimeScreen() {
 
       setSlots(result.slots);
       setResolvedNodeId(result.node_id);
+      setBackorder(result.needs_backorder ? { earliest: result.earliest_date, message: result.message } : null);
+      const nodeForMeta = params.node_id ?? result.node_id;
+      if (nodeForMeta) {
+        getMeta(nodeForMeta)
+          .then((m) => setSlotSelectionEnabled(m.node_settings?.slot_selection_enabled !== false))
+          .catch(() => {});
+      }
     } catch (e: any) {
       setSlots([]);
       setSlotsError(e.message || 'Erreur chargement des créneaux');
@@ -125,9 +137,13 @@ export default function CheckoutDateTimeScreen() {
     else setViewMonth(viewMonth + 1);
   };
 
+  const togglePick = (id: string) => {
+    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id]));
+  };
+
   const handleConfirm = () => {
-    if (!selectedDate || !selectedSlot) return;
-    const slot = slots.find((s) => s.id === selectedSlot);
+    if (!selectedDate || (slotSelectionEnabled && !selectedSlot)) return;
+    const slot = slotSelectionEnabled ? slots.find((s) => s.id === selectedSlot) : undefined;
     const nodeId = params.node_id ?? resolvedNodeId ?? undefined;
     router.replace({
       pathname: '/order/payment' as any,
@@ -135,14 +151,15 @@ export default function CheckoutDateTimeScreen() {
         ...params,
         node_id:    nodeId,
         date:       formatDate(selectedDate),
-        slot_id:    selectedSlot,
+        slot_id:    slotSelectionEnabled ? selectedSlot ?? undefined : undefined,
+        slot_prefs: slotSelectionEnabled ? picked.slice(1).join(',') : '',
         slot_start: slot?.start_time,
         slot_end:   slot?.end_time,
       },
     });
   };
 
-  const canConfirm = selectedDate && selectedSlot;
+  const canConfirm = !!selectedDate && (!slotSelectionEnabled ? !backorder?.message : !!selectedSlot);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -204,8 +221,25 @@ export default function CheckoutDateTimeScreen() {
             </View>
           </View>
 
+          {/* ── Rupture (US-074) : livraison possible à partir de la date de réapprovisionnement ── */}
+          {!!backorder && (
+            <View style={styles.backorder}>
+              <Feather name="alert-triangle" size={18} color="#B45309" />
+              <Text style={styles.backorderText}>
+                {backorder.message ?? `Un article de votre panier est en réapprovisionnement : livraison possible à partir du ${backorder.earliest}.`}
+              </Text>
+            </View>
+          )}
+
           {/* ── Créneaux ── */}
-          <Text style={styles.sectionTitle}>Choisir un créneau horaire</Text>
+          <Text style={styles.sectionTitle}>
+            {slotSelectionEnabled ? "Choisir vos créneaux (jusqu'à 3, par préférence)" : 'Créneau de livraison'}
+          </Text>
+          {selectedDate && !slotSelectionEnabled && (
+            <Text style={styles.hintText}>
+              Le créneau vous sera confirmé par l'équipe Atina selon les disponibilités de ce jour.
+            </Text>
+          )}
 
           {!selectedDate ? (
             <Text style={styles.hintText}>Sélectionnez d'abord une date</Text>
@@ -213,7 +247,7 @@ export default function CheckoutDateTimeScreen() {
             <ActivityIndicator color={RED} style={{ marginVertical: 20 }} />
           ) : slotsError ? (
             <Text style={styles.errorText}>{slotsError}</Text>
-          ) : slots.length === 0 ? (
+          ) : !slotSelectionEnabled ? null : slots.length === 0 ? (
             <View style={styles.emptySlots}>
               <Feather name="clock" size={36} color="#E0E0E0" />
               <Text style={styles.emptyText}>
@@ -230,7 +264,8 @@ export default function CheckoutDateTimeScreen() {
           ) : (
             <View style={styles.slotsGrid}>
               {slots.map((slot) => {
-                const active   = selectedSlot === slot.id;
+                const rank     = picked.indexOf(slot.id);
+                const active   = rank !== -1;
                 const disabled = slot.available === false;
                 return (
                   <TouchableOpacity
@@ -240,7 +275,7 @@ export default function CheckoutDateTimeScreen() {
                       active && styles.slotChipActive,
                       disabled && styles.slotChipDisabled,
                     ]}
-                    onPress={() => !disabled && setSelectedSlot(slot.id)}
+                    onPress={() => !disabled && togglePick(slot.id)}
                     disabled={disabled}
                     activeOpacity={0.85}
                   >
@@ -251,6 +286,7 @@ export default function CheckoutDateTimeScreen() {
                     ]}>
                       {slot.start_time} - {slot.end_time}
                     </Text>
+                    {active && <Text style={[styles.slotText, styles.slotTextActive, styles.slotRank]}>{rank === 0 ? '1er choix' : `${rank + 1}e choix`}</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -279,6 +315,12 @@ export default function CheckoutDateTimeScreen() {
 }
 
 const styles = StyleSheet.create({
+  backorder: {
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: '#FFFBEB',
+    borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, padding: 12, marginHorizontal: 16, marginTop: 12,
+  },
+  backorderText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#92400E', fontFamily: 'Poppins_500Medium' },
+  slotRank: { fontSize: 10.5, marginTop: 2 },
   safeArea:  { flex: 1, backgroundColor: '#fff' },
   container: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 12 },
 

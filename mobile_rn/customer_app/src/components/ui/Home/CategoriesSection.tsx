@@ -2,11 +2,11 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import CategoryList from '../CategoryList';
 import SectionHeader from '../SectionHeader';
-import { Category } from '../../../services/catalog.service';
+import { Category, EntityId } from '../../../services/catalog.service';
 
 interface CategoriesSectionProps {
   categories: Category[];
-  selectedId: number | null;
+  selectedId: EntityId | null;
   onSelect: (cat: Category) => void;
   onSeeAll: () => void;
 }

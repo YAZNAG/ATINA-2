@@ -1,37 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { ProfileService } from '../../services/profile.service';
 import { getToken } from '../../services/customer_auth.service';
 import {
-  RED, RED_SOFT, RED_TINT, INK, GREY, LINE, LANG_KEY, Lang, PrimaryButton, prefSet,
+  RED, RED_SOFT, INK, GREY, LANG_KEY, Lang, PrimaryButton, prefSet,
 } from '../../components/onboarding/onboardingKit';
 
 export { LANG_KEY };
 
 const LANGUAGES: { code: Lang; label: string; hint: string }[] = [
-  { code: 'fr', label: 'Français', hint: 'Continuer en français' },
-  { code: 'ar', label: 'العربية', hint: 'المتابعة باللغة العربية' },
+  { code: 'fr', label: 'Français', hint: 'Continuer en français.' },
+  { code: 'ar', label: 'العربية', hint: 'المتابعة باللغة العربية.' },
 ];
 
-/** Drapeaux dessinés (les emoji drapeaux ne s'affichent pas sur toutes les plateformes). */
+/** Drapeaux de la maquette Figma. */
+const FLAGS = {
+  fr: require('../../../assets/images/atina/flag_fr.png'),
+  ar: require('../../../assets/images/atina/flag_ma.png'),
+};
 function Flag({ code }: { code: Lang }) {
-  if (code === 'fr') {
-    return (
-      <View style={[styles.flagCircle, { flexDirection: 'row' }]}>
-        <View style={{ flex: 1, backgroundColor: '#1F3F99' }} />
-        <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
-        <View style={{ flex: 1, backgroundColor: '#E1251B' }} />
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.flagCircle, { backgroundColor: '#C1272D', alignItems: 'center', justifyContent: 'center' }]}>
-      <MaterialCommunityIcons name="star-outline" size={20} color="#006233" />
-    </View>
-  );
+  return <Image source={FLAGS[code]} style={styles.flag} resizeMode="cover" />;
 }
 
 /** Choix de la langue (maquette « page choix langue »). */
@@ -78,8 +69,8 @@ export default function LanguageScreen() {
 
         <Text style={styles.title}>Choisissez votre langue</Text>
         <Text style={styles.subtitle}>
-          Sélectionnez la langue que vous souhaitez utiliser dans l'application. Vous pourrez la modifier à tout moment
-          depuis votre profil.
+          Sélectionnez la langue que vous souhaitez utiliser. Vous pourrez la modifier à tout moment dans les
+          paramètres.
         </Text>
 
         <View style={styles.options} accessibilityRole="radiogroup">
@@ -97,11 +88,9 @@ export default function LanguageScreen() {
                 <Flag code={lang.code} />
                 <View style={styles.cardText}>
                   <Text style={[styles.cardLabel, active && styles.cardLabelActive]}>{lang.label}</Text>
-                  <Text style={styles.cardHint}>{lang.hint}</Text>
+                  <Text style={[styles.cardHint, active && styles.cardHintActive]}>{lang.hint}</Text>
                 </View>
-                <View style={[styles.radio, active && styles.radioActive]}>
-                  {active && <View style={styles.radioDot} />}
-                </View>
+                {active && <Feather name="check-circle" size={18} color={RED} />}
               </TouchableOpacity>
             );
           })}
@@ -146,24 +135,17 @@ const styles = StyleSheet.create({
   options: { alignSelf: 'stretch', gap: 12 },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderWidth: 1.5, borderColor: LINE, borderRadius: 14, backgroundColor: '#fff',
-    paddingVertical: 14, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: 'transparent', borderRadius: 14, backgroundColor: '#fff',
+    paddingVertical: 16, paddingHorizontal: 16,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  cardActive: { borderColor: RED, backgroundColor: RED_TINT },
-  flagCircle: {
-    width: 36, height: 36, borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#EDEDED',
-  },
+  cardActive: { borderColor: RED, backgroundColor: RED_SOFT },
+  flag: { width: 26, height: 18, borderRadius: 3 },
   cardText: { flex: 1 },
   cardLabel: { fontSize: 15.5, color: INK, fontFamily: 'Poppins_600SemiBold' },
   cardLabelActive: { color: RED },
   cardHint: { fontSize: 12, color: GREY, fontFamily: 'Poppins_400Regular', marginTop: 1 },
-  radio: {
-    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#CFCFCF',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioActive: { borderColor: RED },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: RED },
+  cardHintActive: { color: RED },
 
   footer: { paddingHorizontal: 24, paddingBottom: 16, paddingTop: 8 },
 });

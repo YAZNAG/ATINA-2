@@ -82,7 +82,7 @@ async function getMyReview(articleId: string | number): Promise<Review | null> {
   }
 }
 
-async function create(articleId: number, payload: CreateReviewPayload): Promise<Review> {
+async function create(articleId: string | number, payload: CreateReviewPayload): Promise<Review> {
   try {
     const { data } = await api.post(`/customer/reviews/articles/${articleId}`, payload);
     return data.data;

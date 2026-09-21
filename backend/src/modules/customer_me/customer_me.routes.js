@@ -37,6 +37,9 @@ router.put('/email',               ctrl.updateEmail.bind(ctrl));
 router.post('/phone/request-otp',  ctrl.requestPhoneChange.bind(ctrl));
 router.post('/phone/verify-otp',   ctrl.confirmPhoneChange.bind(ctrl));
 router.put('/password',            ctrl.changePassword.bind(ctrl));
+// Suppression du compte par le client (loi 09-08, exigence Google Play)
+router.post('/delete-account/request-otp', ctrl.requestDeleteAccountOtp.bind(ctrl));
+router.post('/delete-account',     ctrl.deleteAccount.bind(ctrl));
 
 // Avatar
 router.post('/avatar',   uploadAvatar, ctrl.uploadAvatar.bind(ctrl));

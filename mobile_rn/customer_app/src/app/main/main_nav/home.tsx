@@ -25,7 +25,7 @@ import HomeListHeader from '@/components/ui/Home/HomeListHeader';
 
 import { favoritesStore } from '../../../store/favoritesStore';
 
-import { CatalogService, Category, Article } from '../../../services/catalog.service';
+import { CatalogService, Category, Article, EntityId } from '../../../services/catalog.service';
 import { ProfileService, Address, Profile }  from '../../../services/profile.service';
 import { CartService } from '../../../services/cart.service';
 import {
@@ -35,6 +35,7 @@ import {
   BestDeal, EndingSoonResponse
 } from '../../../services/promotions.service';
 import { useNotification } from '../../../context/NotificationContext';
+import { usePackAvailability } from '../../../hooks/usePackAvailability';
 
 const { width } = Dimensions.get('window');
 const RED = '#E10600';
@@ -55,15 +56,19 @@ export default function HomeScreen() {
   const [articles, setArticles]       = useState<Article[]>([]);
   const [recommended, setRecommended] = useState<Article[]>([]);
   const [popular, setPopular]         = useState<Article[]>([]);
-  const [selectedCat, setSelectedCat] = useState<number | null>(null);
+  const [selectedCat, setSelectedCat] = useState<EntityId | null>(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [filterVisible, setFilterVisible]   = useState(false);
-  const [selectedCats, setSelectedCats]     = useState<number[]>([]);
+  const [selectedCats, setSelectedCats]     = useState<EntityId[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
   const [promotions, setPromotions]         = useState<FlashSaleSummary[]>([]);
   const [packs,      setPacks]              = useState<PackSummary[]>([]);
+  // Un pack devenu indisponible disparaît du carrousel sans rechargement (WF #23).
+  usePackAvailability((e) => {
+    if (!e.is_available || !e.is_active || e.is_deleted) setPacks((prev) => prev.filter((p) => p.id !== e.pack_id));
+  });
   const [bestDeals,  setBestDeals]          = useState<BestDeal[]>([]);
   const [endingSoon, setEndingSoon] = useState<EndingSoonResponse>({ ends_at: null, products: [] });
   const [activeSlide, setActiveSlide]       = useState(0);
@@ -78,7 +83,7 @@ export default function HomeScreen() {
             CatalogService.getArticles({ limit: 50, category_id: catId }).catch(() => [])
           )
         );
-        const merged = new Map<number, Article>();
+        const merged = new Map<EntityId, Article>();
         results.flat().forEach((a) => merged.set(a.id, a));
         setArticles(Array.from(merged.values()));
       } else {
@@ -169,7 +174,7 @@ export default function HomeScreen() {
   }, [articles, selectedCat, selectedCats]);
 
   const suggestions = useMemo(() => {
-    const seen = new Set<number>();
+    const seen = new Set<EntityId>();
     const merged: Article[] = [];
     [...recommended, ...complements].forEach((a) => {
       if (!seen.has(a.id)) {
@@ -193,7 +198,7 @@ export default function HomeScreen() {
     setSelectedCats([]);
   }, []);
 
-  const handleApplyFilter = useCallback((ids: number[]) => {
+  const handleApplyFilter = useCallback((ids: EntityId[]) => {
     setSelectedCats(ids);
     setSelectedCat(null);
     setFilterVisible(false);

@@ -4,7 +4,7 @@ import {
   Modal, FlatList, Dimensions, SectionList,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Category, SubCategory } from '../../services/catalog.service';
+import { Category, SubCategory, EntityId } from '../../services/catalog.service';
 import {
   useFonts,
   Inter_400Regular, Inter_500Medium,
@@ -18,9 +18,9 @@ interface FilterModalProps {
   visible:       boolean;
   categories:    Category[];
   subCategories: SubCategory[];
-  selected:      number[];
-  selectedSubs:  number[];
-  onApply:       (selectedIds: number[], selectedSubIds: number[]) => void;
+  selected:      EntityId[];
+  selectedSubs:  EntityId[];
+  onApply:       (selectedIds: EntityId[], selectedSubIds: EntityId[]) => void;
   onClose:       () => void;
 }
 
@@ -28,8 +28,8 @@ export default function FilterModal({
   visible, categories, subCategories, selected, selectedSubs, onApply, onClose,
 }: FilterModalProps) {
 
-  const [checked,     setChecked]     = useState<number[]>(selected);
-  const [checkedSubs, setCheckedSubs] = useState<number[]>(selectedSubs);
+  const [checked,     setChecked]     = useState<EntityId[]>(selected);
+  const [checkedSubs, setCheckedSubs] = useState<EntityId[]>(selectedSubs);
   const [fontsLoaded] = useFonts({
     Inter_400Regular, Inter_500Medium,
     Inter_600SemiBold, Inter_700Bold,

@@ -59,6 +59,7 @@ export default function CardPaymentScreen() {
     address_id?:         string;
     cart_items?:         string;
     slot_id?:            string;
+    slot_prefs?:          string;
     payment_method_code: string;
     card_amount:         string;
     wallet_amount:       string;
@@ -99,6 +100,7 @@ export default function CardPaymentScreen() {
         node_id:             params.node_id,
         address_id:          params.address_id,
         slot_id:             params.slot_id,
+        slot_preference_ids: params.slot_prefs ? String(params.slot_prefs).split(',').filter(Boolean) : undefined,
         payment_method_code: params.payment_method_code ?? 'card',
         wallet_used:         walletAmount > 0 ? walletAmount : undefined,
         promo_code:          params.promo_code || undefined,

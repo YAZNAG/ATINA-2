@@ -52,10 +52,43 @@ async function updateProfile(customerId, body) {
   if (body.lat            !== undefined) data.lat            = body.lat  ?? null;
   if (body.lng            !== undefined) data.lng            = body.lng  ?? null;
 
-  if (data.name === '') throw { statusCode: 400, message: 'Nom invalide' };
-  if (!Object.keys(data).length) throw { statusCode: 400, message: 'Aucun champ à mettre à jour' };
+  // Ville déclarée (customers.city_id) : sert au choix du node du catalogue.
+  if (body.city_id !== undefined) {
+    if (!body.city_id) data.city_id = null;
+    else {
+      const city = await prisma.city.findFirst({
+        where: { id: String(body.city_id), is_deleted: false, is_active: true },
+        select: { id: true, name_fr: true },
+      });
+      if (!city) throw { statusCode: 400, message: 'Ville introuvable' };
+      data.city_id = city.id;
+      if (body.city === undefined) data.city = city.name_fr;
+    }
+  }
 
-  await prisma.customer.update({ where: { id: customerId }, data });
+  // Code de parrainage saisi à l'inscription (US-104) : une seule fois, jamais le sien.
+  const code = body.referral_code ? String(body.referral_code).trim().toUpperCase() : '';
+  if (code) {
+    const me = await prisma.customer.findUnique({
+      where: { id: customerId }, select: { referred_by_id: true, referral_code: true },
+    });
+    if (me?.referred_by_id) throw { statusCode: 409, message: 'Un code de parrainage est déjà enregistré sur votre compte' };
+    if (me?.referral_code === code) throw { statusCode: 400, message: 'Vous ne pouvez pas utiliser votre propre code' };
+    const referrer = await prisma.customer.findFirst({
+      where: { referral_code: code, is_deleted: false }, select: { id: true },
+    });
+    if (!referrer) throw { statusCode: 404, message: 'Code de parrainage introuvable' };
+  }
+
+  if (data.name === '') throw { statusCode: 400, message: 'Nom invalide' };
+  if (!Object.keys(data).length && !code) throw { statusCode: 400, message: 'Aucun champ à mettre à jour' };
+
+  if (Object.keys(data).length) await prisma.customer.update({ where: { id: customerId }, data });
+  if (code) {
+    // eslint-disable-next-line global-require
+    const { createReferralOnRegistration } = require('../loyalty/loyalty.service');
+    await createReferralOnRegistration(customerId, code);
+  }
   return getProfile(customerId);
 }
 
@@ -558,4 +591,99 @@ async function removeAvatar(customerId) {
   return getProfile(customerId);
 }
 
-module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById, updateEmail, changePassword, requestPhoneChange, confirmPhoneChange, uploadAvatar, removeAvatar, listFavorites, addFavorite, removeFavorite };
+// ── Suppression de compte (loi 09-08, exigence Google Play) ─────────────────
+/**
+ * Le client supprime lui-même son compte. Conformément aux conventions du
+ * classeur (soft-delete, rien n'est effacé physiquement), le compte est
+ * désactivé et ses données personnelles sont ANONYMISÉES : nom, téléphone,
+ * e-mail, adresses, avatar. Les commandes restent (obligation comptable)
+ * mais ne pointent plus que vers un client anonyme.
+ *
+ * Refusé s'il reste une commande en cours ou de l'argent dans le portefeuille :
+ * le client doit d'abord être livré ou remboursé.
+ */
+/** Envoie le code de confirmation de suppression (même mécanisme que la connexion). */
+async function requestDeleteAccountOtp(customerId) {
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false }, select: { user_id: true },
+  });
+  if (!customer?.user_id) throw { statusCode: 404, message: 'Compte introuvable' };
+  await prisma.user.update({
+    where: { id: customer.user_id },
+    data: { otp_code: '0000', otp_expires_at: new Date(Date.now() + 10 * 60 * 1000) },
+  });
+  return { message: 'Code envoyé par SMS' };
+}
+
+async function deleteAccount(customerId, body = {}) {
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false },
+    select: { id: true, user_id: true, wallet_balance: true },
+  });
+  if (!customer) throw { statusCode: 404, message: 'Compte introuvable' };
+
+  const user = customer.user_id
+    ? await prisma.user.findUnique({ where: { id: customer.user_id } })
+    : null;
+  if (!user) throw { statusCode: 404, message: 'Compte introuvable' };
+  // Confirmation : code reçu par SMS (parcours sans mot de passe) ou mot de passe.
+  if (body.otp) {
+    if (!user.otp_code || String(body.otp) !== user.otp_code) throw { statusCode: 400, message: 'Code incorrect. Réessayez.' };
+    if (user.otp_expires_at && user.otp_expires_at < new Date()) throw { statusCode: 400, message: 'Code expiré. Demandez un nouveau code.' };
+  } else if (body.password) {
+    if (!(await bcrypt.compare(String(body.password), user.password_hash))) throw { statusCode: 401, message: 'Mot de passe incorrect' };
+  } else {
+    throw { statusCode: 400, message: 'Code de confirmation requis' };
+  }
+
+  const pending = await prisma.order.count({
+    where: { customer_id: customerId, is_deleted: false, status: { is_terminal: false } },
+  });
+  if (pending > 0) {
+    throw { statusCode: 409, message: `Vous avez ${pending} commande(s) en cours : la suppression sera possible après leur livraison ou leur annulation.` };
+  }
+  if (Number(customer.wallet_balance) > 0) {
+    throw { statusCode: 409, message: 'Votre portefeuille contient encore de l\u2019argent : contactez le support pour le récupérer avant de supprimer votre compte.' };
+  }
+
+  const now = new Date();
+  const tag = customerId.replace(/-/g, '').slice(0, 10);
+  const randomSecret = await bcrypt.hash(require('crypto').randomBytes(32).toString('hex'), 10);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        is_deleted: true, deleted_at: now, is_active: false,
+        name: 'Client supprimé', phone_number: `x${tag}`.slice(0, 15), phone_verified_at: null,
+        avatar_url: null, city: null, city_id: null, lat: null, lng: null,
+      },
+    });
+    await tx.address.updateMany({
+      where: { customer_id: customerId },
+      data: {
+        is_deleted: true, deleted_at: now, is_default: false,
+        label: null, street_number: null, street_name: 'Adresse supprimée', quartier: null,
+        postal_code: null, lat: null, lng: null, phone: null, recipient_name: null,
+      },
+    });
+    await tx.wishlist.deleteMany({ where: { customer_id: customerId } });
+    const cart = await tx.cart.findUnique({ where: { customer_id: customerId }, select: { id: true } });
+    if (cart) await tx.cartItem.deleteMany({ where: { cart_id: cart.id } });
+    if (user) {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          is_deleted: true, deleted_at: now, is_active: false, status: 'deleted',
+          full_name: 'Client supprimé', email: `supprime-${user.id}@atina.invalid`,
+          phone: null, phone_number: null, phone_verified_at: null,
+          password_hash: randomSecret, otp_code: null, otp_expires_at: null,
+        },
+      });
+    }
+  });
+
+  return { deleted: true, deleted_at: now };
+}
+
+module.exports = { getProfile, updateProfile, listAddresses, createAddress, updateAddress, setDefaultAddress, deleteAddress, listOrders, getOrderById, updateEmail, changePassword, requestPhoneChange, confirmPhoneChange, uploadAvatar, removeAvatar, listFavorites, addFavorite, removeFavorite, deleteAccount, requestDeleteAccountOtp };

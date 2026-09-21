@@ -18,7 +18,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import SearchBar from '@/components/ui/SearchBar';
 import { favoritesStore } from '../../../store/favoritesStore';
 
-import { CatalogService, Article, ArticlesResponse, SubCategory, Category } from '../../../services/catalog.service';
+import { CatalogService, Article, ArticlesResponse, SubCategory, Category, EntityId } from '../../../services/catalog.service';
 import { ProfileService } from '../../../services/profile.service';
 
 const RED = '#E10600';
@@ -57,7 +57,7 @@ export default function CategoryProductsScreen() {
   const [articles, setArticles]           = useState<Article[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [selectedSub, setSelectedSub]     = useState<number | null>(null);
+  const [selectedSub, setSelectedSub]     = useState<EntityId | null>(null);
   const [search, setSearch]               = useState('');
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
@@ -65,8 +65,8 @@ export default function CategoryProductsScreen() {
   const [totalPages, setTotalPages]       = useState(1);
   const [loadingMore, setLoadingMore]     = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
-  const [selectedCats, setSelectedCats]   = useState<number[]>([]);
-  const [selectedSubs, setSelectedSubs]   = useState<number[]>([]);
+  const [selectedCats, setSelectedCats]   = useState<EntityId[]>([]);
+  const [selectedSubs, setSelectedSubs]   = useState<EntityId[]>([]);
 
   const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
   const catName = Array.isArray(category_name) ? category_name[0] : (category_name || 'Catégorie');

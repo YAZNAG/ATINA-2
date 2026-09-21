@@ -44,6 +44,7 @@ export interface Node {
 export interface Meta {
   payment_methods:  PaymentMethod[];
   delivery_types:   DeliveryType[];
+  node_settings?:   { slot_selection_enabled?: boolean; min_order_amount?: number; delivery_fee?: number } | null;
 }
 
 export interface CreateOrderPayload {
@@ -52,6 +53,8 @@ export interface CreateOrderPayload {
   node_id?:            string;
   address_id?:         string;
   slot_id?:            string;
+  /** Créneaux de repli classés par préférence (WF #24) ; le premier choix est slot_id. */
+  slot_preference_ids?: string[];
   payment_method_code: string;
   notes?:              string;
   wallet_used?:        number;
@@ -107,6 +110,10 @@ export interface OrderCalculation {
 export interface DeliverySlotsResult {
   slots:   DeliverySlot[];
   node_id: string | null;
+  /** US-074 : article en rupture → pas de livraison avant earliest_date (AAAA-MM-JJ). */
+  needs_backorder: boolean;
+  earliest_date:   string | null;
+  message:         string | null;
 }
 
 function unwrap<T>(data: any): T {
@@ -178,6 +185,9 @@ export async function getDeliverySlots(params: {
 
   return {
     node_id: result?.node?.id ?? null,
+    needs_backorder: !!result?.needs_backorder,
+    earliest_date:   result?.earliest_date ?? null,
+    message:         result?.message ?? null,
     slots: rawSlots.map((s: any) => ({
       id:         s.id,
       name:       s.name_fr ?? s.name ?? '',

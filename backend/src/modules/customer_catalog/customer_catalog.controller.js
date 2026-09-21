@@ -47,6 +47,21 @@ class CustomerCatalogController {
     catch (e) { E(res, next, e); }
   }
 
+  async nodes(req, res, next) {
+    try { resp.success(res, await svc.getNodesByCity(req.query.city_id)); }
+    catch (e) { E(res, next, e); }
+  }
+
+  async families(req, res, next) {
+    try { resp.success(res, await svc.getFamilies(await ctxOf(req))); }
+    catch (e) { E(res, next, e); }
+  }
+
+  async familySubfamilies(req, res, next) {
+    try { resp.success(res, await svc.getFamilySubfamilies(req.params.id, await ctxOf(req))); }
+    catch (e) { E(res, next, e); }
+  }
+
   async subCategories(req, res, next) {
     try { resp.success(res, await svc.getSubCategories(req.params.id, await ctxOf(req))); }
     catch (e) { E(res, next, e); }

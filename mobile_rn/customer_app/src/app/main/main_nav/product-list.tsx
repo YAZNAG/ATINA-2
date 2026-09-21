@@ -8,7 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import PageHeader from '../../../components/ui/PageHeader';
 import ProductCard from '../../../components/ui/ProductCard';
 
-import { CatalogService, Article } from '../../../services/catalog.service';
+import { CatalogService, Article, EntityId } from '../../../services/catalog.service';
 import { favoritesStore } from '../../../store/favoritesStore';
 import { ProfileService } from '../../../services/profile.service';
 import { CartService } from '../../../services/cart.service';
@@ -77,7 +77,7 @@ export default function ProductListScreen() {
             compData = res.data;
             compHasMore = res.hasMore;
           }
-          const seen = new Set<number>();
+          const seen = new Set<EntityId>();
           const merged: Article[] = [];
           [...recs, ...compData].forEach((a) => {
             if (!seen.has(a.id)) { seen.add(a.id); merged.push(a); }

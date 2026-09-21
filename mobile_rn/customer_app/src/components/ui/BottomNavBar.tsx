@@ -8,11 +8,11 @@ import { useCartCount } from '../../context/CartContext';
 const RED = '#E10600';
 
 const TABS = [
-  { name: 'Accueil',    icon: 'home',          route: '/main/main_nav/home',       match: ['/main/main_nav/home', '/main/main_nav/product-list'] },
-  { name: 'Catégories', icon: 'grid',           route: '/main/main_nav/categories', match: ['/main/main_nav/categories', '/main/main_nav/category-products'] },
-  { name: 'Panier',     icon: 'shopping-cart',  route: '/main/cart',       match: ['/main/cart'] },
-  { name: 'Favoris',    icon: 'heart',          route: '/main/main_nav/favorites',  match: ['/main/main_nav/favorites'] },
-  { name: 'Profil',     icon: 'user',           route: '/profile/profile', match: ['/profile/profile'] },
+  { name: 'Accueil',  icon: 'home',          route: '/main/main_nav/home',     match: ['/main/main_nav/home', '/main/main_nav/product-list'] },
+  { name: 'Produits', icon: 'grid',          route: '/main/main_nav/products', match: ['/main/main_nav/products', '/main/main_nav/family', '/main/main_nav/categories', '/main/main_nav/category-products'] },
+  { name: 'Panier',   icon: 'shopping-cart', route: '/main/cart',              match: ['/main/cart'] },
+  { name: 'Offres',   icon: 'gift',          route: '/main/main_nav/offers',   match: ['/main/main_nav/offers'] },
+  { name: 'Profil',   icon: 'user',          route: '/profile/profile',        match: ['/profile/profile', '/main/main_nav/favorites'] },
 ];
 
 function normalize(p: string) {

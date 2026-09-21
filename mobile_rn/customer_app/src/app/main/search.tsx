@@ -17,7 +17,7 @@ import {
 import ProductCard from '../../components/ui/ProductCard';
 import SearchBar from '../../components/ui/SearchBar';
 import FilterModal from '../../components/ui/FilterModal';
-import { CatalogService, Article, Category } from '../../services/catalog.service';
+import { CatalogService, Article, Category, EntityId } from '../../services/catalog.service';
 import { ProfileService } from '../../services/profile.service';
 import { favoritesStore } from '../../store/favoritesStore';
 import { sortArticles } from '../../components/ui/SortBar';
@@ -52,7 +52,7 @@ export default function SearchScreen() {
 
   const [categories, setCategories]     = useState<Category[]>([]);
   const [filterVisible, setFilterVisible] = useState(false);
-  const [selectedCats, setSelectedCats] = useState<number[]>([]);
+  const [selectedCats, setSelectedCats] = useState<EntityId[]>([]);
 
   useEffect(() => {
     ProfileService.listFavorites()
@@ -116,7 +116,7 @@ export default function SearchScreen() {
     (a, b) => (popularIds.has(a.id) ? 0 : 1) - (popularIds.has(b.id) ? 0 : 1)
   );
 }
-    case 'newest': return [...results].sort((a, b) => b.id - a.id);
+    case 'newest': return [...results].sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
     default:       return results;
   }
 })();

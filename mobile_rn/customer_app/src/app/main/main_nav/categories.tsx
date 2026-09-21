@@ -15,7 +15,7 @@ import {
 import FilterModal   from '../../../components/ui/FilterModal';
 import PageHeader    from '../../../components/ui/PageHeader';
 import SearchBar     from '../../../components/ui/SearchBar';
-import { CatalogService, Category } from '../../../services/catalog.service';
+import { CatalogService, Category, EntityId } from '../../../services/catalog.service';
 
 const { width } = Dimensions.get('window');
 const RED       = '#E10600';
@@ -60,7 +60,7 @@ export default function CategoriesScreen() {
   const [refreshing, setRefreshing]       = useState(false);
   const [search, setSearch]               = useState('');
   const [filterVisible, setFilterVisible] = useState(false);
-  const [selectedCats, setSelectedCats]   = useState<number[]>([]);
+  const [selectedCats, setSelectedCats]   = useState<EntityId[]>([]);
 
   const loadCategories = async () => {
     try {

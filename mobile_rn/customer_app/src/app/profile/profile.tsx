@@ -3,13 +3,15 @@ import { useNotification } from '../../context/NotificationContext';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   TouchableOpacity, Image, ActivityIndicator,
-  Switch, ScrollView,
+  Switch, ScrollView, Share,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ProfileService, Profile } from '../../services/profile.service';
 import { GamesService } from '../../services/games.service';
-import * as SecureStore from 'expo-secure-store';
+import { logout } from '../../services/customer_auth.service';
+import { openLegal } from '../../services/appInfo.service';
+import { setNodeId } from '../../store/nodePref';
 import { CONFIG } from '../../constants/config';
 import PageHeader from '../../components/ui/PageHeader';
 
@@ -108,9 +110,19 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
   }, []));
 
   const handleLogout = async () => {
-    await SecureStore.deleteItemAsync('token');
-    await SecureStore.deleteItemAsync('user');
+    await logout();
+    await setNodeId(null);
     router.replace('/auth/login' as any);
+  };
+
+  // Parrainage (US-104) : partage du code personnel.
+  const shareReferral = async () => {
+    if (!profile?.referral_code) return;
+    try {
+      await Share.share({
+        message: `Rejoignez-moi sur Atina et profitez de vos courses livrées ! Utilisez mon code de parrainage ${profile.referral_code} à l'inscription.`,
+      });
+    } catch { /* partage annulé */ }
   };
 
   const avatarSrc = profile?.avatar_url
@@ -246,6 +258,13 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
             label="Wallet"
             onPress={() => router.push('/profile/WalletScreen' as any)}
           />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="share-2"
+            label="Parrainer un ami"
+            onPress={shareReferral}
+            rightContent={profile?.referral_code ? <Text style={styles.infoText}>{profile.referral_code}</Text> : undefined}
+          />
         </View>
 
         {/* ── Paramètres ────────────────────────────────────────────────── */}
@@ -287,13 +306,19 @@ const langLabel = LANG_LABELS[profile?.preferred_lang ?? 'fr'] ?? profile?.prefe
           <MenuRow
             icon="file-text"
             label="Conditions d'utilisation"
-            onPress={() => {}}
+            onPress={() => openLegal('cgu')}
           />
           <View style={styles.divider} />
           <MenuRow
             icon="lock"
             label="Politique de confidentialité"
-            onPress={() => {}}
+            onPress={() => openLegal('privacy')}
+          />
+          <View style={styles.divider} />
+          <MenuRow
+            icon="trash-2"
+            label="Supprimer mon compte"
+            onPress={() => router.push('/profile/delete-account' as any)}
           />
         </View>
 

@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import SearchBar from '../SearchBar';
-import { Category, Article } from '../../../services/catalog.service';
+import { Category, Article, EntityId } from '../../../services/catalog.service';
 import { SlideItem, BestDeal, EndingSoonResponse } from '../../../services/promotions.service';
 
 import PromoSlidesSection  from './PromoSlidesSection';
@@ -22,7 +22,7 @@ interface HomeListHeaderProps {
   endingSoon: EndingSoonResponse;
 
   categories: Category[];
-  selectedCat: number | null;
+  selectedCat: EntityId | null;
   onSelectCategory: (cat: Category) => void;
   onSeeAllCategories: () => void;
 

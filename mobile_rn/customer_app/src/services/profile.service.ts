@@ -167,7 +167,7 @@ export const ProfileService = {
         }
     },
 
-    async updateProfile(data: Partial<{ name: string; city: string; preferred_lang: string}>): Promise<Profile>{
+    async updateProfile(data: Partial<{ name: string; city: string; city_id: string; preferred_lang: string; referral_code: string }>): Promise<Profile>{
         try{
             const response=await api.put('/customer/me', data)
             return response.data.data
@@ -339,6 +339,20 @@ async changePassword(old_password: string, new_password: string): Promise<{ mess
     return response.data.data ?? response.data;
   } catch (err: any) {
     throw new Error(err.response?.data?.message || 'Erreur changement mot de passe');
+  }
+},
+
+// Suppression de compte (loi 09-08) : code SMS de confirmation.
+async requestDeleteAccountOtp(): Promise<{ message: string }> {
+  const response = await api.post('/customer/me/delete-account/request-otp');
+  return response.data.data;
+},
+
+async deleteAccount(otp: string): Promise<void> {
+  try {
+    await api.post('/customer/me/delete-account', { otp });
+  } catch (err: any) {
+    throw new Error(err?.message || 'Suppression impossible');
   }
 },
 

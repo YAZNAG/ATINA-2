@@ -104,6 +104,17 @@ class CustomerMeController {
     try { resp.success(res, await svc.confirmPhoneChange(req.customerId, req.body), 'Téléphone mis à jour'); }
     catch(e) { E(res, next, e); }
   }
+  async requestDeleteAccountOtp(req, res, next) {
+    try { resp.success(res, await svc.requestDeleteAccountOtp(req.customerId), 'Code envoyé'); }
+    catch(e) { E(res, next, e); }
+  }
+
+  // Suppression de compte (loi 09-08) : code SMS (ou mot de passe) exigé en confirmation.
+  async deleteAccount(req, res, next) {
+    try { resp.success(res, await svc.deleteAccount(req.customerId, req.body), 'Compte supprimé'); }
+    catch(e) { E(res, next, e); }
+  }
+
   async changePassword(req, res, next) {
     try { resp.success(res, await svc.changePassword(req.customerId, req.body), 'Mot de passe modifié'); }
     catch(e) { E(res, next, e); }

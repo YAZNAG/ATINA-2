@@ -65,7 +65,7 @@ function buildWelcomeMessages(conversationId: string, customerName?: string): Pe
       conversation_id: conversationId,
       sender_type: 'AGENT',
       sender_id: 'system',
-      content: "Bienvenue sur le support El Herri. Comment puis-je vous aider aujourd'hui ?",
+      content: "Bienvenue sur le support Atina. Comment puis-je vous aider aujourd'hui ?",
       attachments: [],
       created_at: now,
     },
@@ -323,7 +323,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <PageHeader title='Support El Herri'/>
+        <PageHeader title='Support Atina'/>
 
         {/* Messages */}
         <FlatList

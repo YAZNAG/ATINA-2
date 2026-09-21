@@ -55,6 +55,8 @@ const router = Router();
 // ── Routes publiques/propres — MUST come before wildcard mounts ('/') ─────────
 // nodeRoutes / locationRoutes appliquent router.use(auth) qui intercepte TOUT
 // via router.use('/') → ces routes doivent être montées AVANT.
+// Messages de l'API en arabe pour l'app cliente (en-tête X-Lang: ar) — contrainte bilingue du classeur
+router.use('/customer', require('../utils/i18n-messages').localizeMessages);
 router.use('/customer/auth',     customerAuthRoutes);
 router.use('/customer/catalog',  customerCatalogRoutes);
 router.use('/customer/me',       customerMeRoutes);
@@ -73,6 +75,8 @@ router.use('/customer/substitutions', customerSubstitutionRoutes);
 router.use('/customer/orders', customerOrderSubstitutionRoutes);
 router.use('/customer/points-exchange', require('../modules/points_exchange/customer_points_exchange.routes'));
 router.use('/customer/games', require('../modules/customer_games/customer_games.routes'));
+// Contacts du support et liens légaux affichés dans l'app (US-007 / US-119), public
+router.use('/customer/app-info', require('../modules/customer_app_info/customer_app_info.routes'));
 router.use('/picker',            pickerPortalRoutes);   // ← login public /picker/login
 router.use('/driver',            driverPortalRoutes);   // ← login public /driver/login
 

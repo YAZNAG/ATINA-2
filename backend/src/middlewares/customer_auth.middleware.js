@@ -23,10 +23,12 @@ const customerAuthMiddleware = async (req, res, next) => {
 
   const customer = await prisma.customer.findFirst({
     where:  { user_id: decoded.id, is_deleted: false },
-    select: { id: true, user_id: true },
+    select: { id: true, user_id: true, is_active: true },
   });
 
-  if (!customer) return resp.error(res, 'Compte client introuvable', 404);
+  if (!customer) return resp.error(res, 'Compte client introuvable', 401);
+  // WF #7 : un client bloqué perd l'accès immédiatement, même avec une session ouverte.
+  if (!customer.is_active) return resp.error(res, 'Votre compte est suspendu. Contactez le support Atina.', 403);
 
   req.customerId = customer.id;
   req.userId     = decoded.id;

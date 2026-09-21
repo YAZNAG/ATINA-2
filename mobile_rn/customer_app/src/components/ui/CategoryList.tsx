@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Image,
 } from 'react-native';
-import { Category } from '../../services/catalog.service';
+import { Category, EntityId } from '../../services/catalog.service';
 import {
   useFonts,
   Inter_400Regular, Inter_500Medium,
@@ -15,7 +15,7 @@ const RED = '#E10600';
 
 interface CategoryListProps {
   categories: Category[];
-  selectedId?: number | null;
+  selectedId?: EntityId | null;
   onSelect: (category: Category) => void;
 }
 

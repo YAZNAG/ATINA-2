@@ -54,6 +54,7 @@ export default function PaymentScreen() {
     cart_items?: string;
     date?:       string;
     slot_id?:    string;
+    slot_prefs?:          string;
     slot_start?: string;
     slot_end?:   string;
   }>();
@@ -215,6 +216,7 @@ export default function PaymentScreen() {
         node_id:             params.node_id,
         address_id:          params.address_id,
         slot_id:             params.slot_id,
+        slot_preference_ids: params.slot_prefs ? String(params.slot_prefs).split(',').filter(Boolean) : undefined,
         payment_method_code: selected.code,
         wallet_used:         walletUsed > 0 ? walletUsed : undefined,
         promo_code:          appliedCode ?? undefined,

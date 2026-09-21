@@ -16,7 +16,17 @@ const { applyDiscount } = require('../flash_sale/article_discount');
 const NO_NODE = '00000000-0000-0000-0000-000000000000';
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
-const SKU_BASE_WHERE = { is_active: true, is_deleted: false, deleted_at: null };
+const SKU_BASE_WHERE = {
+  is_active: true,
+  is_deleted: false,
+  deleted_at: null,
+  // WF #12 / US-021 : une marque inactive masque ses produits dans l'app.
+  // WF #13 : une catégorie inactive aussi. Un SKU sans marque reste visible.
+  AND: [
+    { OR: [{ brand_id: null }, { brand: { status: 'active', deleted_at: null } }] },
+    { OR: [{ category_id: null }, { category: { is_active: true, is_deleted: false } }] },
+  ],
+};
 
 /** Filtre Prisma « SKU disponible à la vente sur le node ». */
 function sellableWhere(nodeId) {
@@ -177,6 +187,7 @@ function formatSkuOffer(sku, { nodeId = null, flashSales = [] } = {}) {
     old_price_ttc:  deal ? deal.old_price_ttc : null,
     discount_pct:   deal ? deal.discount_pct : null,
     flash_sale_id:  deal ? deal.flash_sale_id : null,
+    flash_ends_at:  deal ? deal.flash_ends_at : null,
     unit_sale:      sku.unit_sale,
     weight_g:       sku.weight_g ?? null,
     volume_ml:      sku.volume_ml ?? null,

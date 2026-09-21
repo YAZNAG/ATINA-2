@@ -47,18 +47,18 @@ export const SLIDES_TEXT = {
     next: 'Suivant',
     start: 'Commencer',
     s1Title: 'Tous vos essentiels au même endroit',
-    s1Body: 'Faites vos courses facilement : épicerie, produits frais, hygiène et bien plus encore, livrés chez vous.',
+    s1Body: 'Faites vos courses facilement : snacks, produits ménagers, hygiène et bien plus encore',
     s2Title: 'Gagnez des cadeaux exclusifs',
-    s2Body: 'Cumulez des points à chaque commande, jouez et débloquez des cadeaux et des codes promo rien que pour vous.',
+    s2Body: "Cumulez des points, gagnez des produits gratuits et profitez d'offres exclusives à chaque achat.",
   },
   ar: {
     skip: 'تخطي',
     next: 'التالي',
     start: 'ابدأ',
     s1Title: 'كل ما تحتاجه في مكان واحد',
-    s1Body: 'تسوّق بسهولة: بقالة، منتجات طازجة، نظافة والمزيد، مع التوصيل إلى باب منزلك.',
+    s1Body: 'تسوّق بسهولة: وجبات خفيفة، منتجات منزلية، نظافة والمزيد',
     s2Title: 'اربح هدايا حصرية',
-    s2Body: 'اجمع النقاط مع كل طلب، العب واربح هدايا ورموزًا ترويجية خاصة بك.',
+    s2Body: 'اجمع النقاط، اربح منتجات مجانية واستفد من عروض حصرية مع كل عملية شراء.',
   },
 } as const;
 
@@ -97,8 +97,8 @@ export const kit = StyleSheet.create({
   dotIdle: { width: 6, backgroundColor: '#E6E6E6' },
   button: {
     backgroundColor: RED,
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     alignSelf: 'stretch',
     shadowColor: RED,

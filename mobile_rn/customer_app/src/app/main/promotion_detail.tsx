@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import PageHeader from '../../components/ui/PageHeader';
+import { usePackAvailability } from '../../hooks/usePackAvailability';
 import {
   PromotionsService, FlashSaleDetail, PromotionProduct,
   PacksService, PackDetail, PackItem, PackSummary,
@@ -195,8 +196,14 @@ export default function PromotionDetailScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
   const onRefresh = () => { setRefreshing(true); load(true); };
 
+  // Disponibilité du pack en temps réel (WF #23) : le bouton se bloque dès que le pack n'est plus assemblable.
+  const [packAvailable, setPackAvailable] = useState(true);
+  usePackAvailability((e) => {
+    if (pack && e.pack_id === pack.id) setPackAvailable(e.is_available && e.is_active && !e.is_deleted);
+  }, isPack);
+
   const handleAddPack = async () => {
-    if (!pack) return;
+    if (!pack || !packAvailable) return;
     try {
       setAddingPack(true);
       const cart = await CartService.addPack(pack.id, 1);
@@ -401,17 +408,17 @@ export default function PromotionDetailScreen() {
             <Text style={styles.bottomBarPriceValue}>{pack?.total_price.toFixed(2)} MAD</Text>
           </View>
           <TouchableOpacity
-            style={[styles.cartBtn, { flex: 1 }, addingPack && { opacity: 0.7 }]}
+            style={[styles.cartBtn, { flex: 1 }, (addingPack || !packAvailable) && { opacity: 0.5 }]}
             onPress={handleAddPack}
             activeOpacity={0.85}
-            disabled={addingPack}
+            disabled={addingPack || !packAvailable}
           >
             {addingPack ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
                 <Feather name="shopping-cart" size={17} color="#fff" />
-                <Text style={styles.cartBtnText}>Ajouter le pack</Text>
+                <Text style={styles.cartBtnText}>{packAvailable ? 'Ajouter le pack' : 'Pack indisponible'}</Text>
               </>
             )}
           </TouchableOpacity>

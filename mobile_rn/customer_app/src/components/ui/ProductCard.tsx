@@ -1,14 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Dimensions, Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Article } from '../../services/catalog.service';
 import { CartService } from '../../services/cart.service';
 import { useCartActions } from '../../context/CartContext';
-import { useIsFavorite, useToggleFavorite } from '../../store/useIsFavorite';
 
 const RED = '#E10600';
 const { width } = Dimensions.get('window');
@@ -21,16 +20,42 @@ interface ProductCardProps {
   discount?:    number;
   oldPrice?:    number;
   isFlashSale?: boolean;
+  /** Fin de la vente flash : affiche le compte à rebours de la maquette. */
+  endsAt?:      string | null;
+  /** Largeur imposée (grilles à 2 colonnes, carrousels). */
+  width?:       number;
 }
 
-function ProductCard({
-  article, onPress, onAddToCart, discount, oldPrice, isFlashSale = false,
-}: ProductCardProps) {
-  const isFavorite = useIsFavorite(article.id);
-  const toggleFavorite = useToggleFavorite(article.id);
+function remaining(endsAt: string) {
+  const ms = new Date(endsAt).getTime() - Date.now();
+  if (!(ms > 0)) return null;
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(h)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+}
 
+/** Compte à rebours hh:mm:ss d'une vente flash (disparaît à l'échéance). */
+function Countdown({ endsAt }: { endsAt: string }) {
+  const [left, setLeft] = useState(() => remaining(endsAt));
+  useEffect(() => {
+    const id = setInterval(() => setLeft(remaining(endsAt)), 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+  if (!left) return null;
+  return (
+    <View style={styles.countdown}>
+      <Text style={styles.countdownText}>{left}</Text>
+    </View>
+  );
+}
+
+const fmt = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace(/0$/, '')} MAD`;
+
+function ProductCard({
+  article, onPress, onAddToCart, discount, oldPrice, isFlashSale = false, endsAt, width: cardWidth,
+}: ProductCardProps) {
   const [addingToCart, setAddingToCart] = useState(false);
-  const [toggling, setToggling]         = useState(false);
   const { applyCart } = useCartActions();
 
   const effectiveDiscount = discount ?? article.discount_pct ?? undefined;
@@ -56,16 +81,11 @@ function ProductCard({
     }
   }, [onAddToCart, article.sku_id, applyCart]);
 
-  const handleToggleFavorite = useCallback(async () => {
-    if (toggling || article.id == null) return;
-    setToggling(true);
-    await toggleFavorite();
-    setToggling(false);
-  }, [toggling, article.id, toggleFavorite]);
+  const flashEnd = endsAt ?? article.flash_ends_at ?? null;
+  const showOld = effectiveOldPrice != null && effectiveOldPrice > article.price_ttc;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-
+    <TouchableOpacity style={[styles.card, cardWidth ? { width: cardWidth } : null]} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageContainer}>
         {article.image_url ? (
           <Image
@@ -82,54 +102,34 @@ function ProductCard({
           </View>
         )}
 
-        {effectiveDiscount && (
-          <View style={[styles.discountBadge, isFlashSale && styles.discountBadgeFlash]}>
-            {isFlashSale && (
-              <MaterialCommunityIcons name="fire" size={11} color="#fff" style={styles.flameIcon} />
-            )}
-            <Text style={styles.discountText}>-{effectiveDiscount}%</Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.favoriteBtn, toggling && { opacity: 0.6 }]}
-          onPress={handleToggleFavorite}
-          disabled={toggling}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name={isFavorite ? "heart" : "heart-outline"}
-            size={18}
-            color={isFavorite ? RED : '#4B5563'}
-          />
-        </TouchableOpacity>
+        <View style={styles.badges}>
+          {!!effectiveDiscount && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{effectiveDiscount}%</Text>
+            </View>
+          )}
+          {!!flashEnd && <Countdown endsAt={flashEnd} />}
+        </View>
       </View>
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={2}>{article.name_fr}</Text>
-
-        {article.brand && (
-          <Text style={styles.brand} numberOfLines={1}>{article.brand.name_fr}</Text>
-        )}
-
         <View style={styles.priceRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.price}>{article.price_ttc.toFixed(2)} MAD</Text>
-            {effectiveOldPrice != null && effectiveOldPrice > article.price_ttc && (
-              <Text style={styles.oldPrice}>{effectiveOldPrice.toFixed(2)} MAD</Text>
-            )}
+            <Text style={styles.price}>{fmt(article.price_ttc)}</Text>
+            {showOld && <Text style={styles.oldPrice}>{fmt(Number(effectiveOldPrice))}</Text>}
           </View>
           <TouchableOpacity
             style={[styles.addBtn, addingToCart && { opacity: 0.6 }]}
             onPress={handleAddToCart}
             disabled={addingToCart}
             activeOpacity={0.85}
+            accessibilityLabel="Ajouter au panier"
           >
             <Feather name="plus" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
-
     </TouchableOpacity>
   );
 }
@@ -140,47 +140,43 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  imageContainer: { width: '100%', height: 130, backgroundColor: '#fff', position: 'relative' },
+  imageContainer: { width: '100%', height: 128, backgroundColor: '#fff', paddingTop: 8 },
   image: { width: '100%', height: '100%' },
   imagePlaceholder: {
     width: '100%', height: '100%',
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#F9F9F9',
   },
-  discountBadge: {
-    position: 'absolute', top: 10, left: 10,
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: RED, borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
+  badges: {
+    position: 'absolute', top: 8, left: 8, right: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  discountBadgeFlash: { paddingLeft: 6 },
-  flameIcon: { marginRight: 2 },
-  discountText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  favoriteBtn: {
-    position: 'absolute', top: 10, right: 10,
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 5, elevation: 3,
+  discountBadge: { backgroundColor: '#FFD400', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  discountText: { color: '#0A0A0A', fontSize: 10.5, fontFamily: 'Inter_700Bold' },
+  countdown: {
+    marginLeft: 'auto', borderWidth: 1, borderColor: RED, backgroundColor: '#FFF4F4',
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1,
   },
-  info: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
-  name: { fontSize: 14, color: '#1a1a1a', fontFamily: 'Inter_700Bold', marginBottom: 3, lineHeight: 18 },
-  brand: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 10 },
+  countdownText: { color: RED, fontSize: 11, fontFamily: 'Inter_600SemiBold', fontVariant: ['tabular-nums'] },
+  info: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 },
+  name: { fontSize: 13, color: '#1a1a1a', fontFamily: 'Inter_700Bold', marginBottom: 4, lineHeight: 17, minHeight: 34 },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  price: { fontSize: 16, color: '#E10600', fontFamily: 'Inter_700Bold' },
-  oldPrice: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textDecorationLine: 'line-through', marginTop: 1 },
+  price: { fontSize: 15, color: RED, fontFamily: 'Inter_800ExtraBold' },
+  oldPrice: { fontSize: 11.5, color: '#8A8A8A', fontFamily: 'Inter_500Medium', textDecorationLine: 'line-through', marginTop: 1 },
   addBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
-    shadowColor: RED, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    shadowColor: RED, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
 });

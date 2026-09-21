@@ -1,219 +1,190 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Dimensions, Image,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar,
+  KeyboardAvoidingView, Platform, Image, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import {
-  useFonts,
-  Poppins_400Regular, Poppins_500Medium,
-  Poppins_600SemiBold, Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-import * as SecureStore from 'expo-secure-store';
 import { verifyOtp, requestOtp } from '../../services/customer_auth.service';
+import { RED, RED_SOFT, INK, PrimaryButton } from '../../components/onboarding/onboardingKit';
 
-const { width } = Dimensions.get('window');
-const RED = '#E62A27';
 const OTP_LENGTH = 4;
+const RESEND_SECONDS = 105; // 01:45 comme sur la maquette
 
-export default function RegisterOtpScreen() {
+function mmss(s: number) {
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Maquette « page vérification » : code SMS à 4 chiffres, minuteur, renvoi. */
+export default function VerifyOtpScreen() {
   const router = useRouter();
-  const { phone_number, phone_country, channel } = useLocalSearchParams<{
-    phone_number:  string;
-    phone_country: string;
-    channel:       string;
-  }>();
+  const params = useLocalSearchParams<{ phone_number: string; phone_country: string }>();
+  const phone = String(params.phone_number ?? '');
+  const country = String(params.phone_country ?? '+212');
 
-  const [fontsLoaded] = useFonts({
-    Poppins_400Regular, Poppins_500Medium,
-    Poppins_600SemiBold, Poppins_700Bold,
-  });
-
-  const [otp, setOtp]             = useState(['', '', '', '']);
-  const [loading, setLoading]     = useState(false);
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [error, setError]         = useState('');
-  const [timer, setTimer]         = useState(60);
-  const inputs                    = useRef<TextInput[]>([]);
-
-  const phoneStr   = Array.isArray(phone_number)  ? phone_number[0]  : (phone_number  || '');
-  const countryStr = Array.isArray(phone_country) ? phone_country[0] : (phone_country || '+212');
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [timer, setTimer] = useState(RESEND_SECONDS);
+  const inputs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
     if (timer <= 0) return;
-    const id = setInterval(() => setTimer(t => t - 1), 1000);
-    return () => clearInterval(id);
+    const id = setTimeout(() => setTimer((t) => t - 1), 1000);
+    return () => clearTimeout(id);
   }, [timer]);
 
-  if (!fontsLoaded) return null;
+  const code = otp.join('');
+  const complete = code.length === OTP_LENGTH;
 
-  const handleOtpChange = (text: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
+  const verify = async (value = code) => {
+    if (value.length < OTP_LENGTH) { setError('Entrez le code complet.'); return; }
+    setLoading(true);
     setError('');
-    if (text && index < OTP_LENGTH - 1) inputs.current[index + 1]?.focus();
-    if (newOtp.every(d => d !== '') && text) handleVerify(newOtp.join(''));
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      inputs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerify = async (code?: string) => {
-    const otpCode = code || otp.join('');
-    if (otpCode.length < OTP_LENGTH) { setError('Entrez le code complet.'); return; }
-
     try {
-      setLoading(true);
-      setError('');
-      await verifyOtp(phoneStr, otpCode, countryStr);
-      await SecureStore.deleteItemAsync('pending_registration');
-      router.replace('/auth/success');
+      const res = await verifyOtp(phone, value, country);
+      // Profil à compléter : premier accès ou nom encore générique.
+      const needsProfile = res.user?.is_new || !res.customer?.name || res.customer.name === 'Client';
+      router.replace((needsProfile ? '/auth/complete-profile' : '/main/main_nav/home') as any);
     } catch (e: any) {
-      setError(e.message ?? 'Code incorrect.');
-      setOtp(['', '', '', '']);
+      setError(e?.message ?? 'Code incorrect. Réessayez.');
+      setOtp(Array(OTP_LENGTH).fill(''));
       inputs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResend = async () => {
-    if (timer > 0) return;
+  const onChange = (text: string, i: number) => {
+    const digits = text.replace(/\D/g, '');
+    const next = [...otp];
+    if (digits.length > 1) {
+      // Collage ou remplissage automatique du code SMS.
+      digits.slice(0, OTP_LENGTH).split('').forEach((d, k) => { if (i + k < OTP_LENGTH) next[i + k] = d; });
+    } else {
+      next[i] = digits;
+    }
+    setOtp(next);
+    setError('');
+    const firstEmpty = next.findIndex((d) => !d);
+    if (digits && firstEmpty !== -1) inputs.current[firstEmpty]?.focus();
+    if (next.every(Boolean)) verify(next.join(''));
+  };
+
+  const onKey = (e: any, i: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otp[i] && i > 0) inputs.current[i - 1]?.focus();
+  };
+
+  const resend = async () => {
+    if (timer > 0 || resending) return;
+    setResending(true);
+    setError('');
     try {
-      setResending(true);
-      setError('');
-      await requestOtp(phoneStr, countryStr);
-      setTimer(60);
-      setOtp(['', '', '', '']);
+      await requestOtp(phone, country);
+      setTimer(RESEND_SECONDS);
+      setOtp(Array(OTP_LENGTH).fill(''));
+      setInfo('Un nouveau code vous a été envoyé.');
       inputs.current[0]?.focus();
     } catch (e: any) {
-      setError(e.message ?? 'Erreur lors du renvoi.');
+      setError(e?.message ?? 'Erreur lors du renvoi.');
     } finally {
       setResending(false);
     }
   };
 
-  const isComplete = otp.every(d => d !== '');
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <View style={styles.container}>
-
-          {/* ── Header ── */}
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={RED} />
+      <SafeAreaView edges={['top']} style={styles.redTop} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView style={styles.card} contentContainerStyle={styles.cardContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Feather name="chevron-left" size={22} color="#212121" />
+            <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityLabel="Retour">
+              <Feather name="chevron-left" size={20} color={INK} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Vérification par téléphone</Text>
+            <Text style={styles.headerTitle}>Vérification du numéro</Text>
             <View style={{ width: 36 }} />
           </View>
 
-          {/* ── Icon ── */}
-          <View style={styles.iconContainer}>
-            <Image
-              source={require('../../../assets/images/app/otp.png')}
-              style={styles.appIcon}
-              resizeMode="contain"
-            />
-          </View>
+          <Image source={require('../../../assets/images/app/otp.png')} style={styles.icon} resizeMode="contain" />
 
-          {/* ── Info ── */}
-          <Text style={styles.infoText}>
-            Entrez le code de vérification (OTP){'\n'}envoyé à{' '}
-            <Text style={styles.phoneText}>{countryStr}{phoneStr}</Text>
+          <Text style={styles.help}>
+            Saisissez le code à {OTP_LENGTH} chiffres reçu par SMS au <Text style={styles.phone}>{country} {phone}</Text>.
           </Text>
 
-          {/* ── OTP inputs ── */}
-          <View style={styles.otpRow}>
-            {otp.map((digit, index) => (
+          <View style={styles.boxes}>
+            {otp.map((d, i) => (
               <TextInput
-                key={index}
-                ref={ref => { if (ref) inputs.current[index] = ref; }}
-                style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
-                value={digit}
-                onChangeText={t => handleOtpChange(t.slice(-1), index)}
-                onKeyPress={e => handleKeyPress(e, index)}
+                key={i}
+                ref={(r) => { inputs.current[i] = r; }}
+                style={[styles.box, !!d && styles.boxFilled, !!error && styles.boxError]}
+                value={d}
+                onChangeText={(t) => onChange(t, i)}
+                onKeyPress={(e) => onKey(e, i)}
                 keyboardType="number-pad"
-                maxLength={1}
-                textAlign="center"
-                autoFocus={index === 0}
+                maxLength={i === 0 ? OTP_LENGTH : 1}
+                textContentType="oneTimeCode"
+                autoComplete="sms-otp"
+                autoFocus={i === 0}
+                selectTextOnFocus
+                accessibilityLabel={`Chiffre ${i + 1}`}
               />
             ))}
           </View>
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!error && !!info && <Text style={styles.info}>{info}</Text>}
 
-          {/* ── Continuer ── */}
-          <TouchableOpacity
-            style={[styles.btnContinue, isComplete && styles.btnContinueActive]}
-            onPress={() => handleVerify()}
-            disabled={loading || !isComplete}
-            activeOpacity={0.85}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={[styles.btnContinueText, isComplete && styles.btnContinueTextActive]}>Continuer</Text>
-            }
+          <View style={styles.timerPill}>
+            <Text style={styles.timerText}>{mmss(Math.max(timer, 0))}</Text>
+          </View>
+          <TouchableOpacity onPress={resend} disabled={timer > 0 || resending} hitSlop={10}>
+            <Text style={[styles.resend, timer <= 0 && styles.resendActive]}>
+              {resending ? 'Envoi…' : 'Renvoyer le code'}
+            </Text>
           </TouchableOpacity>
 
-          {/* ── Renvoyer ── */}
-          <TouchableOpacity onPress={handleResend} disabled={timer > 0 || resending} activeOpacity={0.7}>
-            {resending
-              ? <ActivityIndicator color={RED} size="small" />
-              : <Text style={[styles.resendText, timer > 0 && styles.resendDisabled]}>
-                  {timer > 0 ? `Renvoyer le code (${timer}s)` : 'Renvoyer le code'}
-                </Text>
-            }
-          </TouchableOpacity>
-
-        </View>
+          <View style={styles.cta}>
+            <PrimaryButton label="Confirmer" onPress={() => verify()} disabled={!complete} loading={loading} />
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea:  { flex: 1, backgroundColor: '#fff' },
-  flex:      { flex: 1 },
-  container: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 16 },
-
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 32 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontFamily: 'Poppins_600SemiBold', color: '#212121' },
-
-  iconContainer: { width: 110, height: 110, marginBottom: 24, alignItems: 'center', justifyContent: 'center' },
-  appIcon:       { width: 200, height: 180, borderRadius: 24 },
-
-  infoText: { fontSize: 14, fontFamily: 'Poppins_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
-  phoneText: { fontFamily: 'Poppins_700Bold', color: '#212121' },
-
-  otpRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  otpInput: {
-    width: 58, height: 58, borderRadius: 29,
-    borderWidth: 1.5, borderColor: '#E0E0E0',
-    fontSize: 22, fontFamily: 'Poppins_700Bold',
-    color: '#212121', backgroundColor: '#F5F5F5',
+  root: { flex: 1, backgroundColor: RED },
+  redTop: { backgroundColor: RED, height: 44 },
+  card: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 34, borderTopRightRadius: 34 },
+  cardContent: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 32 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  back: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
-  otpInputFilled: { borderColor: RED, backgroundColor: '#fff' },
-
-  errorText: { color: RED, fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginBottom: 16 },
-
-  btnContinue: {
-    width: width - 48, paddingVertical: 16, borderRadius: 50,
-    backgroundColor: '#E5E7EB', alignItems: 'center', marginBottom: 20,
+  headerTitle: { fontSize: 17, color: INK, fontFamily: 'Poppins_700Bold' },
+  icon: { width: 110, height: 130, alignSelf: 'center', marginBottom: 20 },
+  help: { fontSize: 14.5, lineHeight: 22, color: '#6B6B6B', fontFamily: 'Poppins_400Regular', marginBottom: 26 },
+  phone: { color: INK, fontFamily: 'Poppins_600SemiBold' },
+  boxes: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 14 },
+  box: {
+    width: 50, height: 50, borderRadius: 12, borderWidth: 1.2, borderColor: '#9A9A9A',
+    textAlign: 'center', fontSize: 20, color: INK, fontFamily: 'Poppins_700Bold', padding: 0,
   },
-  btnContinueActive:     { backgroundColor: RED },
-  btnContinueText:       { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#9CA3AF' },
-  btnContinueTextActive: { color: '#fff' },
-
-  resendText:     { fontFamily: 'Poppins_600SemiBold', color: RED, fontSize: 14 },
-  resendDisabled: { color: '#9CA3AF' },
+  boxFilled: { borderColor: RED, backgroundColor: '#FFF7F7' },
+  boxError: { borderColor: RED },
+  error: { color: RED, fontSize: 12.5, textAlign: 'center', fontFamily: 'Poppins_500Medium', marginBottom: 8 },
+  info: { color: '#15803D', fontSize: 12.5, textAlign: 'center', fontFamily: 'Poppins_500Medium', marginBottom: 8 },
+  timerPill: {
+    alignSelf: 'center', backgroundColor: RED_SOFT, borderRadius: 14,
+    paddingHorizontal: 12, paddingVertical: 4, marginTop: 14, marginBottom: 10,
+  },
+  timerText: { color: RED, fontSize: 13, fontFamily: 'Poppins_700Bold' },
+  resend: { textAlign: 'center', color: '#8A8A8A', fontSize: 13.5, fontFamily: 'Poppins_500Medium' },
+  resendActive: { color: RED, textDecorationLine: 'underline' },
+  cta: { marginTop: 22 },
 });

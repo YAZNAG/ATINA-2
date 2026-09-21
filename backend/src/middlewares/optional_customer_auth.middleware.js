@@ -21,9 +21,10 @@ const optionalCustomerAuthMiddleware = async (req, res, next) => {
   try {
     const customer = await prisma.customer.findFirst({
       where:  { user_id: decoded.id, is_deleted: false },
-      select: { id: true },
+      select: { id: true, is_active: true },
     });
-    if (customer) {
+    // Client bloqué (WF #7) : traité comme un visiteur anonyme.
+    if (customer && customer.is_active) {
       req.customerId = customer.id;
       req.userId     = decoded.id;
     }

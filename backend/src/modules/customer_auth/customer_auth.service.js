@@ -109,6 +109,10 @@ async function login(phone_country, phone_number, password, email = null) {
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) throw { statusCode: 401, message: 'Mot de passe incorrect.' };
 
+  // WF #7 : compte déjà vérifié puis désactivé par le back-office = client bloqué.
+  const owned = await prisma.customer.findFirst({ where: { user_id: user.id, is_deleted: false }, select: { is_active: true } });
+  if (user.phone_verified_at && owned && !owned.is_active) throw { statusCode: 403, message: 'Votre compte est suspendu. Contactez le support Atina.' };
+
   if (!user.is_active) throw { statusCode: 403, message: 'Compte non activé. Vérifiez votre code OTP.' };
 
   await prisma.user.update({ where: { id: user.id }, data: { last_login_at: new Date() } });
@@ -158,13 +162,13 @@ async function requestOtp(phone_country, phone_number) {
   });
 
   if (!user) {
-    const email    = `${phone_country.replace('+', '')}${phone}@customer.elherri.local`;
+    const email    = `${phone_country.replace('+', '')}${phone}@customer.atina.local`;
     const dupEmail = await prisma.user.findFirst({ where: { email } });
-    const finalEmail = dupEmail ? `${phone_country.replace('+', '')}${phone}.${Date.now()}@customer.elherri.local` : email;
+    const finalEmail = dupEmail ? `${phone_country.replace('+', '')}${phone}.${Date.now()}@customer.atina.local` : email;
 
     user = await prisma.user.create({
       data: {
-        full_name:      'Client El Herri',
+        full_name:      'Client Atina',
         email:          finalEmail,
         password_hash:  await bcrypt.hash(`phone-${phone}-${Date.now()}`, 8),
         phone_country,
@@ -226,6 +230,14 @@ async function verifyOtp(phone_country, phone_number, otp) {
                                throw { statusCode: 400, message: 'Code expiré. Demandez un nouveau code.' };
 
   const isNew = !user.phone_verified_at;
+
+  // WF #7 : un code SMS ne doit jamais réactiver un client bloqué par le back-office.
+  const existingCustomer = await prisma.customer.findFirst({
+    where: { phone_country, phone_number: phone, is_deleted: false }, select: { is_active: true },
+  });
+  if (!isNew && existingCustomer && !existingCustomer.is_active) {
+    throw { statusCode: 403, message: 'Votre compte est suspendu. Contactez le support Atina.' };
+  }
 
   await prisma.user.update({
     where: { id: user.id },

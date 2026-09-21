@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, StatusBar, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { RED, ONBOARDING_DONE_KEY, prefGet } from '../components/onboarding/onboardingKit';
+import { isTokenValid } from '../services/customer_auth.service';
 
 const { width } = Dimensions.get('window');
 
@@ -19,7 +20,11 @@ export default function SplashScreen() {
 
     const timer = setTimeout(async () => {
       const done = await prefGet(ONBOARDING_DONE_KEY);
-      router.replace(done ? '/auth/login' : '/onboarding');
+      if (!done) { router.replace('/onboarding'); return; }
+      // Session encore valide : directement à l'accueil.
+      let logged = false;
+      try { logged = await isTokenValid(); } catch { /* pas de session */ }
+      router.replace(logged ? '/main/main_nav/home' : '/auth/login');
     }, 2200);
 
     return () => clearTimeout(timer);

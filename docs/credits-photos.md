@@ -55,5 +55,21 @@ La mention de l'auteur et de la licence est obligatoire.
 | VOL-KOU-NUG | Chicken_Nuggets.jpg | CC BY-SA 2.0 | James Palinsad | https://commons.wikimedia.org/wiki/File:Chicken_Nuggets.jpg |
 | YAO-CHE-NAT | Joghurt.jpg | CC BY-SA 3.0 | No machine-readable author provided. Rainer Zenz assumed (based on copyright cla | https://commons.wikimedia.org/wiki/File:Joghurt.jpg |
 
+## Openverse (Flickr et autres, licences commerciales)
+
+| SKU | Titre | Licence | Auteur | Page |
+| --- | --- | --- | --- | --- |
+| CON-ATI-SAR | Sardines revealed | CC BY 2.0 | andrewmalone | https://www.flickr.com/photos/41894170049@N01/1018226199 |
+| FRU-FRA-BIO | Fresh Strawberries Bowl | CC CC0 1.0 |  | https://www.rawpixel.com/image/5967039/fresh-strawberries-bowl |
+| FRU-POM-1KG | apple | CC BY 2.0 | London looks | https://www.flickr.com/photos/24164096@N00/4972889339 |
+| HER-PER-BOT | Fresh Parsley | CC BY 2.0 | cookbookman17 | https://www.flickr.com/photos/58545726@N02/5620131626 |
+| LEG-PDT-1KG | Potato, russian fingerlings | CC BY 2.0 | Dag Endresen | https://www.flickr.com/photos/96039972@N00/4999049328 |
+| LEG-TOM-1KG | pile of red | CC BY 2.0 | Muffet | https://www.flickr.com/photos/53133240@N00/6968186647 |
+| PAI-MIE-COM | Free slices bread loaf image | CC CC0 1.0 |  | https://www.rawpixel.com/image/5907772/photo-image-public-domain-free-menu |
+| RIZ-ATI-5KG | Basmati Rice | CC BY 2.0 | cookbookman17 | https://www.flickr.com/photos/58545726@N02/6121427720 |
+| SUC-COS-GRA | Granulated White Sugar with Large Crystals, Bright Side Ligh | CC BY-SA 4.0 | Tobias Erbsland | https://commons.wikimedia.org/w/index.php?curid=111139027 |
+| SUC-COS-MOR | Free sugar cube bowl image | CC CC0 1.0 |  | https://www.rawpixel.com/image/5912782/image-background-public-domain-kitchen |
+| VIA-AGN-COT | Lamb Chops from the book, The Grocer’s Encyclopedia (1911).  | CC BY 2.0 | Free Public Domain Illustrations by rawpixel | https://www.flickr.com/photos/153584064@N07/42476102555 |
+
 Les autres visuels du catalogue sont générés par nos scripts ou proviennent de la
 maquette Figma fournie par le client (fichier « app client »).

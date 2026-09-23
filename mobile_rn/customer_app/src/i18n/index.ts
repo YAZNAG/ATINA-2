@@ -49,10 +49,21 @@ async function reloadApp() {
   try { await Updates.reloadAsync(); } catch { DevSettings.reload(); }
 }
 
-/** À appeler une fois au démarrage, avant d'afficher les écrans. */
+/**
+ * À appeler une fois au démarrage, avant d'afficher les écrans. Ne lève jamais et ne
+ * dépasse jamais 1,5 s : la langue ne doit pas pouvoir bloquer l'ouverture de l'app.
+ */
 export async function initI18n(): Promise<void> {
-  current = (await prefGet(LANG_KEY)) === 'ar' ? 'ar' : 'fr';
-  if (await applyDirection(current)) await reloadApp();
+  try {
+    const saved = await Promise.race([
+      prefGet(LANG_KEY),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
+    current = saved === 'ar' ? 'ar' : 'fr';
+    if (await applyDirection(current)) await reloadApp();
+  } catch {
+    current = 'fr';
+  }
 }
 
 /** Change la langue : mémorise, bascule le sens d'écriture et recharge si nécessaire. */

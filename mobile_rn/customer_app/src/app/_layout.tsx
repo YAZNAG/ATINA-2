@@ -18,7 +18,7 @@ import { initI18n } from '../i18n';
 export default function RootLayout() {
   // Police de la maquette Figma : Inter. Les écrans référencent les clés « Poppins_* »
   // historiques ; elles pointent désormais vers Inter, sans toucher à chaque style.
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular: Inter_400Regular,
     Poppins_500Medium: Inter_500Medium,
     Poppins_600SemiBold: Inter_600SemiBold,
@@ -35,7 +35,18 @@ export default function RootLayout() {
   const [langReady, setLangReady] = useState(false);
   useEffect(() => { initI18n().finally(() => setLangReady(true)); }, []);
 
-  if (!fontsLoaded || !langReady) {
+  // Filet de sécurité : si les polices ou la langue ne répondent pas (réseau, cache
+  // d'assets), l'application s'affiche quand même au bout de 2,5 s au lieu de rester
+  // bloquée sur l'écran de démarrage.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const ready = (fontsLoaded || !!fontError || timedOut) && (langReady || timedOut);
+
+  if (!ready) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator />

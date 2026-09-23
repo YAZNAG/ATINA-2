@@ -21,23 +21,36 @@ export default function SplashScreen() {
 
     // Démarrage rapide : la destination est calculée tout de suite ; l'écran de marque
     // reste affiché le temps de l'animation (700 ms) et pas une seconde de plus.
-    let cancelled = false;
+    let done = false;
+    const go = (path: string) => {
+      if (done) return;
+      done = true;
+      router.replace(path as any);
+    };
+
+    // Filet de sécurité : quoi qu'il arrive (stockage lent, jeton illisible), on quitte
+    // l'écran de démarrage au bout de 3 s.
+    const failsafe = setTimeout(() => go('/auth/login'), 3000);
+
     (async () => {
-      const [done, step, logged] = await Promise.all([
-        prefGet(ONBOARDING_DONE_KEY),
-        prefGet(ONBOARDING_STEP_KEY),
-        isTokenValid().catch(() => false),
-        new Promise((resolve) => setTimeout(resolve, 700)),
-      ]) as [string | null, string | null, boolean, unknown];
-      if (cancelled) return;
-      if (!done) {
-        router.replace((step === 'slides' ? '/onboarding/slide1' : '/onboarding') as any);
-        return;
+      try {
+        const [onboarded, step, logged] = await Promise.all([
+          prefGet(ONBOARDING_DONE_KEY).catch(() => null),
+          prefGet(ONBOARDING_STEP_KEY).catch(() => null),
+          isTokenValid().catch(() => false),
+          new Promise((resolve) => setTimeout(resolve, 700)),
+        ]) as [string | null, string | null, boolean, unknown];
+        if (!onboarded) {
+          go(step === 'slides' ? '/onboarding/slide1' : '/onboarding');
+          return;
+        }
+        go(logged ? '/main/main_nav/home' : '/auth/login');
+      } catch {
+        go('/auth/login');
       }
-      router.replace(logged ? '/main/main_nav/home' : '/auth/login');
     })();
 
-    return () => { cancelled = true; };
+    return () => { done = true; clearTimeout(failsafe); };
   }, []);
 
   return (

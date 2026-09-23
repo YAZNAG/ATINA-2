@@ -1,8 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TouchableOpacity, ActivityIndicator, ScrollView,
-  RefreshControl, Alert,
+  View, Text, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Swipeable from 'react-native-gesture-handler/Swipeable';

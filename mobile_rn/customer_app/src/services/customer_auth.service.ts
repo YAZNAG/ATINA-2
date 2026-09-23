@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { getToken as readToken, setToken, clearToken } from '../api/tokenStorage';
 import { jwtDecode } from 'jwt-decode';
 import { CONFIG } from '../constants/config';
 
@@ -84,7 +84,7 @@ async function request<T>(
   };
 
   if (withAuth) {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    const token = await readToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -102,15 +102,15 @@ async function request<T>(
 }
 
 export async function saveToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await setToken(token);
 }
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return readToken();
 }
 
 export async function removeToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await clearToken();
 }
 
 export async function isTokenValid(): Promise<boolean> {

@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   safeArea:         { flex: 1, backgroundColor: '#fff' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  gridContent: { paddingBottom: 8 },
+  gridContent: { paddingBottom: 120 },
   gridRow: { paddingHorizontal: 16, gap: 16, marginBottom: 16 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: 'Poppins_400Regular' },

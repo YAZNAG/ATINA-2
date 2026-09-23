@@ -98,8 +98,21 @@ export default function FamilyScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScreenTitle title={title} onBack={() => (router.canGoBack() ? router.back() : router.navigate('/main/main_nav/products' as any))} />
-      <View style={styles.searchWrap}>
+      <View style={styles.sticky}>
         <SearchField value={query} onChangeText={setQuery} />
+        {subs.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chips}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Chip label={t('Tout')} uri={family?.image_url} selected={selected === ALL} onPress={() => setSelected(ALL)} />
+            {subs.map((sf) => (
+              <Chip key={sf.id} label={name(sf)} uri={sf.image_url} selected={selected === sf.id} onPress={() => setSelected(sf.id)} />
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       <FlatList
@@ -111,16 +124,6 @@ export default function FamilyScreen() {
         keyboardShouldPersistTaps="handled"
         onEndReachedThreshold={0.4}
         onEndReached={() => { if (hasMore && !loading && !loadingMore) fetchPage(page + 1, false); }}
-        ListHeaderComponent={
-          subs.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Chip label={t('Tout')} uri={family?.image_url} selected={selected === ALL} onPress={() => setSelected(ALL)} />
-              {subs.map((s) => (
-                <Chip key={s.id} label={name(s)} uri={s.image_url} selected={selected === s.id} onPress={() => setSelected(s.id)} />
-              ))}
-            </ScrollView>
-          ) : null
-        }
         ListEmptyComponent={
           loading ? <ActivityIndicator color={RED} style={{ marginTop: 40 }} /> : (
             <View style={styles.empty}>
@@ -149,8 +152,12 @@ export default function FamilyScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
-  searchWrap: { paddingHorizontal: 16, paddingBottom: 8 },
-  chips: { gap: 14, paddingBottom: 14, paddingTop: 4 },
+  // Bloc fixe sous l'en-tête : recherche + pastilles de sous-familles
+  sticky: {
+    paddingHorizontal: 16, paddingBottom: 6, backgroundColor: '#fff',
+    borderBottomWidth: 1, borderBottomColor: '#F2F2F2',
+  },
+  chips: { gap: 14, paddingBottom: 12, paddingTop: 10 },
   chip: { alignItems: 'center', width: 70 },
   chipCircle: {
     width: 58, height: 58, borderRadius: 29, overflow: 'hidden', backgroundColor: '#F4F4F4',
@@ -160,7 +167,7 @@ const styles = StyleSheet.create({
   chipImg: { width: '100%', height: '100%' },
   chipLabel: { marginTop: 6, fontSize: 12.5, color: '#0A0A0A', fontFamily: 'Inter_500Medium' },
   chipLabelActive: { color: RED, fontFamily: 'Inter_700Bold' },
-  grid: { paddingHorizontal: 16, paddingBottom: 120, gap: GAP },
+  grid: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 120, gap: GAP },
   empty: { alignItems: 'center', paddingTop: 50, gap: 10, paddingHorizontal: 30 },
   emptyText: { color: '#8A8A8A', fontSize: 13.5, textAlign: 'center', fontFamily: 'Inter_400Regular' },
   retry: { color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 14 },

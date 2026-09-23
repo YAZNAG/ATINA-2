@@ -1,9 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useNotification } from '../../context/NotificationContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TouchableOpacity, Image, ActivityIndicator,
-  Switch, ScrollView, Share,
+  View, Text, StyleSheet, StatusBar, TouchableOpacity, Image, ActivityIndicator, Switch, ScrollView, Share,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';

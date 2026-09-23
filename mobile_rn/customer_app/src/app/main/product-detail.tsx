@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TouchableOpacity, Image, ScrollView, ActivityIndicator,
-  Dimensions, Platform, FlatList, NativeSyntheticEvent,
-  NativeScrollEvent, Modal, TextInput,
+  View, Text, StyleSheet, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Dimensions, Platform, FlatList, NativeSyntheticEvent, NativeScrollEvent, Modal, TextInput,
 } from 'react-native';
 import { CONFIG } from '../../constants/config'
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
   useFonts,
   Poppins_600SemiBold, Poppins_700Bold,

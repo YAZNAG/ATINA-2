@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, ActivityIndicator, RefreshControl, Dimensions,
+  View, Text, StyleSheet, StatusBar, FlatList, ActivityIndicator, RefreshControl, Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';

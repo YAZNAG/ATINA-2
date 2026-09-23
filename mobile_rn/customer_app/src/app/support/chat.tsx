@@ -1,17 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  StatusBar,
+  View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';

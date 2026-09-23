@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { getToken } from './tokenStorage';
 import { CONFIG } from '../constants/config';
 import { getNodeId } from '../store/nodePref';
 import { getLang, localizeData } from '../i18n';
@@ -11,7 +11,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('auth_token');
+  const token = await getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   // Point de distribution choisi (catalogue, prix, stock du node) et langue des messages serveur.
   const nodeId = await getNodeId();

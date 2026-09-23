@@ -1,13 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  ActivityIndicator,
-  SafeAreaView,
+  View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { walletService, WalletTransaction } from '../../services/wallet.service';

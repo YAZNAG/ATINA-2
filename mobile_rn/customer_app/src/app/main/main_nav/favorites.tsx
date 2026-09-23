@@ -1,8 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, FlatList,
-  ActivityIndicator, RefreshControl, Image, Alert, Modal,
+  View, Text, TouchableOpacity, StyleSheet, StatusBar, FlatList, ActivityIndicator, RefreshControl, Image, Alert, Modal,
 } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -222,7 +221,7 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   safeArea:  { flex: 1, backgroundColor: '#ffffff' },
   container: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  list:      { paddingBottom: 32, paddingTop: 8 },
+  list:      { paddingBottom: 130, paddingTop: 8 },
 
   card: {
     flexDirection: 'row', alignItems: 'center',

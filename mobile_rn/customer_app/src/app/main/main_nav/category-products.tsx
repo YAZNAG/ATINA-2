@@ -90,8 +90,27 @@ export default function CategoryProductsScreen() {
         title={String(params.category_name ?? t('Produits'))}
         onBack={() => (router.canGoBack() ? router.back() : router.navigate('/main/main_nav/categories' as any))}
       />
-      <View style={styles.searchWrap}>
+      <View style={styles.sticky}>
         <SearchField value={query} onChangeText={setQuery} />
+        {subs.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pills}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Pill label={t('Tout')} selected={selected === ALL} onPress={() => setSelected(ALL)} />
+            {subs.map((sc) => (
+              <Pill
+                key={String(sc.id)}
+                label={tName(sc)}
+                uri={sc.image_url ?? sc.image_path}
+                selected={selected === String(sc.id)}
+                onPress={() => setSelected(String(sc.id))}
+              />
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       <FlatList
@@ -103,22 +122,6 @@ export default function CategoryProductsScreen() {
         keyboardShouldPersistTaps="handled"
         onEndReachedThreshold={0.4}
         onEndReached={() => { if (hasMore && !loading && !loadingMore) fetchPage(page + 1, false); }}
-        ListHeaderComponent={
-          subs.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills}>
-              <Pill label={t('Tout')} selected={selected === ALL} onPress={() => setSelected(ALL)} />
-              {subs.map((s) => (
-                <Pill
-                  key={String(s.id)}
-                  label={tName(s)}
-                  uri={s.image_url ?? s.image_path}
-                  selected={selected === String(s.id)}
-                  onPress={() => setSelected(String(s.id))}
-                />
-              ))}
-            </ScrollView>
-          ) : null
-        }
         ListEmptyComponent={
           loading ? <ActivityIndicator color={C.red} style={{ marginTop: 40 }} /> : (
             <EmptyState
@@ -145,8 +148,12 @@ export default function CategoryProductsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  searchWrap: { paddingHorizontal: S.lg, paddingBottom: S.sm },
-  pills: { gap: 14, paddingBottom: 14, paddingTop: 4 },
+  // Bloc fixe sous l'en-tête : recherche + pastilles de sous-catégories
+  sticky: {
+    paddingHorizontal: S.lg, paddingBottom: 6, backgroundColor: C.bg,
+    borderBottomWidth: 1, borderBottomColor: C.line,
+  },
+  pills: { gap: 14, paddingBottom: 12, paddingTop: 10 },
   pill: { alignItems: 'center', width: 70 },
   pillCircle: {
     width: 58, height: 58, borderRadius: 29, overflow: 'hidden', backgroundColor: C.bgSoft,
@@ -156,5 +163,5 @@ const styles = StyleSheet.create({
   pillImg: { width: '100%', height: '100%' },
   pillLabel: { marginTop: 6, fontSize: 12.5, color: C.ink, fontFamily: F.medium },
   pillLabelOn: { color: C.red, fontFamily: F.bold },
-  grid: { paddingHorizontal: S.lg, paddingBottom: 120, gap: GAP },
+  grid: { paddingHorizontal: S.lg, paddingTop: 12, paddingBottom: 120, gap: GAP },
 });

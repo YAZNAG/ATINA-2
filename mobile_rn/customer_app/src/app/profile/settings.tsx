@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Image,
-  SafeAreaView, StatusBar, Platform, ScrollView,
-  ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Dimensions, Switch,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Image, StatusBar, Platform, ScrollView, ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Dimensions, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';

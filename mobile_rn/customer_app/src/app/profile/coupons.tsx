@@ -1,8 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl,
+  View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';

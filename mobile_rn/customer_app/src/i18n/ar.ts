@@ -627,4 +627,6 @@ export const AR: Record<string, string> = {
   'Essayez un autre mot-clé.': 'جرّب كلمة أخرى.',
   'Adresse incomplète': 'عنوان غير مكتمل',
   'Saisissez la rue et le numéro, ou appuyez sur « Utiliser ma position actuelle ».': 'أدخل الشارع والرقم، أو اضغط على «استعمال موقعي الحالي».',
+  'Nouvelle version prête': 'نسخة جديدة جاهزة',
+  'Redémarrer': 'إعادة التشغيل',
 };

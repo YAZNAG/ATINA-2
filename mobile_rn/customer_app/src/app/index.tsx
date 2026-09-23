@@ -19,20 +19,25 @@ export default function SplashScreen() {
       Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }),
     ]).start();
 
-    const timer = setTimeout(async () => {
-      const done = await prefGet(ONBOARDING_DONE_KEY);
+    // Démarrage rapide : la destination est calculée tout de suite ; l'écran de marque
+    // reste affiché le temps de l'animation (700 ms) et pas une seconde de plus.
+    let cancelled = false;
+    (async () => {
+      const [done, step, logged] = await Promise.all([
+        prefGet(ONBOARDING_DONE_KEY),
+        prefGet(ONBOARDING_STEP_KEY),
+        isTokenValid().catch(() => false),
+        new Promise((resolve) => setTimeout(resolve, 700)),
+      ]) as [string | null, string | null, boolean, unknown];
+      if (cancelled) return;
       if (!done) {
-        const step = await prefGet(ONBOARDING_STEP_KEY);
         router.replace((step === 'slides' ? '/onboarding/slide1' : '/onboarding') as any);
         return;
       }
-      // Session encore valide : directement à l'accueil.
-      let logged = false;
-      try { logged = await isTokenValid(); } catch { /* pas de session */ }
       router.replace(logged ? '/main/main_nav/home' : '/auth/login');
-    }, 2200);
+    })();
 
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; };
   }, []);
 
   return (

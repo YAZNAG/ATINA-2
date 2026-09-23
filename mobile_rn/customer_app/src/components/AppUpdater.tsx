@@ -1,98 +1,90 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { AppState, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import { Feather } from '@expo/vector-icons';
 import { t } from '../i18n';
 
 const RED = '#E10600';
+/** L'app s'ouvre d'abord : la recherche de mise à jour attend le premier écran. */
+const START_DELAY_MS = 4000;
 
 /**
- * Mises à jour à distance (EAS Update) : au lancement et à chaque retour de l'app au
- * premier plan, vérifie si une nouvelle version du code a été publiée sur le canal de
- * l'APK. Si oui, affiche « Mise à jour disponible » ; « Mettre à jour » télécharge la
- * version puis redémarre l'app dessus, sans réinstaller d'APK.
+ * Mises à jour à distance (EAS Update), sans bloquer l'ouverture de l'app :
+ * la vérification démarre quelques secondes après le lancement, la nouvelle version
+ * est téléchargée en tâche de fond, puis un bandeau discret propose de l'appliquer.
+ * Sans action, elle s'appliquera d'elle-même au prochain démarrage.
  * Inactif en développement (Expo Go / Metro) et en version web.
  */
 export default function AppUpdater() {
-  const [visible, setVisible] = useState(false);
-  const [state, setState] = useState<'idle' | 'downloading' | 'error'>('idle');
-  const checking = useRef(false);
+  const insets = useSafeAreaInsets();
+  const [ready, setReady] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const busy = useRef(false);
   const dismissedAt = useRef(0);
 
   const check = useCallback(async () => {
-    if (__DEV__ || !Updates.isEnabled || checking.current) return;
+    if (__DEV__ || !Updates.isEnabled || busy.current) return;
     // « Plus tard » : ne pas redemander avant 30 minutes
     if (Date.now() - dismissedAt.current < 30 * 60 * 1000) return;
-    checking.current = true;
+    busy.current = true;
     try {
       const res = await Updates.checkForUpdateAsync();
-      if (res.isAvailable) { setState('idle'); setVisible(true); }
+      if (res.isAvailable) {
+        await Updates.fetchUpdateAsync();   // téléchargement silencieux
+        setReady(true);
+      }
     } catch {
       /* hors ligne ou serveur indisponible : on réessaiera au prochain retour */
     } finally {
-      checking.current = false;
+      busy.current = false;
     }
   }, []);
 
   useEffect(() => {
-    check();
+    const timer = setTimeout(check, START_DELAY_MS);
     const sub = AppState.addEventListener('change', (s) => { if (s === 'active') check(); });
-    return () => sub.remove();
+    return () => { clearTimeout(timer); sub.remove(); };
   }, [check]);
 
   const apply = async () => {
-    setState('downloading');
-    try {
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    } catch {
-      setState('error');
-    }
+    setRestarting(true);
+    try { await Updates.reloadAsync(); } catch { setRestarting(false); }
   };
 
-  const later = () => { dismissedAt.current = Date.now(); setVisible(false); };
+  if (!ready) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={later}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <View style={styles.iconWrap}>
-            <Feather name="download-cloud" size={30} color={RED} />
-          </View>
-          <Text style={styles.title}>{t('Mise à jour disponible')}</Text>
-          <Text style={styles.body}>
-            {state === 'error'
-              ? 'Le téléchargement a échoué. Vérifiez votre connexion puis réessayez.'
-              : "Une nouvelle version d'Atina est prête. L'application redémarre en quelques secondes."}
-          </Text>
-          <TouchableOpacity
-            style={[styles.primary, state === 'downloading' && { opacity: 0.8 }]}
-            onPress={apply}
-            disabled={state === 'downloading'}
-            activeOpacity={0.85}
-          >
-            {state === 'downloading'
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.primaryText}>{state === 'error' ? t('Réessayer') : t('Mettre à jour')}</Text>}
-          </TouchableOpacity>
-          {state !== 'downloading' && (
-            <TouchableOpacity onPress={later} hitSlop={10}>
-              <Text style={styles.later}>{t('Plus tard')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+    <View style={[styles.bar, { bottom: insets.bottom + 92 }]} pointerEvents="box-none">
+      <View style={styles.card}>
+        <Feather name="download-cloud" size={18} color={RED} />
+        <Text style={styles.text} numberOfLines={2}>{t('Nouvelle version prête')}</Text>
+        <TouchableOpacity style={styles.btn} onPress={apply} disabled={restarting} activeOpacity={0.85}>
+          {restarting
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={styles.btnText}>{t('Redémarrer')}</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { dismissedAt.current = Date.now(); setReady(false); }}
+          hitSlop={10}
+          accessibilityLabel={t('Fermer')}
+        >
+          <Feather name="x" size={16} color="#8A8A8A" />
+        </TouchableOpacity>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(10,10,10,0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 18, padding: 24, alignItems: 'center' },
-  iconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FDECEC', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  title: { fontSize: 18, color: '#0A0A0A', fontFamily: 'Poppins_700Bold', marginBottom: 6, textAlign: 'center' },
-  body: { fontSize: 13.5, color: '#8A8A8A', fontFamily: 'Poppins_400Regular', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  primary: { alignSelf: 'stretch', backgroundColor: RED, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
-  primaryText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_600SemiBold' },
-  later: { color: RED, fontSize: 14, fontFamily: 'Poppins_500Medium' },
+  bar: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch',
+    backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#F0F0F0',
+    shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
+  text: { flex: 1, fontSize: 13.5, color: '#0A0A0A', fontFamily: 'Inter_600SemiBold' },
+  btn: { backgroundColor: RED, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  btnText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 });

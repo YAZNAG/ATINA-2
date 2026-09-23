@@ -100,57 +100,62 @@ export default function HomeScreen() {
     }
   }, [selectedCat, selectedCats]);
 
+  /**
+   * Affichage progressif : l'écran apparaît dès que les catégories et les premiers
+   * produits sont là ; chaque autre bloc se remplit à son arrivée (au lieu d'attendre
+   * les 13 appels). Les compléments du panier sont chargés après le premier rendu.
+   */
   const loadData = useCallback(async () => {
-    try {
-      const [cats, arts, addresses, recs, profile, promos, pks, homePromos, favs, pop, rated] = await Promise.all([
-        CatalogService.getCategories().catch(() => []),
-        CatalogService.getArticles({ limit: 20 }).catch(() => []),
-        ProfileService.listAddresses().catch(() => []),
-        CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []),
-        ProfileService.getProfile().catch(() => null),
-        PromotionsService.listActive().catch(() => []),
-        PacksService.listActive().catch(() => []),
-        PromotionsService.listHomePromotions(24, 10).catch(() => ({
-          endingSoon: { ends_at: null, products: [] },
-          bestDeals: [],
-        })),
-        ProfileService.listFavorites().catch(() => []),
-        CatalogService.getPopularArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })),
-        CatalogService.getTopRatedArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })),
-      ]);
+    const jobs: Promise<unknown>[] = [];
+    const run = <T,>(promise: Promise<T>, apply: (value: T) => void) => {
+      jobs.push(promise.then(apply).catch(() => {}));
+    };
+
+    const essentials = Promise.all([
+      CatalogService.getCategories().catch(() => [] as Category[]),
+      CatalogService.getArticles({ limit: 20 }).catch(() => [] as Article[]),
+    ]).then(([cats, arts]) => {
       setCategories(cats);
       setArticles(arts);
-      setRecommended(recs);
-      setPopular(pop.data);
+      setLoading(false);
+    });
+    jobs.push(essentials);
+
+    run(ProfileService.getProfile().catch(() => null), (profile) => {
       setAvatarUrl(profile?.avatar_url ?? null);
       setUser(profile);
-      setPromotions(promos);
-      setPacks(pks);
+    });
+    run(ProfileService.listAddresses().catch(() => []), (addresses) => {
+      setDefaultAddress(addresses.find((a) => a.is_default) || addresses[0] || null);
+    });
+    run(PromotionsService.listActive().catch(() => []), setPromotions);
+    run(PacksService.listActive().catch(() => []), setPacks);
+    run(PromotionsService.listHomePromotions(24, 10).catch(() => ({
+      endingSoon: { ends_at: null, products: [] },
+      bestDeals: [],
+    })), (homePromos) => {
       setEndingSoon(homePromos.endingSoon);
       setBestDeals(homePromos.bestDeals);
-      favoritesStore.setIds(new Set(favs.map((f) => f.id)));
-      setTopRated(rated.data);
-      const defaultAddr = addresses.find((a) => a.is_default) || addresses[0] || null;
-      setDefaultAddress(defaultAddr);
+    });
+    run(CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []), setRecommended);
+    run(CatalogService.getPopularArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (pop) => setPopular(pop.data));
+    run(CatalogService.getTopRatedArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (rated) => setTopRated(rated.data));
+    run(ProfileService.listFavorites().catch(() => []), (favs) => favoritesStore.setIds(new Set(favs.map((f) => f.id))));
+
+    // Compléments du panier : dépendent du panier, donc après le reste.
+    jobs.push((async () => {
       try {
         const cart = await CartService.getCart();
         const skuIds = cart.items.map((i) => i.sku_id).filter(Boolean) as string[];
-        if (skuIds.length > 0) {
-          const comps = await CatalogService.getCartComplements(skuIds, 10);
-          setComplements(comps.data);
-        } else {
-          setComplements([]);
-        }
-      } catch (err) {
+        setComplements(skuIds.length ? (await CatalogService.getCartComplements(skuIds, 10)).data : []);
+      } catch {
         setComplements([]);
-        console.log('Erreur compléments panier:', err);
       }
-    } catch (err) {
-      console.log('Error loading data:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    })());
+
+    await Promise.allSettled(jobs);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

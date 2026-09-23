@@ -623,4 +623,6 @@ export const AR: Record<string, string> = {
   'Order Progress': 'تقدم الطلب',
   'les produits': 'المنتجات',
   'un avis': 'تقييم',
+  'produits': 'منتجات',
+  'Essayez un autre mot-clé.': 'جرّب كلمة أخرى.',
 };

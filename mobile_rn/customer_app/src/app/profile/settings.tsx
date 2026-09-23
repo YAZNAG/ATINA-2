@@ -345,7 +345,7 @@ const FieldRow = ({
 }) => (
   <View style={styles.fieldRow}>
     <View style={styles.rowIcon}>
-      <Feather name={icon as any} size={18} color="#9CA3AF" />
+      <Feather name={icon as any} size={17} color={RED} />
     </View>
     <View style={{ flex: 1 }}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -400,11 +400,17 @@ const styles = StyleSheet.create({
   editPhotoLink: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: RED, marginTop: 12 },
 
   sectionTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#1a1a1a', marginBottom: 10, marginTop: 20, marginLeft: 2, letterSpacing: 0.3 },
-  card: { backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: '#EEF0F3' },
+  card: {
+    backgroundColor: '#fff', borderRadius: 18, paddingHorizontal: 16, borderWidth: 1, borderColor: '#F3F3F3',
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+  },
 
   fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   phonePrefix: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
-  rowIcon: { width: 32, alignItems: 'center' },
+  rowIcon: {
+    width: 34, height: 34, borderRadius: 12, backgroundColor: '#FDECEC',
+    alignItems: 'center', justifyContent: 'center',
+  },
   rowLabel: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginBottom: 2 },
   rowInput: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a', padding: 0 },
   divider: { height: 1, backgroundColor: '#F5F5F5' },
@@ -414,8 +420,8 @@ const styles = StyleSheet.create({
 
   btnSave: { backgroundColor: RED, borderRadius: 14, paddingVertical: 17, alignItems: 'center', marginTop: 24, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   btnSaveText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
-  btnCancel: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
-  btnCancelText: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1a1a1a' },
+  btnCancel: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  btnCancelText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#8A8A8A' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32, maxHeight: height * 0.6 },

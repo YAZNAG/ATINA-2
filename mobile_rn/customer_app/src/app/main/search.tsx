@@ -14,6 +14,11 @@ import {
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
 } from '@expo-google-fonts/inter';
 
+import { Dimensions } from 'react-native';
+import { EmptyState } from '../../theme/atina';
+
+/** Grille 2 colonnes (padding 16, gouttière 12) comme la maquette. */
+const GRID_CARD = (Dimensions.get('window').width - 32 - 12) / 2;
 import ProductCard from '../../components/ui/ProductCard';
 import SearchBar from '../../components/ui/SearchBar';
 import FilterModal from '../../components/ui/FilterModal';
@@ -211,16 +216,18 @@ export default function SearchScreen() {
             <ActivityIndicator size="large" color={RED} />
           </View>
         ) : displayed.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Feather name="search" size={40} color="#E0E0E0" />
-            <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
-          </View>
+          <EmptyState
+            icon="search"
+            title={t('Aucun produit trouvé')}
+            text={t('Essayez un autre mot-clé.')}
+          />
         ) : (
           <View style={styles.grid}>
             {displayed.map(article => (
               <ProductCard
-                key={article.id}
+                key={String(article.id)}
                 article={article}
+                width={GRID_CARD}
                 onPress={() =>
                   router.push({ pathname: '/main/product-detail' as any, params: { article_id: article.id } })
                 }
@@ -303,7 +310,7 @@ searchBarFlex: {
 
   grid: {
     flexDirection: 'row', flexWrap: 'wrap',
-    paddingHorizontal: 16, gap: 16, paddingTop: 16,
+    paddingHorizontal: 16, gap: 12, paddingTop: 16,
   },
 
   loadingWrap: { paddingVertical: 60, alignItems: 'center' },

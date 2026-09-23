@@ -1,50 +1,32 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, ActivityIndicator, Alert,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Image, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import {
-  useFonts,
-  Poppins_600SemiBold, Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import PageHeader from '../../components/ui/PageHeader';
 import { ProfileService } from '../../services/profile.service';
+import { C, F, S, R, ScreenHeader, shadow } from '../../theme/atina';
 import { t, getLang, setLanguage } from '../../i18n';
 import type { Lang } from '../../components/onboarding/onboardingKit';
 
-const RED = '#E62A27';
-
-const LANGUAGES = [
-  { code: 'fr', label: 'Français', native: 'FR' },
-  { code: 'ar', label: 'العربية', native: 'AR' },
+const LANGUAGES: { code: Lang; label: string; hint: string; flag: any }[] = [
+  { code: 'fr', label: 'Français', hint: 'Continuer en français.', flag: require('../../../assets/images/atina/flag_fr.png') },
+  { code: 'ar', label: 'العربية', hint: 'المتابعة باللغة العربية.', flag: require('../../../assets/images/atina/flag_ma.png') },
 ];
 
+/** Langue de l'app (maquette Figma « Langue ») : deux cartes drapeau, coche rouge sur l'active. */
 export default function LangueScreen() {
   const router = useRouter();
-  const [current, setCurrent] = useState<string>('fr');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState<string | null>(null);
+  const [current, setCurrent] = useState<Lang>('fr');
+  const [saving, setSaving] = useState<string | null>(null);
 
-  const [fontsLoaded] = useFonts({
-    Poppins_600SemiBold, Poppins_700Bold,
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
-  });
+  useFocusEffect(useCallback(() => { setCurrent(getLang()); }, []));
 
-  // Langue de l'app (FR/AR) : mémorisée localement, envoyée au profil, puis rechargement (sens RTL).
-  useFocusEffect(useCallback(() => {
-    setCurrent(getLang());
-    setLoading(false);
-  }, []));
-
-  const handleSelect = async (code: string) => {
+  const handleSelect = async (code: Lang) => {
     if (saving || code === current) return;
     setSaving(code);
     try {
       try { await ProfileService.updateProfile({ preferred_lang: code }); } catch { /* le choix local suffit */ }
-      await setLanguage(code as Lang);
+      await setLanguage(code);
       setCurrent(code);
     } catch (e: any) {
       Alert.alert(t('Erreur'), e?.message || t('Erreur lors de la mise à jour de la langue'));
@@ -53,99 +35,62 @@ export default function LangueScreen() {
     }
   };
 
-  if (!fontsLoaded) return null;
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <PageHeader title={t('Langue')} />
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <ScreenHeader title={t('Langue')} onBack={() => router.back()} />
 
-      <View style={styles.container}>
-        <Text style={styles.sectionLabel}>{t('Choisissez votre langue')}</Text>
+      <View style={styles.content}>
+        <Text style={styles.label}>{t('Choisissez votre langue')}</Text>
+        <Text style={styles.hint}>
+          {t("Sélectionnez la langue que vous souhaitez utiliser. Vous pourrez la modifier à tout moment dans les paramètres.")}
+        </Text>
 
-        {loading ? (
-          <ActivityIndicator color={RED} style={{ marginTop: 32 }} />
-        ) : (
-          <View style={styles.card}>
-            {LANGUAGES.map((lang, index) => {
-              const isSelected = lang.code === current;
-              return (
-                <React.Fragment key={lang.code}>
-                  <TouchableOpacity
-                    style={styles.row}
-                    onPress={() => handleSelect(lang.code)}
-                    activeOpacity={0.7}
-                    disabled={saving !== null}
-                  >
-                    <View style={styles.rowLeft}>
-                      <View style={[styles.flagCircle, isSelected && styles.flagCircleActive]}>
-                        <Text style={[styles.flagText, isSelected && styles.flagTextActive]}>
-                          {lang.native}
-                        </Text>
-                      </View>
-                      <Text style={styles.rowLabel}>{t(lang.label)}</Text>
-                    </View>
-
-                    {saving === lang.code ? (
-                      <ActivityIndicator size="small" color={RED} />
-                    ) : isSelected ? (
-                      <View style={styles.checkCircle}>
-                        <Feather name="check" size={13} color="#fff" />
-                      </View>
-                    ) : (
-                      <View style={styles.emptyCircle} />
-                    )}
-                  </TouchableOpacity>
-                  {index < LANGUAGES.length - 1 && <View style={styles.divider} />}
-                </React.Fragment>
-              );
-            })}
-          </View>
-        )}
+        <View style={styles.cards}>
+          {LANGUAGES.map((lang) => {
+            const active = lang.code === current;
+            return (
+              <TouchableOpacity
+                key={lang.code}
+                style={[styles.card, active && styles.cardActive]}
+                onPress={() => handleSelect(lang.code)}
+                disabled={saving !== null}
+                activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+              >
+                <Image source={lang.flag} style={styles.flag} resizeMode="cover" />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.name, active && styles.nameActive]}>{lang.label}</Text>
+                  <Text style={[styles.sub, active && styles.subActive]}>{lang.hint}</Text>
+                </View>
+                {saving === lang.code
+                  ? <ActivityIndicator size="small" color={C.red} />
+                  : active && <Feather name="check-circle" size={18} color={C.red} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea:  { flex: 1, backgroundColor: '#ffffff' },
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-
-  sectionLabel: {
-    fontSize: 13, fontFamily: 'Inter_500Medium', color: '#9CA3AF',
-    marginBottom: 10, marginLeft: 4, textTransform: 'uppercase', letterSpacing: 0.4,
-  },
-
+  safe: { flex: 1, backgroundColor: C.bg },
+  content: { flex: 1, paddingHorizontal: S.lg, paddingTop: S.sm },
+  label: { fontSize: 18, color: C.ink, fontFamily: F.bold, marginBottom: 6 },
+  hint: { fontSize: 13, lineHeight: 19, color: C.grey, fontFamily: F.regular, marginBottom: S.xl },
+  cards: { gap: S.md },
   card: {
-    backgroundColor: '#fff', borderRadius: 16,
-    paddingHorizontal: 16, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: C.bg, borderRadius: R.md, borderWidth: 1, borderColor: 'transparent',
+    paddingVertical: S.lg, paddingHorizontal: S.lg, ...shadow,
   },
-
-  row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 16,
-  },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-
-  flagCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
-  flagCircleActive: { backgroundColor: '#FFEAEA' },
-  flagText:       { fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: '#9CA3AF' },
-  flagTextActive: { color: RED },
-
-  rowLabel: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
-
-  checkCircle: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
-  },
-  emptyCircle: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 1.5, borderColor: '#E5E7EB',
-  },
-
-  divider: { height: 1, backgroundColor: '#F0F0F0' },
+  cardActive: { borderColor: C.red, backgroundColor: C.redSoft },
+  flag: { width: 26, height: 18, borderRadius: 3 },
+  name: { fontSize: 15.5, color: C.ink, fontFamily: F.semi },
+  nameActive: { color: C.red },
+  sub: { fontSize: 12, color: C.grey, fontFamily: F.regular, marginTop: 1 },
+  subActive: { color: C.red },
 });

@@ -35,7 +35,7 @@ export default function PageHeader({
           }
         }}
         activeOpacity={0.7}>
-        <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color={RED} />
+        <Feather name={isRTL() ? 'chevron-right' : 'chevron-left'} size={20} color="#0A0A0A" />
       </TouchableOpacity>
 
       {/* ── Title ── */}
@@ -62,7 +62,7 @@ export default function PageHeader({
     )}
   </TouchableOpacity>
 ) : (
-  <View style={{ width: 60 }} />
+  <View style={{ width: 36 }} />
 )}
     </View>
   );
@@ -76,18 +76,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#FFEAEA',
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#fff',
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
   title: {
-    flex: 1, textAlign: 'left', marginLeft: 14,
-    fontSize: 20, color: '#1a1a1a',
-    fontFamily: 'Poppins_700Bold',
+    flex: 1, textAlign: 'center', marginHorizontal: 10,
+    fontSize: 17, color: '#0A0A0A',
+    fontFamily: 'Inter_700Bold',
   },
   rightBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#F5F5F5',
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F7F7F7',
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },

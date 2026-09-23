@@ -50,7 +50,9 @@ const MenuRow = ({ icon, label, onPress, rightContent, showChevron = true }: Row
     activeOpacity={onPress ? 0.7 : 1}
   >
     <View style={styles.menuRowLeft}>
-      <Feather name={icon as any} size={20} color="#333" />
+      <View style={styles.menuRowIcon}>
+        <Feather name={icon as any} size={17} color={RED} />
+      </View>
       <Text style={styles.menuRowLabel}>{label}</Text>
     </View>
     <View style={styles.menuRowRight}>
@@ -164,7 +166,9 @@ const langLabel = getLang() === 'ar' ? 'العربية (AR)' : 'Français (FR)';
             </TouchableOpacity>
           </View>
           <Text style={styles.profileName}>{profile?.name ?? '—'}</Text>
-          <Text style={styles.profileEmail}>{profile?.email ?? '—'}</Text>
+          <Text style={styles.profileEmail}>
+            {profile?.phone_number ? `${profile.phone_country ?? '+212'} ${profile.phone_number}` : (profile?.email ?? '—')}
+          </Text>
         </View>
 
         {/* ── Stats ─────────────────────────────────────────────────────── */}
@@ -351,8 +355,8 @@ const styles = StyleSheet.create({
   avatarSection:  { alignItems: 'center', marginVertical: 20 },
   avatarWrap:     { position: 'relative', marginBottom: 12 },
   avatar:         { width: 90, height: 90, borderRadius: 45 },
-  avatarFallback: { backgroundColor: RED, alignItems: 'center', justifyContent: 'center' },
-  avatarInitial:  { fontSize: 34, fontWeight: '700', color: '#fff' },
+  avatarFallback: { backgroundColor: '#FDECEC', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial:  { fontSize: 34, fontFamily: 'Inter_700Bold', color: RED },
   editAvatarBtn:  {
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
@@ -360,41 +364,46 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2.5, borderColor: '#F5F5F5',
   },
-  profileName:  { fontSize: 20, fontWeight: '800', color: '#1a1a1a', marginBottom: 4 },
-  profileEmail: { fontSize: 13, color: '#9CA3AF' },
+  profileName:  { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0A0A0A', marginBottom: 4 },
+  profileEmail: { fontSize: 13, color: '#8A8A8A', fontFamily: 'Inter_400Regular' },
 
   /* Stats */
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
   statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 14,
+    flex: 1, backgroundColor: '#FFF7F7', borderRadius: 16,
     paddingVertical: 16, paddingHorizontal: 8,
-    alignItems: 'center',
+    alignItems: 'center', borderWidth: 1, borderColor: '#FCE4E4',
   },
-  statIcon:  { marginBottom: 6, backgroundColor:RED , borderRadius:18, padding:9},
-  statValue: { fontSize: 20, fontWeight: '800', color: '#1a1a1a' },
-  statLabel: { fontSize: 10, color: '#9CA3AF', fontWeight: '600', marginTop: 2, letterSpacing: 0.6 },
+  statIcon:  { marginBottom: 6, backgroundColor: RED, borderRadius: 18, padding: 9 },
+  statValue: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0A0A0A' },
+  statLabel: { fontSize: 10, color: '#8A8A8A', fontFamily: 'Inter_600SemiBold', marginTop: 2, letterSpacing: 0.6 },
 
   /* Section header */
   sectionHeader: {
-    fontSize: 16, fontWeight: '700', color: '#1a1a1a',
+    fontSize: 16, fontFamily: 'Inter_700Bold', color: '#0A0A0A',
     marginBottom: 10, marginTop: 2,
   },
 
   /* Card */
   card: {
-    backgroundColor: '#fff', borderRadius: 16,
+    backgroundColor: '#fff', borderRadius: 18,
     paddingHorizontal: 16, marginBottom: 20,
-    overflow: 'hidden',
+    overflow: 'hidden', borderWidth: 1, borderColor: '#F3F3F3',
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
 
   /* Menu rows */
   menuRow: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 16,
+    justifyContent: 'space-between', paddingVertical: 13,
   },
-  menuRowLeft:  { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  menuRowLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  menuRowIcon:  {
+    width: 34, height: 34, borderRadius: 12, backgroundColor: '#FDECEC',
+    alignItems: 'center', justifyContent: 'center',
+  },
   menuRowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  menuRowLabel: { fontSize: 15, color: '#1a1a1a', fontWeight: '500' },
+  menuRowLabel: { fontSize: 14.5, color: '#0A0A0A', fontFamily: 'Inter_500Medium' },
   divider:      { height: 1, backgroundColor: '#F0F0F0' },
 
   /* Red badge */

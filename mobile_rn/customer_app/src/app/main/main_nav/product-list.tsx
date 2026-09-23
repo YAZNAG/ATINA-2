@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, ActivityIndicator, RefreshControl,
+  FlatList, ActivityIndicator, RefreshControl, Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -21,6 +21,8 @@ const PAGE_SIZE = 20;
 
 const RED = '#E10600';
 const GRID_COLUMNS = 2;
+/** Largeur des cartes : 2 colonnes, padding 16, gouttière 12 (maquette). */
+const LIST_CARD = (Dimensions.get('window').width - 32 - 12) / 2;
 
 type Source = 'bestDeals' | 'popular' | 'topRated' | 'suggestions' | 'allProducts';
 
@@ -155,6 +157,7 @@ export default function ProductListScreen() {
   const renderItem = useCallback(({ item }: { item: ListCard }) => (
     <ProductCard
       article={item.article}
+      width={LIST_CARD}
       discount={item.discount}
       oldPrice={item.oldPrice}
       isFlashSale={item.isFlashSale}
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   gridContent: { paddingBottom: 100, paddingTop: 8 },
-  gridRow: { paddingHorizontal: 16, gap: 16, marginBottom: 16 },
+  gridRow: { paddingHorizontal: 16, gap: 12, marginBottom: 12 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyText: { fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: 'Inter_400Regular' },
 });

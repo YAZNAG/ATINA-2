@@ -153,17 +153,17 @@ const styles = StyleSheet.create({
 
   searchBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F3F4F6', borderRadius: 16,
-    paddingLeft: 16, paddingRight: 6, paddingVertical: 6,
-    borderWidth: 1.5, borderColor: 'transparent',
+    backgroundColor: '#fff', borderRadius: 12,
+    paddingLeft: 14, paddingRight: 6, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#D9D9D9',
   },
   searchBoxFocused: { borderColor: RED, backgroundColor: '#fff' },
 
   icon:     { marginRight: 10 },
-  input:    { flex: 1, fontSize: 15, color: '#1a1a1a', fontFamily: 'Inter_400Regular', padding: 0, paddingVertical: 8 },
+  input:    { flex: 1, fontSize: 13.5, color: '#0A0A0A', fontFamily: 'Inter_400Regular', padding: 0, paddingVertical: 9 },
   clearBtn: { marginRight: 8 },
   filterBtn: {
-    width: 40, height: 40, borderRadius: 15,
+    width: 36, height: 36, borderRadius: 12,
     backgroundColor: RED, alignItems: 'center', justifyContent: 'center',
   },
 

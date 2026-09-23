@@ -22,12 +22,15 @@ import { CartService } from '../../services/cart.service';
 import { ProfileService } from '../../services/profile.service';
 import { ReviewsService, Review, ReviewStats } from '../../services/reviews.service';
 import { useCartActions } from '../../context/CartContext';
+import { DiscountBadge } from '../../theme/atina';
 import ProductCard from '../../components/ui/ProductCard';
 import { favoritesStore } from '../../store/favoritesStore';
 import { useIsFavorite, useToggleFavorite } from '../../store/useIsFavorite';
 import { t, isRTL } from '../../i18n';
 
 const { width, height } = Dimensions.get('window');
+/** Deux colonnes dans la feuille de détail (padding 20 de chaque côté, gouttière 12). */
+const SIMILAR_CARD = (width - 40 - 12) / 2;
 const RED    = '#E10600';
 const IMG_H  = height * 0.42;
 
@@ -487,9 +490,18 @@ export default function ProductDetailScreen() {
 
           <View style={styles.priceQtyRow}>
             <View>
-              <Text style={styles.price}>{article.price_ttc.toFixed(2)} DH</Text>
-              {article.unit_sale && article.unit_sale !== 'unit' && (
-                <Text style={styles.unit}>/ {article.unit_sale}</Text>
+              <View style={styles.priceRow}>
+                <Text style={styles.price}>{article.price_ttc.toFixed(2)} DH</Text>
+                {article.unit_sale && article.unit_sale !== 'unit' && (
+                  <Text style={styles.unit}>/ {article.unit_sale}</Text>
+                )}
+              </View>
+              {/* Prix barré et remise de la vente flash (maquette) */}
+              {article.old_price_ttc != null && article.old_price_ttc > article.price_ttc && (
+                <View style={styles.oldRow}>
+                  <Text style={styles.oldPrice}>{article.old_price_ttc.toFixed(2)} DH</Text>
+                  {!!article.discount_pct && <DiscountBadge value={article.discount_pct} />}
+                </View>
               )}
             </View>
             <View style={styles.qtyRow}>
@@ -545,18 +557,15 @@ export default function ProductDetailScreen() {
           {similar.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>{t('Produits similaires')}</Text>
-              <ScrollView
-                horizontal showsHorizontalScrollIndicator={false}
-                style={styles.similarScroll}
-                contentContainerStyle={styles.similarScrollContent}
-              >
+              {/* Grille 2 colonnes comme la maquette Figma */}
+              <View style={styles.similarGrid}>
                 {similar.map(sim => (
                   <ProductCard
-                    key={sim.id} article={sim}
+                    key={String(sim.id)} article={sim} width={SIMILAR_CARD}
                     onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: sim.id } })}
                   />
                 ))}
-              </ScrollView>
+              </View>
             </>
           )}
         </View>
@@ -628,14 +637,16 @@ dotActive: { width: 18, backgroundColor: RED },
   name:      { fontSize: 24, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', marginBottom: 14, lineHeight: 30 },
   priceQtyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   price:     { fontSize: 28, fontFamily: 'Poppins_700Bold', color: RED },
-  unit:      { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
+  unit:      { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginBottom: 4 },
   qtyRow:    { flexDirection: 'row', alignItems: 'center', gap: 16 , borderRadius: 15, borderWidth: 1.5, borderColor: '#E5E7EB', paddingHorizontal: 8, paddingVertical: 4 , backgroundColor: '#F7F7F7' },
   qtyBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   qtyBtnDisabled: { borderColor: '#F3F4F6' },
   qtyValue:  { fontSize: 18, fontFamily: 'Poppins_700Bold', color: '#1a1a1a', minWidth: 24, textAlign: 'center' },
   sectionLabel: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#1a1a1a', marginBottom: 8, marginTop: 4 },
-  similarScroll: { marginHorizontal: -20, marginTop: 8, marginBottom: 60 },
-  similarScrollContent: {paddingHorizontal: 20, paddingBottom: 8, gap: 12,},
+  similarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8, marginBottom: 60 },
+  priceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  oldRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  oldPrice: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#8A8A8A', textDecorationLine: 'line-through' },
   description:  { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 20, marginBottom: 20 },
   badgesRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   infoBadge: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderRadius: 14, padding: 12 },

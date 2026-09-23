@@ -11,6 +11,7 @@ import {
   Poppins_600SemiBold, Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { EmptyState } from '../../../theme/atina';
 import PageHeader from '../../../components/ui/PageHeader';
 import { ProfileService, FavoriteArticle } from '../../../services/profile.service';
 import { CartService } from '../../../services/cart.service';
@@ -180,14 +181,13 @@ export default function FavoritesScreen() {
         {loading ? (
           <ActivityIndicator color={RED} style={{ marginTop: 48 }} />
         ) : items.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="heart" size={52} color="#E5E7EB" />
-            <Text style={styles.emptyTitle}>{t('Aucun favori')}</Text>
-            <Text style={styles.emptySubtitle}>{t('Ajoutez des produits à vos favoris en appuyant sur ♡')}</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace('/main/main_nav/home' as any)}>
-              <Text style={styles.emptyBtnText}>{t('Découvrir des produits')}</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="heart"
+            title={t('Aucun favori')}
+            text={t('Ajoutez des produits à vos favoris en appuyant sur ♡')}
+            actionLabel={t('Découvrir des produits')}
+            onAction={() => router.replace('/main/main_nav/home' as any)}
+          />
         ) : (
           <FlatList
             data={items}

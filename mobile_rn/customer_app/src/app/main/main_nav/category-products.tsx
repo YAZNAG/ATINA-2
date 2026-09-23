@@ -1,236 +1,160 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
-  FlatList, TouchableOpacity,
-  Dimensions, ActivityIndicator, RefreshControl, ScrollView,
+  View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity,
+  ActivityIndicator, Dimensions, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import {
-  useFonts,
-  Inter_400Regular, Inter_500Medium,
-  Inter_600SemiBold, Inter_700Bold,
-} from '@expo-google-fonts/inter';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import ProductCard  from '../../../components/ui/ProductCard';
-import FilterModal  from '../../../components/ui/FilterModal';
-import PageHeader from '../../../components/ui/PageHeader';
-import SearchBar from '@/components/ui/SearchBar';
-import { favoritesStore } from '../../../store/favoritesStore';
+import ProductCard from '../../../components/ui/ProductCard';
+import { SearchField } from '../../../components/ui/CatalogKit';
+import { CatalogService, Article, SubCategory, EntityId } from '../../../services/catalog.service';
+import { C, F, S, R, ScreenHeader, EmptyState } from '../../../theme/atina';
+import { t, tName } from '../../../i18n';
 
-import { CatalogService, Article, ArticlesResponse, SubCategory, Category, EntityId } from '../../../services/catalog.service';
-import { ProfileService } from '../../../services/profile.service';
-import { t } from '../../../i18n';
+const { width } = Dimensions.get('window');
+const GAP = 12;
+const CARD = (width - S.lg * 2 - GAP) / 2;
+const PAGE = 20;
+const ALL = '__all__';
 
-const RED = '#E10600';
+/** Pastille ronde de sous-catégorie (maquette : anneau rouge + libellé rouge si sélectionnée). */
+function Pill({ label, uri, selected, onPress }: { label: string; uri?: string | null; selected: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.pill} onPress={onPress} activeOpacity={0.85} accessibilityState={{ selected }}>
+      <View style={[styles.pillCircle, selected && styles.pillCircleOn]}>
+        {uri
+          ? <Image source={{ uri }} style={styles.pillImg} contentFit="cover" cachePolicy="memory-disk" />
+          : <Feather name="grid" size={20} color={selected ? C.red : C.greyLight} />}
+      </View>
+      <Text style={[styles.pillLabel, selected && styles.pillLabelOn]} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
-const SubCatPill = ({
-  label, image_path, selected, onPress,
-}: {
-  label: string; image_path?: string | null; selected: boolean; onPress: () => void;
-}) => (
-  <TouchableOpacity style={styles.pill} onPress={onPress} activeOpacity={0.8}>
-    <View style={[styles.pillImageBox, selected && styles.pillImageBoxSelected]}>
-      {image_path ? (
-        <Image
-          source={{ uri: image_path }}
-          style={styles.pillImage}
-          contentFit="cover"
-          transition={200}
-          cachePolicy="memory-disk"
-        />
-      ) : (
-        <Feather name="grid" size={20} color={selected ? RED : '#9CA3AF'} />
-      )}
-    </View>
-    <Text style={[styles.pillLabel, selected && styles.pillLabelSelected]} numberOfLines={1}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
-
+/** Produits d'une catégorie (axe thématique US-024), présentation identique à la maquette Figma. */
 export default function CategoryProductsScreen() {
   const router = useRouter();
-  const { category_id, category_name } = useLocalSearchParams<{
-    category_id: string; category_name: string;
-  }>();
+  const params = useLocalSearchParams<{ category_id: string; category_name?: string }>();
+  const categoryId = String(params.category_id ?? '');
 
-  const [articles, setArticles]           = useState<Article[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [selectedSub, setSelectedSub]     = useState<EntityId | null>(null);
-  const [search, setSearch]               = useState('');
-  const [loading, setLoading]             = useState(true);
-  const [refreshing, setRefreshing]       = useState(false);
-  const [page, setPage]                   = useState(1);
-  const [totalPages, setTotalPages]       = useState(1);
-  const [loadingMore, setLoadingMore]     = useState(false);
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [selectedCats, setSelectedCats]   = useState<EntityId[]>([]);
-  const [selectedSubs, setSelectedSubs]   = useState<EntityId[]>([]);
+  const [subs, setSubs] = useState<SubCategory[]>([]);
+  const [selected, setSelected] = useState<string>(ALL);
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState<Article[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const reqId = useRef(0);
 
-  const catId   = Array.isArray(category_id)   ? category_id[0]   : (category_id   || '');
-  const catName = Array.isArray(category_name) ? category_name[0] : (category_name || t('Catégorie'));
+  useEffect(() => {
+    if (!categoryId) return;
+    CatalogService.getSubCategories(categoryId).then(setSubs).catch(() => setSubs([]));
+  }, [categoryId]);
 
-  const [fontsLoaded] = useFonts({
-      Inter_400Regular, Inter_500Medium,
-      Inter_600SemiBold, Inter_700Bold,
-    });
-
-  const loadArticles = async (pageNum = 1, reset = true) => {
+  const fetchPage = useCallback(async (p: number, reset: boolean) => {
+    const id = ++reqId.current;
+    if (reset) setLoading(true); else setLoadingMore(true);
     try {
-      if (reset) {
-        setLoading(true);
-        const [subs, cats] = await Promise.all([
-          CatalogService.getSubCategories(String(catId)),
-          CatalogService.getCategories(),
-        ]);
-        setSubCategories(subs);
-        setAllCategories(cats);
-      } else {
-        setLoadingMore(true);
-      }
-
-      const result: ArticlesResponse = await CatalogService.getArticlesByCategory(
-        String(catId),
-        { page: pageNum, limit: 20, search: search || undefined }
-      );
-
-      if (reset) {
-        setArticles(result.data);
-      } else {
-        setArticles((prev) => [...prev, ...result.data]);
-      }
-      setTotalPages(result.pagination.pages);
-      setPage(pageNum);
-    } catch (err) {
-      console.log('Error loading articles:', err);
+      setError('');
+      const res = await CatalogService.searchArticles({
+        category_id: categoryId as EntityId,
+        ...(selected !== ALL ? { subfamily_id: selected } : {}),
+        ...(query.trim() ? { search: query.trim() } : {}),
+        page: p,
+        limit: PAGE,
+      });
+      if (id !== reqId.current) return;
+      setItems((prev) => (reset ? res.data : [...prev, ...res.data]));
+      setPage(p);
+      setHasMore(p < (res.pagination?.pages ?? 1));
+    } catch (e: any) {
+      if (id === reqId.current) setError(e?.message ?? t('Impossible de charger les produits.'));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
+      if (id === reqId.current) { setLoading(false); setLoadingMore(false); }
     }
-  };
-
-  useEffect(() => { loadArticles(1, true); }, [catId]);
+  }, [categoryId, selected, query]);
 
   useEffect(() => {
-    ProfileService.listFavorites()
-      .then(favs => favoritesStore.setIds(new Set(favs.map(f => f.id))))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => loadArticles(1, true), 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  const onRefresh = useCallback(() => { setRefreshing(true); loadArticles(1, true); }, []);
-
-  const onLoadMore = () => {
-    if (!loadingMore && page < totalPages) loadArticles(page + 1, false);
-  };
-
-  const filtered = useMemo(() => {
-  return articles.filter((a) => {
-    const matchSub = selectedSubs.length > 0
-      ? selectedSubs.includes(a.sub_category?.id ?? 0)
-      : selectedSub ? a.sub_category?.id === selectedSub : true;
-    return matchSub;
-  });
-}, [articles, selectedSub, selectedSubs]);
+    const timer = setTimeout(() => fetchPage(1, true), query ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [fetchPage, query]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      <PageHeader title={catName} />
-
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        onFilter={() => setFilterVisible(true)}
-        articleNames={articles.map(a => a.name_fr)}
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <ScreenHeader
+        title={String(params.category_name ?? t('Produits'))}
+        onBack={() => (router.canGoBack() ? router.back() : router.navigate('/main/main_nav/categories' as any))}
       />
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={RED} />
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => String(item.id)}
-          numColumns={2}
-          contentContainerStyle={styles.grid}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={RED} />}
-          onEndReached={onLoadMore}
-          onEndReachedThreshold={0.3}
-          ListHeaderComponent={
-  <>
-    {subCategories.length > 0 && selectedSubs.length === 0 ? (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsContainer}>
-        <SubCatPill label={t('Tout')} selected={selectedSub === null} onPress={() => setSelectedSub(null)} />
-        {subCategories.map((sub) => (
-          <SubCatPill
-            key={sub.id}
-            label={sub.name_fr}
-            image_path={sub.image_path}
-            selected={selectedSub === sub.id}
-            onPress={() => setSelectedSub(selectedSub === sub.id ? null : sub.id)}
-          />
-        ))}
-      </ScrollView>
-    ) : null}
-  </>
-}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color={RED} style={{ marginVertical: 16 }} /> : null}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Feather name="inbox" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>{t('Aucun produit trouvé')}</Text>
-            </View>
-          }
-          columnWrapperStyle={styles.row}
-          renderItem={({ item }) => (
-            <ProductCard
-              article={item}
-              onPress={() => router.push({ pathname: '/main/product-detail' as any, params: { article_id: item.id } })}
-            />
-          )}
-        />
-      )}
+      <View style={styles.searchWrap}>
+        <SearchField value={query} onChangeText={setQuery} />
+      </View>
 
-      <FilterModal
-        visible={filterVisible}
-        categories={[]}
-        subCategories={subCategories}
-        selected={selectedCats}
-        selectedSubs={selectedSubs}
-        onApply={(ids, subIds) => {
-          setSelectedCats(ids);
-          setSelectedSubs(subIds);
-          setSelectedSub(null);
-          setFilterVisible(false);
-        }}
-        onClose={() => setFilterVisible(false)}
+      <FlatList
+        data={items}
+        keyExtractor={(a, i) => `${a.id}-${i}`}
+        numColumns={2}
+        columnWrapperStyle={{ gap: GAP }}
+        contentContainerStyle={styles.grid}
+        keyboardShouldPersistTaps="handled"
+        onEndReachedThreshold={0.4}
+        onEndReached={() => { if (hasMore && !loading && !loadingMore) fetchPage(page + 1, false); }}
+        ListHeaderComponent={
+          subs.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills}>
+              <Pill label={t('Tout')} selected={selected === ALL} onPress={() => setSelected(ALL)} />
+              {subs.map((s) => (
+                <Pill
+                  key={String(s.id)}
+                  label={tName(s)}
+                  uri={s.image_url ?? s.image_path}
+                  selected={selected === String(s.id)}
+                  onPress={() => setSelected(String(s.id))}
+                />
+              ))}
+            </ScrollView>
+          ) : null
+        }
+        ListEmptyComponent={
+          loading ? <ActivityIndicator color={C.red} style={{ marginTop: 40 }} /> : (
+            <EmptyState
+              icon={error ? 'wifi-off' : 'package'}
+              title={error ? t('Catalogue indisponible') : t('Aucun produit trouvé')}
+              text={error || t('Aucun produit disponible pour le moment.')}
+              actionLabel={error ? t('Réessayer') : undefined}
+              onAction={error ? () => fetchPage(1, true) : undefined}
+            />
+          )
+        }
+        ListFooterComponent={loadingMore ? <ActivityIndicator color={C.red} style={{ marginVertical: S.lg }} /> : null}
+        renderItem={({ item }) => (
+          <ProductCard
+            article={item}
+            width={CARD}
+            onPress={() => router.push({ pathname: '/main/product-detail', params: { article_id: String(item.id) } } as any)}
+          />
+        )}
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
-  pillsContainer: { paddingHorizontal: 0, gap: 10, marginBottom: 16, alignItems: 'flex-start' },
-  pill:           { alignItems: 'center', gap: 6, width: 68 },
-  pillImageBox: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
-  pillImageBoxSelected: { borderColor: RED, backgroundColor: '#FFF0F0' },
-  pillImage:            { width: '100%', height: '100%' },
-  pillLabel:            { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_500Medium', textAlign: 'center' },
-  pillLabelSelected:    { color: RED, fontFamily:'Inter_700Bold' },
-  grid: { paddingHorizontal: 16, paddingBottom: 100 },
-  row:  { justifyContent: 'space-between', marginBottom: 16, marginTop: 10 },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyContainer:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyText:        { fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: 'Inter_400Regular' },
+  safe: { flex: 1, backgroundColor: C.bg },
+  searchWrap: { paddingHorizontal: S.lg, paddingBottom: S.sm },
+  pills: { gap: 14, paddingBottom: 14, paddingTop: 4 },
+  pill: { alignItems: 'center', width: 70 },
+  pillCircle: {
+    width: 58, height: 58, borderRadius: 29, overflow: 'hidden', backgroundColor: C.bgSoft,
+    borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center',
+  },
+  pillCircleOn: { borderColor: C.red },
+  pillImg: { width: '100%', height: '100%' },
+  pillLabel: { marginTop: 6, fontSize: 12.5, color: C.ink, fontFamily: F.medium },
+  pillLabelOn: { color: C.red, fontFamily: F.bold },
+  grid: { paddingHorizontal: S.lg, paddingBottom: 120, gap: GAP },
 });

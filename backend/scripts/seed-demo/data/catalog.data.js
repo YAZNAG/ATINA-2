@@ -141,6 +141,19 @@ const BRANDS = [
   ['COSUMAR', 'Cosumar', 'كوزيمار', '#0d47a1', 0],
   ['KOUTOUBIA', 'Koutoubia', 'الكتبية', '#8d6e63', 1],
   ['ATINA', 'Atina Sélection', 'أتينا', '#e53935', 0],
+  ['CIEL', 'Ciel', 'سييل', '#039be5', 1],
+  ['BAHIA', 'Bahia', 'باهية', '#0288d1', 0],
+  ['POMS', 'Poms', 'بومس', '#e64a19', 2],
+  ['HAWAI', 'Hawaï', 'هاواي', '#f4511e', 1],
+  ['MARRAKECH', 'Marrakech', 'مراكش', '#ef6c00', 0],
+  ['CHERGUI', 'Chergui', 'الشرقي', '#00695c', 1],
+  ['TRIA', 'Tria', 'تريا', '#1565c0', 0],
+  ['EXCELO', 'Excelo', 'إكسيلو', '#6d4c41', 2],
+  ['CRISTAL', 'Cristal', 'كريستال', '#fbc02d', 0],
+  ['ZIZ', 'Ziz', 'زيز', '#8d6e63', 1],
+  ['OMO', 'Omo', 'أومو', '#1e88e5', 0],
+  ['FLUFFY', 'Fluffy', 'فلافي', '#ec407a', 2],
+
 ];
 
 /**
@@ -272,6 +285,65 @@ const SKUS = [
   ['ALI-NES-NID', 'Lait de croissance Nido 1+ Nestlé 400 g', 'حليب النمو نيدو 1+ نستله 400 غ', 'NESTLE', 'BEB-ALI', 'ENFANTS', 'can', 'PCE', 'CART', 12, '400 g', 'TVA7', 400, null, 'AMB', 'CAN', 69],
   ['SOI-ATI-LIN', 'Liniment oléo-calcaire bébé Atina 500 ml', 'ليniment للرضيع أتينا 500 مل', 'ATINA', 'BEB-SOI', 'NOUVEAUTES', 'bottle', 'PCE', 'CART', 12, '500 ml', 'TVA20', 520, 500, 'AMB', 'BOUT', 35, 'discontinued'],
   ['SOI-ATI-CRE', 'Crème change bébé Atina 100 ml', 'كريم الحفاض للرضيع أتينا 100 مل', 'ATINA', 'BEB-SOI', 'ENFANTS', 'tube', 'PCE', 'CART', 24, '100 ml', 'TVA20', 110, 100, 'AMB', 'BOIT', 29],
+
+  // ── Ajout catalogue : boissons ──
+  ['EAU-CIE-150', 'Eau minérale Ciel 1,5 L', 'ماء معدني سييل 1.5 لتر', 'CIEL', 'BOI-EAU', 'PRIX_MINI', 'bottle', 'PCE', 'PACK', 6, '1,5 L', 'TVA20', 1520, 1500, 'AMB', 'BOUT', 4.5],
+  ['EAU-BAH-50', 'Eau minérale Bahia 50 cl', 'ماء معدني باهية 50 سل', 'BAHIA', 'BOI-EAU', 'PRIX_MINI', 'bottle', 'PCE', 'CART', 12, '50 cl', 'TVA20', 520, 500, 'AMB', 'BOUT', 3],
+  ['EAU-AIN-050', 'Eau minérale Aïn Saïss 50 cl', 'ماء معدني عين سايس 50 سل', 'AIN_SAISS', 'BOI-EAU', 'PRIX_MINI', 'bottle', 'PCE', 'CART', 12, '50 cl', 'TVA20', 520, 500, 'AMB', 'BOUT', 3.5],
+  ['SOD-POM-1L', 'Poms pomme pétillante 1 L', 'بومس تفاح غازي 1 لتر', 'POMS', 'BOI-SOD', 'APERO', 'bottle', 'PCE', 'CART', 12, '1 L', 'TVA20', 1030, 1000, 'AMB', 'BOUT', 9],
+  ['SOD-HAW-1L', 'Hawaï tropical 1 L', 'هاواي استوائي 1 لتر', 'HAWAI', 'BOI-SOD', 'APERO', 'bottle', 'PCE', 'CART', 12, '1 L', 'TVA20', 1030, 1000, 'AMB', 'BOUT', 9],
+  ['SOD-OUL-CIT', 'Oulmès citron 1 L', 'والماس ليمون 1 لتر', 'OULMES', 'BOI-SOD', 'APERO', 'bottle', 'PCE', 'CART', 12, '1 L', 'TVA20', 1030, 1000, 'AMB', 'BOUT', 10],
+  ['JUS-MAR-ANA', 'Nectar ananas Marrakech 1 L', 'عصير أناناس مراكش 1 لتر', 'MARRAKECH', 'BOI-JUS', 'PETIT_DEJ', 'brick', 'PCE', 'CART', 12, '1 L', 'TVA20', 1040, 1000, 'AMB', 'BRIQ', 13],
+  ['JUS-MAR-POM', 'Nectar pomme Marrakech 1 L', 'عصير تفاح مراكش 1 لتر', 'MARRAKECH', 'BOI-JUS', 'PETIT_DEJ', 'brick', 'PCE', 'CART', 12, '1 L', 'TVA20', 1040, 1000, 'AMB', 'BRIQ', 13],
+  ['JUS-JAO-POM', 'Jus de pomme Jaouda 1 L', 'عصير التفاح جودة 1 لتر', 'JAOUDA', 'BOI-JUS', 'PETIT_DEJ', 'brick', 'PCE', 'CART', 12, '1 L', 'TVA20', 1040, 1000, 'FRAIS', 'BRIQ', 14],
+
+  // ── Ajout catalogue : produits laitiers ──
+  ['LAI-JAO-DEM', 'Lait demi-écrémé Jaouda 1 L', 'حليب نصف دسم جودة 1 لتر', 'JAOUDA', 'LAI-LAI', 'PETIT_DEJ', 'brick', 'PCE', 'CART', 12, '1 L', 'TVA7', 1030, 1000, 'AMB', 'BRIQ', 8],
+  ['LBN-CEN-1L', 'Lben Centrale 1 L', 'لبن سنطرال 1 لتر', 'CENTRALE', 'LAI-LAI', 'FAIT_MAISON', 'bottle', 'PCE', 'CART', 12, '1 L', 'TVA7', 1030, 1000, 'FRAIS', 'BOUT', 9],
+  ['RAI-JAO-FRA', 'Raïbi fraise Jaouda x4', 'رايبي بالفراولة جودة x4', 'JAOUDA', 'LAI-YAO', 'ENFANTS', 'tray', 'PCE', 'CART', 12, '4 x 110 g', 'TVA7', 440, null, 'FRAIS', 'BARQ', 12],
+  ['YAO-CHE-NAT', 'Yaourt brassé nature Chergui x4', 'ياغورت طبيعي الشرقي x4', 'CHERGUI', 'LAI-YAO', 'PETIT_DEJ', 'tray', 'PCE', 'CART', 12, '4 x 110 g', 'TVA7', 440, null, 'FRAIS', 'BARQ', 14],
+  ['FRO-CHE-CHV', 'Fromage de chèvre Chergui 150 g', 'جبن الماعز الشرقي 150 غ', 'CHERGUI', 'LAI-FRO', 'APERO', 'tray', 'PCE', 'CART', 12, '150 g', 'TVA20', 150, null, 'FRAIS', 'BARQ', 28],
+  ['FRO-VQR-24', 'La Vache qui rit 24 portions', 'البقرة الضاحكة 24 حصة', 'VACHE_QUI_RIT', 'LAI-FRO', 'ENFANTS', 'box', 'PCE', 'CART', 12, '24 portions', 'TVA20', 400, null, 'FRAIS', 'BOIT', 39],
+  ['BEU-ATI-500', 'Beurre doux Atina 500 g', 'زبدة أتينا 500 غ', 'ATINA', 'LAI-BEU', 'FAIT_MAISON', 'box', 'PCE', 'CART', 12, '500 g', 'TVA20', 500, null, 'FRAIS', 'BOIT', 46],
+
+  // ── Ajout catalogue : épicerie salée ──
+  ['HUI-CRI-1L', 'Huile de table Cristal 1 L', 'زيت المائدة كريستال 1 لتر', 'CRISTAL', 'EPS-HUI', 'PRIX_MINI', 'bottle', 'PCE', 'CART', 12, '1 L', 'TVA10', 920, 1000, 'AMB', 'BOUT', 20.5],
+  ['HUI-ZIZ-2L', 'Huile de table Ziz 2 L', 'زيت المائدة زيز 2 لتر', 'ZIZ', 'EPS-HUI', 'PRIX_MINI', 'jug', 'PCE', 'CART', 6, '2 L', 'TVA10', 1840, 2000, 'AMB', 'BOUT', 39],
+  ['HUI-ARG-25', 'Huile d’argan alimentaire Atina 25 cl', 'زيت الأركان الغذائي أتينا 25 سل', 'ATINA', 'EPS-HUI', 'FAIT_MAISON', 'bottle', 'PCE', 'CART', 12, '25 cl', 'TVA10', 230, 250, 'AMB', 'BOUT', 129],
+  ['PAT-TRI-COQ', 'Coquillettes Tria 500 g', 'معكرونة صدفية تريا 500 غ', 'TRIA', 'EPS-FEC', 'PRIX_MINI', 'bag', 'PCE', 'CART', 12, '500 g', 'TVA7', 500, null, 'AMB', 'SACH', 7.5],
+  ['PAT-TRI-PEN', 'Penne Tria 500 g', 'معكرونة بيني تريا 500 غ', 'TRIA', 'EPS-FEC', 'PRIX_MINI', 'bag', 'PCE', 'CART', 12, '500 g', 'TVA7', 500, null, 'AMB', 'SACH', 7.5],
+  ['CSC-DAR-FIN2', 'Couscous fin Dari 2 kg', 'كسكس رقيق داري 2 كلغ', 'DARI', 'EPS-FEC', 'FAIT_MAISON', 'bag', 'PCE', 'CART', 6, '2 kg', 'TVA7', 2000, null, 'AMB', 'SACH', 31],
+  ['RIZ-ATI-5KG', 'Riz long grain Atina 5 kg', 'أرز طويل الحبة أتينا 5 كلغ', 'ATINA', 'EPS-FEC', 'PRIX_MINI', 'bag', 'PCE', 'PCE', 1, '5 kg', 'TVA7', 5000, null, 'AMB', 'SACH', 79],
+  ['POI-ATI-1KG', 'Pois chiches Atina 1 kg', 'حمص أتينا 1 كلغ', 'ATINA', 'EPS-FEC', 'FAIT_MAISON', 'bag', 'PCE', 'CART', 12, '1 kg', 'TVA7', 1000, null, 'AMB', 'SACH', 18],
+  ['CON-AIC-DBL', 'Double concentré de tomates Aïcha 800 g', 'مركز الطماطم المضاعف عائشة 800 غ', 'AICHA', 'EPS-CON', 'FAIT_MAISON', 'can', 'PCE', 'CART', 12, '800 g', 'TVA20', 800, null, 'AMB', 'CAN', 24],
+  ['CON-AIC-HAR', 'Harissa Aïcha 135 g', 'هريسة عائشة 135 غ', 'AICHA', 'EPS-CON', 'FAIT_MAISON', 'can', 'PCE', 'CART', 12, '135 g', 'TVA20', 135, null, 'AMB', 'CAN', 9.5],
+  ['CON-ATI-SAR', 'Sardines à l’huile végétale Atina 125 g', 'سردين بالزيت النباتي أتينا 125 غ', 'ATINA', 'EPS-CON', 'PRIX_MINI', 'can', 'PCE', 'CART', 12, '125 g', 'TVA20', 125, null, 'AMB', 'CAN', 8.5],
+  ['EPI-ATI-CAN', 'Cannelle moulue Atina 75 g', 'قرفة مطحونة أتينا 75 غ', 'ATINA', 'EPS-EPI', 'FAIT_MAISON', 'sachet', 'PCE', 'CART', 12, '75 g', 'TVA20', 75, null, 'AMB', 'SACH', 14],
+  ['EPI-ATI-CUR', 'Curcuma moulu Atina 100 g', 'كركم مطحون أتينا 100 غ', 'ATINA', 'EPS-EPI', 'FAIT_MAISON', 'sachet', 'PCE', 'CART', 12, '100 g', 'TVA20', 100, null, 'AMB', 'SACH', 12],
+  ['SAU-ATI-KET', 'Ketchup Atina 340 g', 'كاتشوب أتينا 340 غ', 'ATINA', 'EPS-SAU', 'ENFANTS', 'bottle', 'PCE', 'CART', 12, '340 g', 'TVA20', 340, null, 'AMB', 'BOUT', 16],
+  ['SOU-KNO-VER', 'Soupe de légumes Knorr 70 g', 'شوربة الخضر كنور 70 غ', 'KNORR', 'EPS-SAU', 'PRIX_MINI', 'sachet', 'PCE', 'CART', 12, '70 g', 'TVA20', 70, null, 'AMB', 'SACH', 8],
+
+  // ── Ajout catalogue : épicerie sucrée ──
+  ['BIS-EXC-CRA', 'Biscuits Crak’s Excelo 40 g', 'بسكويت كراكس إكسيلو 40 غ', 'EXCELO', 'EPU-BIS', 'ENFANTS', 'sachet', 'PCE', 'CART', 12, '40 g', 'TVA20', 40, null, 'AMB', 'SACH', 3],
+  ['BIS-BIM-GOL', 'Biscuits Golden Bimo 12 x 24 g', 'بسكويت غولدن بيمو 12 x 24 غ', 'BIMO', 'EPU-BIS', 'ENFANTS', 'box', 'PCE', 'CART', 12, '288 g', 'TVA20', 288, null, 'AMB', 'BOIT', 21],
+  ['CFT-AIC-ORA', 'Confiture d’oranges Aïcha 430 g', 'مربى البرتقال عائشة 430 غ', 'AICHA', 'EPU-CFT', 'PETIT_DEJ', 'jar', 'PCE', 'CART', 12, '430 g', 'TVA20', 430, null, 'AMB', 'POT', 22],
+  ['MIE-ATI-ORA', 'Miel d’oranger Atina 500 g', 'عسل زهر البرتقال أتينا 500 غ', 'ATINA', 'EPU-CFT', 'RAMADAN', 'jar', 'PCE', 'CART', 12, '500 g', 'TVA20', 500, null, 'AMB', 'POT', 119],
+  ['SUC-COS-GLA', 'Sucre glace Cosumar 500 g', 'سكر ناعم كوزيمار 500 غ', 'COSUMAR', 'EPU-SUC', 'FAIT_MAISON', 'sachet', 'PCE', 'CART', 12, '500 g', 'TVA20', 500, null, 'AMB', 'SACH', 9],
+  ['FAR-ATI-5KG', 'Farine de blé tendre Atina 5 kg', 'دقيق القمح اللين أتينا 5 كلغ', 'ATINA', 'EPU-SUC', 'PRIX_MINI', 'bag', 'PCE', 'PCE', 1, '5 kg', 'TVA7', 5000, null, 'AMB', 'SACH', 42],
+  ['THE-SUL-MEN', 'Thé vert à la menthe Sultan 100 g', 'أتاي أخضر بالنعناع السلطان 100 غ', 'SULTAN', 'EPU-THE', 'RAMADAN', 'box', 'PCE', 'CART', 12, '100 g', 'TVA20', 100, null, 'AMB', 'BOIT', 19],
+  ['CAF-NES-GOL', 'Café soluble Nescafé Gold 100 g', 'قهوة سريعة الذوبان نسكافيه غولد 100 غ', 'NESTLE', 'EPU-THE', 'PETIT_DEJ', 'jar', 'PCE', 'CART', 12, '100 g', 'TVA20', 100, null, 'AMB', 'POT', 69],
+
+  // ── Ajout catalogue : boulangerie, frais, hygiène, entretien, bébé ──
+  ['PAI-COM-500', 'Pain complet Atina 500 g', 'خبز كامل أتينا 500 غ', 'ATINA', 'BLG-PAI', 'BIO', 'loaf', 'PCE', 'PCE', 1, '500 g', 'TVA7', 500, null, 'AMB', 'SACH', 6],
+  ['VIE-PAC-X4', 'Pains au chocolat x4', 'خبز بالشوكولاتة x4', 'ATINA', 'BLG-VIE', 'PETIT_DEJ', 'tray', 'PCE', 'PCE', 1, '4 pièces', 'TVA20', 260, null, 'AMB', 'BARQ', 16],
+  ['LEG-CON-1KG', 'Concombres 1 kg', 'خيار 1 كلغ', 'ATINA', 'FRL-LEG', 'BIO', 'fruit', 'KG', 'KG', 1, '1 kg', 'TVA0', 1000, null, 'FRAIS', 'VRAC', 9],
+  ['FRU-CIT-1KG', 'Citrons 1 kg', 'ليمون 1 كلغ', 'ATINA', 'FRL-FRU', 'FAIT_MAISON', 'fruit', 'KG', 'KG', 1, '1 kg', 'TVA0', 1000, null, 'FRAIS', 'VRAC', 12],
+  ['VOL-KOU-ESC', 'Escalopes de poulet Koutoubia 500 g', 'شرائح دجاج الكتبية 500 غ', 'KOUTOUBIA', 'BOU-VOL', 'PRIX_MINI', 'tray', 'PCE', 'PCE', 1, '500 g', 'TVA20', 500, null, 'FRAIS', 'BARQ', 49],
+  ['DOU-DOV-400', 'Gel douche Dove original 400 ml', 'جل الاستحمام دوف 400 مل', 'DOVE', 'HYG-DOU', 'PRIX_MINI', 'bottle', 'PCE', 'CART', 12, '400 ml', 'TVA20', 420, 400, 'AMB', 'BOUT', 45],
+  ['PAP-FLU-X8', 'Papier toilette Fluffy x8', 'ورق المرحاض فلافي x8', 'FLUFFY', 'ENT-SUR', 'PRIX_MINI', 'pack', 'PCE', 'PCE', 1, '8 rouleaux', 'TVA20', 800, null, 'AMB', 'SACH', 34],
+  ['LES-OMO-3KG', 'Lessive poudre Omo 3 kg', 'مسحوق الغسيل أومو 3 كلغ', 'OMO', 'ENT-LES', 'PRIX_MINI', 'bag', 'PCE', 'PCE', 1, '3 kg', 'TVA20', 3000, null, 'AMB', 'SACH', 69],
+  ['VAI-ATI-POM', 'Liquide vaisselle pomme Atina 750 ml', 'سائل غسل الصحون بالتفاح أتينا 750 مل', 'ATINA', 'ENT-VAI', 'PRIX_MINI', 'bottle', 'PCE', 'CART', 12, '750 ml', 'TVA20', 780, 750, 'AMB', 'BOUT', 17],
+  ['COU-PAM-T5', 'Couches Pampers Baby-Dry taille 5 x40', 'حفاضات بامبرز بيبي دراي مقاس 5 x40', 'PAMPERS', 'BEB-COU', 'ENFANTS', 'pack', 'PCE', 'PCE', 1, '40 couches', 'TVA20', 1500, null, 'AMB', 'SACH', 139],
 ].map((r) => ({
   code: r[0], name_fr: r[1], name_ar: r[2], brand: r[3], sub: r[4], cat: r[5], shape: r[6],
   unit_sale: r[7], unit_purchase: r[8], coeff: r[9], size: r[10], tax: r[11], weight_g: r[12], volume_ml: r[13],

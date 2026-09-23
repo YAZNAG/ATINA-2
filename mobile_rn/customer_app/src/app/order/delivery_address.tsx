@@ -54,6 +54,8 @@ export default function CheckoutDeliveryAddressScreen() {
   const [lat, setLat]                 = useState<number | null>(null);
   const [lng, setLng]                 = useState<number | null>(null);
   const [locating, setLocating]       = useState(false);
+  /** Adresse trouvée par le GPS, affichée sous le bouton. */
+  const [located, setLocated]         = useState<string | null>(null);
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function CheckoutDeliveryAddressScreen() {
   const handleGetLocation = async () => {
     try {
       setLocating(true);
+      setLocated(null);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(t('Permission refusée'), t('Autorisez la localisation pour utiliser votre position.'));
@@ -107,21 +110,26 @@ export default function CheckoutDeliveryAddressScreen() {
       setLat(loc.coords.latitude);
       setLng(loc.coords.longitude);
 
+      let summary = t('Position enregistrée');
       try {
         const [place] = await Location.reverseGeocodeAsync({
           latitude:  loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
         if (place) {
-          if (place.street) setStreetName(place.street);
+          // Rue, numéro et ville remplis automatiquement (modifiables ensuite).
+          const street = [place.streetNumber, place.street || place.name].filter(Boolean).join(' ').trim();
+          if (street) setStreetName(street);
           if (place.city) {
-            const match = cities.find((c) => c.name_fr.toLowerCase() === place.city!.toLowerCase());
-            if (match) setCity(match.name_fr);
+            const norm = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+            const match = cities.find((c) => norm(c.name_fr) === norm(place.city!));
+            setCity(match ? match.name_fr : place.city);
           }
+          summary = [street, place.district || place.subregion, place.city].filter(Boolean).join(', ') || summary;
         }
       } catch { /* optionnel */ }
 
-      Alert.alert(t('Position capturée'), t('Votre localisation a été enregistrée.'));
+      setLocated(summary);
     } catch (e) {
       Alert.alert(t('Erreur'), "Impossible d'obtenir votre position.");
     } finally {
@@ -202,7 +210,7 @@ export default function CheckoutDeliveryAddressScreen() {
                   <Feather name="map-pin" size={26} color="#fff" />
                 </View>
                 <Text style={styles.locationBannerText}>
-                  {lat != null ? t('Position enregistrée') : t('Aucune position GPS')}
+                  {located ?? (lat != null ? t('Position enregistrée') : t('Aucune position GPS'))}
                 </Text>
                 {lat != null && (
                   <Text style={styles.locationBannerCoords}>{lat.toFixed(4)}, {lng?.toFixed(4)}</Text>

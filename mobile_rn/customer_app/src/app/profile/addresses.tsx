@@ -14,6 +14,9 @@ import PageHeader from '../../components/ui/PageHeader';
 import { t } from '../../i18n';
 
 const RED = '#E62A27';
+
+/** Comparaison de noms de villes sans accents ni casse (GPS ↔ liste du back-office). */
+const norm = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const { height } = Dimensions.get('window');
 
 type City = { id: string; name_fr: string; name_ar: string; postal_code?: string | null };
@@ -110,6 +113,8 @@ const AddressFormModal = ({
   const [lng, setLng]                     = useState<number | null>(null);
   const [locating, setLocating]           = useState(false);
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
+  /** Adresse trouvée par le GPS, affichée sous le bouton (plus de fenêtre bloquante). */
+  const [located, setLocated] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -125,12 +130,14 @@ const AddressFormModal = ({
       setIsDefault(address?.is_default || false);
       setLat(address?.lat != null ? Number(address.lat) : null);
       setLng(address?.lng != null ? Number(address.lng) : null);
+      setLocated(null);
     }
   }, [visible, address]);
 
   const handleGetLocation = async () => {
     try {
       setLocating(true);
+      setLocated(null);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(t('Permission refusée'), t('Autorisez la localisation pour utiliser votre position actuelle.'));
@@ -140,25 +147,30 @@ const AddressFormModal = ({
       setLat(loc.coords.latitude);
       setLng(loc.coords.longitude);
 
+      let summary = t('Position enregistrée');
       try {
         const [place] = await Location.reverseGeocodeAsync({
           latitude:  loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
         if (place) {
-          if (place.street && !fullAddress) setFullAddress(place.street);
-          if (place.district && !quartier)  setQuartier(place.district);
-          if (place.postalCode && !postalCode) setPostalCode(place.postalCode);
+          // Rue et numéro : l'adresse trouvée remplace le champ (l'utilisateur peut la corriger).
+          const street = [place.streetNumber, place.street || place.name].filter(Boolean).join(' ').trim();
+          if (street) setFullAddress(street);
+          const district = place.district || place.subregion || '';
+          if (district) setQuartier(district);
+          if (place.postalCode) setPostalCode(place.postalCode);
           if (place.city) {
-            const match = cities.find((c) =>
-              c.name_fr.toLowerCase() === place.city!.toLowerCase()
-            );
-            if (match) setCity(match.name_fr);
+            // La ville du GPS est reprise telle quelle si elle n'est pas dans la liste.
+            const match = cities.find((c) => norm(c.name_fr) === norm(place.city!));
+            setCity(match ? match.name_fr : place.city);
+            if (match?.postal_code && !place.postalCode) setPostalCode(match.postal_code);
           }
+          summary = [street, district, place.city].filter(Boolean).join(', ') || summary;
         }
       } catch { /* géocodage inverse optionnel */ }
 
-      Alert.alert(t('Position capturée'), t('Votre localisation a été enregistrée pour cette adresse.'));
+      setLocated(summary);
     } catch (e) {
       Alert.alert(t('Erreur'), "Impossible d'obtenir votre position. Vérifiez que le GPS est activé.");
     } finally {
@@ -173,8 +185,14 @@ const AddressFormModal = ({
   };
 
   const handleSubmit = () => {
-    if (!fullAddress.trim()) { Alert.alert(t('Erreur'), "L'adresse complète est requise"); return; }
-    if (!city.trim())        { Alert.alert(t('Erreur'), t('La ville est requise')); return; }
+    if (!fullAddress.trim()) {
+      Alert.alert(t('Adresse incomplète'), t('Saisissez la rue et le numéro, ou appuyez sur « Utiliser ma position actuelle ».'));
+      return;
+    }
+    if (!city.trim()) {
+      Alert.alert(t('Adresse incomplète'), t('Choisissez votre ville.'));
+      return;
+    }
 
     // Decoupe fullAddress en street_number/street_name l
     const trimmed = fullAddress.trim();
@@ -316,6 +334,13 @@ const AddressFormModal = ({
                 </>
               )}
             </TouchableOpacity>
+
+            {!!located && (
+              <View style={styles.locatedBox}>
+                <Feather name="check-circle" size={15} color="#15803D" />
+                <Text style={styles.locatedText} numberOfLines={2}>{located}</Text>
+              </View>
+            )}
 
             <TouchableOpacity style={styles.defaultRow} onPress={() => setIsDefault(!isDefault)} activeOpacity={0.7}>
               <View style={[styles.checkbox, isDefault && styles.checkboxChecked]}>
@@ -507,6 +532,11 @@ export default function AddressesScreen() {
 }
 
 const styles = StyleSheet.create({
+  locatedBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#EAF7EE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10,
+  },
+  locatedText: { flex: 1, fontSize: 13, color: '#15803D', fontFamily: 'Inter_500Medium' },
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 

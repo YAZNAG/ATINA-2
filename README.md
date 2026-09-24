@@ -1,7 +1,7 @@
 # DARK STORE APP — Rapport d'avancement projet
 
 **Projet :** Dark Store App — Plateforme Quick Commerce  
-**Stack :** Node.js + Express + Prisma/PostgreSQL · React (Vite) · React Native (Expo)  
+**Stack :** Node.js + Express + Prisma/PostgreSQL · React (Vite) · Flutter  
 **Dernière mise à jour :** 05/07/2026  
 **Branches actives :** `main` (production) · `dev` · `Hajar` · `Div2` · `mourtafiaa/substitution-produit`
 
@@ -81,12 +81,13 @@ dark-store-app/
 │       ├── pages/        # Une page par module
 │       ├── components/
 │       └── routes/
-├── mobile_rn/
-│   └── customer_app/     # React Native + Expo
-│       └── src/
-│           ├── app/      # Expo Router (file-based routing)
-│           ├── components/
-│           └── services/ # API calls
+├── mobile/
+│   └── customer_app/     # Flutter (app client)
+│       └── lib/
+│           ├── screens/  # écrans, organisés comme les routes
+│           ├── services/ # appels d'API
+│           ├── state/    # états partagés (Riverpod)
+│           └── theme/    # charte Figma et composants
 └── README.md
 ```
 
@@ -195,7 +196,7 @@ dark-store-app/
 
 | App | Stack | État | Couleur thème |
 |---|---|---|---|
-| Customer (`mobile_rn/customer_app`) | React Native + Expo | **Complet** | Rouge `#DC2626` |
+| Customer (`mobile/customer_app`) | Flutter | **Complet** | Rouge `#E10600` |
 | Picker (`mobile/picker_app`) | Flutter | **Avancé** | Violet `#7C3AED` |
 | Driver (`mobile/driver_app`) | Flutter | **Avancé** | Emerald `#059669` |
 
@@ -209,7 +210,7 @@ cd backend && cp .env.example .env && npm install && npm run db:migrate && npm r
 cd frontend && npm install && npm run dev
 
 # Mobile Customer
-cd mobile_rn/customer_app && npm install && npx expo start --lan
+cd mobile/customer_app && flutter pub get && flutter run
 ```
 
 ---

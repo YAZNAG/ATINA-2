@@ -23,7 +23,7 @@ import FilterModal   from '../../../components/ui/FilterModal';
 import HomeHeader     from '@/components/ui/Home/HomeHeader';
 import HomeListHeader from '@/components/ui/Home/HomeListHeader';
 
-import { homeCache, homeCacheFresh } from '../../../store/homeCache';
+import { homeCache, homeCacheFresh, persistHomeCache } from '../../../store/homeCache';
 import { favoritesStore } from '../../../store/favoritesStore';
 
 import { CatalogService, Category, Article, EntityId } from '../../../services/catalog.service';
@@ -162,6 +162,7 @@ export default function HomeScreen() {
 
     await Promise.allSettled(jobs);
     homeCache.at = Date.now();
+    persistHomeCache();
     setLoading(false);
     setRefreshing(false);
   }, []);

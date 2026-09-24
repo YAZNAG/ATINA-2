@@ -1,3 +1,4 @@
+import { loadJson, saveJson } from './persistentStore';
 import type { Article, Category } from '../services/catalog.service';
 import type { Profile } from '../services/profile.service';
 import type { BestDeal, EndingSoonResponse, FlashSaleSummary, PackSummary } from '../services/promotions.service';
@@ -28,3 +29,20 @@ export const homeCache: {
 
 /** Les données de plus de 10 minutes sont considérées comme périmées. */
 export const homeCacheFresh = () => homeCache.at > 0 && Date.now() - homeCache.at < 10 * 60 * 1000;
+
+const KEY = 'home_cache_v1';
+/** Au-delà d'une journée, le contenu enregistré n'est plus affiché au démarrage. */
+const MAX_AGE = 24 * 60 * 60 * 1000;
+
+/** Relit le contenu enregistré au lancement : l'accueil s'affiche sans attendre le réseau. */
+export async function hydrateHomeCache(): Promise<void> {
+  if (homeCache.at) return;
+  const saved = await loadJson<typeof homeCache>(KEY);
+  if (!saved || !saved.at || Date.now() - saved.at > MAX_AGE) return;
+  Object.assign(homeCache, saved);
+}
+
+/** Enregistre le contenu courant (appelé après chaque chargement réussi). */
+export function persistHomeCache(): void {
+  saveJson(KEY, homeCache);
+}

@@ -14,6 +14,7 @@ import {
 import { View, ActivityIndicator } from 'react-native';
 import { useEffect, useState } from 'react';
 import { initI18n } from '../i18n';
+import { hydrateHomeCache } from '../store/homeCache';
 
 export default function RootLayout() {
   // Police de la maquette Figma : Inter. Les écrans référencent les clés « Poppins_* »
@@ -33,7 +34,10 @@ export default function RootLayout() {
 
   // Langue et sens d'écriture (RTL en arabe) fixés avant le premier écran.
   const [langReady, setLangReady] = useState(false);
-  useEffect(() => { initI18n().finally(() => setLangReady(true)); }, []);
+  useEffect(() => {
+    hydrateHomeCache().catch(() => {});
+    initI18n().finally(() => setLangReady(true));
+  }, []);
 
   // Filet de sécurité : si les polices ou la langue ne répondent pas (réseau, cache
   // d'assets), l'application s'affiche quand même au bout de 2,5 s au lieu de rester

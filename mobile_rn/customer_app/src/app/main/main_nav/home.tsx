@@ -23,6 +23,7 @@ import FilterModal   from '../../../components/ui/FilterModal';
 import HomeHeader     from '@/components/ui/Home/HomeHeader';
 import HomeListHeader from '@/components/ui/Home/HomeListHeader';
 
+import { homeCache, homeCacheFresh } from '../../../store/homeCache';
 import { favoritesStore } from '../../../store/favoritesStore';
 
 import { CatalogService, Category, Article, EntityId } from '../../../services/catalog.service';
@@ -52,29 +53,29 @@ export default function HomeScreen() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
 
-  const [user, setUser]               = useState<Profile | null>(null);
-  const [categories, setCategories]   = useState<Category[]>([]);
-  const [articles, setArticles]       = useState<Article[]>([]);
-  const [recommended, setRecommended] = useState<Article[]>([]);
-  const [popular, setPopular]         = useState<Article[]>([]);
+  const [user, setUser]               = useState<Profile | null>(homeCache.user);
+  const [categories, setCategories]   = useState<Category[]>(homeCache.categories);
+  const [articles, setArticles]       = useState<Article[]>(homeCache.articles);
+  const [recommended, setRecommended] = useState<Article[]>(homeCache.recommended);
+  const [popular, setPopular]         = useState<Article[]>(homeCache.popular);
   const [selectedCat, setSelectedCat] = useState<EntityId | null>(null);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]         = useState(!homeCache.categories.length);
   const [refreshing, setRefreshing]   = useState(false);
   const [filterVisible, setFilterVisible]   = useState(false);
   const [selectedCats, setSelectedCats]     = useState<EntityId[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
-  const [avatarUrl, setAvatarUrl]           = useState<string | null>(null);
-  const [promotions, setPromotions]         = useState<FlashSaleSummary[]>([]);
-  const [packs,      setPacks]              = useState<PackSummary[]>([]);
+  const [avatarUrl, setAvatarUrl]           = useState<string | null>(homeCache.avatarUrl);
+  const [promotions, setPromotions]         = useState<FlashSaleSummary[]>(homeCache.promotions);
+  const [packs,      setPacks]              = useState<PackSummary[]>(homeCache.packs);
   // Un pack devenu indisponible disparaît du carrousel sans rechargement (WF #23).
   usePackAvailability((e) => {
     if (!e.is_available || !e.is_active || e.is_deleted) setPacks((prev) => prev.filter((p) => p.id !== e.pack_id));
   });
-  const [bestDeals,  setBestDeals]          = useState<BestDeal[]>([]);
-  const [endingSoon, setEndingSoon] = useState<EndingSoonResponse>({ ends_at: null, products: [] });
+  const [bestDeals,  setBestDeals]          = useState<BestDeal[]>(homeCache.bestDeals);
+  const [endingSoon, setEndingSoon] = useState<EndingSoonResponse>(homeCache.endingSoon);
   const [activeSlide, setActiveSlide]       = useState(0);
   const [complements, setComplements] = useState<Article[]>([]);
-  const [topRated, setTopRated] = useState<Article[]>([]);
+  const [topRated, setTopRated] = useState<Article[]>(homeCache.topRated);
 
   const loadArticles = useCallback(async () => {
     try {
@@ -112,11 +113,13 @@ export default function HomeScreen() {
     };
 
     const essentials = Promise.all([
-      CatalogService.getCategories().catch(() => [] as Category[]),
-      CatalogService.getArticles({ limit: 20 }).catch(() => [] as Article[]),
+      CatalogService.getCategories().catch(() => homeCache.categories),
+      CatalogService.getArticles({ limit: 20 }).catch(() => homeCache.articles),
     ]).then(([cats, arts]) => {
       setCategories(cats);
       setArticles(arts);
+      homeCache.categories = cats;
+      homeCache.articles = arts;
       setLoading(false);
     });
     jobs.push(essentials);
@@ -124,22 +127,26 @@ export default function HomeScreen() {
     run(ProfileService.getProfile().catch(() => null), (profile) => {
       setAvatarUrl(profile?.avatar_url ?? null);
       setUser(profile);
+      homeCache.user = profile;
+      homeCache.avatarUrl = profile?.avatar_url ?? null;
     });
     run(ProfileService.listAddresses().catch(() => []), (addresses) => {
       setDefaultAddress(addresses.find((a) => a.is_default) || addresses[0] || null);
     });
-    run(PromotionsService.listActive().catch(() => []), setPromotions);
-    run(PacksService.listActive().catch(() => []), setPacks);
+    run(PromotionsService.listActive().catch(() => []), (v) => { setPromotions(v); homeCache.promotions = v; });
+    run(PacksService.listActive().catch(() => []), (v) => { setPacks(v); homeCache.packs = v; });
     run(PromotionsService.listHomePromotions(24, 10).catch(() => ({
       endingSoon: { ends_at: null, products: [] },
       bestDeals: [],
     })), (homePromos) => {
       setEndingSoon(homePromos.endingSoon);
       setBestDeals(homePromos.bestDeals);
+      homeCache.endingSoon = homePromos.endingSoon;
+      homeCache.bestDeals = homePromos.bestDeals;
     });
-    run(CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []), setRecommended);
-    run(CatalogService.getPopularArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (pop) => setPopular(pop.data));
-    run(CatalogService.getTopRatedArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (rated) => setTopRated(rated.data));
+    run(CatalogService.getRecommendedArticles({ limit: 10 }).catch(() => []), (v) => { setRecommended(v); homeCache.recommended = v; });
+    run(CatalogService.getPopularArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (pop) => { setPopular(pop.data); homeCache.popular = pop.data; });
+    run(CatalogService.getTopRatedArticles({ limit: 10 }).catch(() => ({ data: [], hasMore: false })), (rated) => { setTopRated(rated.data); homeCache.topRated = rated.data; });
     run(ProfileService.listFavorites().catch(() => []), (favs) => favoritesStore.setIds(new Set(favs.map((f) => f.id))));
 
     // Compléments du panier : dépendent du panier, donc après le reste.
@@ -154,11 +161,13 @@ export default function HomeScreen() {
     })());
 
     await Promise.allSettled(jobs);
+    homeCache.at = Date.now();
     setLoading(false);
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Données de moins de 10 minutes : on garde l'affichage et on ne recharge pas.
+  useEffect(() => { if (!homeCacheFresh()) loadData(); }, [loadData]);
 
   const isFirstRun = useRef(true);
   useEffect(() => {

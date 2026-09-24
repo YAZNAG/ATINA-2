@@ -211,19 +211,8 @@ helpBanner: {
     marginTop: 6,
     marginBottom: 24,
   },
-  helpTitle: {
-    fontSize: 42,
-    fontFamily: 'Poppins_700Bold',
-    color: '#FFC6BD',
-    marginBottom: 10,
-  },
-  helpSubtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 25,
-    color: '#FFD9D4',
-    marginBottom: 24,
-  },
+  helpTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#fff', marginBottom: 8 },
+  helpSubtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21, color: '#FFE3DF', marginBottom: 18 },
   supportButton: {
     backgroundColor: '#FFFFFF',
     borderRadius: 30,

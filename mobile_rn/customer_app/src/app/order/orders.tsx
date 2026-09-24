@@ -167,7 +167,7 @@ function OrderCard({ order, onPress, onReorder, reordering }: {
           ) : (
             <>
               <Feather name="refresh-cw" size={14} color="#fff" />
-              <Text style={styles.btnRedText}>{t('Re-cmder')}</Text>
+              <Text style={styles.btnRedText}>{t('Recommander')}</Text>
             </>
           )}
         </TouchableOpacity>

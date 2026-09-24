@@ -562,7 +562,7 @@ export default function CartScreen() {
             )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t('SOUS-TOTAL')}</Text>
-              <Text style={styles.summaryValue}>{cart.total.toFixed(2)} DH</Text>
+              <Text style={styles.summaryValue}>{cart.total.toFixed(2)} MAD</Text>
             </View>
             {exchangePoints > 0 && (
               <View style={styles.summaryRow}>
@@ -577,7 +577,7 @@ export default function CartScreen() {
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>{t('Total')}</Text>
-              <Text style={styles.totalValue}>{cart.total.toFixed(2)} DH</Text>
+              <Text style={styles.totalValue}>{cart.total.toFixed(2)} MAD</Text>
             </View>
             <TouchableOpacity
               style={styles.btnCheckout}

@@ -90,7 +90,7 @@ export default function CategoriesScreen() {
             >
               <View style={styles.tileImg}>
                 {item.image_path ? (
-                  <Image source={{ uri: item.image_path }} style={styles.img} contentFit="cover" transition={150} cachePolicy="memory-disk" />
+                  <Image source={{ uri: item.image_path }} style={styles.img} contentFit="contain" transition={150} cachePolicy="memory-disk" />
                 ) : (
                   <Image source={require('../../../../assets/images/atina/basket_small.png')} style={styles.img} contentFit="contain" />
                 )}

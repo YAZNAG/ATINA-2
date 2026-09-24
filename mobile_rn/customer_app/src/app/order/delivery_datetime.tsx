@@ -167,7 +167,7 @@ export default function CheckoutDateTimeScreen() {
 
       <View style={styles.container}>
 
-        <PageHeader title={t('Mode de réception')} />
+        <PageHeader title={t('Date & Heure')} />
         <CheckoutStepper currentStep={2} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>

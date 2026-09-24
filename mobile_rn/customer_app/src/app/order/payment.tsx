@@ -312,12 +312,12 @@ export default function PaymentScreen() {
                   {t('Utiliser mon wallet')}
                 </Text>
                 <Text style={styles.walletToggleSub}>
-                  Solde disponible : {walletBalance.toFixed(2)} DH
+                  Solde disponible : {walletBalance.toFixed(2)} MAD
                 </Text>
               </View>
               {useWallet && (
                 <View style={styles.walletDeductBadge}>
-                  <Text style={styles.walletDeductText}>−{walletUsed.toFixed(2)} DH</Text>
+                  <Text style={styles.walletDeductText}>−{walletUsed.toFixed(2)} MAD</Text>
                 </View>
               )}
               <View style={[styles.walletCheckbox, useWallet && styles.walletCheckboxActive]}>
@@ -381,13 +381,13 @@ export default function PaymentScreen() {
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>{t('Sous-total')}</Text>
-                  <Text style={styles.summaryValue}>{calculation.subtotal_ttc.toFixed(2)} DH</Text>
+                  <Text style={styles.summaryValue}>{calculation.subtotal_ttc.toFixed(2)} MAD</Text>
                 </View>
                 {params.delivery_type_code !== 'pickup' && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>{t('Frais de livraison')}</Text>
                     <Text style={styles.summaryValue}>
-                      {calculation.delivery_fee > 0 ? `${calculation.delivery_fee.toFixed(2)} DH` : 'Gratuit'}
+                      {calculation.delivery_fee > 0 ? `${calculation.delivery_fee.toFixed(2)} MAD` : 'Gratuit'}
                     </Text>
                   </View>
                 )}
@@ -395,7 +395,7 @@ export default function PaymentScreen() {
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Réduction{appliedCode ? ` (${appliedCode})` : ''}</Text>
                     <Text style={[styles.summaryValue, { color: '#16A34A' }]}>
-                      -{calculation.discount_amount.toFixed(2)} DH
+                      -{calculation.discount_amount.toFixed(2)} MAD
                     </Text>
                   </View>
                 )}
@@ -403,11 +403,11 @@ export default function PaymentScreen() {
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>{t('Wallet utilisé')}</Text>
                     <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
-                      -{calculation.wallet_used.toFixed(2)} DH
+                      -{calculation.wallet_used.toFixed(2)} MAD
                     </Text>
                   </View>
                 )}
-                {/* Produits échangés contre des points (0 DH, débités à la confirmation) */}
+                {/* Produits échangés contre des points (0 MAD, débités à la confirmation) */}
                 {rewards.exchange.length > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
@@ -424,7 +424,7 @@ export default function PaymentScreen() {
                     <Text style={styles.summaryValue}>{calculation.exchange.projected_balance.toLocaleString('fr-FR')} pts</Text>
                   </View>
                 )}
-                {/* Lots gagnés réclamés (0 DH) */}
+                {/* Lots gagnés réclamés (0 MAD) */}
                 {rewards.claims.map((c) => (
                   <View key={c.play_id} style={styles.summaryRow}>
                     <Text style={styles.summaryLabel} numberOfLines={1}>Lot offert : {c.name_fr}</Text>
@@ -450,7 +450,7 @@ export default function PaymentScreen() {
               {isCard && useWallet && walletUsed > 0 ? t('À payer par carte') : t('Total à payer')}
             </Text>
             <Text style={styles.totalAmount}>
-              {calculation ? `${(isCard && useWallet ? cardAmount : total).toFixed(2)} DH` : '...'}
+              {calculation ? `${(isCard && useWallet ? cardAmount : total).toFixed(2)} MAD` : '...'}
             </Text>
           </View>
           <TouchableOpacity

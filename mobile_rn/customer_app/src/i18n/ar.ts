@@ -629,4 +629,7 @@ export const AR: Record<string, string> = {
   'Saisissez la rue et le numéro, ou appuyez sur « Utiliser ma position actuelle ».': 'أدخل الشارع والرقم، أو اضغط على «استعمال موقعي الحالي».',
   'Nouvelle version prête': 'نسخة جديدة جاهزة',
   'Redémarrer': 'إعادة التشغيل',
+  'Noter': 'قيّم',
+  'Recommander': 'أعد الطلب',
+  'Notre équipe répond à vos questions sur cette commande.': 'فريقنا يجيب عن أسئلتك حول هذا الطلب.',
 };

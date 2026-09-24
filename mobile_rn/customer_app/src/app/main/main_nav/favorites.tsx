@@ -67,9 +67,9 @@ function FavCard({
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={2}>{item.name_fr}</Text>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{item.price_ttc.toFixed(2)} DH</Text>
+          <Text style={styles.price}>{item.price_ttc.toFixed(2)} MAD</Text>
           {item.old_price_ttc != null && item.old_price_ttc > item.price_ttc && (
-            <Text style={styles.oldPrice}>{item.old_price_ttc.toFixed(2)} DH</Text>
+            <Text style={styles.oldPrice}>{item.old_price_ttc.toFixed(2)} MAD</Text>
           )}
         </View>
       </View>

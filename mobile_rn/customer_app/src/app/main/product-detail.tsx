@@ -488,7 +488,7 @@ export default function ProductDetailScreen() {
           <View style={styles.priceQtyRow}>
             <View>
               <View style={styles.priceRow}>
-                <Text style={styles.price}>{article.price_ttc.toFixed(2)} DH</Text>
+                <Text style={styles.price}>{article.price_ttc.toFixed(2)} MAD</Text>
                 {article.unit_sale && article.unit_sale !== 'unit' && (
                   <Text style={styles.unit}>/ {article.unit_sale}</Text>
                 )}
@@ -496,7 +496,7 @@ export default function ProductDetailScreen() {
               {/* Prix barré et remise de la vente flash (maquette) */}
               {article.old_price_ttc != null && article.old_price_ttc > article.price_ttc && (
                 <View style={styles.oldRow}>
-                  <Text style={styles.oldPrice}>{article.old_price_ttc.toFixed(2)} DH</Text>
+                  <Text style={styles.oldPrice}>{article.old_price_ttc.toFixed(2)} MAD</Text>
                   {!!article.discount_pct && <DiscountBadge value={article.discount_pct} />}
                 </View>
               )}
@@ -572,11 +572,11 @@ export default function ProductDetailScreen() {
         <View style={styles.footerLeft}>
           <View style={styles.totalBlock}>
             <Text style={styles.totalLabel}>{t('TOTAL')}</Text>
-            <Text style={styles.totalValue}>{total} DH</Text>
+            <Text style={styles.totalValue}>{total} MAD</Text>
           </View>
           <TouchableOpacity style={styles.reviewFooterBtn} onPress={() => setReviewModal(true)} activeOpacity={0.8}>
   <MaterialCommunityIcons name="star" size={14} color={RED} />
-  <Text style={styles.reviewFooterBtnText}>{t('un avis')}</Text>
+  <Text style={styles.reviewFooterBtnText}>{t('Noter')}</Text>
 </TouchableOpacity>
         </View>
 

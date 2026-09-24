@@ -275,7 +275,7 @@ export default function OrderDetailScreen() {
                     {time && (
                       <View style={styles.stepTimeRow}>
                         <View style={styles.stepTimeLine} />
-                        <Text style={styles.stepTime}>Today, {time}</Text>
+                        <Text style={styles.stepTime}>{t("Aujourd'hui")}, {time}</Text>
                       </View>
                     )}
                   </View>
@@ -310,8 +310,8 @@ export default function OrderDetailScreen() {
           {/* ── Need Help? ── */}
           <View style={styles.helpSection}>
             <Feather name="help-circle" size={16} color="#6B7280" />
-            <Text style={styles.helpTitle}>{t('Need Help?')}</Text>
-            <Text style={styles.helpSub}>Contact our support team if you have any questions about your order.</Text>
+            <Text style={styles.helpTitle}>{t("Besoin d'aide ?")}</Text>
+            <Text style={styles.helpSub}>{t('Notre équipe répond à vos questions sur cette commande.')}</Text>
             <View style={styles.helpBtns}>
               <TouchableOpacity
                 style={styles.helpBtn}

@@ -34,17 +34,24 @@ const PACKS = [
   { key: 'TAJINE', node: 'MRK-GUELIZ', name_fr: 'Pack tajine du vendredi', name_ar: 'باك طاجين الجمعة', color: '#a04000', discount: 8, max: 25,
     desc_fr: 'Poulet fermier, légumes, épices et coriandre pour un tajine familial.', desc_ar: 'دجاج بلدي وخضر وتوابل وقزبر لطاجين عائلي.',
     items: [['VOL-POU-FER', 1], ['LEG-PDT-1KG', 1], ['LEG-OIG-1KG', 1], ['LEG-CAR-1KG', 1], ['EPI-ATI-CUM', 1], ['HER-COR-BOT', 1]] },
+  { key: 'PLAGE', node: 'AGA-SALAM', name_fr: 'Pack journée plage', name_ar: 'باك يوم الشاطئ', color: '#0288d1', discount: 10, max: 35,
+    desc_fr: 'Boissons fraîches et en-cas à emporter à la plage.', desc_ar: 'مشروبات باردة ووجبات خفيفة للشاطئ.',
+    items: [['EAU-SAL-PK6', 1], ['SOD-COC-CAN', 2], ['BIS-BIM-TON', 2], ['FRU-BAN-1KG', 1]] },
+  { key: 'PDJ', node: 'AGA-SALAM', name_fr: 'Pack petit-déjeuner', name_ar: 'باك الفطور', color: '#e67e22', discount: 10, max: 30,
+    desc_fr: 'Pain, lait, confiture et thé pour bien commencer la journée.', desc_ar: 'خبز وحليب ومربى وأتاي لبداية يوم جيدة.',
+    items: [['PAI-KHB-X2', 1], ['LAI-CEN-DEM', 1], ['CFT-AIC-FRA', 1], ['THE-SUL-250', 1]] },
 ];
 
 const FLASH = [
   { key: 'JUS', node: 'CASA-MAARIF', sku: 'JUS-JAO-ORA', name_fr: 'Vente flash : jus d’orange Jaouda', name_ar: 'عرض سريع: عصير البرتقال جودة', pct: 20, stock: 30, max: 2, start: -2, end: 5, color: '#f39c12' },
   { key: 'PDJ-RBA', node: 'RABAT-AGDAL', pack: 'PDJ', name_fr: 'Vente flash : pack petit-déjeuner', name_ar: 'عرض سريع: باك الفطور', pct: 15, stock: 15, max: 2, start: -1, end: 3, color: '#e67e22' },
   { key: 'THE-MRK', node: 'MRK-GUELIZ', sku: 'THE-SUL-500', name_fr: 'Vente flash : thé Sultan 500 g', name_ar: 'عرض سريع: شاي السلطان 500 غ', pct: 18, stock: 20, max: 2, start: 3, end: 10, color: '#b71c1c' },
+  { key: 'HUI-AGA', node: 'AGA-SALAM', sku: 'HUI-LES-1L', name_fr: 'Vente flash : huile Lesieur 1 L', name_ar: 'عرض سريع: زيت لوسيور 1 لتر', pct: 15, stock: 40, max: 2, start: -1, end: 6, color: '#f9a825' },
   { key: 'EAU-AIN', node: 'CASA-AINSEBAA', sku: 'EAU-SAL-PK6', name_fr: 'Vente flash : pack eau Sidi Ali', name_ar: 'عرض سريع: حزمة ماء سيدي علي', pct: 15, stock: 25, max: 2, start: -20, end: 1, endedDaysAgo: 12, color: '#0277bd' },
 ];
 
 const EXCHANGE = [['EAU-SAL-150', 60, 2], ['SOD-COC-CAN', 60, 2], ['BIS-BIM-TON', 40, 3], ['RAI-CEN-JAM', 30, 4], ['YAO-CEN-DUP', 40, 2], ['PAI-KHB-X2', 30, 2], ['HER-MEN-BOT', 30, 2], ['LAI-CEN-DEM', 80, 2], ['BIS-LUS-GAU', 70, 1], ['SAV-DOV-X2', 200, 1]];
-const EXCHANGE_NODES = ['CASA-MAARIF', 'RABAT-AGDAL'];
+const EXCHANGE_NODES = ['CASA-MAARIF', 'RABAT-AGDAL', 'AGA-SALAM'];
 
 function packImageSvg(p, skusByCode, nPieces) {
   const shapes = p.items.slice(0, 3).map(([c]) => skusByCode[c]?.shape || 'box');
@@ -176,6 +183,17 @@ async function run(ctx) {
         { prize_type: 'free_sku', name_fr: 'Biscuits Tonik offerts', name_ar: 'بسكويت تونيك مجانًا', sku: 'BIS-BIM-TON', probability_weight: 20, stock_limit: 40, sort_order: 3 },
         { prize_type: 'free_pack', name_fr: 'Pack petit-déjeuner offert', name_ar: 'باك الفطور مجانًا', pack: 'RABAT-AGDAL:PDJ', probability_weight: 5, stock_limit: 3, sort_order: 4 },
         { prize_type: 'no_prize', name_fr: 'Pas gagnant cette fois', name_ar: 'لم تربح هذه المرة', probability_weight: 25, sort_order: 5 },
+      ],
+    },
+    {
+      node: 'AGA-SALAM', name_fr: 'Roue de la chance Agadir', name_ar: 'عجلة الحظ أكادير', game_type: 'roulette',
+      unlock_condition: 'order_delivered', play_period: 'monthly', max_plays_per_user: 3, unlock_min_amount: 80,
+      prizes: [
+        { prize_type: 'points', name_fr: '50 points fidélité', name_ar: '50 نقطة ولاء', value: 50, probability_weight: 30, sort_order: 1 },
+        { prize_type: 'coupon', name_fr: 'Coupon -10 %', name_ar: 'قسيمة تخفيض 10%', value: 10, coupon_promo_type: 'PERCENTAGE', coupon_code_prefix: 'AGAD', coupon_min_order_amount: 100, coupon_validity_days: 15, probability_weight: 20, sort_order: 2 },
+        { prize_type: 'free_sku', name_fr: 'Eau Sidi Ali offerte', name_ar: 'ماء سيدي علي مجانًا', sku: 'EAU-SAL-150', probability_weight: 15, stock_limit: 60, sort_order: 3 },
+        { prize_type: 'free_pack', name_fr: 'Pack journée plage offert', name_ar: 'باك يوم الشاطئ مجانًا', pack: 'AGA-SALAM:PLAGE', probability_weight: 5, stock_limit: 4, sort_order: 4 },
+        { prize_type: 'no_prize', name_fr: 'Perdu, retentez votre chance', name_ar: 'حظ أوفر في المرة القادمة', probability_weight: 30, sort_order: 5 },
       ],
     },
   ];

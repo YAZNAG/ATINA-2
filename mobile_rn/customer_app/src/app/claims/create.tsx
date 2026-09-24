@@ -379,7 +379,7 @@ export default function CreateClaimScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.orderOptionRef}>Commande #{o.reference}</Text>
                     <Text style={styles.orderOptionMeta}>
-                      {new Date(o.created_at).toLocaleDateString('fr-FR')} · {Number(o.total_ttc).toFixed(2)} DH
+                      {new Date(o.created_at).toLocaleDateString('fr-FR')} · {Number(o.total_ttc).toFixed(2)} MAD
                     </Text>
                   </View>
                   {selectedOrderId === o.id && <Feather name="check" size={18} color={RED} />}

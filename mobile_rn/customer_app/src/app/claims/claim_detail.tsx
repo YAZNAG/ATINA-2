@@ -168,7 +168,7 @@ export default function ClaimDetailScreen() {
               <Feather name="package" size={16} color={RED} />
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.orderRef}>Commande #{claim.order.reference}</Text>
-                <Text style={styles.orderTotal}>{claim.order.total_ttc.toFixed(2)} DH</Text>
+                <Text style={styles.orderTotal}>{claim.order.total_ttc.toFixed(2)} MAD</Text>
               </View>
             </View>
           )}

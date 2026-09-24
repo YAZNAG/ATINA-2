@@ -175,7 +175,7 @@ export default function CardPaymentScreen() {
               <View style={styles.walletBadge}>
                 <Feather name="pocket" size={13} color="#16A34A" />
                 <Text style={styles.walletBadgeText}>
-                  {walletAmount.toFixed(2)} DH déduits depuis votre wallet
+                  {walletAmount.toFixed(2)} MAD déduits depuis votre wallet
                 </Text>
               </View>
             )}
@@ -254,7 +254,7 @@ export default function CardPaymentScreen() {
             {/* Total à payer */}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>{t('Total à payer')}</Text>
-              <Text style={styles.totalValue}>{cardAmount.toFixed(2)} DH</Text>
+              <Text style={styles.totalValue}>{cardAmount.toFixed(2)} MAD</Text>
             </View>
 
             {/* Sécurité */}

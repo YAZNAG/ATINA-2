@@ -1,0 +1,66 @@
+name: atina_client
+description: Application client Atina — courses en ligne et livraison.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Navigation par routes nommées, équivalent d'expo-router.
+  go_router: ^14.6.2
+
+  # Réseau : intercepteurs pour le jeton, le point de distribution et la langue.
+  dio: ^5.7.0
+
+  # État partagé (panier, favoris, session).
+  flutter_riverpod: ^2.6.1
+
+  # Stockage : coffre pour le jeton, préférences pour le reste.
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+
+  # Images distantes du catalogue, avec cache disque.
+  cached_network_image: ^3.4.1
+
+  # Position pour « mon adresse actuelle ».
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+
+  intl: ^0.20.2
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/atina/
+    - assets/images/app/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter_400Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter_500Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter_600SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter_700Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter_800ExtraBold.ttf
+          weight: 800
+
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic.ttf

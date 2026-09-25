@@ -1,95 +1,108 @@
-# DARK STORE APP — Rapport d'avancement projet
+# ATINA 2 — Plateforme Quick Commerce
 
-**Projet :** Dark Store App — Plateforme Quick Commerce  
-**Stack :** Node.js + Express + Prisma/PostgreSQL · React (Vite) · Flutter  
-**Dernière mise à jour :** 05/07/2026  
-**Branches actives :** `main` (production) · `dev` · `Hajar` · `Div2` · `mourtafiaa/substitution-produit`
-
----
-
-## 1. État global des modules
-
-| Module | Backend | Frontend Web | Mobile | État | Dernière mise à jour |
-|---|---|---|---|---|---|
-| Auth & RBAC | ✅ | ✅ | N/A | **Complet** | Mai 2026 |
-| Catalogue (familles, catégories, articles, SKUs, images) | ✅ | ✅ | ✅ | **Complet** | Mai 2026 |
-| Geo / Nodes / Slots | ✅ | ✅ | Indirect | **Complet** | Mai 2026 |
-| Clients & Adresses | ✅ | ✅ | ✅ | **Complet** | Mai 2026 |
-| Checkout | ✅ | ✅ | ✅ | **Complet** | Mai 2026 |
-| Orders / OMS | ✅ | ✅ | ✅ client | **Complet** | Mai 2026 |
-| Warehouse (zones, niveaux, emplacements) | ✅ | ✅ | — | **Complet** | Mai 2026 |
-| Stock (levels, moves, lots, rules, seuils) | ✅ | ✅ | — | **Complet** | Mai 2026 |
-| Picking (sessions, scan EAN, portail web, app) | ✅ | ✅ | ✅ | **Complet** | Mai 2026 |
-| Pickup (COD, confirm, cancel) | ✅ | ✅ | — | **Complet** | Mai 2026 |
-| Livraison / Tours / Driver portal | ✅ | ✅ | ✅ | **Complet** | Mai 2026 |
-| Staff (pickers, drivers) | ✅ | ✅ | — | **Complet** | Mai 2026 |
-| Paiements / Stripe | ✅ | Partiel | ✅ | **Avancé** | Mai 2026 |
-| Wallet & Loyalty / Referral | ✅ | Partiel | ✅ | **Avancé** | Mai 2026 |
-| Promotions & Coupons | ✅ | ✅ | ✅ | **Nouveau ✨** | Juillet 2026 |
-| FAQ & Support Chat | ✅ | ✅ | ✅ | **Nouveau ✨** | Juillet 2026 |
-| Avis & Reviews | ✅ | ✅ | ✅ | **Nouveau ✨** | Juillet 2026 |
-| Substitution produit | ✅ | ✅ | — | **Nouveau ✨** | Juillet 2026 |
-| Reporting / Dashboard | ✅ | Partiel | — | **Partiel** | Mai 2026 |
-| Mobile Customer | ✅ | N/A | ✅ | **Complet** | Juin 2026 |
-| Mobile Picker | ✅ | N/A | ✅ | **Avancé** | Mai 2026 |
-| Mobile Driver | ✅ | N/A | ✅ | **Avancé** | Mai 2026 |
+**Stack :** Node.js + Express + Prisma/PostgreSQL · React (Vite) · Flutter · React Native (Expo)
+**Production :** [atina2.atina.ma](https://atina2.atina.ma) — API `pm2 atina2-api` (port 5002)
+**Branche :** `main` (unique branche du dépôt)
+**Dernière mise à jour :** 25/09/2026
 
 ---
 
-## 2. Nouvelles fonctionnalités — Juillet 2026
-
-### Promotions & Coupons
-- Création et gestion des promotions (% ou montant fixe)
-- Codes coupon avec date d'expiration et limite d'utilisation
-- Application automatique au checkout
-- Backoffice : liste, activation/désactivation, statistiques d'utilisation
-
-### FAQ & Support Chat
-- Module FAQ avec catégories et questions/réponses
-- Chat support client en temps réel (Socket.IO)
-- Interface backoffice de gestion des tickets
-- App mobile customer : accès chat et FAQ intégrés
-
-### Avis & Reviews (Reviews)
-- Système de notation produits (1-5 étoiles)
-- Commentaires clients avec modération backoffice
-- Affichage sur la fiche article (app mobile + web)
-- Statistiques avis par article
-
-### Substitution produit (`mourtafiaa/substitution-produit`)
-- Module complet de substitution lors du picking
-- Suggestion automatique d'alternatives par SKU
-- Validation picker + notification client
-- Historique des substitutions par commande
-
----
-
-## 3. Architecture technique
+## 1. Contenu du dépôt
 
 ```
-dark-store-app/
+ATINA-2/
 ├── backend/              # Node.js + Express + Prisma
 │   ├── prisma/           # Schéma PostgreSQL + migrations
+│   ├── scripts/          # Seeds de démonstration, outils de maintenance
 │   ├── src/
 │   │   ├── modules/      # Un dossier par domaine métier
 │   │   ├── routes/       # index.js — routeur central
 │   │   ├── socket/       # Socket.IO (picker, chat)
 │   │   └── server.js
 │   └── .env.example
-├── frontend/             # React + Vite — backoffice admin
+├── frontend/             # React + Vite — back-office
 │   └── src/
 │       ├── pages/        # Une page par module
 │       ├── components/
 │       └── routes/
 ├── mobile/
-│   └── customer_app/     # Flutter (app client)
-│       └── lib/
-│           ├── screens/  # écrans, organisés comme les routes
-│           ├── services/ # appels d'API
-│           ├── state/    # états partagés (Riverpod)
-│           └── theme/    # charte Figma et composants
+│   └── customer_app/     # Flutter — application client
+│       ├── lib/
+│       │   ├── core/     # configuration, client HTTP, jeton, préférences
+│       │   ├── i18n/     # traduction FR/AR et RTL
+│       │   ├── screens/  # écrans, organisés comme les routes
+│       │   ├── services/ # appels d'API
+│       │   ├── state/    # états partagés (Riverpod)
+│       │   ├── theme/    # charte Figma et composants
+│       │   └── widgets/
+│       └── test/         # 97 tests : chaque écran en FR et en AR
+├── mobile_rn/
+│   └── agent_app/        # React Native + Expo — application agent
+├── docs/                 # crédits des photos du catalogue
 └── README.md
 ```
+
+---
+
+## 2. État des modules
+
+| Module | Backend | Back-office | Mobile client | État |
+|---|---|---|---|---|
+| Auth & RBAC | ✅ | ✅ | ✅ | Complet |
+| Catalogue (familles, catégories, articles, SKUs, images) | ✅ | ✅ | ✅ | Complet |
+| Geo / Nodes / Créneaux | ✅ | ✅ | Indirect | Complet |
+| Clients & Adresses | ✅ | ✅ | ✅ | Complet |
+| Checkout | ✅ | ✅ | ✅ | Complet |
+| Commandes / OMS | ✅ | ✅ | ✅ | Complet |
+| Entrepôt (zones, niveaux, emplacements) | ✅ | ✅ | — | Complet |
+| Stock (niveaux, mouvements, lots, seuils) | ✅ | ✅ | — | Complet |
+| Picking (sessions, scan EAN) | ✅ | ✅ | — | Complet côté serveur |
+| Pickup (COD, confirmation, annulation) | ✅ | ✅ | ✅ | Complet |
+| Livraison / Tournées | ✅ | ✅ | — | Complet côté serveur |
+| Staff (préparateurs, livreurs) | ✅ | ✅ | — | Complet |
+| Paiements / Stripe | ✅ | Partiel | ✅ | Avancé |
+| Wallet, Fidélité, Parrainage | ✅ | Partiel | ✅ | Avancé |
+| Promotions & Coupons | ✅ | ✅ | ✅ | Complet |
+| FAQ & Chat support | ✅ | ✅ | ✅ | Complet |
+| Avis produits | ✅ | ✅ | ✅ | Complet |
+| Substitution produit | ✅ | ✅ | ✅ | Complet |
+| Jeux & lots | ✅ | ✅ | ✅ | Complet |
+| Reporting / Tableau de bord | ✅ | Partiel | — | Partiel |
+
+---
+
+## 3. Applications mobiles
+
+| Application | Emplacement | Technologie | État |
+|---|---|---|---|
+| Client | `mobile/customer_app` | Flutter 3.38 | **Complet** — 46 écrans |
+| Agent | `mobile_rn/agent_app` | React Native + Expo | En service |
+
+Les applications **préparateur** et **livreur** n'existent pas dans ce dépôt : leurs
+fonctions sont assurées par le back-office (`/api/picker/*` et `/api/driver/*` sont
+déjà exposées côté serveur).
+
+### Application client (Flutter)
+
+Portée depuis la version Expo en septembre 2026, à iso-design avec les maquettes
+Figma « app client » : rouge `#E10600`, police Inter, cartes arrondies.
+
+- **Paquet Android :** `ma.atina.client` · version 1.0.0
+- **Bilingue** français / arabe (670 libellés), bascule RTL sans redémarrage
+- **Tests :** `flutter test` monte les 46 écrans dans les deux langues (97 tests)
+
+```bash
+cd mobile/customer_app
+flutter pub get
+flutter test                 # 97 tests : écrans, charte, mesures
+flutter run                  # backend de production
+flutter build apk --release  # APK à distribuer
+```
+
+Backend local : `flutter run --dart-define=API_URL=http://192.168.1.10:5002/api`
+
+> L'APK Flutter n'est pas signé avec le keystore EAS de l'ancienne application Expo :
+> il faut désinstaller celle-ci avant d'installer, ou signer avec le même keystore.
 
 ---
 
@@ -98,144 +111,126 @@ dark-store-app/
 | Élément | Valeur |
 |---|---|
 | Préfixe global | `/api` |
-| Auth admin | `Authorization: Bearer <token>` |
-| Auth customer | JWT sur routes `/api/customer/*` |
-| Auth picker | JWT sur routes `/api/picker/*` |
-| Auth driver | JWT sur routes `/api/driver/*` |
-| Réponse standard | `{ success, message, data }` ou paginé |
-| Uploads | `multipart/form-data` (catalogue, images) |
-| Temps réel | Socket.IO (picker + chat support) |
+| Auth back-office | `Authorization: Bearer <token>` |
+| Auth client | JWT sur `/api/customer/*` |
+| Auth préparateur | JWT sur `/api/picker/*` |
+| Auth livreur | JWT sur `/api/driver/*` |
+| Point de distribution | En-tête `X-Node-Id` (catalogue, prix, stock) |
+| Langue | En-tête `X-Lang` (`fr` ou `ar`) |
+| Réponse standard | `{ success, message, data }`, paginée si besoin |
+| Uploads | `multipart/form-data` |
+| Temps réel | Socket.IO (picking, chat support) |
 
 ---
 
 ## 5. APIs par module
 
-### Auth & Users
+### Auth & Utilisateurs
 `/api/auth` · `/api/users` · `/api/roles` · `/api/permissions`
 
 ### Catalogue
-`/api/catalog/families` · `/api/catalog/categories` · `/api/catalog/sub-categories`  
-`/api/catalog/brands` · `/api/catalog/articles` · `/api/catalog/skus`  
+`/api/catalog/families` · `/api/catalog/categories` · `/api/catalog/sub-categories`
+`/api/catalog/brands` · `/api/catalog/articles` · `/api/catalog/skus`
 `/api/catalog/units` · `/api/catalog/taxes` · `/api/catalog/packaging-types`
 
-### Geo & Nodes
-`/api/regions` · `/api/provinces` · `/api/cities`  
+### Géographie & Points de distribution
+`/api/regions` · `/api/provinces` · `/api/cities`
 `/api/node-types` · `/api/nodes` · `/api/slots`
 
 ### Clients
 `/api/customers` · `/api/addresses`
 
-### Customer Mobile
-`/api/customer/auth` · `/api/customer/catalog` · `/api/customer/checkout`  
-`/api/customer/me` · `/api/customer/me/orders` · `/api/customer/me/wallet`  
-`/api/customer/me/notifications`
+### Application client
+`/api/customer/auth` · `/api/customer/catalog` · `/api/customer/cart`
+`/api/customer/checkout` · `/api/customer/me` · `/api/customer/me/orders`
+`/api/customer/me/addresses` · `/api/customer/me/favorites` · `/api/customer/me/notifications`
+`/api/customer/promotions` · `/api/customer/pack` · `/api/customer/coupons`
+`/api/customer/loyalty` · `/api/customer/wallet` · `/api/customer/points-exchange`
+`/api/customer/games` · `/api/customer/support` · `/api/customer/faq`
+`/api/customer/claims` · `/api/customer/reviews` · `/api/customer/substitutions`
 
-### Checkout Backoffice
-`/api/checkout/meta` · `/api/checkout/eligible-nodes` · `/api/checkout/delivery-slots`  
+### Checkout back-office
+`/api/checkout/meta` · `/api/checkout/eligible-nodes` · `/api/checkout/delivery-slots`
 `/api/checkout/calculate` · `/api/checkout/create-order`
 
-### Orders / OMS
-`/api/orders/statuses` · `/api/orders/delivery-slots`  
-`/api/orders-mgmt` · `/api/orders-mgmt/:id/transitions` · `/api/orders-mgmt/:id/history`  
+### Commandes / OMS
+`/api/orders/statuses` · `/api/orders/delivery-slots`
+`/api/orders-mgmt` · `/api/orders-mgmt/:id/transitions` · `/api/orders-mgmt/:id/history`
 `/api/orders-mgmt/:id/assign-picker` · `/api/orders-mgmt/:id/confirm-pickup`
 
-### Warehouse
-`/api/warehouse/zones` · `/api/warehouse/levels`  
+### Entrepôt
+`/api/warehouse/zones` · `/api/warehouse/levels`
 `/api/warehouse/locations` · `/api/warehouse/sku-locations`
 
 ### Stock
-`/api/stock/levels` · `/api/stock/moves` · `/api/stock/lots`  
+`/api/stock/levels` · `/api/stock/moves` · `/api/stock/lots`
 `/api/stock/selling-rules` · `/api/stock/reorder-rules` · `/api/stock/thresholds`
 
 ### Picking
-`/api/picking/sessions` · `/api/picking/items`  
+`/api/picking/sessions` · `/api/picking/items`
 `/api/picker/login` · `/api/picker/available-orders` · `/api/picker/sessions/:id`
 
 ### Pickup
-`/api/pickup/ready-orders` · `/api/pickup/orders/:id/collect-cod`  
+`/api/pickup/ready-orders` · `/api/pickup/orders/:id/collect-cod`
 `/api/pickup/orders/:id/confirm` · `/api/pickup/orders/:id/cancel`
 
-### Livraison & Driver
-`/api/delivery/tours` · `/api/delivery/stops`  
+### Livraison
+`/api/delivery/tours` · `/api/delivery/stops`
 `/api/driver/login` · `/api/driver/tours` · `/api/driver/stops/:id`
 
 ### Staff
 `/api/staff/pickers` · `/api/staff/drivers`
 
-### Payment & Wallet
-`/api/payment/methods` · `/api/payment/statuses`  
-`/api/payment/stripe/create-intent` · `/api/payment/stripe/webhook` · `/api/payment/stripe/refund`  
+### Paiement & Wallet
+`/api/payment/methods` · `/api/payment/statuses`
+`/api/payment/stripe/create-intent` · `/api/payment/stripe/webhook` · `/api/payment/stripe/refund`
 `/api/wallet/transactions` · `/api/wallet/credit` · `/api/wallet/debit`
 
-### Promotions & Coupons ✨
-`/api/promotions` · `/api/promotions/:id`  
-`/api/coupons` · `/api/coupons/apply` · `/api/coupons/validate`
+### Promotions & Coupons
+`/api/promotions` · `/api/coupons` · `/api/coupons/apply` · `/api/coupons/validate`
 
-### FAQ & Support Chat ✨
-`/api/faq/categories` · `/api/faq/questions`  
-`/api/support/tickets` · `/api/support/chat` (Socket.IO)
+### FAQ & Support
+`/api/faq/categories` · `/api/faq/questions` · `/api/support/tickets` · `/api/support/chat`
 
-### Avis & Reviews ✨
-`/api/reviews` · `/api/reviews/by-article/:articleId`  
+### Avis
+`/api/reviews` · `/api/reviews/by-article/:articleId`
 `/api/reviews/:id/approve` · `/api/reviews/:id/reject`
 
-### Substitution produit ✨
-`/api/picking/items/:itemId/substitute`  
+### Substitution produit
+`/api/picking/items/:itemId/substitute`
 `/api/substitutions` · `/api/substitutions/suggestions/:skuId`
 
-### Loyalty
+### Fidélité & Reporting
 `/api/loyalty/referrals` · `/api/loyalty/my-referrals`
-
-### Reporting
-`/api/reporting/dashboard` · `/api/reporting/orders` · `/api/reporting/picking`  
+`/api/reporting/dashboard` · `/api/reporting/orders` · `/api/reporting/picking`
 `/api/reporting/delivery` · `/api/reporting/stock` · `/api/reporting/payments`
 
 ---
 
-## 6. Applications mobiles
-
-| App | Stack | État | Couleur thème |
-|---|---|---|---|
-| Customer (`mobile/customer_app`) | Flutter | **Complet** | Rouge `#E10600` |
-| Picker (`mobile/picker_app`) | Flutter | **Avancé** | Violet `#7C3AED` |
-| Driver (`mobile/driver_app`) | Flutter | **Avancé** | Emerald `#059669` |
-
-### Lancer en local
+## 6. Lancer en local
 
 ```bash
-# Backend
+# Backend — http://localhost:5002
 cd backend && cp .env.example .env && npm install && npm run db:migrate && npm run db:seed && npm run dev
 
-# Frontend
+# Back-office — http://localhost:5173
 cd frontend && npm install && npm run dev
 
-# Mobile Customer
+# Application client
 cd mobile/customer_app && flutter pub get && flutter run
 ```
 
 ---
 
-## 7. Priorités restantes
+## 7. Travaux restants
 
 | Priorité | Travail |
 |---|---|
 | P0 | Tests transactionnels PostgreSQL (checkout, stock) |
-| P0 | Finaliser picking mobile : scan EAN offline/retry |
-| P1 | Stripe webhook production + refunds complets |
+| P1 | Stripe : webhook de production et remboursements complets |
 | P1 | Wallet : ledger complet et réconciliation |
 | P1 | Notifications push client et staff |
-| P2 | Reporting avancé + exports |
-| P2 | Promotions : règles avancées (combinaison, exclusions) |
-| P2 | Reviews : pagination, tri, filtres avancés |
-
----
-
-## 8. Branches
-
-| Branche | Rôle | Dernier commit |
-|---|---|---|
-| `main` | Production — version stable | 05/07/2026 |
-| `dev` | Développement principal | 07/06/2026 |
-| `Hajar` | Features : promotions, FAQ, chat, reviews | 04/07/2026 |
-| `Div2` | Picker app — alignement APIs + EAS build | Juin 2026 |
-| `mourtafiaa/substitution-produit` | Module substitution produit picking | 02/07/2026 |
+| P2 | Photos manquantes : 78 des 158 produits vendables n'en ont pas |
+| P2 | Remplacer les contacts support de test dans le back-office |
+| P2 | Reporting avancé et exports |
+| P2 | Applications préparateur et livreur, si le terrain les demande |

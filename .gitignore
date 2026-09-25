@@ -1,23 +1,31 @@
-# Environment
+# Environnement
 .env
 .env.*
 
 !.env.example
 
-# Dependencies
+# Dépendances
 node_modules/
 
-# IDE
+# Éditeurs et outils
 .idea/
 .vscode/
+.claude/
+.dart_tool/
 
-# Logs
+# Journaux
 *.log
 
-# Build
+# Sorties de compilation
 dist/
 build/
 coverage/
 
-# OS
+# Sauvegardes et fichiers temporaires
+*.sql.bak
+backup_*.sql
+*.tmp
+
+# Système
 .DS_Store
+Thumbs.db

@@ -37,9 +37,15 @@ import 'screens/support/support_screens.dart';
 
 /// Routes de l'application, reprises une à une des chemins d'expo-router pour que
 /// les deux versions se correspondent écran par écran.
-final router = GoRouter(
-  initialLocation: '/',
-  routes: [
+final router = GoRouter(initialLocation: '/', routes: appRoutes, errorBuilder: _error);
+
+/// Écran affiché quand une route n'existe pas.
+Widget _error(BuildContext context, GoRouterState state) => Scaffold(
+      body: Center(child: Text('Écran introuvable : ${state.uri}')),
+    );
+
+/// Table des routes, partagée avec les tests qui montent chaque écran.
+final List<RouteBase> appRoutes = [
     GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
 
     // ── Ouverture ───────────────────────────────────────────────────────────
@@ -175,8 +181,4 @@ final router = GoRouter(
       path: '/claims/:id',
       builder: (_, state) => ClaimDetailScreen(claimId: state.pathParameters['id']!),
     ),
-  ],
-  errorBuilder: (_, state) => Scaffold(
-    body: Center(child: Text('Écran introuvable : ${state.uri}')),
-  ),
-);
+];

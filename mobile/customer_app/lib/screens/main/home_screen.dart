@@ -95,7 +95,7 @@ class HomeScreen extends ConsumerWidget {
                     crossAxisCount: 2,
                     mainAxisSpacing: S.lg,
                     crossAxisSpacing: S.lg,
-                    mainAxisExtent: 216,
+                    mainAxisExtent: 228,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => ProductCard(
@@ -204,7 +204,7 @@ class _Categories extends StatelessWidget {
       children: [
         SectionTitle(title: t('Catégories'), onSeeAll: onSeeAll),
         SizedBox(
-          height: 96,
+          height: 104,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: S.lg),
@@ -271,7 +271,7 @@ class _Carousel extends StatelessWidget {
         children: [
           SectionTitle(title: title),
           SizedBox(
-            height: 216,
+            height: 228,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: S.lg),

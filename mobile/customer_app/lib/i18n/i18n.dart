@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../core/prefs.dart';
@@ -22,13 +23,29 @@ class I18n {
   static final langNotifier = ValueNotifier<String>('fr');
 
   /// Lu au démarrage, avant le premier écran. Ne lève jamais.
+  ///
+  /// Les symboles de date des deux locales sont chargés ici : sans cela,
+  /// `DateFormat` lève `LocaleDataException` dès qu'un écran affiche une date.
   static Future<void> init() async {
     try {
       _lang = Prefs.get(Prefs.langKey) == 'ar' ? 'ar' : 'fr';
     } catch (_) {
       _lang = 'fr';
     }
+    await loadDateSymbols();
     langNotifier.value = _lang;
+  }
+
+  /// Charge les symboles de date utilisés par [fmtDate] et [fmtNumber].
+  static Future<void> loadDateSymbols() async {
+    try {
+      await Future.wait([
+        initializeDateFormatting('fr_FR'),
+        initializeDateFormatting('ar_MA'),
+      ]);
+    } catch (_) {
+      // Les dates retomberont sur la locale par défaut.
+    }
   }
 
   static Future<void> setLanguage(String lang) async {

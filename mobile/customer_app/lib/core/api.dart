@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../i18n/i18n.dart';
 import 'config.dart';
@@ -29,6 +30,11 @@ class Api {
   Api._();
 
   static final Dio _dio = _build();
+
+  /// Point d'entrée des tests : permet de brancher un adaptateur qui répond à la
+  /// place du réseau, sans changer le reste du code.
+  @visibleForTesting
+  static Dio get client => _dio;
 
   static Dio _build() {
     final dio = Dio(

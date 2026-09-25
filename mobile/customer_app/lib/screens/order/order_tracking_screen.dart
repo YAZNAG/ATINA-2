@@ -198,8 +198,10 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   Widget _infoCard(Map<String, dynamic> order, bool isPickup) {
-    final address = (order['address'] as Map?)?.cast<String, dynamic>();
-    final slot = (order['slot'] as Map?)?.cast<String, dynamic>();
+    // Selon la route, l'API renvoie l'adresse comme objet ou comme liste : on
+    // accepte les deux plutôt que de laisser l'écran planter.
+    final address = _premierObjet(order['address']);
+    final slot = _premierObjet(order['slot']);
 
     return Container(
       padding: const EdgeInsets.all(S.md),
@@ -238,6 +240,17 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       ),
     );
   }
+}
+
+/// Objet unique, qu'il arrive seul ou dans une liste.
+Map<String, dynamic>? _premierObjet(dynamic valeur) {
+  if (valeur is Map) return valeur.cast<String, dynamic>();
+  if (valeur is List) {
+    for (final element in valeur) {
+      if (element is Map) return element.cast<String, dynamic>();
+    }
+  }
+  return null;
 }
 
 class _StepTile extends StatelessWidget {

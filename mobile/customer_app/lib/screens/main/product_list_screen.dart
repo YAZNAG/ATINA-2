@@ -79,7 +79,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           crossAxisCount: 2,
                           crossAxisSpacing: S.lg,
                           mainAxisSpacing: S.lg,
-                          mainAxisExtent: 216,
+                          mainAxisExtent: 228,
                         ),
                         itemCount: _items.length,
                         itemBuilder: (context, i) => ProductCard(

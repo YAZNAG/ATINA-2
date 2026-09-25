@@ -202,7 +202,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ],
                   SliverToBoxAdapter(
-                    child: Padding(
+                    // Les quatre tris tiennent rarement sur une largeur de
+                    // téléphone : la rangée défile au doigt plutôt que de déborder.
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.fromLTRB(S.lg, S.lg, S.lg, S.md),
                       child: Row(
                         children: [
@@ -247,7 +250,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          mainAxisExtent: 216,
+                          mainAxisExtent: 228,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, i) => ProductCard(

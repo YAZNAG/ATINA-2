@@ -136,7 +136,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                 SearchField(value: _query, onChanged: _onQuery),
                 if (_subs.isNotEmpty)
                   SizedBox(
-                    height: 94,
+                    height: 104,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.only(top: 10, bottom: 12),
@@ -196,7 +196,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                           crossAxisCount: 2,
                           crossAxisSpacing: gap,
                           mainAxisSpacing: gap,
-                          mainAxisExtent: 216,
+                          mainAxisExtent: 228,
                         ),
                         itemCount: _items.length + (_loadingMore ? 1 : 0),
                         itemBuilder: (context, i) => i >= _items.length
